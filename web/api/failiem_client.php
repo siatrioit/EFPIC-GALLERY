@@ -214,6 +214,114 @@ function efpic_failiem_fetch_binary(array $config, string $url): ?string
     return $data === false ? null : $data;
 }
 
+function efpic_failiem_folder_zip_url(array $config, string $folderHash): string
+{
+    return efpic_failiem_api_base($config)
+        . '/server_scripts/zip/zip_streamer/upload_zip_streamer.php?uhash='
+        . rawurlencode($folderHash);
+}
+
+function efpic_failiem_delivery_folder_hash(array $meta, string $size): string
+{
+    $failiem = $meta['failiem'] ?? [];
+    if (!is_array($failiem)) {
+        return '';
+    }
+    if ($size === 'full') {
+        return efpic_failiem_parse_folder_hash((string) ($failiem['folder_full_hash'] ?? ''))
+            ?: efpic_failiem_parse_folder_hash((string) ($failiem['folder_full_url'] ?? ''));
+    }
+
+    return efpic_failiem_parse_folder_hash((string) ($failiem['folder_web_hash'] ?? ''))
+        ?: efpic_failiem_parse_folder_hash((string) ($failiem['folder_web_url'] ?? ''));
+}
+
+/** Vai drīkst lietot Failiem mapes ZIP (visa mape, bez filtra un slēptajām). */
+function efpic_can_failiem_folder_zip(array $meta, array $ctx): bool
+{
+    if (($meta['type'] ?? '') !== 'delivery') {
+        return false;
+    }
+    if (is_array($ctx['share_image_tokens'] ?? null)) {
+        return false;
+    }
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && !empty($img['client_hidden'])) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/** Straumē Failiem sagatavoto ZIP uz izvadi (klientam fetch ar gaidīšanu). */
+function efpic_failiem_stream_folder_zip(array $config, string $folderHash, string $downloadName): bool
+{
+    $folderHash = efpic_failiem_parse_folder_hash($folderHash);
+    if ($folderHash === '') {
+        return false;
+    }
+
+    $url = efpic_failiem_folder_zip_url($config, $folderHash);
+    if (function_exists('curl_init')) {
+        $f = efpic_failiem_cfg($config);
+        $headers = ['Accept: application/zip'];
+        $apiKey = (string) ($f['api_key'] ?? '');
+        if ($apiKey !== '') {
+            $headers[] = 'Authorization: Bearer ' . $apiKey;
+        }
+
+        $ch = curl_init($url);
+        if ($ch === false) {
+            return false;
+        }
+
+        $opts = [
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 0,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk): int {
+                echo $chunk;
+                if (function_exists('ob_get_level') && ob_get_level() > 0) {
+                    @ob_flush();
+                }
+                flush();
+
+                return strlen($chunk);
+            },
+        ];
+        $user = (string) ($f['user'] ?? '');
+        $pass = (string) ($f['pass'] ?? '');
+        if ($user !== '' && $pass !== '') {
+            $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+        }
+
+        curl_setopt_array($ch, $opts);
+        curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+
+        return $code >= 200 && $code < 300;
+    }
+
+    $ctx = stream_context_create(['http' => ['timeout' => 600, 'follow_location' => 1]]);
+    $fp = @fopen($url, 'rb', false, $ctx);
+    if ($fp === false) {
+        return false;
+    }
+    while (!feof($fp)) {
+        $chunk = fread($fp, 65536);
+        if ($chunk === false) {
+            break;
+        }
+        echo $chunk;
+        flush();
+    }
+    fclose($fp);
+
+    return true;
+}
+
 function efpic_failiem_redirect_media(array $config, string $fileHash, bool $thumb, int $width = 720): void
 {
     $url = $thumb

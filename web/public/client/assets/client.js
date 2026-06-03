@@ -106,7 +106,9 @@
     if (evt.key !== 'Escape') return;
     closeModal();
     closeDlModal();
+    closeZipProgress();
     closeGalleryDlModal();
+    closeCollectionDlModal();
   });
 
   var dlModal = document.getElementById('downloadModal');
@@ -153,7 +155,10 @@
   });
 
   var gdlModal = document.getElementById('galleryDownloadModal');
+  var cdlModal = document.getElementById('collectionDownloadModal');
+  var zipProgressModal = document.getElementById('zipProgressModal');
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
+  var zipFetchAbort = null;
 
   function openGalleryDlModal() {
     if (!gdlModal) return;
@@ -164,18 +169,165 @@
   function closeGalleryDlModal() {
     if (!gdlModal) return;
     gdlModal.hidden = true;
-    document.body.style.overflow = '';
+    if (!cdlModal || cdlModal.hidden) {
+      if (!zipProgressModal || zipProgressModal.hidden) {
+        document.body.style.overflow = '';
+      }
+    }
   }
 
-  document.querySelectorAll('[data-gallery-dl-open], [data-collection-dl-open]').forEach(function (btn) {
+  function openCollectionDlModal() {
+    if (!cdlModal) return;
+    cdlModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeCollectionDlModal() {
+    if (!cdlModal) return;
+    cdlModal.hidden = true;
+    if (!gdlModal || gdlModal.hidden) {
+      if (!zipProgressModal || zipProgressModal.hidden) {
+        document.body.style.overflow = '';
+      }
+    }
+  }
+
+  function updateCollectionDownloadTitle(count) {
+    var titleEl = document.getElementById('collectionDownloadModalTitle');
+    if (!titleEl) return;
+    titleEl.textContent =
+      count === 1 ? 'Atlasītā (1) bilde' : 'Atlasītās (' + count + ') bildes';
+  }
+
+  function openZipProgress(hint) {
+    if (!zipProgressModal) return;
+    var hintEl = document.getElementById('zipProgressHint');
+    if (hintEl && hint) hintEl.textContent = hint;
+    zipProgressModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeZipProgress() {
+    if (zipFetchAbort) {
+      zipFetchAbort.abort();
+      zipFetchAbort = null;
+    }
+    if (!zipProgressModal) return;
+    zipProgressModal.hidden = true;
+    if ((!gdlModal || gdlModal.hidden) && (!cdlModal || cdlModal.hidden)) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  function triggerBlobDownload(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () {
+      URL.revokeObjectURL(url);
+    }, 2000);
+  }
+
+  function startZipDownload(downloadUrl, filename) {
+    if (!downloadUrl) return;
+    closeGalleryDlModal();
+    closeCollectionDlModal();
+    openZipProgress('Lūdzu uzgaidiet — ZIP tiek gatavots…');
+    if (zipFetchAbort) {
+      zipFetchAbort.abort();
+    }
+    zipFetchAbort = new AbortController();
+    var signal = zipFetchAbort.signal;
+
+    function attemptFetch(tryNum) {
+      var hintEl = document.getElementById('zipProgressHint');
+      if (hintEl) {
+        hintEl.textContent =
+          tryNum > 1
+            ? 'ZIP tiek gatavots… (mēģinājums ' + tryNum + ')'
+            : 'Lūdzu uzgaidiet — ZIP tiek gatavots…';
+      }
+      return fetch(downloadUrl, { credentials: 'same-origin', signal: signal })
+        .then(function (res) {
+          if (!res.ok) {
+            return res.text().then(function (text) {
+              throw new Error(text || 'Lejupielāde neizdevās (' + res.status + ')');
+            });
+          }
+          var type = (res.headers.get('Content-Type') || '').toLowerCase();
+          if (type.indexOf('zip') < 0 && type.indexOf('octet-stream') < 0 && type.indexOf('html') >= 0) {
+            return res.text().then(function (text) {
+              throw new Error(text || 'Serveris neatgrieza ZIP failu');
+            });
+          }
+          return res.blob();
+        })
+        .then(function (blob) {
+          if (!blob || blob.size < 64) {
+            if (tryNum < 45 && !signal.aborted) {
+              return new Promise(function (resolve, reject) {
+                setTimeout(function () {
+                  attemptFetch(tryNum + 1).then(resolve).catch(reject);
+                }, 2000);
+              });
+            }
+            throw new Error('ZIP vēl nav gatavs — mēģini vēlāk');
+          }
+          triggerBlobDownload(blob, filename);
+          closeZipProgress();
+        });
+    }
+
+    attemptFetch(1)
+      .catch(function (err) {
+        if (err && err.name === 'AbortError') return;
+        var hintEl = document.getElementById('zipProgressHint');
+        if (hintEl) {
+          hintEl.textContent =
+            err && err.message ? err.message : 'Neizdevās lejupielādēt ZIP. Mēģini vēlreiz.';
+        }
+        if (zipProgressModal) zipProgressModal.hidden = false;
+      })
+      .finally(function () {
+        zipFetchAbort = null;
+      });
+  }
+
+  function zipFilenameFor(scope, size) {
+    var base = 'galerija-' + size;
+    if (scope === 'collection') base = 'izlase-' + size;
+    return base + '.zip';
+  }
+
+  document.querySelectorAll('[data-gallery-dl-open]').forEach(function (btn) {
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
       openGalleryDlModal();
     });
   });
 
+  document.querySelectorAll('[data-collection-dl-open]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      openCollectionDlModal();
+    });
+  });
+
   document.querySelectorAll('[data-gdl-close]').forEach(function (btn) {
     btn.addEventListener('click', closeGalleryDlModal);
+  });
+
+  document.querySelectorAll('[data-cdl-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeCollectionDlModal);
+  });
+
+  document.querySelectorAll('[data-zip-progress-cancel]').forEach(function (btn) {
+    btn.addEventListener('click', closeZipProgress);
   });
 
   if (gdlModal) {
@@ -184,16 +336,39 @@
     });
   }
 
-  document.querySelectorAll('[data-gdl-scope][data-gdl-size]').forEach(function (btn) {
+  if (cdlModal) {
+    cdlModal.addEventListener('click', function (evt) {
+      if (evt.target === cdlModal) closeCollectionDlModal();
+    });
+  }
+
+  if (zipProgressModal) {
+    zipProgressModal.addEventListener('click', function (evt) {
+      if (evt.target === zipProgressModal) closeZipProgress();
+    });
+  }
+
+  document.querySelectorAll('[data-gdl-scope="all"][data-gdl-size]').forEach(function (btn) {
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
       if (!gdlBase) return;
-      var scope = btn.getAttribute('data-gdl-scope') || 'all';
       var size = btn.getAttribute('data-gdl-size') || 'web';
-      var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
-      window.location.href =
-        gdlBase + path + '?size=' + encodeURIComponent(size);
-      closeGalleryDlModal();
+      startZipDownload(
+        gdlBase + '/download.zip?size=' + encodeURIComponent(size),
+        zipFilenameFor('all', size)
+      );
+    });
+  });
+
+  document.querySelectorAll('[data-cdl-size]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      if (!gdlBase) return;
+      var size = btn.getAttribute('data-cdl-size') || 'web';
+      startZipDownload(
+        gdlBase + '/collection/zip?size=' + encodeURIComponent(size),
+        zipFilenameFor('collection', size)
+      );
     });
   });
 
@@ -644,6 +819,7 @@
     }
     tray.hidden = count <= 0;
     tray.classList.toggle('is-visible', count > 0);
+    updateCollectionDownloadTitle(count);
   }
 
   document.querySelectorAll('[data-like-toggle]').forEach(function (btn) {
