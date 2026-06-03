@@ -85,10 +85,10 @@ function efpic_client_zip_progress_modal(): string
 {
     return '<div class="modal-backdrop" id="zipProgressModal" hidden role="dialog" aria-labelledby="zipProgressTitle" aria-busy="true">'
         . '<div class="modal modal--zip-progress">'
-        . '<div class="zip-progress-spinner" aria-hidden="true"></div>'
-        . '<h2 id="zipProgressTitle">ZIP tiek gatavots</h2>'
-        . '<p class="muted" id="zipProgressHint">Lūdzu uzgaidiet — Failiem sagatavo arhīvu…</p>'
-        . '<button type="button" class="btn" data-zip-progress-cancel>Aizvērt</button>'
+        . '<div class="zip-progress-spinner" id="zipProgressSpinner" aria-hidden="true"></div>'
+        . '<h2 id="zipProgressTitle">Sagatavo lejupielādi…</h2>'
+        . '<p class="muted" id="zipProgressHint">Lūdzu uzgaidiet…</p>'
+        . '<button type="button" class="btn primary" id="zipProgressOkBtn" data-zip-progress-ok hidden>Labi</button>'
         . '</div></div>';
 }
 
@@ -1182,10 +1182,9 @@ function efpic_client_zip_prepare_response(
         }
         efpic_json_response(200, [
             'ok' => true,
-            'mode' => 'files',
-            'files' => $files,
+            'mode' => 'server',
             'filename' => $filename,
-            'hint' => 'Lejupielādē ' . count($files) . ' atlasītās bildes no Failiem.lv…',
+            'hint' => 'Sagatavo ZIP ar ' . count($files) . ' atlasītajām bildēm…',
         ]);
     }
 
@@ -1202,23 +1201,35 @@ function efpic_client_zip_prepare_response(
         }
     }
 
-    if ($scope === 'all' && $size !== 'both' && ($meta['type'] ?? '') === 'delivery') {
+    if ($scope === 'all' && $size !== 'both') {
         $images = efpic_client_navigable_images($meta, $ctx);
+        if ($images === []) {
+            efpic_json_response(400, ['ok' => false, 'error' => 'Nav lejupielādējamu bildes']);
+        }
         $files = efpic_client_zip_files_from_images($config, $images, $size);
-        if ($files !== [] && count($files) <= 25) {
+        if ($files === []) {
+            efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
+        }
+        if (count($files) === 1) {
             efpic_json_response(200, [
                 'ok' => true,
-                'mode' => 'files',
-                'files' => $files,
-                'filename' => $filename,
-                'hint' => 'Lejupielādē ' . count($files) . ' bildes no Failiem.lv…',
+                'mode' => 'failiem',
+                'url' => $files[0]['url'],
+                'filename' => $files[0]['name'],
+                'hint' => 'Lejupielāde sākas no Failiem.lv…',
             ]);
         }
+        efpic_json_response(200, [
+            'ok' => true,
+            'mode' => 'server',
+            'filename' => $filename,
+            'hint' => 'Sagatavo ZIP ar ' . count($files) . ' redzamajām bildēm…',
+        ]);
     }
 
     efpic_json_response(500, [
         'ok' => false,
-        'error' => 'ZIP šai galerijai nav pieejams caur serveri. Izmanto «Visas bildes» ar Failiem mapes ZIP vai atlasi mazāku izlasi.',
+        'error' => 'Lejupielāde šim izmēram nav pieejama.',
     ]);
 }
 
@@ -1300,13 +1311,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
         }
     }
 
-    if (!efpic_is_delivery_gallery($meta)) {
-        efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
-    }
-
-    http_response_code(500);
-    echo 'ZIP nav pieejams — izmanto lejupielādes pogu galerijā.';
-    exit;
+    efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }
 
 function efpic_client_collection_images(array $meta, array $ctx, string $galleryToken): array
@@ -1413,8 +1418,5 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'collection', $galleryToken);
     }
 
-    efpic_json_response(400, [
-        'ok' => false,
-        'error' => 'Izmanto galerijas lejupielādes pogu (prepare=1).',
-    ]);
+    efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }

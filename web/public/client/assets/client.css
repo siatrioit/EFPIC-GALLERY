@@ -1524,6 +1524,14 @@ input[type="password"] {
   color: var(--muted);
 }
 
+.modal--zip-progress.is-success .zip-progress-spinner {
+  display: none;
+}
+
+.modal--zip-progress #zipProgressOkBtn {
+  width: 100%;
+}
+
 .modal--zip-progress .zip-progress-spinner {
   width: 44px;
   height: 44px;
