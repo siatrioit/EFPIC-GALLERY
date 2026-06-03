@@ -241,7 +241,7 @@
     }, 2000);
   }
 
-  function startZipDownload(scope, size) {
+  function humanZipError(text) {
     if (!text) return 'Neizdevās lejupielādēt.';
     if (text.indexOf('<') >= 0 || text.indexOf('Internal Server Error') >= 0) {
       return 'Servera timeout — izmanto tiešo Failiem lejupielādi (WEB/PRINT pogas).';
