@@ -24,22 +24,24 @@ Skripts izveido `main` un palaiž `git push` (jāpiesakās GitHub — browser va
 
 1. **Git Version Control** → **Create**
 2. **Clone URL:** jūsu `https://github.com/.../efpic-gallery.git`
-3. **Repository Path:** piem.  
-   `/home2/trioitlv/klientiem.edgarsfoto.lv`  
-   (tā pati mape, kur jau ir `api/`, `public/`, `config/`, `storage/` — repo sakne = šī mape)
+3. **Repository Path:** ja sakne nav tukša (jau ir `api/`, `public/`), clone uz apakšmapi:
+   ```text
+   /home2/trioitlv/klientiem.edgarsfoto.lv/repo
+   ```
 4. **Clone** / **Create**
 
-Pēc clone mapē būs:
+Pēc clone (variants ar `/repo` — ieteicams):
 
 ```
 klientiem.edgarsfoto.lv/
-  .git/
-  README.md
-  web/          ← no GitHub
-  api/          ← jūsu dzīvais kods (paliek)
-  public/       ← Document Root
-  config/       ← config.php (NE no git)
-  storage/      ← galeriju dati
+  repo/           ← Git (Pull šeit)
+    .git/
+    web/
+    .cpanel.yml
+  api/            ← dzīvais kods (deploy no web/api)
+  public/         ← Document Root
+  config/         ← config.php (NE no git)
+  storage/
 ```
 
 ## 4. Automātiska kopēšana pēc Pull (.cpanel.yml)
@@ -55,9 +57,11 @@ Repozitorijā ir `.cpanel.yml`. Pēc **Pull** cPanel kopē:
 export DEPLOYPATH=/home2/trioitlv/klientiem.edgarsfoto.lv
 ```
 
-uz **jūsu īsto** ceļu (kā File Manager rāda).
+uz **vecāko mapi** (bez `/repo`), piem. `/home2/trioitlv/klientiem.edgarsfoto.lv`.
 
 `config.php` un `storage/galleries/*` **netiek** pārrakstīti.
+
+cPanel **Pull** veiciet repozitorijam `.../klientiem.edgarsfoto.lv/repo`, ne galvenajai mapei.
 
 ## 5. Document Root
 

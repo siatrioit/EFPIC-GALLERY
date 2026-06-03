@@ -1,6 +1,6 @@
 ---
-# Pēc katra «Pull» cPanel kopē kodu no repo mapes web/ uz dzīvo vietni.
-# VIENREIZ labojiet DEPLOYPATH uz savu absolūto ceļu (File Manager → klientiem mapes ceļš).
+# Pēc Pull: kopē web/ no repo/ uz dzīvo vietni (api/, public/).
+# Clone ceļš: .../klientiem.edgarsfoto.lv/repo — DEPLOYPATH = vecāks (bez /repo).
 deployment:
   tasks:
     - export DEPLOYPATH=/home2/trioitlv/klientiem.edgarsfoto.lv
