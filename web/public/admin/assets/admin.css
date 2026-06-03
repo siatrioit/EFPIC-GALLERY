@@ -869,3 +869,51 @@
 .admin-fav-col--readonly {
   opacity: 0.95;
 }
+
+.admin-list-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.admin-sort-links a {
+  margin-right: 8px;
+  color: var(--admin-accent);
+  text-decoration: none;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.admin-sort-links a:hover {
+  text-decoration: underline;
+}
+
+.admin-sticky-bar--list {
+  margin-bottom: 12px;
+}
+
+.admin-bulk-scene {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--admin-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.admin-bulk-pick {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--admin-text-muted);
+  cursor: pointer;
+}
+
+.admin-bulk-pick input {
+  margin: 0;
+}

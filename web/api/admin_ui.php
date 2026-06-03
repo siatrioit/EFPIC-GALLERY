@@ -85,7 +85,7 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     echo '<a class="admin-brand" href="index.php">EdgarsFoto</a>';
     echo '<nav class="admin-nav">';
     echo '<a href="index.php"' . ($active === 'list' ? ' class="active"' : '') . '>Galerijas</a>';
-    echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna piegāde</a>';
+    echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna galerija</a>';
     echo '<a href="settings.php"' . ($active === 'settings' ? ' class="active"' : '') . '>Iestatījumi</a>';
     echo '</nav>';
     echo '<div class="admin-sidebar-foot"><a class="admin-logout" href="index.php?logout=1">Iziet</a></div>';
@@ -132,7 +132,17 @@ function efpic_admin_render_scenes_fieldset(array $meta): string
     $html .= '<input type="hidden" name="scenes_json" id="scenes_json" value="' . efpic_admin_esc($scenesJson) . '">';
     $html .= '<div id="admin-scenes-editor" class="admin-scenes-editor" data-scenes="' . efpic_admin_esc($scenesJson) . '"></div>';
     $html .= '<button type="button" class="btn admin-btn-inline" id="admin-add-scene">+ Pievienot sadaļu</button>';
-    $html .= '</fieldset>';
+    $html .= '<div class="admin-bulk-scene" id="admin-bulk-scene">';
+    $html .= '<p class="muted">Atzīmē bildes zemāk (☑ Atlasīt), izvēlies sadaļu un piešķir vairākas bildes vienā reizē.</p>';
+    $html .= '<label>Sadaļa<select id="admin-bulk-scene-target">';
+    foreach ($scenes as $scene) {
+        $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-assign-scene">Piešķirt atlasītās bildes</button>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-select-all-images">Atlasīt visas bildes</button>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-clear-image-selection">Noņemt atlasi</button>';
+    $html .= '</div></fieldset>';
 
     return $html;
 }
@@ -282,38 +292,232 @@ function efpic_admin_handle_logout(): void
     }
 }
 
-function efpic_admin_list_delivery_galleries(array $config): void
+function efpic_admin_require_delete_confirm(): void
 {
-    $rows = '';
+    if (trim((string) ($_POST['confirm_delete'] ?? '')) !== 'DELETE') {
+        throw new InvalidArgumentException('Lai apstiprinātu, ievadiet DELETE.');
+    }
+}
+
+/** @return list<string> */
+function efpic_admin_post_gallery_slugs(): array
+{
+    $slugs = $_POST['gallery_slugs'] ?? [];
+    if (!is_array($slugs)) {
+        return [];
+    }
+    $out = [];
+    foreach ($slugs as $slug) {
+        $slug = trim((string) $slug);
+        if ($slug !== '' && preg_match('/^[a-z0-9][a-z0-9-]{0,63}$/', $slug) === 1) {
+            $out[] = $slug;
+        }
+    }
+
+    return array_values(array_unique($out));
+}
+
+function efpic_admin_handle_gallery_list_actions(array $config): ?string
+{
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['gallery_action'])) {
+        return null;
+    }
+    $action = (string) $_POST['gallery_action'];
+    $slugs = efpic_admin_post_gallery_slugs();
+    if ($action === 'select_all_active' || $action === 'select_all_deleted') {
+        return null;
+    }
+    if ($slugs === []) {
+        throw new InvalidArgumentException('Nav izvēlēta neviena galerija.');
+    }
+
+    if (in_array($action, ['soft_delete', 'purge'], true)) {
+        efpic_admin_require_delete_confirm();
+    }
+
+    $count = 0;
+    foreach ($slugs as $slug) {
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta === null || !efpic_is_delivery_gallery($meta)) {
+            continue;
+        }
+        match ($action) {
+            'soft_delete' => (function () use ($config, $meta, $slug, &$count) {
+                if (efpic_gallery_is_active($meta)) {
+                    efpic_soft_delete_gallery($config, $slug);
+                    $count++;
+                }
+            })(),
+            'restore' => (function () use ($config, $slug, &$count) {
+                $m = efpic_load_gallery_meta($config, $slug);
+                if ($m !== null && efpic_gallery_status($m) === 'deleted') {
+                    efpic_restore_gallery($config, $slug);
+                    $count++;
+                }
+            })(),
+            'purge' => (function () use ($config, $slug, &$count) {
+                efpic_purge_gallery($config, $slug);
+                $count++;
+            })(),
+            default => throw new InvalidArgumentException('Nezināma darbība'),
+        };
+    }
+
+    return match ($action) {
+        'soft_delete' => $count . ' galerija(s) pārvietota uz dzēstajām.',
+        'restore' => $count . ' galerija(s) atjaunota.',
+        'purge' => $count . ' galerija(s) neatgriezeniski izdzēsta.',
+        default => null,
+    };
+}
+
+/**
+ * @return list<array{slug: string, meta: array}>
+ */
+function efpic_admin_collect_delivery_galleries(array $config, string $statusFilter): array
+{
+    $items = [];
     foreach (efpic_list_gallery_slugs($config) as $slug) {
         $meta = efpic_load_gallery_meta($config, $slug);
         if ($meta === null || !efpic_is_delivery_gallery($meta)) {
             continue;
         }
+        $status = efpic_gallery_status($meta);
+        if ($statusFilter === 'active' && $status !== 'active') {
+            continue;
+        }
+        if ($statusFilter === 'deleted' && $status !== 'deleted') {
+            continue;
+        }
+        $items[] = ['slug' => $slug, 'meta' => $meta];
+    }
+
+    return $items;
+}
+
+function efpic_admin_list_delivery_galleries(array $config): void
+{
+    $view = ($_GET['view'] ?? 'active') === 'deleted' ? 'deleted' : 'active';
+    $sort = (string) ($_GET['sort'] ?? 'date');
+    if (!in_array($sort, ['name', 'date'], true)) {
+        $sort = 'date';
+    }
+    $order = strtolower((string) ($_GET['order'] ?? 'desc')) === 'asc' ? 'asc' : 'desc';
+
+    $flash = isset($_GET['ok']) ? (string) $_GET['ok'] : null;
+    $flashIsError = false;
+    if (isset($_GET['error']) && trim((string) $_GET['error']) !== '') {
+        $flash = (string) $_GET['error'];
+        $flashIsError = true;
+    }
+
+    $items = efpic_admin_collect_delivery_galleries($config, $view);
+    usort($items, static function ($a, $b) use ($sort, $order) {
+        $ma = $a['meta'];
+        $mb = $b['meta'];
+        if ($sort === 'name') {
+            $cmp = strnatcasecmp((string) ($ma['name'] ?? ''), (string) ($mb['name'] ?? ''));
+        } else {
+            $da = (string) ($ma['event_date'] ?? '');
+            $db = (string) ($mb['event_date'] ?? '');
+            $cmp = $da <=> $db;
+            if ($cmp === 0) {
+                $cmp = strnatcasecmp((string) ($ma['name'] ?? ''), (string) ($mb['name'] ?? ''));
+            }
+        }
+
+        return $order === 'asc' ? $cmp : -$cmp;
+    });
+
+    $baseQs = static function (array $extra) use ($view, $sort, $order) {
+        return 'index.php?' . http_build_query(array_merge([
+            'view' => $view,
+            'sort' => $sort,
+            'order' => $order,
+        ], $extra));
+    };
+
+    $body = '';
+    if ($flash !== null && $flash !== '') {
+        $cls = $flashIsError ? 'err' : 'admin-flash';
+        $body .= '<p class="' . $cls . '">' . efpic_admin_esc($flash) . '</p>';
+    }
+
+    $body .= '<div class="admin-list-toolbar">';
+    $body .= '<a class="btn' . ($view === 'active' ? ' primary' : '') . '" href="' . efpic_admin_esc($baseQs(['view' => 'active'])) . '">Aktīvās galerijas</a>';
+    $body .= '<a class="btn' . ($view === 'deleted' ? ' primary' : '') . '" href="' . efpic_admin_esc($baseQs(['view' => 'deleted'])) . '">Dzēstās galerijas</a>';
+    $body .= '<span class="admin-sort-links">Kārtot: ';
+    foreach (['name' => 'Nosaukums', 'date' => 'Datums'] as $key => $label) {
+        $nextOrder = ($sort === $key && $order === 'asc') ? 'desc' : 'asc';
+        $body .= '<a href="' . efpic_admin_esc($baseQs(['sort' => $key, 'order' => $nextOrder])) . '">' . $label;
+        if ($sort === $key) {
+            $body .= $order === 'asc' ? ' ↑' : ' ↓';
+        }
+        $body .= '</a> ';
+    }
+    $body .= '</span></div>';
+
+    $body .= '<form method="post" class="admin-gallery-bulk-form" id="admin-gallery-bulk-form">';
+    $body .= '<input type="hidden" name="list_view" value="' . efpic_admin_esc($view) . '">';
+    $body .= '<input type="hidden" name="list_sort" value="' . efpic_admin_esc($sort) . '">';
+    $body .= '<input type="hidden" name="list_order" value="' . efpic_admin_esc($order) . '">';
+    $body .= '<input type="hidden" name="confirm_delete" id="confirm_delete" value="">';
+    $body .= '<div class="admin-sticky-bar admin-sticky-bar--list">';
+    if ($view === 'active') {
+        $body .= '<button type="submit" class="btn" name="gallery_action" value="soft_delete" data-confirm-delete="1">Dzēst izvēlētās</button>';
+    } else {
+        $body .= '<button type="submit" class="btn primary" name="gallery_action" value="restore">Atjaunot izvēlētās</button>';
+        $body .= '<button type="submit" class="btn" name="gallery_action" value="purge" data-confirm-delete="1">Izdzēst neatgriezeniski</button>';
+    }
+    $body .= '<label class="admin-check"><input type="checkbox" id="admin-gallery-select-all"> Atlasīt visas</label>';
+    $body .= '</div>';
+
+    $rows = '';
+    foreach ($items as $item) {
+        $slug = $item['slug'];
+        $meta = $item['meta'];
         $gt = (string) ($meta['gallery_token'] ?? '');
         $stats = $meta['failiem']['sync_stats'] ?? null;
         $paired = is_array($stats) ? (int) ($stats['paired'] ?? 0) : 0;
         $syncAt = (string) ($meta['failiem']['last_sync_at'] ?? '—');
         $views = (int) ($meta['analytics']['views'] ?? 0);
+        $date = substr((string) ($meta['event_date'] ?? ''), 0, 10);
         $rows .= '<tr>';
+        $rows .= '<td><input type="checkbox" name="gallery_slugs[]" value="' . efpic_admin_esc($slug) . '" class="admin-gallery-pick"></td>';
         $rows .= '<td><a href="delivery_edit.php?slug=' . rawurlencode($slug) . '">' . efpic_admin_esc($meta['name'] ?? $slug) . '</a></td>';
+        $rows .= '<td>' . efpic_admin_esc($date !== '' ? $date : '—') . '</td>';
         $rows .= '<td>' . count($meta['images'] ?? []) . ' / ' . $paired . '</td>';
         $rows .= '<td class="muted">' . efpic_admin_esc($syncAt) . ' · skat. ' . $views . '</td>';
-        $rows .= '<td><a href="' . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '" target="_blank" rel="noopener">Skatīt</a></td>';
-        $rows .= '</tr>';
+        $rows .= '<td>';
+        if ($view === 'active' && $gt !== '') {
+            $rows .= '<a href="' . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '" target="_blank" rel="noopener">Skatīt</a>';
+        } else {
+            $rows .= '<span class="muted">Nav publiska</span>';
+        }
+        $rows .= '</td></tr>';
     }
 
     if ($rows === '') {
-        $rows = '<tr><td colspan="4" class="muted">Vēl nav delivery galeriju. <a href="delivery_new.php">Izveidot</a></td></tr>';
+        $empty = $view === 'deleted'
+            ? 'Nav dzēstu galeriju.'
+            : 'Vēl nav galeriju. <a href="delivery_new.php">Izveidot jaunu</a>';
+        $rows = '<tr><td colspan="6" class="muted">' . $empty . '</td></tr>';
     }
 
-    $body = '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Nosaukums</th><th>Bildes</th><th>Sync</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>';
+    $body .= '<div class="admin-table-wrap"><table class="admin-table"><thead><tr>';
+    $body .= '<th></th><th>Nosaukums</th><th>Datums</th><th>Bildes</th><th>Sync</th><th></th>';
+    $body .= '</tr></thead><tbody>' . $rows . '</tbody></table></div></form>';
+
+    $body .= '<script src="/admin/assets/admin.js" defer></script>';
+
     efpic_admin_layout(
         'Galerijas',
         $body,
         'list',
-        'Klientu piegādes galerijas',
-        'Bildes glabājas Failiem.lv; kārtība, sadaļas un dizains — šeit.'
+        $view === 'deleted' ? 'Dzēstās galerijas' : 'Galerijas',
+        $view === 'deleted'
+            ? 'Galerijas šeit nav publiski pieejamas. Var atjaunot vai izdzēst neatgriezeniski (DELETE).'
+            : 'Bildes glabājas Failiem.lv. Dzēšot, ievadi DELETE — galerija pāriet uz dzēstajām.'
     );
 }
 
@@ -323,13 +527,17 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
     if ($name === '') {
         throw new InvalidArgumentException('Nosaukums obligāts');
     }
+    $eventDate = trim((string) ($_POST['event_date'] ?? ''));
+    if ($eventDate === '') {
+        throw new InvalidArgumentException('Datums obligāts');
+    }
 
     $isNew = $slug === null || $slug === '';
     if ($isNew) {
         $created = efpic_create_delivery_gallery($config, [
             'name' => $name,
             'slug' => trim((string) ($_POST['slug'] ?? '')),
-            'event_date' => trim((string) ($_POST['event_date'] ?? '')),
+            'event_date' => $eventDate,
             'password' => (string) ($_POST['gallery_password'] ?? ''),
             'client_email' => trim((string) ($_POST['client_email'] ?? '')),
             'client_password' => (string) ($_POST['client_password'] ?? ''),
@@ -348,7 +556,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             throw new RuntimeException('Nav atrasts');
         }
         $meta['name'] = $name;
-        $meta['event_date'] = trim((string) ($_POST['event_date'] ?? '')) ?: null;
+        $meta['event_date'] = $eventDate;
         $meta['theme'] = (string) ($_POST['theme'] ?? $meta['theme']);
 
         $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
@@ -439,6 +647,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     }
 
     if ($isEdit) {
+        if (!efpic_gallery_is_active($meta)) {
+            $body .= '<p class="admin-warn">Šī galerija ir <strong>dzēsta</strong> — publiski nav pieejama. Atjauno no saraksta «Dzēstās galerijas».</p>';
+        }
         $gt = (string) ($meta['gallery_token'] ?? '');
         $portal = (string) ($meta['client_access']['portal_token'] ?? '');
         $body .= '<div class="admin-links">';
@@ -484,7 +695,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     if (!$isEdit) {
         $body .= '<label>Slug (URL)<input name="slug" placeholder="pasakuma-foto"></label>';
     }
-    $body .= '<label>Datums<input name="event_date" type="date" value="' . efpic_admin_esc(substr((string) ($meta['event_date'] ?? ''), 0, 10)) . '"></label>';
+    $body .= '<label>Datums (obligāts)<input name="event_date" type="date" required value="' . efpic_admin_esc(substr((string) ($meta['event_date'] ?? ''), 0, 10)) . '"></label>';
     $body .= '<label>Galerijas parole (jauna)<input type="password" name="gallery_password" autocomplete="new-password"></label>';
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($meta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '<label>Klienta parole (jauna)<input type="password" name="client_password" autocomplete="new-password"></label>';
@@ -516,7 +727,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
         $body .= '<fieldset class="admin-fieldset-full"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
-        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. ★ Mana favorīte, «Vāks» galvenajai bildei. Klienta favorītus redzi augstāk.</p>';
+        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. ☑ Atlasīt — vairākām bildēm, ★ Mana favorīte, «Vāks».</p>';
         $sceneOptions = efpic_gallery_scene_options($meta);
         $body .= '<ul id="sortable" class="admin-media-grid">';
         foreach ($sortedImages as $img) {
@@ -528,6 +739,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $thumb = efpic_admin_media_thumb_url($config, $img);
             $preview = efpic_client_media_url($config, $img, 'web', 1200);
             $body .= '<li class="admin-media-card" data-token="' . efpic_admin_esc($tok) . '">';
+            $body .= '<label class="admin-bulk-pick"><input type="checkbox" class="admin-image-pick" value="' . efpic_admin_esc($tok) . '"> Atlasīt</label>';
             $body .= '<button type="button" class="admin-media-thumb" data-preview="' . efpic_admin_esc($preview) . '" aria-label="Priekšskatījums">';
             $body .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" width="240" height="240" loading="lazy" decoding="async"></button>';
             $body .= '<label class="admin-cover-pick"><input type="radio" name="cover_image_token" value="' . efpic_admin_esc($tok) . '"' . $checked . '> Vāks</label>';
@@ -562,8 +774,8 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $isEdit ? 'Rediģēt' : 'Jauna',
         $body,
         $isEdit ? 'list' : 'new',
-        $isEdit ? 'Rediģēt galeriju' : 'Jauna klientu piegāde',
-        $isEdit ? 'Kārtība, vāks, sadaļas un sinhronizācija ar Failiem.' : 'Izveido jaunu piegādes galeriju un piesaisti Failiem mapes.'
+        $isEdit ? 'Rediģēt galeriju' : 'Jauna galerija',
+        $isEdit ? 'Kārtība, vāks, sadaļas un sinhronizācija ar Failiem.' : 'Izveido jaunu galeriju un piesaisti Failiem mapes.'
     );
 }
 

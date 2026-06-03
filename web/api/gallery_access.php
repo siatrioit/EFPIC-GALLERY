@@ -108,6 +108,9 @@ function efpic_find_gallery_by_token(array $config, string $galleryToken): ?arra
     if ($meta === null) {
         return null;
     }
+    if (!efpic_gallery_is_active($meta)) {
+        return null;
+    }
 
     return [
         'slug' => $slug,
@@ -140,7 +143,7 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
         return null;
     }
     $meta = efpic_load_gallery_meta($config, $slug);
-    if ($meta === null) {
+    if ($meta === null || !efpic_gallery_is_active($meta)) {
         return null;
     }
 

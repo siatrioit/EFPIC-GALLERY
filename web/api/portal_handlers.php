@@ -103,6 +103,13 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if ($meta === null) {
         efpic_client_html('Kļūda', '<p class="feed-empty err">Galerija nav atrasta.</p>', $config);
     }
+    if (!efpic_gallery_is_active($meta)) {
+        efpic_client_html(
+            (string) ($meta['name'] ?? ''),
+            '<p class="feed-empty err">Galerija nav publiski pieejama. Sazinieties ar fotogrāfu.</p>',
+            $config
+        );
+    }
 
     if ($method === 'POST' && isset($_POST['portal_action'])) {
         $action = (string) $_POST['portal_action'];

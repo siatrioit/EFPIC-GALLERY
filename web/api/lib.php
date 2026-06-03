@@ -215,6 +215,9 @@ function efpic_rebuild_access_index(array $config): void
         if ($meta === null) {
             continue;
         }
+        if (!efpic_gallery_is_active($meta)) {
+            continue;
+        }
         $gt = (string) ($meta['gallery_token'] ?? '');
         if ($gt !== '') {
             $index['galleries'][$gt] = $slug;
@@ -252,6 +255,8 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'restrict_gallery_from_single_link' => false,
         'theme' => $type === 'delivery' ? 'pic-time' : 'classic',
         'client_theme' => null,
+        'status' => 'active',
+        'deleted_at' => null,
         'event_date' => null,
         'cover_image_token' => null,
         'hero_accent_color' => '#9a9578',
@@ -335,6 +340,59 @@ function efpic_verify_password_hash(string $password, string $hash): bool
 function efpic_is_delivery_gallery(array $meta): bool
 {
     return ($meta['type'] ?? '') === 'delivery';
+}
+
+function efpic_gallery_status(array $meta): string
+{
+    return ($meta['status'] ?? 'active') === 'deleted' ? 'deleted' : 'active';
+}
+
+function efpic_gallery_is_active(array $meta): bool
+{
+    return efpic_gallery_status($meta) === 'active';
+}
+
+function efpic_soft_delete_gallery(array $config, string $slug): void
+{
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        throw new RuntimeException('Galerija nav atrasta');
+    }
+    $meta['status'] = 'deleted';
+    $meta['deleted_at'] = gmdate('c');
+    efpic_save_gallery_meta($config, $slug, $meta);
+}
+
+function efpic_restore_gallery(array $config, string $slug): void
+{
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        throw new RuntimeException('Galerija nav atrasta');
+    }
+    $meta['status'] = 'active';
+    $meta['deleted_at'] = null;
+    efpic_save_gallery_meta($config, $slug, $meta);
+}
+
+function efpic_purge_gallery(array $config, string $slug): void
+{
+    $dir = efpic_gallery_dir($config, $slug);
+    if (!is_dir($dir)) {
+        return;
+    }
+    $iterator = new RecursiveIteratorIterator(
+        new RecursiveDirectoryIterator($dir, FilesystemIterator::SKIP_DOTS),
+        RecursiveIteratorIterator::CHILD_FIRST
+    );
+    foreach ($iterator as $item) {
+        if ($item->isDir()) {
+            rmdir($item->getPathname());
+        } else {
+            unlink($item->getPathname());
+        }
+    }
+    rmdir($dir);
+    efpic_rebuild_access_index($config);
 }
 
 /** Natural compare for image basenames (EdgarsFoto_PRINT_1002 …). */
