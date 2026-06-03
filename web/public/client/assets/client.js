@@ -401,9 +401,11 @@
 
   initMosaicGalleries(restoreGalleryFocus);
 
-  document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (link) {
+  document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (item) {
+    var link = item.querySelector('.pic-feed-link');
+    if (!link) return;
     link.addEventListener('click', function () {
-      var tok = link.getAttribute('data-token') || '';
+      var tok = item.getAttribute('data-token') || '';
       if (tok !== '') {
         try {
           sessionStorage.setItem('efpic_gallery_scroll', String(window.scrollY));
@@ -570,30 +572,124 @@
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>';
   }
 
+  function setCollectionButtonState(btn, selected) {
+    if (!btn) return;
+    btn.classList.toggle('is-selected', selected);
+    btn.setAttribute('aria-pressed', selected ? 'true' : 'false');
+    btn.innerHTML = selected
+      ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>';
+  }
+
+  function updateCollectionTray(count) {
+    var tray = document.getElementById('collectionTray');
+    var countEl = document.getElementById('collectionTrayCount');
+    if (!tray) return;
+    if (countEl) countEl.textContent = String(count);
+    var textEl = tray.querySelector('.collection-tray-text');
+    if (textEl && countEl) {
+      textEl.innerHTML =
+        '<strong id="collectionTrayCount">' +
+        count +
+        '</strong> ' +
+        (count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas');
+    }
+    tray.hidden = count <= 0;
+    tray.classList.toggle('is-visible', count > 0);
+  }
+
   document.querySelectorAll('[data-like-toggle]').forEach(function (btn) {
+    if (btn.getAttribute('data-like-url')) return;
     setLikeButtonState(btn, window.EFPIC_IMAGE_LIKED === '1');
   });
 
+  var collectionToggleUrl = window.EFPIC_COLLECTION_TOGGLE_URL || '';
+  var collectionClearUrl = window.EFPIC_COLLECTION_CLEAR_URL || '';
+  if (typeof window.EFPIC_COLLECTION_COUNT === 'number') {
+    updateCollectionTray(window.EFPIC_COLLECTION_COUNT);
+  }
+
   document.addEventListener('click', function (evt) {
     var likeBtn = evt.target && evt.target.closest ? evt.target.closest('[data-like-toggle]') : null;
-    if (!likeBtn || !likeUrl) return;
-    evt.preventDefault();
-    if (likeBtn.disabled) return;
-    likeBtn.disabled = true;
-    fetch(likeUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
-      .then(function (res) {
-        return res.json();
+    if (likeBtn) {
+      var activeLikeUrl = likeBtn.getAttribute('data-like-url') || likeUrl;
+      if (!activeLikeUrl) return;
+      evt.preventDefault();
+      evt.stopPropagation();
+      if (likeBtn.disabled) return;
+      likeBtn.disabled = true;
+      fetch(activeLikeUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            setLikeButtonState(likeBtn, !!data.liked);
+          }
+        })
+        .catch(function () {
+          /* ignore */
+        })
+        .finally(function () {
+          likeBtn.disabled = false;
+        });
+      return;
+    }
+
+    var collectionBtn = evt.target && evt.target.closest ? evt.target.closest('[data-collection-toggle]') : null;
+    if (collectionBtn && collectionToggleUrl) {
+      evt.preventDefault();
+      evt.stopPropagation();
+      if (collectionBtn.disabled) return;
+      var imageToken = collectionBtn.getAttribute('data-image-token') || '';
+      if (imageToken === '') return;
+      collectionBtn.disabled = true;
+      fetch(collectionToggleUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'image_token=' + encodeURIComponent(imageToken),
       })
-      .then(function (data) {
-        if (data && data.ok) {
-          setLikeButtonState(likeBtn, !!data.liked);
-        }
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            setCollectionButtonState(collectionBtn, !!data.in_collection);
+            updateCollectionTray(parseInt(data.count, 10) || 0);
+          }
+        })
+        .catch(function () {
+          /* ignore */
+        })
+        .finally(function () {
+          collectionBtn.disabled = false;
+        });
+      return;
+    }
+
+    var clearBtn = evt.target && evt.target.closest ? evt.target.closest('[data-collection-clear]') : null;
+    if (clearBtn && collectionClearUrl) {
+      evt.preventDefault();
+      fetch(collectionClearUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
       })
-      .catch(function () {
-        /* ignore */
-      })
-      .finally(function () {
-        likeBtn.disabled = false;
-      });
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok) {
+            document.querySelectorAll('[data-collection-toggle]').forEach(function (btn) {
+              setCollectionButtonState(btn, false);
+            });
+            updateCollectionTray(0);
+          }
+        })
+        .catch(function () {
+          /* ignore */
+        });
+    }
   });
 })();

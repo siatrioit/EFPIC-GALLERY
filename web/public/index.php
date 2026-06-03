@@ -76,6 +76,18 @@ try {
         efpic_handle_client_gallery_zip($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/collection/zip$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_collection_zip($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/collection/toggle$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_client_collection_toggle($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/collection/clear$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_client_collection_clear($config, strtolower($m[1]));
+    }
+
     if (preg_match('#^/c/p/([a-f0-9]{48})$#i', $uri, $m) && ($method === 'GET' || $method === 'POST')) {
         efpic_portal_handle($config, strtolower($m[1]), $method);
     }

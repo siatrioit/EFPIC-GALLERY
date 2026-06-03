@@ -24,7 +24,11 @@ if ($meta === null || !efpic_is_delivery_gallery($meta)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         efpic_admin_save_delivery_from_post($config, $slug);
-        $flash = !empty($_POST['sync_now']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';
+        if (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
+            $flash = 'Kopīgojamā izlase izveidota — saite sadaļā «Kopīgojamās izlases».';
+        } else {
+            $flash = !empty($_POST['sync_now']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';
+        }
         $meta = efpic_load_gallery_meta($config, $slug);
         efpic_admin_delivery_form($config, $meta, $slug, $flash);
     } catch (Throwable $e) {

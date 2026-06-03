@@ -129,6 +129,21 @@ function efpic_admin_scene_image_counts(array $meta): array
     return $counts;
 }
 
+function efpic_admin_color_field(string $name, string $label, string $value): string
+{
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $value) !== 1) {
+        $value = '#ffffff';
+    }
+    $value = strtolower($value);
+
+    return '<label class="admin-color-field">' . efpic_admin_esc($label)
+        . '<span class="admin-color-control">'
+        . '<span class="admin-color-swatch" style="background-color:' . efpic_admin_esc($value) . ';" aria-hidden="true"></span>'
+        . '<input type="color" class="admin-color-input" name="' . efpic_admin_esc($name) . '" value="' . efpic_admin_esc($value) . '">'
+        . '<code class="admin-color-value">' . efpic_admin_esc($value) . '</code>'
+        . '</span></label>';
+}
+
 function efpic_admin_render_scenes_fieldset(array $meta): string
 {
     $scenes = efpic_gallery_scene_options($meta);
@@ -183,6 +198,13 @@ function efpic_admin_render_image_scene_toolbar(array $meta): string
     $html .= '<button type="submit" class="btn admin-btn-inline" name="rebaseline_scene_sort" value="1" formnovalidate>Kārtot pēc nosaukuma (sadaļās)</button>';
     $html .= '<span class="muted admin-sort-hint">Ja secība šķiet nepareiza, spied šo pogu un Saglabāt.</span>';
     $html .= '</div>';
+    $html .= '<div class="admin-image-bulk-row admin-share-set-row">';
+    $html .= '<label class="admin-bulk-label">Kopīgojamā izlase<input type="text" name="share_set_label" id="admin-share-set-label" placeholder="piem. Dekorators Anna"></label>';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-create-share-set">Izveidot saiti no atlasītajām</button>';
+    $html .= '<input type="hidden" name="share_set_tokens" id="share_set_tokens" value="">';
+    $html .= '<input type="hidden" name="create_share_set" id="create_share_set" value="0">';
+    $html .= '<span class="muted admin-sort-hint">Atsevišķa saite tikai ar izvēlētām bildēm. Viena bilde var būt vairākās izlasēs.</span>';
+    $html .= '</div>';
     $html .= '<div class="admin-scene-filter" id="admin-scene-filter" role="group" aria-label="Filtrēt bildes">';
     $html .= '<button type="button" class="btn admin-scene-filter-btn is-active" data-scene-filter="all">Visas (' . $total . ')</button>';
     foreach ($scenes as $scene) {
@@ -194,6 +216,46 @@ function efpic_admin_render_image_scene_toolbar(array $meta): string
     $html .= '<button type="button" class="btn admin-scene-filter-btn" data-scene-filter="client-fav">★ Klienta (' . $clientFavCount . ')</button>';
     $html .= '<button type="button" class="btn admin-scene-filter-btn" data-scene-filter="liked">♥ Sirsniņas (' . $likedImages . ')</button>';
     $html .= '</div></div>';
+
+    return $html;
+}
+
+function efpic_admin_render_share_sets(array $config, array $meta): string
+{
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        $guests = [];
+    }
+
+    $html = '<fieldset class="admin-fieldset-full admin-share-sets-panel"><legend>Kopīgojamās izlases</legend>';
+    $html .= '<p class="muted">Atsevišķas saites ar tikai izvēlētām bildēm — piem. nosūtīt dekoratoram bez pārējām kāzu fotogrāfijām. '
+        . 'Klientam to pašu var izveidot <strong>klienta panelī</strong>.</p>';
+    if ($guests === []) {
+        $html .= '<p class="muted">Vēl nav izveidota neviena izlase. Atzīmē bildes un spied «Izveidot saiti no atlasītajām».</p>';
+    } else {
+        $html .= '<ul class="admin-share-set-list">';
+        foreach ($guests as $g) {
+            if (!is_array($g)) {
+                continue;
+            }
+            $gtok = (string) ($g['guest_token'] ?? '');
+            if ($gtok === '') {
+                continue;
+            }
+            $n = efpic_share_set_image_count($g);
+            $url = efpic_gallery_view_url($config, $gt, $gtok);
+            $html .= '<li class="admin-share-set-item">';
+            $html .= '<div class="admin-share-set-head"><strong>' . efpic_admin_esc((string) ($g['label'] ?? 'Izlase')) . '</strong>';
+            $html .= '<span class="muted">' . ($n > 0 ? $n . ' bildes' : 'Visa galerija (vecā saite)') . '</span></div>';
+            $html .= '<a class="admin-share-set-url" href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($url) . '</a>';
+            $html .= '<button type="submit" class="btn admin-btn-inline" name="delete_share_token" value="' . efpic_admin_esc($gtok)
+                . '" formnovalidate onclick="return confirm(\'Dzēst šo kopīgojamo izlasi?\')">Dzēst</button>';
+            $html .= '</li>';
+        }
+        $html .= '</ul>';
+    }
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -607,19 +669,44 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
             $meta['hero_accent_color'] = strtolower($accent);
         }
+        $pageBg = trim((string) ($_POST['page_bg_color'] ?? ''));
+        if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) === 1) {
+            $meta['page_bg_color'] = strtolower($pageBg);
+        }
         efpic_save_gallery_meta($config, $slug, $meta);
     } else {
         $meta = efpic_load_gallery_meta($config, $slug);
         if ($meta === null) {
             throw new RuntimeException('Nav atrasts');
         }
+
+        if (!empty($_POST['delete_share_token'])) {
+            efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
+            efpic_save_gallery_meta($config, $slug, $meta);
+        }
+
+        if (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
+            $label = trim((string) ($_POST['share_set_label'] ?? ''));
+            $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
+            $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
+            efpic_create_share_set($meta, $label, $tokens, 'admin');
+        }
+
         $meta['name'] = $name;
         $meta['event_date'] = $eventDate;
         $meta['theme'] = (string) ($_POST['theme'] ?? $meta['theme']);
+        if (!efpic_is_valid_gallery_theme($meta['theme'])) {
+            $meta['theme'] = 'pic-time';
+        }
 
         $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
             $meta['hero_accent_color'] = strtolower($accent);
+        }
+
+        $pageBg = trim((string) ($_POST['page_bg_color'] ?? ''));
+        if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) === 1) {
+            $meta['page_bg_color'] = strtolower($pageBg);
         }
 
         $coverTok = trim((string) ($_POST['cover_image_token'] ?? ''));
@@ -650,10 +737,10 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         efpic_apply_admin_favorites_from_post($meta);
         efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
         efpic_apply_videos_from_post($config, $slug, $meta);
+        efpic_normalize_gallery_image_sorts($meta);
         if (!empty($_POST['rebaseline_scene_sort'])) {
             efpic_rebaseline_auto_scene_sorts($meta);
         }
-        efpic_normalize_gallery_image_sorts($meta);
         efpic_save_gallery_meta($config, $slug, $meta);
     }
 
@@ -768,15 +855,20 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '<label>Klienta parole (jauna)<input type="password" name="client_password" autocomplete="new-password"></label>';
     $theme = (string) ($formMeta['theme'] ?? 'pic-time');
+    if (!efpic_is_valid_gallery_theme($theme)) {
+        $theme = 'pic-time';
+    }
     $heroAccent = efpic_client_hero_accent_color($formMeta);
+    $pageBg = efpic_client_page_bg_color($config, $formMeta);
     $body .= '<label>Tēma<select name="theme">';
-    foreach (['pic-time' => 'Pic-Time (moderns)', 'classic' => 'Klasisks', 'masonry' => 'Masonry', 'dark' => 'Tumšs'] as $k => $lbl) {
+    foreach (efpic_gallery_theme_options() as $k => $lbl) {
         $sel = $k === $theme ? ' selected' : '';
         $body .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
     }
     $body .= '</select></label>';
-    $body .= '<label>Vāka krāsa (sākuma ekrāns)<input type="color" name="hero_accent_color" value="' . efpic_admin_esc($heroAccent) . '"></label>';
-    $body .= '<p class="muted">Krāsa tiek lietota virs vāka bildes gradientā Pic-Time tēmā.</p>';
+    $body .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
+    $body .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
+    $body .= '<p class="muted">Krāsas darbojas visās EdgarsFoto tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
     $body .= '</fieldset>';
 
     $body .= '<fieldset><legend>Failiem.lv mapes</legend>';
@@ -848,6 +940,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     }
 
     if ($isEdit && is_array($meta)) {
+        $body .= efpic_admin_render_share_sets($config, $meta);
         $body .= efpic_admin_render_favorites_and_slideshow($config, $meta, (string) ($meta['gallery_token'] ?? ''));
         $body .= efpic_admin_render_videos_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
     }
@@ -875,18 +968,12 @@ function efpic_admin_save_settings_from_post(array $config): void
         throw new InvalidArgumentException('Galerijas paraksts obligāts');
     }
 
-    $pageBg = trim((string) ($_POST['gallery_page_bg'] ?? '#ffffff'));
-    if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) !== 1) {
-        throw new InvalidArgumentException('Nederīga pamatkrāsa');
-    }
-
     $gapMobile = efpic_sanitize_gallery_feed_gap($_POST['gallery_feed_gap'] ?? null);
     $gapTablet = efpic_sanitize_gallery_feed_gap($_POST['gallery_feed_gap_tablet'] ?? null, 20);
     $gapDesktop = efpic_sanitize_gallery_feed_gap($_POST['gallery_feed_gap_desktop'] ?? null, 24);
 
     efpic_save_app_settings($config, [
         'gallery_byline' => $byline,
-        'gallery_page_bg' => strtolower($pageBg),
         'gallery_feed_gap' => $gapMobile,
         'gallery_feed_gap_tablet' => $gapTablet,
         'gallery_feed_gap_desktop' => $gapDesktop,
@@ -913,11 +1000,7 @@ function efpic_admin_settings_page(array $config): void
     $body .= '<fieldset><legend>Galerijas izskats</legend>';
     $body .= '<label>Galerijas paraksts (virs vāka)<input name="gallery_byline" required value="'
         . efpic_admin_esc((string) ($settings['gallery_byline'] ?? '')) . '" placeholder="Gallery by EdgarsFoto"></label>';
-    $body .= '<p class="muted">Parādās visu galeriju sākuma ekrānā, piem. «Gallery by EdgarsFoto».</p>';
-    $pageBg = (string) ($settings['gallery_page_bg'] ?? '#ffffff');
-    $body .= '<label>Galerijas pamatkrāsa (režģis un bilžu skats)<input type="color" name="gallery_page_bg" value="'
-        . efpic_admin_esc($pageBg) . '"></label>';
-    $body .= '<p class="muted">Fons zem bildēm un atverot bildi pilnekrānā. Titulbildes fons joprojām ir galerijas «vāka krāsa».</p>';
+    $body .= '<p class="muted">Parādās visu galeriju sākuma ekrānā, piem. «Gallery by EdgarsFoto». Pamatkrāsu katra galerija nosaka pati (adminā vai klienta panelī).</p>';
     $body .= '</fieldset>';
     $gapMobile = (int) ($settings['gallery_feed_gap'] ?? 16);
     $gapTablet = (int) ($settings['gallery_feed_gap_tablet'] ?? 20);
@@ -929,7 +1012,7 @@ function efpic_admin_settings_page(array $config): void
         . efpic_admin_esc((string) $gapTablet) . '"></label>';
     $body .= '<label>Atstarpes — desktop (1024px+, px)<input type="number" name="gallery_feed_gap_desktop" min="0" max="120" step="1" required value="'
         . efpic_admin_esc((string) $gapDesktop) . '"></label>';
-    $body .= '<p class="muted">Attiecas uz Pic-Time galerijas režģi: atstarpe starp bildēm un vienādi horizontālie un vertikālie malu atkāpes.</p>';
+    $body .= '<p class="muted">Attiecas uz visām EdgarsFoto tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
     $body .= '</fieldset></div></form>';
 
     efpic_admin_layout(

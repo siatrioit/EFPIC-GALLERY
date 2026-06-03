@@ -80,6 +80,47 @@ function efpic_sanitize_gallery_feed_gap(mixed $value, int $fallback = 16): int
     return max(0, min(120, (int) round((float) $value)));
 }
 
+/** @return array<string, string> */
+function efpic_gallery_theme_options(): array
+{
+    return [
+        'pic-time' => 'EdgarsFoto (moderns)',
+        'classic' => 'EdgarsFoto (klasisks)',
+        'masonry' => 'EdgarsFoto (masonry)',
+        'dark' => 'EdgarsFoto (tumšs)',
+    ];
+}
+
+function efpic_is_valid_gallery_theme(string $theme): bool
+{
+    return array_key_exists($theme, efpic_gallery_theme_options());
+}
+
+function efpic_gallery_effective_theme(array $meta): string
+{
+    $clientTheme = (string) ($meta['client_theme'] ?? '');
+    if ($clientTheme !== '' && efpic_is_valid_gallery_theme($clientTheme)) {
+        return $clientTheme;
+    }
+    $theme = (string) ($meta['theme'] ?? 'pic-time');
+    if (efpic_is_valid_gallery_theme($theme)) {
+        return $theme;
+    }
+
+    return 'pic-time';
+}
+
+function efpic_theme_default_page_bg(string $theme): string
+{
+    return match ($theme) {
+        'dark' => '#111111',
+        'classic' => '#f0f0f0',
+        'masonry' => '#f5f5f5',
+        'pic-time' => '#ffffff',
+        default => '#ffffff',
+    };
+}
+
 function efpic_load_app_settings(array $config): array
 {
     $defaults = efpic_app_settings_defaults();
@@ -260,6 +301,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'event_date' => null,
         'cover_image_token' => null,
         'hero_accent_color' => '#9a9578',
+        'page_bg_color' => null,
         'images' => [],
         'slideshow' => [
             'admin' => [
@@ -395,13 +437,33 @@ function efpic_purge_gallery(array $config, string $slug): void
     efpic_rebuild_access_index($config);
 }
 
+/** @return array{0: int, 1: string, 2: string} Numeric key + basename for stable natural order. */
+function efpic_image_basename_sort_key(array $img): array
+{
+    $name = (string) ($img['basename'] ?? '');
+    if ($name === '' && is_array($img['failiem_full'] ?? null)) {
+        $name = (string) ($img['failiem_full']['name'] ?? '');
+    }
+    if ($name === '' && is_array($img['failiem_web'] ?? null)) {
+        $name = (string) ($img['failiem_web']['name'] ?? '');
+    }
+    $base = pathinfo($name, PATHINFO_FILENAME);
+    $base = (string) preg_replace('/_(PRINT|WEB)$/i', '', $base);
+    if (preg_match('/(\d+)\s*$/', $base, $m) === 1) {
+        return [(int) $m[1], strtolower($base), strtolower($name)];
+    }
+    $pairKey = (string) ($img['pair_key'] ?? '');
+    if ($pairKey !== '' && ctype_digit($pairKey)) {
+        return [(int) $pairKey, strtolower($base), strtolower($name)];
+    }
+
+    return [PHP_INT_MAX, strtolower($base), strtolower($name)];
+}
+
 /** Natural compare for image basenames (EdgarsFoto_PRINT_1002 …). */
 function efpic_compare_image_basenames(array $a, array $b): int
 {
-    $na = (string) ($a['basename'] ?? $a['failiem_full']['name'] ?? '');
-    $nb = (string) ($b['basename'] ?? $b['failiem_full']['name'] ?? '');
-
-    return strnatcasecmp($na, $nb);
+    return efpic_image_basename_sort_key($a) <=> efpic_image_basename_sort_key($b);
 }
 
 function efpic_admin_session_active(): bool

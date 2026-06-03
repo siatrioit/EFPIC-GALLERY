@@ -79,6 +79,63 @@ function efpic_toggle_image_like(array &$meta, int $imageIndex, string $viewerKe
     return ['liked' => !$liked, 'count' => $count];
 }
 
+/** @return list<string> */
+function efpic_client_collection_tokens(string $galleryToken): array
+{
+    efpic_client_session_start();
+    $all = $_SESSION['efpic_collection'] ?? [];
+    if (!is_array($all)) {
+        return [];
+    }
+    $list = $all[$galleryToken] ?? [];
+    if (!is_array($list)) {
+        return [];
+    }
+    $out = [];
+    foreach ($list as $tok) {
+        $tok = (string) $tok;
+        if ($tok !== '') {
+            $out[$tok] = true;
+        }
+    }
+
+    return array_keys($out);
+}
+
+function efpic_client_collection_has(string $galleryToken, string $imageToken): bool
+{
+    return in_array($imageToken, efpic_client_collection_tokens($galleryToken), true);
+}
+
+/** @return array{in_collection: bool, count: int} */
+function efpic_client_collection_toggle(string $galleryToken, string $imageToken): array
+{
+    efpic_client_session_start();
+    if (!isset($_SESSION['efpic_collection']) || !is_array($_SESSION['efpic_collection'])) {
+        $_SESSION['efpic_collection'] = [];
+    }
+    $list = efpic_client_collection_tokens($galleryToken);
+    $idx = array_search($imageToken, $list, true);
+    if ($idx !== false) {
+        array_splice($list, $idx, 1);
+        $in = false;
+    } else {
+        $list[] = $imageToken;
+        $in = true;
+    }
+    $_SESSION['efpic_collection'][$galleryToken] = $list;
+
+    return ['in_collection' => $in, 'count' => count($list)];
+}
+
+function efpic_client_collection_clear(string $galleryToken): void
+{
+    efpic_client_session_start();
+    if (isset($_SESSION['efpic_collection'][$galleryToken])) {
+        unset($_SESSION['efpic_collection'][$galleryToken]);
+    }
+}
+
 function efpic_compare_images_in_scene(array $a, array $b): int
 {
     if (!is_array($a) || !is_array($b)) {
@@ -170,11 +227,24 @@ function efpic_reconcile_auto_scene_sorts(array &$meta): void
 
 function efpic_rebaseline_auto_scene_sorts(array &$meta): void
 {
+    $byScene = [];
     foreach ($meta['images'] ?? [] as $i => $img) {
-        if (!is_array($img) || !empty($img['sort_manual'])) {
+        if (!is_array($img)) {
             continue;
         }
-        unset($meta['images'][$i]['sort'], $meta['images'][$i]['sort_manual']);
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $byScene[$sid][] = $i;
+    }
+    foreach ($byScene as $indices) {
+        usort($indices, static function (int $ia, int $ib) use ($meta): int {
+            return efpic_compare_image_basenames($meta['images'][$ia], $meta['images'][$ib]);
+        });
+        $sort = 10;
+        foreach ($indices as $i) {
+            unset($meta['images'][$i]['sort_manual']);
+            $meta['images'][$i]['sort'] = $sort;
+            $sort += 10;
+        }
     }
 }
 
@@ -362,7 +432,7 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
     ];
 }
 
-/** @return array{role: string, guest_token: string, hide_client_hidden: bool} */
+/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string} */
 function efpic_viewer_context(array $config, array $meta): array
 {
     $guestToken = trim((string) ($_GET['g'] ?? ''));
@@ -370,9 +440,31 @@ function efpic_viewer_context(array $config, array $meta): array
 
     if ($guestToken !== '') {
         foreach ($meta['guests'] ?? [] as $g) {
-            if (is_array($g) && ($g['guest_token'] ?? '') === $guestToken) {
-                return ['role' => 'guest', 'guest_token' => $guestToken, 'hide_client_hidden' => true];
+            if (!is_array($g) || ($g['guest_token'] ?? '') !== $guestToken) {
+                continue;
             }
+            $whitelist = null;
+            $rawTokens = $g['image_tokens'] ?? null;
+            if (is_array($rawTokens) && $rawTokens !== []) {
+                $whitelist = [];
+                foreach ($rawTokens as $tok) {
+                    $tok = (string) $tok;
+                    if ($tok !== '') {
+                        $whitelist[$tok] = true;
+                    }
+                }
+                if ($whitelist === []) {
+                    $whitelist = null;
+                }
+            }
+
+            return [
+                'role' => 'guest',
+                'guest_token' => $guestToken,
+                'hide_client_hidden' => true,
+                'share_image_tokens' => $whitelist,
+                'share_label' => (string) ($g['label'] ?? ''),
+            ];
         }
     }
 
@@ -381,7 +473,13 @@ function efpic_viewer_context(array $config, array $meta): array
         $hideHidden = false;
     }
 
-    return ['role' => 'public', 'guest_token' => '', 'hide_client_hidden' => $hideHidden];
+    return [
+        'role' => 'public',
+        'guest_token' => '',
+        'hide_client_hidden' => $hideHidden,
+        'share_image_tokens' => null,
+        'share_label' => '',
+    ];
 }
 
 function efpic_scene_visible_to_viewer(array $scene, array $ctx): bool
@@ -395,6 +493,14 @@ function efpic_scene_visible_to_viewer(array $scene, array $ctx): bool
 
 function efpic_image_visible_to_viewer(array $img, array $meta, array $ctx): bool
 {
+    $whitelist = $ctx['share_image_tokens'] ?? null;
+    if (is_array($whitelist)) {
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '' || !isset($whitelist[$tok])) {
+            return false;
+        }
+    }
+
     if (!empty($ctx['hide_client_hidden']) && !empty($img['client_hidden'])) {
         return false;
     }
@@ -491,13 +597,8 @@ function efpic_client_page_bg_color(array $config, array $meta): string
     if (preg_match('/^#[0-9a-fA-F]{6}$/', $perGallery) === 1) {
         return strtolower($perGallery);
     }
-    $settings = efpic_load_app_settings($config);
-    $bg = trim((string) ($settings['gallery_page_bg'] ?? '#ffffff'));
-    if (preg_match('/^#[0-9a-fA-F]{6}$/', $bg) === 1) {
-        return strtolower($bg);
-    }
 
-    return '#ffffff';
+    return efpic_theme_default_page_bg(efpic_gallery_effective_theme($meta));
 }
 
 /** @return array{mobile: int, tablet: int, desktop: int} */

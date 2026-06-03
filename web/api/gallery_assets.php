@@ -613,3 +613,69 @@ function efpic_handle_gallery_asset(array $config, string $galleryToken, string 
     readfile($path);
     exit;
 }
+
+/** @return array{guest_token: string, label: string, image_tokens: list<string>} */
+function efpic_create_share_set(array &$meta, string $label, array $imageTokens, string $createdBy = 'admin'): array
+{
+    $index = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && ($img['token'] ?? '') !== '') {
+            $index[(string) $img['token']] = true;
+        }
+    }
+    $valid = [];
+    foreach ($imageTokens as $tok) {
+        $tok = trim((string) $tok);
+        if ($tok !== '' && isset($index[$tok])) {
+            $valid[$tok] = true;
+        }
+    }
+    $valid = array_keys($valid);
+    if ($valid === []) {
+        throw new InvalidArgumentException('Izvēlies vismaz vienu derīgu bildi izlasei.');
+    }
+
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        $guests = [];
+    }
+    $entry = [
+        'guest_token' => efpic_random_hex(16),
+        'label' => $label !== '' ? $label : 'Izlase',
+        'image_tokens' => $valid,
+        'created_at' => gmdate('c'),
+        'created_by' => $createdBy,
+    ];
+    $guests[] = $entry;
+    $meta['guests'] = $guests;
+
+    return $entry;
+}
+
+function efpic_delete_share_set(array &$meta, string $guestToken): void
+{
+    $guestToken = trim($guestToken);
+    if ($guestToken === '') {
+        return;
+    }
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        return;
+    }
+    $meta['guests'] = array_values(array_filter($guests, static function ($g) use ($guestToken) {
+        return !is_array($g) || (string) ($g['guest_token'] ?? '') !== $guestToken;
+    }));
+}
+
+function efpic_share_set_image_count(array $guest): int
+{
+    if (!is_array($guest)) {
+        return 0;
+    }
+    $tokens = $guest['image_tokens'] ?? null;
+    if (!is_array($tokens) || $tokens === []) {
+        return 0;
+    }
+
+    return count($tokens);
+}
