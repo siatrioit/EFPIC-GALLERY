@@ -257,6 +257,37 @@ function efpic_client_brand_name(array $config): string
     return $name !== '' ? $name : 'Edgars Foto';
 }
 
+function efpic_client_gallery_byline(array $config): string
+{
+    $settings = efpic_load_app_settings($config);
+    $line = trim((string) ($settings['gallery_byline'] ?? ''));
+    if ($line === '') {
+        return 'Gallery by ' . efpic_client_brand_name($config);
+    }
+
+    return $line;
+}
+
+function efpic_client_page_bg_color(array $config, array $meta): string
+{
+    $perGallery = trim((string) ($meta['page_bg_color'] ?? ''));
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $perGallery) === 1) {
+        return strtolower($perGallery);
+    }
+    $settings = efpic_load_app_settings($config);
+    $bg = trim((string) ($settings['gallery_page_bg'] ?? '#ffffff'));
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $bg) === 1) {
+        return strtolower($bg);
+    }
+
+    return '#ffffff';
+}
+
+function efpic_gallery_image_focus_hash(string $imageToken): string
+{
+    return '#pic-' . $imageToken;
+}
+
 function efpic_client_format_event_date(string $date): string
 {
     $date = trim($date);

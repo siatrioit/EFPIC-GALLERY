@@ -119,7 +119,9 @@ function efpic_client_html(
     if ($meta !== null) {
         $accent = efpic_client_hero_accent_color($meta);
         $heroText = efpic_client_hero_text_color($accent);
-        echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';--hero-text:' . efpic_client_esc($heroText) . ';}</style>';
+        $pageBg = efpic_client_page_bg_color($config, $meta);
+        echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';--hero-text:' . efpic_client_esc($heroText)
+            . ';--page-bg:' . efpic_client_esc($pageBg) . ';}</style>';
     }
     echo '</head><body' . $class . '>';
     echo $body;
@@ -155,10 +157,12 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     }
 
     if ($isPicTime) {
-        $brand = efpic_client_brand_name($config);
+        $byline = efpic_client_gallery_byline($config);
         $date = efpic_client_format_event_date($dateRaw);
         $html = '<section class="gallery-intro" id="galleryHero">';
-        $html .= '<p class="gallery-intro-byline">Gallery by ' . efpic_client_esc($brand) . '</p>';
+        $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
+        $html .= '<div class="gallery-intro-layout">';
+        $html .= '<div class="gallery-intro-left"><h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1></div>';
         $html .= '<figure class="gallery-intro-figure">';
         if ($imgUrl !== '') {
             $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="">';
@@ -166,9 +170,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         if ($date !== '') {
             $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
         }
-        $html .= '</figure>';
-        $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
-        $html .= '</section>';
+        $html .= '</figure></div></section>';
 
         return $html;
     }
@@ -205,7 +207,8 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
             }
             $imgUrl = efpic_client_media_url($config, $img, 'web', 1600);
             $pageUrl = efpic_image_view_url($config, $tok);
-            $html .= '<a class="pic-feed-item" href="' . efpic_client_esc($pageUrl) . '">';
+            $html .= '<a class="pic-feed-item" id="pic-' . efpic_client_esc($tok) . '" data-token="' . efpic_client_esc($tok) . '" href="'
+                . efpic_client_esc($pageUrl) . '">';
             $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
         }
         $html .= '</div>';
@@ -352,7 +355,9 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></a></nav>';
     }
     $pageClass = 'page-gallery theme-' . preg_replace('/[^a-z0-9-]/', '', $theme);
-    efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [], $meta);
+    efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [
+        'EFPIC_GALLERY_TOKEN' => $galleryToken,
+    ], $meta);
 }
 
 function efpic_client_render_pic_time_viewer(
@@ -434,7 +439,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     $prevUrl = $index > 0 ? efpic_image_view_url($config, (string) ($navImages[$index - 1]['token'] ?? '')) : '';
     $nextUrl = $index < $total - 1 ? efpic_image_view_url($config, (string) ($navImages[$index + 1]['token'] ?? '')) : '';
 
-    $closeUrl = $canBrowseGallery ? $galleryUrl : $pageUrl;
+    $closeUrl = $canBrowseGallery ? ($galleryUrl . efpic_gallery_image_focus_hash($imageToken)) : $pageUrl;
 
     if ($theme === 'pic-time') {
         $body = efpic_client_render_pic_time_viewer(
@@ -457,6 +462,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
             'EFPIC_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download',
             'EFPIC_VIEWER_PREV' => $prevUrl,
             'EFPIC_VIEWER_NEXT' => $nextUrl,
+            'EFPIC_GALLERY_RETURN' => $closeUrl,
         ], $meta);
 
         return;

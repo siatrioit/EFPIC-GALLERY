@@ -53,6 +53,39 @@ function efpic_access_index_path(array $config): string
     return dirname(efpic_storage_path($config)) . '/access_index.json';
 }
 
+function efpic_app_settings_path(array $config): string
+{
+    return dirname(efpic_storage_path($config)) . '/app_settings.json';
+}
+
+/** @return array{gallery_byline: string, gallery_page_bg: string, updated_at: ?string} */
+function efpic_app_settings_defaults(): array
+{
+    return [
+        'gallery_byline' => 'Gallery by Edgars Foto',
+        'gallery_page_bg' => '#ffffff',
+        'updated_at' => null,
+    ];
+}
+
+function efpic_load_app_settings(array $config): array
+{
+    $defaults = efpic_app_settings_defaults();
+    $data = efpic_read_json_file(efpic_app_settings_path($config));
+    if (!is_array($data)) {
+        return $defaults;
+    }
+
+    return array_merge($defaults, $data);
+}
+
+function efpic_save_app_settings(array $config, array $settings): void
+{
+    $merged = array_merge(efpic_app_settings_defaults(), $settings);
+    $merged['updated_at'] = gmdate('c');
+    efpic_write_json_file(efpic_app_settings_path($config), $merged);
+}
+
 function efpic_json_response(int $code, array $data): void
 {
     http_response_code($code);

@@ -187,3 +187,11 @@
 .muted {
   color: #6b7280;
 }
+
+.admin-ok {
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: #ecfdf5;
+  color: #047857;
+  font-size: 0.9rem;
+}

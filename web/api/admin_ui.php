@@ -76,6 +76,7 @@ function efpic_admin_layout(string $title, string $body, string $active = ''): v
     echo '<header class="admin-header"><strong>Edgars Foto</strong><nav>';
     echo '<a href="index.php"' . ($active === 'list' ? ' class="active"' : '') . '>Galerijas</a>';
     echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna piegāde</a>';
+    echo '<a href="settings.php"' . ($active === 'settings' ? ' class="active"' : '') . '>Iestatījumi</a>';
     echo '</nav><a class="admin-logout" href="index.php?logout=1">Iziet</a></header>';
     echo '<main class="admin-main">' . $body . '</main></body></html>';
     exit;
@@ -322,4 +323,53 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     }
 
     efpic_admin_layout($isEdit ? 'Rediģēt' : 'Jauna', $body, $isEdit ? 'list' : 'new');
+}
+
+function efpic_admin_save_settings_from_post(array $config): void
+{
+    $byline = trim((string) ($_POST['gallery_byline'] ?? ''));
+    if ($byline === '') {
+        throw new InvalidArgumentException('Galerijas paraksts obligāts');
+    }
+
+    $pageBg = trim((string) ($_POST['gallery_page_bg'] ?? '#ffffff'));
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) !== 1) {
+        throw new InvalidArgumentException('Nederīga pamatkrāsa');
+    }
+
+    efpic_save_app_settings($config, [
+        'gallery_byline' => $byline,
+        'gallery_page_bg' => strtolower($pageBg),
+    ]);
+}
+
+function efpic_admin_settings_page(array $config): void
+{
+    $settings = efpic_load_app_settings($config);
+    $saved = isset($_GET['saved']);
+    $error = trim((string) ($_GET['error'] ?? ''));
+
+    $body = '<h1>Iestatījumi</h1>';
+    $body .= '<p class="muted">Globālie iestatījumi visām publiskajām galerijām.</p>';
+    if ($saved) {
+        $body .= '<p class="admin-ok">Saglabāts.</p>';
+    }
+    if ($error !== '') {
+        $body .= '<p class="err">' . efpic_admin_esc($error) . '</p>';
+    }
+
+    $body .= '<form method="post" class="admin-form">';
+    $body .= '<fieldset><legend>Galerijas izskats</legend>';
+    $body .= '<label>Galerijas paraksts (virs vāka)<input name="gallery_byline" required value="'
+        . efpic_admin_esc((string) ($settings['gallery_byline'] ?? '')) . '" placeholder="Gallery by Edgars Foto"></label>';
+    $body .= '<p class="muted">Parādās visu galeriju sākuma ekrānā, piem. «Gallery by Edgars Foto».</p>';
+    $pageBg = (string) ($settings['gallery_page_bg'] ?? '#ffffff');
+    $body .= '<label>Galerijas pamatkrāsa (režģis un bilžu skats)<input type="color" name="gallery_page_bg" value="'
+        . efpic_admin_esc($pageBg) . '"></label>';
+    $body .= '<p class="muted">Fons zem bildēm un atverot bildi pilnekrānā. Titulbildes fons joprojām ir galerijas «vāka krāsa».</p>';
+    $body .= '</fieldset>';
+    $body .= '<div class="admin-actions"><button type="submit" class="btn primary" name="save" value="1">Saglabāt</button></div>';
+    $body .= '</form>';
+
+    efpic_admin_layout('Iestatījumi', $body, 'settings');
 }

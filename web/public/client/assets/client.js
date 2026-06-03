@@ -173,6 +173,40 @@
     updateFloatingUi();
   }
 
+  function restoreGalleryFocus() {
+    var hash = window.location.hash || '';
+    if (hash.indexOf('#pic-') !== 0) {
+      return;
+    }
+    var tok = hash.slice(5);
+    function scrollToThumb() {
+      var el = document.getElementById('pic-' + tok);
+      if (!el) {
+        return;
+      }
+      el.scrollIntoView({ block: 'center', behavior: 'auto' });
+    }
+    scrollToThumb();
+    window.addEventListener('load', scrollToThumb);
+    setTimeout(scrollToThumb, 120);
+  }
+
+  restoreGalleryFocus();
+
+  document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (link) {
+    link.addEventListener('click', function () {
+      var tok = link.getAttribute('data-token') || '';
+      if (tok !== '') {
+        try {
+          sessionStorage.setItem('efpic_gallery_scroll', String(window.scrollY));
+          sessionStorage.setItem('efpic_gallery_focus', tok);
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    });
+  });
+
   var prevUrl = window.EFPIC_VIEWER_PREV || '';
   var nextUrl = window.EFPIC_VIEWER_NEXT || '';
 
