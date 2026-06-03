@@ -476,6 +476,7 @@
 }
 
 .admin-media-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -483,7 +484,7 @@
   background: var(--admin-surface-2);
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
-  cursor: grab;
+  cursor: pointer;
   font-size: 0.75rem;
   min-width: 0;
   transition: box-shadow 0.15s ease, border-color 0.15s ease;
@@ -492,6 +493,16 @@
 .admin-media-card:hover {
   border-color: var(--admin-border-strong);
   box-shadow: 0 4px 12px rgba(20, 20, 20, 0.08);
+}
+
+.admin-media-card.is-picked {
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 2px var(--admin-accent-soft);
+  background: var(--admin-accent-soft);
+}
+
+.admin-media-card.is-filtered-out {
+  display: none !important;
 }
 
 .admin-media-card.dragging {
@@ -728,22 +739,43 @@
   opacity: 0.55;
 }
 
+.admin-scene-move-wrap {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
 .admin-scene-drag {
   flex: 0 0 auto;
-  padding: 4px 8px;
-  margin: 0;
-  border: none;
+  padding: 6px 8px;
   border-radius: 6px;
-  background: transparent;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
   color: var(--admin-text-muted);
   font-size: 1rem;
   line-height: 1;
   cursor: grab;
   letter-spacing: -0.12em;
+  touch-action: none;
+  user-select: none;
 }
 
 .admin-scene-drag:active {
   cursor: grabbing;
+}
+
+.admin-scene-move {
+  min-width: 2rem;
+  padding: 6px 8px;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.admin-scene-pick-images {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  white-space: nowrap;
 }
 
 .admin-scene-title-input {
@@ -964,11 +996,92 @@
   gap: 10px;
 }
 
-.admin-bulk-pick {
+.admin-image-bulk-bar {
+  position: sticky;
+  top: calc(var(--admin-topbar-h) + var(--admin-sticky-h) - 4px);
+  z-index: 45;
+  margin: 0 0 14px;
+  padding: 14px 16px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-image-bulk-lead {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: var(--admin-text-muted);
+}
+
+.admin-image-bulk-lead kbd {
+  padding: 1px 5px;
+  border-radius: 4px;
+  border: 1px solid var(--admin-border-strong);
+  background: var(--admin-surface-2);
+  font-size: 0.8em;
+}
+
+.admin-image-bulk-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.admin-pick-count {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--admin-accent);
+  min-width: 6rem;
+}
+
+.admin-bulk-label {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  font-size: 0.72rem;
+  gap: 8px;
+  font-size: 0.88rem;
+  font-weight: 500;
+}
+
+.admin-bulk-label select {
+  min-width: 140px;
+}
+
+.admin-scene-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-scene-filter-btn {
+  padding: 6px 12px;
+  font-size: 0.8rem;
+}
+
+.admin-scene-filter-btn.is-active {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  color: #fff;
+}
+
+.admin-bulk-pick {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  margin: 0;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.92);
+  border-radius: 6px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  font-size: 0;
   font-weight: 600;
   color: var(--admin-text-muted);
   cursor: pointer;

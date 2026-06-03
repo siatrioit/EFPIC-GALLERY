@@ -142,21 +142,44 @@ function efpic_admin_render_scenes_fieldset(array $meta): string
     }, $scenes), JSON_UNESCAPED_UNICODE);
 
     $html = '<fieldset class="admin-fieldset-full admin-scenes-panel admin-scenes-panel--above-images"><legend>Galerijas sadaļas</legend>';
-    $html .= '<p class="muted">Klients publiskajā saitē redz sadaļu izvēlni un var pārlēkt uz nākamo daļu. Velciet ⋮⋮, lai mainītu secību.</p>';
+    $html .= '<p class="muted">Klients publiskajā saitē redz sadaļu izvēlni. Secību maini ar ⋮⋮ (velc) vai ↑↓. «Atlasīt bildes» — izvēlas visas bildes šajā sadaļā zemāk.</p>';
     $html .= '<input type="hidden" name="scenes_json" id="scenes_json" value="' . efpic_admin_esc($scenesJson) . '">';
     $html .= '<div id="admin-scenes-editor" class="admin-scenes-editor" data-scenes="' . efpic_admin_esc($scenesJson) . '"></div>';
     $html .= '<button type="button" class="btn admin-btn-inline" id="admin-add-scene">+ Pievienot sadaļu</button>';
-    $html .= '<div class="admin-bulk-scene" id="admin-bulk-scene">';
-    $html .= '<p class="muted">Atzīmē bildes zemāk (☑ Atlasīt), izvēlies sadaļu un piešķir vairākas bildes vienā reizē.</p>';
-    $html .= '<label>Sadaļa<select id="admin-bulk-scene-target">';
+    $html .= '</fieldset>';
+
+    return $html;
+}
+
+function efpic_admin_render_image_scene_toolbar(array $meta): string
+{
+    $scenes = efpic_gallery_scene_options($meta);
+    $counts = efpic_admin_scene_image_counts($meta);
+    $total = count($meta['images'] ?? []);
+
+    $html = '<div class="admin-image-bulk-bar" id="admin-image-bulk-bar">';
+    $html .= '<p class="admin-image-bulk-lead"><strong>Bilžu sadaļas:</strong> klikšķini uz bildes, lai atlasītu; '
+        . 'turiet <kbd>Shift</kbd>, lai atlasītu diapazonu. Pēc tam izvēlies sadaļu un «Piešķirt».</p>';
+    $html .= '<div class="admin-image-bulk-row">';
+    $html .= '<span class="admin-pick-count" id="admin-pick-count" aria-live="polite">0 atlasītas</span>';
+    $html .= '<label class="admin-bulk-label">Jaunā sadaļa<select id="admin-bulk-scene-target">';
     foreach ($scenes as $scene) {
         $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
     }
     $html .= '</select></label>';
-    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-assign-scene">Piešķirt atlasītās bildes</button>';
-    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-select-all-images">Atlasīt visas bildes</button>';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-assign-scene">Piešķirt atlasītajām</button>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-select-visible-images">Atlasīt redzamās</button>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-select-all-images">Atlasīt visas</button>';
     $html .= '<button type="button" class="btn admin-btn-inline" id="admin-clear-image-selection">Noņemt atlasi</button>';
-    $html .= '</div></fieldset>';
+    $html .= '</div>';
+    $html .= '<div class="admin-scene-filter" id="admin-scene-filter" role="group" aria-label="Filtrēt bildes pēc sadaļas">';
+    $html .= '<button type="button" class="btn admin-scene-filter-btn is-active" data-scene-filter="all">Visas (' . $total . ')</button>';
+    foreach ($scenes as $scene) {
+        $n = (int) ($counts[$scene['id']] ?? 0);
+        $html .= '<button type="button" class="btn admin-scene-filter-btn" data-scene-filter="' . efpic_admin_esc($scene['id']) . '">'
+            . efpic_admin_esc($scene['title']) . ' (' . $n . ')</button>';
+    }
+    $html .= '</div></div>';
 
     return $html;
 }
@@ -756,8 +779,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $first = $sortedImages[0];
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
-        $body .= '<fieldset class="admin-fieldset-full"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
-        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. ☑ Atlasīt — vairākām bildēm, ★ Mana favorīte, «Vāks».</p>';
+        $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
+        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. ★ Mana favorīte, «Vāks» — uz kartītes.</p>';
+        $body .= efpic_admin_render_image_scene_toolbar($meta);
         $sceneOptions = efpic_gallery_scene_options($meta);
         $body .= '<ul id="sortable" class="admin-media-grid">';
         foreach ($sortedImages as $img) {
@@ -766,10 +790,11 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             }
             $tok = (string) ($img['token'] ?? '');
             $checked = $tok !== '' && $tok === $coverTok ? ' checked' : '';
+            $imgScene = (string) ($img['scene_id'] ?? 'main');
             $thumb = efpic_admin_media_thumb_url($config, $img);
             $preview = efpic_client_media_url($config, $img, 'web', 1200);
-            $body .= '<li class="admin-media-card" data-token="' . efpic_admin_esc($tok) . '">';
-            $body .= '<label class="admin-bulk-pick"><input type="checkbox" class="admin-image-pick" value="' . efpic_admin_esc($tok) . '"> Atlasīt</label>';
+            $body .= '<li class="admin-media-card" data-token="' . efpic_admin_esc($tok) . '" data-scene-id="' . efpic_admin_esc($imgScene) . '">';
+            $body .= '<label class="admin-bulk-pick"><input type="checkbox" class="admin-image-pick" value="' . efpic_admin_esc($tok) . '" aria-label="Atlasīt bildi"></label>';
             $body .= '<button type="button" class="admin-media-thumb" data-preview="' . efpic_admin_esc($preview) . '" aria-label="Priekšskatījums">';
             $body .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" width="240" height="240" loading="lazy" decoding="async"></button>';
             $body .= '<label class="admin-cover-pick"><input type="radio" name="cover_image_token" value="' . efpic_admin_esc($tok) . '"' . $checked . '> Vāks</label>';
@@ -778,7 +803,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             if (efpic_image_favorited_client($img)) {
                 $body .= '<span class="admin-client-fav-badge" title="Klienta favorīts">★ Klients</span>';
             }
-            $imgScene = (string) ($img['scene_id'] ?? 'main');
             $body .= '<label class="admin-scene-pick">Sadaļa<select name="image_scene[' . efpic_admin_esc($tok) . ']">';
             foreach ($sceneOptions as $scene) {
                 $sel = $scene['id'] === $imgScene ? ' selected' : '';
