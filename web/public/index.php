@@ -7,6 +7,7 @@ require_once dirname(__DIR__) . '/api/booth_handlers.php';
 require_once dirname(__DIR__) . '/api/client_handlers.php';
 require_once dirname(__DIR__) . '/api/guest_delivery_handlers.php';
 require_once dirname(__DIR__) . '/api/portal_handlers.php';
+require_once dirname(__DIR__) . '/api/gallery_assets.php';
 
 $config = efpic_load_config();
 
@@ -65,6 +66,10 @@ try {
 
     if (preg_match('#^/api/booth-events/([a-f0-9]{32})/frame\.png$#i', $uri, $m) && $method === 'GET') {
         efpic_handle_get_booth_frame($config, $m[1]);
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/asset/([a-zA-Z0-9._-]+)$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_gallery_asset($config, strtolower($m[1]), $m[2]);
     }
 
     if (preg_match('#^/v/g/([a-f0-9]{48})/download\.zip$#i', $uri, $m) && $method === 'GET') {

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/gallery_access.php';
 require_once __DIR__ . '/failiem_client.php';
+require_once __DIR__ . '/gallery_assets.php';
 
 function efpic_client_esc(string $s): string
 {
@@ -193,6 +194,173 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     return $html;
 }
 
+function efpic_client_render_pic_feed_items(array $config, array $images): string
+{
+    $html = '';
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '') {
+            continue;
+        }
+        $imgUrl = efpic_client_media_url($config, $img, 'web', 1600);
+        $pageUrl = efpic_image_view_url($config, $tok);
+        $html .= '<a class="pic-feed-item" id="pic-' . efpic_client_esc($tok) . '" data-token="' . efpic_client_esc($tok) . '" href="'
+            . efpic_client_esc($pageUrl) . '">';
+        $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
+    }
+
+    return $html;
+}
+
+function efpic_client_render_pic_time_scenes(array $config, array $meta, array $images): string
+{
+    $scenes = $meta['scenes'] ?? [];
+    if (!is_array($scenes) || $scenes === []) {
+        $scenes = [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
+    }
+    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+
+    $byScene = [];
+    foreach ($images as $img) {
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $byScene[$sid][] = $img;
+    }
+
+    $html = '';
+    $sectionsWithImages = 0;
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $sid = (string) ($scene['id'] ?? 'main');
+        if (($byScene[$sid] ?? []) !== []) {
+            $sectionsWithImages++;
+        }
+    }
+    $multiScene = $sectionsWithImages > 1;
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $sid = (string) ($scene['id'] ?? 'main');
+        $sceneImages = $byScene[$sid] ?? [];
+        if ($sceneImages === []) {
+            continue;
+        }
+        $title = (string) ($scene['title'] ?? $sid);
+        if ($multiScene) {
+            $html .= '<section class="scene-block scene-block--pic"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+        }
+        $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
+        $html .= efpic_client_render_pic_feed_items($config, $sceneImages);
+        $html .= '</div>';
+        if ($multiScene) {
+            $html .= '</section>';
+        }
+    }
+
+    if ($html === '') {
+        $html = '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
+        $html .= efpic_client_render_pic_feed_items($config, $images);
+        $html .= '</div>';
+    }
+
+    return $html;
+}
+
+function efpic_client_render_gallery_videos(array $config, array $meta, array $ctx): string
+{
+    $videos = $meta['videos'] ?? [];
+    if (!is_array($videos) || $videos === []) {
+        return '';
+    }
+    usort($videos, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $scenes = efpic_gallery_scene_options($meta);
+    $sceneTitles = [];
+    foreach ($scenes as $s) {
+        $sceneTitles[$s['id']] = $s['title'];
+    }
+
+    $byScene = [];
+    foreach ($videos as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        $sid = (string) ($video['scene_id'] ?? 'main');
+        $byScene[$sid][] = $video;
+    }
+
+    $html = '';
+    foreach ($scenes as $scene) {
+        $sid = $scene['id'];
+        $list = $byScene[$sid] ?? [];
+        if ($list === []) {
+            continue;
+        }
+        $html .= '<section class="gallery-videos scene-block"><h2 class="scene-title">' . efpic_client_esc((string) ($sceneTitles[$sid] ?? 'Video')) . ' — video</h2>';
+        foreach ($list as $video) {
+            $title = trim((string) ($video['title'] ?? ''));
+            if ($title !== '') {
+                $html .= '<h3 class="gallery-video-title">' . efpic_client_esc($title) . '</h3>';
+            }
+            $kind = (string) ($video['kind'] ?? 'file');
+            if ($kind === 'embed') {
+                $provider = (string) ($video['provider'] ?? '');
+                $embedId = (string) ($video['embed_id'] ?? '');
+                if ($embedId === '') {
+                    continue;
+                }
+                $src = $provider === 'vimeo'
+                    ? 'https://player.vimeo.com/video/' . rawurlencode($embedId)
+                    : 'https://www.youtube-nocookie.com/embed/' . rawurlencode($embedId);
+                $html .= '<div class="gallery-video-embed"><iframe src="' . efpic_client_esc($src) . '" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+            } else {
+                $file = (string) ($video['file'] ?? '');
+                if ($file === '') {
+                    continue;
+                }
+                $url = efpic_gallery_asset_url($config, $gt, $file);
+                $html .= '<div class="gallery-video-file"><video controls playsinline preload="metadata" src="' . efpic_client_esc($url) . '"></video></div>';
+            }
+        }
+        $html .= '</section>';
+    }
+
+    return $html;
+}
+
+function efpic_client_render_slideshow_overlay(array $config, array $meta, array $ctx): string
+{
+    $slideshow = efpic_gallery_normalize_slideshow($meta);
+    if (!$slideshow['enabled'] || $slideshow['audio_file'] === '') {
+        return '';
+    }
+    $favs = efpic_slideshow_favorite_images($meta, $ctx, $config);
+    if ($favs === []) {
+        return '';
+    }
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $slides = [];
+    foreach ($favs as $img) {
+        $slides[] = efpic_client_media_url($config, $img, 'web', 1920);
+    }
+    $audioUrl = efpic_gallery_asset_url($config, $gt, $slideshow['audio_file']);
+
+    $html = '<div id="efpic-slideshow" class="efpic-slideshow" hidden data-interval="' . (int) $slideshow['interval_sec'] . '">';
+    $html .= '<button type="button" class="efpic-slideshow-close" aria-label="Aizvērt">&times;</button>';
+    $html .= '<div class="efpic-slideshow-stage"><img src="" alt=""></div>';
+    $html .= '<audio class="efpic-slideshow-audio" src="' . efpic_client_esc($audioUrl) . '" loop></audio>';
+    $json = json_encode($slides, JSON_UNESCAPED_SLASHES);
+    $html .= '<script type="application/json" id="efpic-slideshow-data">' . str_replace('</', '<\/', (string) $json) . '</script>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_client_render_gallery_grid(array $config, array $meta, array $images, string $theme = ''): string
 {
     if ($images === []) {
@@ -201,24 +369,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
 
     $theme = $theme !== '' ? $theme : efpic_client_effective_theme($meta);
     if ($theme === 'pic-time') {
-        $html = '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
-        foreach ($images as $img) {
-            if (!is_array($img)) {
-                continue;
-            }
-            $tok = (string) ($img['token'] ?? '');
-            if ($tok === '') {
-                continue;
-            }
-            $imgUrl = efpic_client_media_url($config, $img, 'web', 1600);
-            $pageUrl = efpic_image_view_url($config, $tok);
-            $html .= '<a class="pic-feed-item" id="pic-' . efpic_client_esc($tok) . '" data-token="' . efpic_client_esc($tok) . '" href="'
-                . efpic_client_esc($pageUrl) . '">';
-            $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
-        }
-        $html .= '</div>';
-
-        return $html;
+        return efpic_client_render_pic_time_scenes($config, $meta, $images);
     }
 
     $scenes = $meta['scenes'] ?? [];
@@ -327,7 +478,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     if (efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true)) {
-        $body .= '<main class="gallery-main">' . efpic_client_render_gallery_grid($config, $meta, $images, $theme) . '</main>';
+        $body .= '<main class="gallery-main">';
+        $body .= efpic_client_render_gallery_videos($config, $meta, $ctx);
+        $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme);
+        $body .= '</main>';
     } else {
         $body .= '<main class="feed">';
         foreach ($images as $img) {
@@ -353,11 +507,19 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     $body .= efpic_client_share_modal($name);
     if ($isPicTime) {
+        $slideshow = efpic_gallery_normalize_slideshow($meta);
+        $hasSlideshow = $slideshow['enabled'] && $slideshow['audio_file'] !== ''
+            && efpic_slideshow_favorite_images($meta, $ctx, $config) !== [];
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
+        if ($hasSlideshow) {
+            $body .= '<button type="button" class="float-btn" data-slideshow-open aria-label="Slideshow">';
+            $body .= '<span>▶</span><span>Slideshow</span></button>';
+        }
         $body .= '<button type="button" class="float-btn" data-share-open aria-label="Dalīties">';
         $body .= efpic_client_icon('share') . '<span>Dalīties</span></button>';
         $body .= '<a class="float-btn" href="#downloads" aria-label="Lejupielādes">';
         $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></a></nav>';
+        $body .= efpic_client_render_slideshow_overlay($config, $meta, $ctx);
     }
     $pageClass = 'page-gallery theme-' . preg_replace('/[^a-z0-9-]/', '', $theme);
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [

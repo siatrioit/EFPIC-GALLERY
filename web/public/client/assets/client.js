@@ -427,4 +427,64 @@
       window.location.href = nextUrl;
     }
   });
+
+  var slideshowEl = document.getElementById('efpic-slideshow');
+  var slideshowOpenBtn = document.querySelector('[data-slideshow-open]');
+  if (slideshowEl && slideshowOpenBtn) {
+    var slideImg = slideshowEl.querySelector('.efpic-slideshow-stage img');
+    var slideAudio = slideshowEl.querySelector('.efpic-slideshow-audio');
+    var slideClose = slideshowEl.querySelector('.efpic-slideshow-close');
+    var dataEl = document.getElementById('efpic-slideshow-data');
+    var slides = [];
+    var slideIdx = 0;
+    var slideTimer = null;
+    var intervalSec = parseInt(slideshowEl.getAttribute('data-interval') || '5', 10) * 1000;
+
+    try {
+      slides = JSON.parse(dataEl ? dataEl.textContent || '[]' : '[]');
+    } catch (e) {
+      slides = [];
+    }
+
+    function showSlide(i) {
+      if (!slideImg || !slides.length) return;
+      slideIdx = ((i % slides.length) + slides.length) % slides.length;
+      slideImg.src = slides[slideIdx];
+    }
+
+    function stopSlideshow() {
+      if (slideTimer) clearInterval(slideTimer);
+      slideTimer = null;
+      if (slideAudio) {
+        slideAudio.pause();
+        slideAudio.currentTime = 0;
+      }
+      slideshowEl.hidden = true;
+      document.body.style.overflow = '';
+    }
+
+    function startSlideshow() {
+      if (!slides.length) return;
+      slideshowEl.hidden = false;
+      document.body.style.overflow = 'hidden';
+      showSlide(0);
+      if (slideAudio) {
+        slideAudio.currentTime = 0;
+        slideAudio.play().catch(function () {});
+      }
+      if (slideTimer) clearInterval(slideTimer);
+      slideTimer = setInterval(function () {
+        showSlide(slideIdx + 1);
+      }, intervalSec);
+    }
+
+    slideshowOpenBtn.addEventListener('click', startSlideshow);
+    if (slideClose) slideClose.addEventListener('click', stopSlideshow);
+    slideshowEl.addEventListener('click', function (evt) {
+      if (evt.target === slideshowEl) stopSlideshow();
+    });
+    document.addEventListener('keydown', function (evt) {
+      if (!slideshowEl.hidden && evt.key === 'Escape') stopSlideshow();
+    });
+  }
 })();

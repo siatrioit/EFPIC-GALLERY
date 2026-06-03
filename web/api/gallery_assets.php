@@ -1,0 +1,438 @@
+<?php
+
+declare(strict_types=1);
+
+function efpic_gallery_assets_dir(array $config, string $slug): string
+{
+    return efpic_gallery_dir($config, $slug) . DIRECTORY_SEPARATOR . 'assets';
+}
+
+function efpic_ensure_gallery_assets_dir(array $config, string $slug): string
+{
+    $dir = efpic_gallery_assets_dir($config, $slug);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+
+    return $dir;
+}
+
+/** @return list<array{id: string, title: string}> */
+function efpic_gallery_scene_options(array $meta): array
+{
+    $scenes = $meta['scenes'] ?? [];
+    if (!is_array($scenes) || $scenes === []) {
+        return [['id' => 'main', 'title' => 'Galerija']];
+    }
+    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $out = [];
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $out[] = [
+            'id' => (string) ($scene['id'] ?? 'main'),
+            'title' => (string) ($scene['title'] ?? 'Galerija'),
+        ];
+    }
+
+    return $out;
+}
+
+function efpic_gallery_slideshow_defaults(): array
+{
+    return [
+        'enabled' => false,
+        'audio_file' => '',
+        'interval_sec' => 5,
+    ];
+}
+
+function efpic_gallery_normalize_slideshow(array $meta): array
+{
+    $raw = $meta['slideshow'] ?? [];
+    if (!is_array($raw)) {
+        return efpic_gallery_slideshow_defaults();
+    }
+
+    $interval = (int) ($raw['interval_sec'] ?? 5);
+    if ($interval < 2) {
+        $interval = 2;
+    }
+    if ($interval > 60) {
+        $interval = 60;
+    }
+
+    return [
+        'enabled' => !empty($raw['enabled']),
+        'audio_file' => preg_match('/^[a-zA-Z0-9._-]+$/', (string) ($raw['audio_file'] ?? '')) === 1
+            ? (string) $raw['audio_file'] : '',
+        'interval_sec' => $interval,
+    ];
+}
+
+function efpic_gallery_asset_url(array $config, string $galleryToken, string $filename): string
+{
+    return efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken) . '/asset/'
+        . rawurlencode($filename);
+}
+
+function efpic_gallery_asset_registered(array $meta, string $filename): bool
+{
+    $slideshow = efpic_gallery_normalize_slideshow($meta);
+    if ($slideshow['audio_file'] === $filename) {
+        return true;
+    }
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video) || ($video['kind'] ?? '') !== 'file') {
+            continue;
+        }
+        if ((string) ($video['file'] ?? '') === $filename) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function efpic_store_gallery_upload(array $config, string $slug, array $file, array $allowedExt, int $maxBytes): string
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException('Augšupielādes kļūda');
+    }
+    if ((int) ($file['size'] ?? 0) > $maxBytes) {
+        throw new InvalidArgumentException('Fails ir pārāk liels');
+    }
+    $orig = (string) ($file['name'] ?? 'file');
+    $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExt, true)) {
+        throw new InvalidArgumentException('Nederīgs faila tips');
+    }
+    $safe = efpic_random_hex(8) . '.' . $ext;
+    $dir = efpic_ensure_gallery_assets_dir($config, $slug);
+    $dest = $dir . DIRECTORY_SEPARATOR . $safe;
+    if (!move_uploaded_file((string) $file['tmp_name'], $dest)) {
+        throw new RuntimeException('Neizdevās saglabāt failu');
+    }
+
+    return $safe;
+}
+
+function efpic_delete_gallery_asset_file(array $config, string $slug, string $filename): void
+{
+    if (preg_match('/^[a-zA-Z0-9._-]+$/', $filename) !== 1) {
+        return;
+    }
+    $path = efpic_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $filename;
+    if (is_file($path)) {
+        unlink($path);
+    }
+}
+
+/** @return array{type: string, provider: string, embed_id: string}|null */
+function efpic_parse_video_embed_url(string $url): ?array
+{
+    $url = trim($url);
+    if ($url === '') {
+        return null;
+    }
+    if (preg_match('~(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([a-zA-Z0-9_-]{6,20})~', $url, $m) === 1) {
+        return ['type' => 'embed', 'provider' => 'youtube', 'embed_id' => $m[1]];
+    }
+    if (preg_match('~vimeo\.com/(?:video/)?(\d{6,12})~', $url, $m) === 1) {
+        return ['type' => 'embed', 'provider' => 'vimeo', 'embed_id' => $m[1]];
+    }
+
+    return null;
+}
+
+/**
+ * @param list<array<string, mixed>> $scenes
+ * @return list<array<string, mixed>>
+ */
+function efpic_sanitize_gallery_scenes(array $scenes): array
+{
+    $out = [];
+    $sort = 0;
+    $hasMain = false;
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $id = trim((string) ($scene['id'] ?? ''));
+        if ($id === '' || !preg_match('/^[a-z][a-z0-9_]{0,31}$/', $id)) {
+            continue;
+        }
+        $title = trim((string) ($scene['title'] ?? ''));
+        if ($title === '') {
+            $title = $id === 'main' ? 'Galerija' : $id;
+        }
+        $sort++;
+        $out[] = [
+            'id' => $id,
+            'title' => $title,
+            'sort' => $sort,
+            'header_image_token' => null,
+            'hidden_from_guests' => !empty($scene['hidden_from_guests']),
+        ];
+        if ($id === 'main') {
+            $hasMain = true;
+        }
+    }
+    if (!$hasMain) {
+        array_unshift($out, [
+            'id' => 'main',
+            'title' => 'Galerija',
+            'sort' => 1,
+            'header_image_token' => null,
+            'hidden_from_guests' => false,
+        ]);
+        foreach ($out as $i => $row) {
+            $out[$i]['sort'] = $i + 1;
+        }
+    }
+
+    return $out;
+}
+
+/** @return list<array<string, mixed>> */
+function efpic_parse_scenes_from_post(): array
+{
+    $raw = trim((string) ($_POST['scenes_json'] ?? ''));
+    if ($raw === '') {
+        $title = trim((string) ($_POST['scene_title'] ?? 'Galerija'));
+
+        return efpic_sanitize_gallery_scenes([['id' => 'main', 'title' => $title !== '' ? $title : 'Galerija', 'sort' => 1]]);
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        throw new InvalidArgumentException('Nederīgas sadaļas');
+    }
+
+    return efpic_sanitize_gallery_scenes($decoded);
+}
+
+function efpic_reassign_orphan_scene_images(array &$meta): void
+{
+    $ids = [];
+    foreach ($meta['scenes'] ?? [] as $scene) {
+        if (is_array($scene)) {
+            $ids[(string) ($scene['id'] ?? '')] = true;
+        }
+    }
+    if (!isset($ids['main'])) {
+        $ids['main'] = true;
+    }
+    foreach ($meta['images'] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        if (!isset($ids[$sid])) {
+            $meta['images'][$i]['scene_id'] = 'main';
+        }
+    }
+    foreach ($meta['videos'] ?? [] as $vi => $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        $sid = (string) ($video['scene_id'] ?? 'main');
+        if (!isset($ids[$sid])) {
+            $meta['videos'][$vi]['scene_id'] = 'main';
+        }
+    }
+}
+
+function efpic_apply_image_scenes_from_post(array &$meta): void
+{
+    $sceneIds = [];
+    foreach ($meta['scenes'] ?? [] as $scene) {
+        if (is_array($scene)) {
+            $sceneIds[(string) ($scene['id'] ?? '')] = true;
+        }
+    }
+    $posted = $_POST['image_scene'] ?? [];
+    if (!is_array($posted)) {
+        return;
+    }
+    foreach ($meta['images'] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '' || !isset($posted[$tok])) {
+            continue;
+        }
+        $sid = (string) $posted[$tok];
+        if ($sid !== '' && isset($sceneIds[$sid])) {
+            $meta['images'][$i]['scene_id'] = $sid;
+        }
+    }
+}
+
+function efpic_apply_slideshow_from_post(array $config, string $slug, array &$meta): void
+{
+    $slideshow = efpic_gallery_normalize_slideshow($meta);
+    $slideshow['enabled'] = !empty($_POST['slideshow_enabled']);
+    $interval = (int) ($_POST['slideshow_interval'] ?? $slideshow['interval_sec']);
+    $slideshow['interval_sec'] = max(2, min(60, $interval));
+
+    if (!empty($_POST['remove_slideshow_audio'])) {
+        if ($slideshow['audio_file'] !== '') {
+            efpic_delete_gallery_asset_file($config, $slug, $slideshow['audio_file']);
+        }
+        $slideshow['audio_file'] = '';
+    }
+
+    if (isset($_FILES['slideshow_mp3']) && is_array($_FILES['slideshow_mp3']) && ($_FILES['slideshow_mp3']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+        $max = 25 * 1024 * 1024;
+        $newFile = efpic_store_gallery_upload($config, $slug, $_FILES['slideshow_mp3'], ['mp3'], $max);
+        if ($slideshow['audio_file'] !== '' && $slideshow['audio_file'] !== $newFile) {
+            efpic_delete_gallery_asset_file($config, $slug, $slideshow['audio_file']);
+        }
+        $slideshow['audio_file'] = $newFile;
+    }
+
+    $meta['slideshow'] = $slideshow;
+}
+
+function efpic_apply_videos_from_post(array $config, string $slug, array &$meta): void
+{
+    $videos = [];
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        $vid = (string) ($video['id'] ?? '');
+        if ($vid !== '' && !empty($_POST['delete_video'][$vid])) {
+            if (($video['kind'] ?? '') === 'file' && ($video['file'] ?? '') !== '') {
+                efpic_delete_gallery_asset_file($config, $slug, (string) $video['file']);
+            }
+            continue;
+        }
+        $videos[] = $video;
+    }
+
+    $sceneIds = [];
+    foreach ($meta['scenes'] ?? [] as $scene) {
+        if (is_array($scene)) {
+            $sceneIds[(string) ($scene['id'] ?? '')] = true;
+        }
+    }
+    $defaultScene = isset($sceneIds['main']) ? 'main' : (string) array_key_first($sceneIds);
+
+    if (isset($_FILES['gallery_video']) && is_array($_FILES['gallery_video']) && ($_FILES['gallery_video']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
+        $max = 500 * 1024 * 1024;
+        $file = efpic_store_gallery_upload($config, $slug, $_FILES['gallery_video'], ['mp4', 'mov', 'webm'], $max);
+        $sceneId = (string) ($_POST['video_upload_scene'] ?? $defaultScene);
+        if (!isset($sceneIds[$sceneId])) {
+            $sceneId = $defaultScene;
+        }
+        $videos[] = [
+            'id' => 'v_' . efpic_random_hex(6),
+            'kind' => 'file',
+            'file' => $file,
+            'title' => trim((string) ($_POST['video_upload_title'] ?? '')),
+            'scene_id' => $sceneId,
+            'sort' => count($videos) + 1,
+        ];
+    }
+
+    $embedUrl = trim((string) ($_POST['video_embed_url'] ?? ''));
+    if ($embedUrl !== '') {
+        $parsed = efpic_parse_video_embed_url($embedUrl);
+        if ($parsed === null) {
+            throw new InvalidArgumentException('Neatpazīts YouTube vai Vimeo links');
+        }
+        $sceneId = (string) ($_POST['video_embed_scene'] ?? $defaultScene);
+        if (!isset($sceneIds[$sceneId])) {
+            $sceneId = $defaultScene;
+        }
+        $videos[] = [
+            'id' => 'v_' . efpic_random_hex(6),
+            'kind' => 'embed',
+            'provider' => $parsed['provider'],
+            'embed_id' => $parsed['embed_id'],
+            'source_url' => $embedUrl,
+            'title' => trim((string) ($_POST['video_embed_title'] ?? '')),
+            'scene_id' => $sceneId,
+            'sort' => count($videos) + 1,
+        ];
+    }
+
+    usort($videos, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $sort = 0;
+    foreach ($videos as $i => $video) {
+        $sort++;
+        $videos[$i]['sort'] = $sort;
+    }
+
+    $meta['videos'] = $videos;
+}
+
+/** @return list<array<string, mixed>> */
+function efpic_slideshow_favorite_images(array $meta, array $ctx, array $config): array
+{
+    $out = [];
+    foreach (efpic_sort_images_for_display($meta) as $img) {
+        if (!is_array($img) || empty($img['favorited'])) {
+            continue;
+        }
+        if (!efpic_image_visible_to_viewer($img, $meta, $ctx)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '' || !efpic_can_view_image_file($meta, $tok)) {
+            continue;
+        }
+        $out[] = $img;
+    }
+
+    return $out;
+}
+
+function efpic_can_view_gallery_asset(array $meta, string $galleryToken): bool
+{
+    if (efpic_admin_session_active()) {
+        return true;
+    }
+    if (!efpic_gallery_has_password($meta)) {
+        return true;
+    }
+
+    return efpic_gallery_session_unlocked($galleryToken);
+}
+
+function efpic_handle_gallery_asset(array $config, string $galleryToken, string $filename): void
+{
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        http_response_code(404);
+        exit;
+    }
+    $meta = $found['meta'];
+    if (!efpic_can_view_gallery_asset($meta, $galleryToken)) {
+        http_response_code(403);
+        exit;
+    }
+    if (preg_match('/^[a-zA-Z0-9._-]+$/', $filename) !== 1 || !efpic_gallery_asset_registered($meta, $filename)) {
+        http_response_code(404);
+        exit;
+    }
+    $path = efpic_gallery_assets_dir($config, $found['slug']) . DIRECTORY_SEPARATOR . $filename;
+    if (!is_file($path)) {
+        http_response_code(404);
+        exit;
+    }
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $types = [
+        'mp3' => 'audio/mpeg',
+        'mp4' => 'video/mp4',
+        'mov' => 'video/quicktime',
+        'webm' => 'video/webm',
+    ];
+    header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream'));
+    header('Cache-Control: private, max-age=86400');
+    readfile($path);
+    exit;
+}

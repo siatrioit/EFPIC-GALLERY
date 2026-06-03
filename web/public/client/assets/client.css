@@ -1088,3 +1088,134 @@ input[type="password"] {
     max-width: 100%;
   }
 }
+
+/* —— Gallery videos —— */
+.gallery-videos {
+  max-width: 900px;
+  margin: 0 auto 24px;
+  padding: 0 clamp(12px, 2vw, 24px);
+}
+
+.gallery-video-title {
+  margin: 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.gallery-video-embed {
+  position: relative;
+  width: 100%;
+  padding-bottom: 56.25%;
+  margin-bottom: 20px;
+  background: #111;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.gallery-video-embed iframe {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+.gallery-video-file {
+  margin-bottom: 20px;
+}
+
+.gallery-video-file video {
+  width: 100%;
+  max-height: 70vh;
+  border-radius: 10px;
+  background: #111;
+}
+
+.scene-block--pic .scene-title {
+  padding: 0 clamp(12px, 2vw, 24px);
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+/* —— Favorites slideshow —— */
+.efpic-slideshow {
+  position: fixed;
+  inset: 0;
+  z-index: 400;
+  background: #0a0a0a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.efpic-slideshow[hidden] {
+  display: none !important;
+}
+
+.efpic-slideshow-stage {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 48px 16px;
+  box-sizing: border-box;
+}
+
+.efpic-slideshow-stage img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.efpic-slideshow-close {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 2;
+  width: 44px;
+  height: 44px;
+  border: none;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+.portal-panel {
+  max-width: 900px;
+  margin: 0 auto 20px;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.portal-panel h2 {
+  margin: 0 0 10px;
+  font-size: 1rem;
+}
+
+.portal-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+}
+
+.portal-stack:last-child {
+  margin-bottom: 0;
+}
+
+.portal-check {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.portal-video-list {
+  margin: 0 0 12px;
+  padding-left: 18px;
+  font-size: 0.9rem;
+}

@@ -256,6 +256,12 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'cover_image_token' => null,
         'hero_accent_color' => '#9a9578',
         'images' => [],
+        'slideshow' => [
+            'enabled' => false,
+            'audio_file' => '',
+            'interval_sec' => 5,
+        ],
+        'videos' => [],
         'scenes' => [
             [
                 'id' => 'main',

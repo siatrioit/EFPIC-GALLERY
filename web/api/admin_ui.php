@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/handlers.php';
+require_once __DIR__ . '/gallery_assets.php';
 
 function efpic_admin_session_start(): void
 {
@@ -114,35 +115,90 @@ function efpic_admin_scene_image_counts(array $meta): array
     return $counts;
 }
 
-function efpic_admin_render_scenes_fieldset(array $meta, string $sceneTitle): string
+function efpic_admin_render_scenes_fieldset(array $meta): string
 {
-    $scenes = $meta['scenes'] ?? [];
-    if (!is_array($scenes) || $scenes === []) {
-        $scenes = [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
-    }
-    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $scenes = efpic_gallery_scene_options($meta);
     $counts = efpic_admin_scene_image_counts($meta);
+    $scenesJson = json_encode(array_map(static function ($s) use ($counts) {
+        return [
+            'id' => $s['id'],
+            'title' => $s['title'],
+            'count' => $counts[$s['id']] ?? 0,
+        ];
+    }, $scenes), JSON_UNESCAPED_UNICODE);
 
-    $html = '<fieldset><legend>Galerijas sadaļas</legend>';
-    $html .= '<p class="muted">Klients redz atsevišķus blokus ar virsrakstu (kā Pic-Time). Drīzumā varēs pievienot vairākas sadaļas un pārvietāt bildes starp tām.</p>';
-    $html .= '<ul class="admin-scene-list">';
-    foreach ($scenes as $scene) {
-        if (!is_array($scene)) {
+    $html = '<fieldset class="admin-fieldset-full admin-scenes-panel"><legend>Galerijas sadaļas</legend>';
+    $html .= '<p class="muted">Klients redz atsevišķus blokus (kā Pic-Time). Pievieno sadaļas un katrai bildei izvēlies sadaļu.</p>';
+    $html .= '<input type="hidden" name="scenes_json" id="scenes_json" value="' . efpic_admin_esc($scenesJson) . '">';
+    $html .= '<div id="admin-scenes-editor" class="admin-scenes-editor" data-scenes="' . efpic_admin_esc($scenesJson) . '"></div>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-add-scene">+ Pievienot sadaļu</button>';
+    $html .= '</fieldset>';
+
+    return $html;
+}
+
+function efpic_admin_render_slideshow_fieldset(array $config, array $meta, string $galleryToken): string
+{
+    $slideshow = efpic_gallery_normalize_slideshow($meta);
+    $favCount = 0;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && !empty($img['favorited'])) {
+            $favCount++;
+        }
+    }
+    $html = '<fieldset class="admin-fieldset-full"><legend>Slideshow (favorīti + mūzika)</legend>';
+    $html .= '<p class="muted">Augšupielādē MP3 un atzīmē favorītbildes (šeit vai klienta panelī). Publiskajā galerijā parādās slideshow poga.</p>';
+    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
+    $html .= '<label>Intervāls starp bildēm (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) $slideshow['interval_sec'] . '"></label>';
+    $html .= '<p class="muted">Favorītu bildes šobrīd: <strong>' . $favCount . '</strong></p>';
+    if ($slideshow['audio_file'] !== '') {
+        $url = efpic_gallery_asset_url($config, $galleryToken, $slideshow['audio_file']);
+        $html .= '<p class="admin-ok">MP3: <a href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($slideshow['audio_file']) . '</a></p>';
+        $html .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
+    }
+    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '</fieldset>';
+
+    return $html;
+}
+
+function efpic_admin_render_videos_fieldset(array $config, array $meta, string $galleryToken): string
+{
+    $scenes = efpic_gallery_scene_options($meta);
+    $html = '<fieldset class="admin-fieldset-full"><legend>Video</legend>';
+    $html .= '<p class="muted">Augšupielādē MP4/MOV/WebM vai ievieto YouTube / Vimeo saiti.</p>';
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video)) {
             continue;
         }
-        $sid = (string) ($scene['id'] ?? 'main');
-        $title = (string) ($scene['title'] ?? $sid);
-        $n = $counts[$sid] ?? 0;
-        $html .= '<li class="admin-scene-card"><strong>' . efpic_admin_esc($title) . '</strong>';
-        $html .= '<span class="admin-scene-meta">' . $n . ' bildes</span></li>';
+        $vid = (string) ($video['id'] ?? '');
+        $title = (string) ($video['title'] ?? '');
+        $kind = (string) ($video['kind'] ?? 'file');
+        $label = $title !== '' ? $title : ($kind === 'embed' ? (string) ($video['provider'] ?? 'video') : (string) ($video['file'] ?? ''));
+        $html .= '<div class="admin-video-row">';
+        $html .= '<span>' . efpic_admin_esc($label) . ' <span class="muted">(' . efpic_admin_esc((string) ($video['scene_id'] ?? 'main')) . ')</span></span>';
+        if ($kind === 'file' && ($video['file'] ?? '') !== '') {
+            $html .= ' <a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, (string) $video['file'])) . '" target="_blank" rel="noopener">Skatīt</a>';
+        }
+        $html .= '<label class="admin-check"><input type="checkbox" name="delete_video[' . efpic_admin_esc($vid) . ']" value="1"> Dzēst</label></div>';
     }
-    $html .= '</ul>';
-    $html .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
-    $html .= '<div class="admin-roadmap" aria-label="Plānotās funkcijas">';
-    $html .= '<span class="admin-roadmap-item">Vairākas sadaļas</span>';
-    $html .= '<span class="admin-roadmap-item">Slideshow no favorītiem</span>';
-    $html .= '<span class="admin-roadmap-item">Fona mūzika (MP3)</span>';
-    $html .= '</div></fieldset>';
+    $html .= '<div class="admin-form-split">';
+    $html .= '<label>Video fails (MP4)<input type="file" name="gallery_video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"></label>';
+    $html .= '<label>Virsraksts<input name="video_upload_title" placeholder="piem. Laulību ceremonija"></label>';
+    $html .= '<label>Sadaļa<select name="video_upload_scene">';
+    foreach ($scenes as $scene) {
+        $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
+    }
+    $html .= '</select></label></div>';
+    $html .= '<div class="admin-form-split">';
+    $html .= '<label>YouTube / Vimeo saite<input name="video_embed_url" placeholder="https://youtube.com/watch?v=..."></label>';
+    $html .= '<label>Virsraksts<input name="video_embed_title" placeholder="Ievietots video"></label>';
+    $html .= '<label>Sadaļa<select name="video_embed_scene">';
+    foreach ($scenes as $scene) {
+        $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
+    }
+    $html .= '</select></label></div>';
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -215,6 +271,8 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         ]);
         $slug = $created['slug'];
         $meta = $created['meta'];
+        $meta['scenes'] = efpic_parse_scenes_from_post();
+        efpic_save_gallery_meta($config, $slug, $meta);
     } else {
         $meta = efpic_load_gallery_meta($config, $slug);
         if ($meta === null) {
@@ -251,11 +309,11 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $meta['failiem']['folder_full_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_full_url']);
         $meta['failiem']['folder_web_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_web_url']);
 
-        $sceneTitle = trim((string) ($_POST['scene_title'] ?? ''));
-        if ($sceneTitle !== '' && isset($meta['scenes'][0]) && is_array($meta['scenes'][0])) {
-            $meta['scenes'][0]['title'] = $sceneTitle;
-        }
-
+        $meta['scenes'] = efpic_parse_scenes_from_post();
+        efpic_reassign_orphan_scene_images($meta);
+        efpic_apply_image_scenes_from_post($meta);
+        efpic_apply_slideshow_from_post($config, $slug, $meta);
+        efpic_apply_videos_from_post($config, $slug, $meta);
         efpic_save_gallery_meta($config, $slug, $meta);
     }
 
@@ -267,6 +325,11 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $tokens = array_filter(array_map('trim', explode(',', $_POST['image_order'])));
         if ($tokens !== []) {
             efpic_update_delivery_image_order($config, $slug, $tokens);
+            $meta = efpic_load_gallery_meta($config, $slug);
+            if ($meta !== null) {
+                efpic_apply_image_scenes_from_post($meta);
+                efpic_save_gallery_meta($config, $slug, $meta);
+            }
         }
     }
 
@@ -326,13 +389,24 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '</div>';
     }
 
-    $body .= '<form method="post" class="admin-form" id="admin-delivery-form">';
+    $body .= '<form method="post" class="admin-form" id="admin-delivery-form" enctype="multipart/form-data">';
     $body .= '<div class="admin-sticky-bar">';
     $body .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt</button>';
     if ($isEdit) {
         $body .= '<button type="submit" class="btn" name="sync_now" value="1">Sinhronizēt no Failiem</button>';
     }
     $body .= '</div>';
+
+    if ($isEdit && is_array($meta)) {
+        $body .= efpic_admin_render_scenes_fieldset($meta);
+        $body .= efpic_admin_render_slideshow_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
+        $body .= efpic_admin_render_videos_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
+    } elseif (!$isEdit) {
+        $body .= '<fieldset class="admin-fieldset-full"><legend>Galerijas sadaļas</legend>';
+        $body .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
+        $body .= '<p class="muted">Pēc izveides varēs pievienot vairākas sadaļas.</p></fieldset>';
+    }
+
     $body .= '<div class="admin-form-layout">';
     $body .= '<fieldset><legend>Pamatinformācija</legend>';
     $body .= '<label>Nosaukums<input name="name" required value="' . efpic_admin_esc((string) ($meta['name'] ?? '')) . '"></label>';
@@ -355,14 +429,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<p class="muted">Krāsa tiek lietota virs vāka bildes gradientā Pic-Time tēmā.</p>';
     $body .= '</fieldset>';
 
-    if ($isEdit && is_array($meta)) {
-        $body .= efpic_admin_render_scenes_fieldset($meta, $sceneTitle);
-    } elseif (!$isEdit) {
-        $body .= '<fieldset><legend>Galerijas sadaļas</legend>';
-        $body .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
-        $body .= '<p class="muted">Pēc izveides varēs pievienot papildu sadaļas (drīzumā).</p></fieldset>';
-    }
-
     $body .= '<fieldset><legend>Failiem.lv mapes</legend>';
     $body .= '<p class="muted">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
     $body .= '<label>Galvenā mape (AI meklēšanai, opcija)<input name="folder_parent_url" value="'
@@ -380,6 +446,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         }
         $body .= '<fieldset class="admin-fieldset-full"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
         $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. Noklikšķiniet uz bildes priekšskatījumam. Atzīmējiet «Vāks» galvenajai bildei.</p>';
+        $sceneOptions = efpic_gallery_scene_options($meta);
         $body .= '<ul id="sortable" class="admin-media-grid">';
         foreach ($sortedImages as $img) {
             if (!is_array($img)) {
@@ -393,6 +460,13 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= '<button type="button" class="admin-media-thumb" data-preview="' . efpic_admin_esc($preview) . '" aria-label="Priekšskatījums">';
             $body .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" width="240" height="240" loading="lazy" decoding="async"></button>';
             $body .= '<label class="admin-cover-pick"><input type="radio" name="cover_image_token" value="' . efpic_admin_esc($tok) . '"' . $checked . '> Vāks</label>';
+            $imgScene = (string) ($img['scene_id'] ?? 'main');
+            $body .= '<label class="admin-scene-pick">Sadaļa<select name="image_scene[' . efpic_admin_esc($tok) . ']">';
+            foreach ($sceneOptions as $scene) {
+                $sel = $scene['id'] === $imgScene ? ' selected' : '';
+                $body .= '<option value="' . efpic_admin_esc($scene['id']) . '"' . $sel . '>' . efpic_admin_esc($scene['title']) . '</option>';
+            }
+            $body .= '</select></label>';
             $body .= '<span class="admin-sort-name">' . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</span></li>';
         }
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';
@@ -404,7 +478,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     $body .= '</form>';
 
-    if ($isEdit) {
+    if ($isEdit || !$isEdit) {
         $body .= '<script src="/admin/assets/admin.js" defer></script>';
     }
 

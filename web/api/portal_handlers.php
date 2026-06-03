@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/client_handlers.php';
+require_once __DIR__ . '/gallery_assets.php';
 
 function efpic_portal_find_by_token(array $config, string $portalToken): ?array
 {
@@ -159,6 +160,18 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     $meta['comments'] = $comments;
                     efpic_save_gallery_meta($config, $slug, $meta);
                 })(),
+                'save_slideshow' => (function () use ($config, $slug, &$meta) {
+                    efpic_apply_slideshow_from_post($config, $slug, $meta);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                })(),
+                'upload_video' => (function () use ($config, $slug, &$meta) {
+                    efpic_apply_videos_from_post($config, $slug, $meta);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                })(),
+                'add_video_embed' => (function () use ($config, $slug, &$meta) {
+                    efpic_apply_videos_from_post($config, $slug, $meta);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                })(),
                 'invite_guest' => (function () use ($config, $slug, &$meta) {
                     $label = trim((string) ($_POST['guest_label'] ?? 'Viesis'));
                     $guests = $meta['guests'] ?? [];
@@ -203,6 +216,64 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if ($flash !== '') {
         $body .= '<p class="feed-empty">' . efpic_client_esc($flash) . '</p>';
     }
+
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $slideshow = efpic_gallery_normalize_slideshow($meta);
+    $favCount = 0;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && !empty($img['favorited'])) {
+            $favCount++;
+        }
+    }
+
+    $body .= '<section class="portal-panel"><h2>Slideshow (favorīti + mūzika)</h2>';
+    $body .= '<p class="muted">Atzīmē ★ favorītus zem bildēm, augšupielādē MP3 — publiskajā galerijā parādīsies slideshow.</p>';
+    $body .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
+    $body .= '<input type="hidden" name="portal_action" value="save_slideshow">';
+    $body .= '<label class="portal-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
+    $body .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) $slideshow['interval_sec'] . '"></label>';
+    $body .= '<p class="muted">Favorīti: <strong>' . $favCount . '</strong></p>';
+    if ($slideshow['audio_file'] !== '') {
+        $body .= '<p><a href="' . efpic_client_esc(efpic_gallery_asset_url($config, $gt, $slideshow['audio_file'])) . '" target="_blank" rel="noopener">Pašreizējais MP3</a></p>';
+        $body .= '<label class="portal-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
+    }
+    $body .= '<label>MP3 fails<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
+    $body .= '<button type="submit" class="btn primary">Saglabāt slideshow</button></form></section>';
+
+    $scenes = efpic_gallery_scene_options($meta);
+    $body .= '<section class="portal-panel"><h2>Video galerijā</h2>';
+    if (($meta['videos'] ?? []) !== []) {
+        $body .= '<ul class="portal-video-list">';
+        foreach ($meta['videos'] as $video) {
+            if (!is_array($video)) {
+                continue;
+            }
+            $label = (string) ($video['title'] ?? '');
+            if ($label === '') {
+                $label = ($video['kind'] ?? '') === 'embed' ? (string) ($video['provider'] ?? 'video') : (string) ($video['file'] ?? '');
+            }
+            $body .= '<li>' . efpic_client_esc($label) . '</li>';
+        }
+        $body .= '</ul>';
+    }
+    $body .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
+    $body .= '<input type="hidden" name="portal_action" value="upload_video">';
+    $body .= '<label>Video fails (MP4)<input type="file" name="gallery_video" accept="video/mp4,video/quicktime,video/webm"></label>';
+    $body .= '<label>Virsraksts<input name="video_upload_title"></label>';
+    $body .= '<label>Sadaļa<select name="video_upload_scene">';
+    foreach ($scenes as $scene) {
+        $body .= '<option value="' . efpic_client_esc($scene['id']) . '">' . efpic_client_esc($scene['title']) . '</option>';
+    }
+    $body .= '</select></label><button type="submit" class="btn">Augšupielādēt video</button></form>';
+    $body .= '<form method="post" class="portal-stack">';
+    $body .= '<input type="hidden" name="portal_action" value="add_video_embed">';
+    $body .= '<label>YouTube / Vimeo<input name="video_embed_url" placeholder="https://..."></label>';
+    $body .= '<label>Virsraksts<input name="video_embed_title"></label>';
+    $body .= '<label>Sadaļa<select name="video_embed_scene">';
+    foreach ($scenes as $scene) {
+        $body .= '<option value="' . efpic_client_esc($scene['id']) . '">' . efpic_client_esc($scene['title']) . '</option>';
+    }
+    $body .= '</select></label><button type="submit" class="btn">Pievienot embed</button></form></section>';
 
     $body .= '<section class="portal-toolbar"><form method="post" class="inline-form">';
     $body .= '<input type="hidden" name="portal_action" value="set_theme"><label>Tēma<select name="theme" onchange="this.form.submit()">';

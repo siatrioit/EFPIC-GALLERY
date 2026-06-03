@@ -1,4 +1,123 @@
 (function () {
+  var scenesEditor = document.getElementById('admin-scenes-editor');
+  var scenesInput = document.getElementById('scenes_json');
+  var addSceneBtn = document.getElementById('admin-add-scene');
+
+  function readScenes() {
+    if (!scenesEditor) return [];
+    try {
+      var raw = scenesEditor.getAttribute('data-scenes') || '[]';
+      var data = JSON.parse(raw);
+      return Array.isArray(data) ? data : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function writeScenes(scenes) {
+    if (!scenesEditor) return;
+    scenesEditor.setAttribute('data-scenes', JSON.stringify(scenes));
+    if (scenesInput) {
+      scenesInput.value = JSON.stringify(
+        scenes.map(function (s, i) {
+          return { id: s.id, title: s.title, sort: i + 1 };
+        })
+      );
+    }
+    renderScenes(scenes);
+    syncSceneSelects(scenes);
+  }
+
+  function renderScenes(scenes) {
+    if (!scenesEditor) return;
+    scenesEditor.innerHTML = '';
+    scenes.forEach(function (scene) {
+      var row = document.createElement('div');
+      row.className = 'admin-scene-row';
+      row.dataset.id = scene.id;
+      var titleInput = document.createElement('input');
+      titleInput.type = 'text';
+      titleInput.value = scene.title || '';
+      titleInput.placeholder = 'Sadaļas nosaukums';
+      titleInput.className = 'admin-scene-title-input';
+      var meta = document.createElement('span');
+      meta.className = 'admin-scene-meta';
+      meta.textContent = (scene.count || 0) + ' bildes';
+      row.appendChild(titleInput);
+      row.appendChild(meta);
+      if (scene.id !== 'main') {
+        var del = document.createElement('button');
+        del.type = 'button';
+        del.className = 'btn admin-scene-del';
+        del.textContent = 'Dzēst';
+        del.addEventListener('click', function () {
+          var count = parseInt(scene.count || '0', 10);
+          if (count > 0) {
+            if (!window.confirm('Sadaļā ir bildes. Dzēšot, tās pāries uz «Galerija».')) {
+              return;
+            }
+          }
+          var next = readScenes().filter(function (s) {
+            return s.id !== scene.id;
+          });
+          writeScenes(next);
+        });
+        row.appendChild(del);
+      }
+      titleInput.addEventListener('input', function () {
+        var list = readScenes();
+        list.forEach(function (s) {
+          if (s.id === scene.id) s.title = titleInput.value;
+        });
+        writeScenes(list);
+      });
+      scenesEditor.appendChild(row);
+    });
+  }
+
+  function syncSceneSelects(scenes) {
+    document.querySelectorAll('.admin-scene-pick select').forEach(function (sel) {
+      var current = sel.value;
+      sel.innerHTML = '';
+      scenes.forEach(function (scene) {
+        var opt = document.createElement('option');
+        opt.value = scene.id;
+        opt.textContent = scene.title || scene.id;
+        if (scene.id === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+    document.querySelectorAll('select[name="video_upload_scene"], select[name="video_embed_scene"]').forEach(function (sel) {
+      var current = sel.value;
+      sel.innerHTML = '';
+      scenes.forEach(function (scene) {
+        var opt = document.createElement('option');
+        opt.value = scene.id;
+        opt.textContent = scene.title || scene.id;
+        if (scene.id === current) opt.selected = true;
+        sel.appendChild(opt);
+      });
+    });
+  }
+
+  if (scenesEditor) {
+    renderScenes(readScenes());
+    if (addSceneBtn) {
+      addSceneBtn.addEventListener('click', function () {
+        var scenes = readScenes();
+        var id = 'scene_' + Math.random().toString(16).slice(2, 10);
+        scenes.push({ id: id, title: 'Jauna sadaļa', count: 0 });
+        writeScenes(scenes);
+      });
+    }
+    var form = scenesEditor.closest('form');
+    if (form) {
+      form.addEventListener('submit', function () {
+        writeScenes(readScenes());
+      });
+    }
+  }
+
   var list = document.getElementById('sortable');
   var input = document.getElementById('image_order');
   if (list && input) {
@@ -15,7 +134,7 @@
     list.querySelectorAll('li').forEach(function (li) {
       li.setAttribute('draggable', 'true');
       li.addEventListener('dragstart', function (evt) {
-        if (evt.target && evt.target.closest && evt.target.closest('.admin-cover-pick, .admin-media-thumb')) {
+        if (evt.target && evt.target.closest && evt.target.closest('.admin-cover-pick, .admin-media-thumb, .admin-scene-pick')) {
           evt.preventDefault();
           return;
         }
@@ -43,9 +162,9 @@
     });
 
     syncOrder();
-    var form = list.closest('form');
-    if (form) {
-      form.addEventListener('submit', syncOrder);
+    var orderForm = list.closest('form');
+    if (orderForm) {
+      orderForm.addEventListener('submit', syncOrder);
     }
   }
 
