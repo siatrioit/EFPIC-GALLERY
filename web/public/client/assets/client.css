@@ -560,7 +560,7 @@ input[type="password"] {
   letter-spacing: 0.14em;
   text-transform: uppercase;
   line-height: 1.15;
-  max-width: 18ch;
+  max-width: min(92%, 52rem);
   align-self: flex-start;
 }
 
@@ -862,6 +862,10 @@ input[type="password"] {
 
   .gallery-intro-date {
     font-size: 1.15rem;
+  }
+
+  .gallery-intro-title {
+    max-width: min(88%, 56rem);
   }
 }
 
