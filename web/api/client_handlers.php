@@ -394,9 +394,8 @@ function efpic_client_render_collection_tray(string $galleryUrl, int $count, arr
         . ($count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas') . '</p>';
     $html .= '<div class="collection-tray-actions">';
     $html .= '<button type="button" class="btn" data-collection-clear>Notīrīt</button>';
-    if ($count > 0) {
-        $html .= '<button type="button" class="btn primary" data-collection-dl-open>Lejupielādēt</button>';
-    }
+    $html .= '<button type="button" class="btn primary" id="collectionDlBtn" data-collection-dl-open'
+        . ($count > 0 ? '' : ' hidden') . '>Lejupielādēt</button>';
     $html .= '</div></aside>';
 
     return $html;

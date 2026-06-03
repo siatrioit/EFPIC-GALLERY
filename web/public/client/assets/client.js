@@ -848,6 +848,10 @@
     }
     tray.hidden = count <= 0;
     tray.classList.toggle('is-visible', count > 0);
+    var dlBtn = document.getElementById('collectionDlBtn');
+    if (dlBtn) {
+      dlBtn.hidden = count <= 0;
+    }
     updateCollectionDownloadTitle(count);
   }
 
