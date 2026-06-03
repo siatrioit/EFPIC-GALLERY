@@ -179,6 +179,9 @@
 
   function openCollectionDlModal() {
     if (!cdlModal) return;
+    var countEl = document.getElementById('collectionTrayCount');
+    var count = countEl ? parseInt(countEl.textContent, 10) || 0 : 0;
+    if (count <= 0) return;
     cdlModal.hidden = false;
     document.body.style.overflow = 'hidden';
   }

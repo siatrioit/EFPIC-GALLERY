@@ -120,18 +120,20 @@ function efpic_client_gallery_download_modal(array $meta, array $ctx): string
 
 function efpic_client_collection_download_modal(array $meta, array $ctx, int $collectionCount): string
 {
-    $canColWeb = $collectionCount > 0 && efpic_can_download_collection_zip($meta, $ctx, 'web');
-    $canColFull = $collectionCount > 0 && efpic_can_download_collection_zip($meta, $ctx, 'full');
+    $canColWeb = efpic_can_download_collection_zip($meta, $ctx, 'web');
+    $canColFull = efpic_can_download_collection_zip($meta, $ctx, 'full');
 
     $colLabel = $collectionCount === 1
         ? 'Atlasītā (1) bilde'
-        : 'Atlasītās (' . $collectionCount . ') bildes';
+        : ($collectionCount > 0
+            ? 'Atlasītās (' . $collectionCount . ') bildes'
+            : 'Atlasītās bildes');
 
     $html = '<div class="modal-backdrop" id="collectionDownloadModal" hidden role="dialog" aria-labelledby="collectionDownloadModalTitle">';
     $html .= '<div class="modal"><button type="button" class="icon-btn modal-close" data-cdl-close aria-label="Aizvērt">';
     $html .= efpic_client_icon('close') . '</button>';
     $html .= '<h2 id="collectionDownloadModalTitle">' . efpic_client_esc($colLabel) . '</h2>';
-    $html .= '<div class="dl-size-row">';
+    $html .= '<div class="dl-size-row" id="collectionDownloadModalActions">';
     if ($canColWeb) {
         $html .= '<a class="btn primary cdl-btn" href="#" data-cdl-size="web">WEB</a>';
     }
