@@ -737,6 +737,11 @@
 
 .admin-scene-row.dragging {
   opacity: 0.55;
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-scene-row.dragging .admin-scene-drag {
+  cursor: grabbing;
 }
 
 .admin-scene-move-wrap {

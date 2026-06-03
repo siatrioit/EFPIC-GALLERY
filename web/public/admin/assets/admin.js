@@ -204,48 +204,100 @@
   function initSceneDrag() {
     if (!scenesEditor) return;
     var dragRow = null;
+    var activeGrip = null;
+
+    function finishDrag(e) {
+      if (!dragRow) return;
+      var grip = activeGrip;
+      dragRow.classList.remove('dragging');
+      dragRow.style.pointerEvents = '';
+      dragRow = null;
+      activeGrip = null;
+      if (e && grip && grip.releasePointerCapture) {
+        try {
+          grip.releasePointerCapture(e.pointerId);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      var list = readScenesFromDom();
+      persistScenesJson(list);
+      syncSceneSelects(list);
+    }
+
+    function moveDragRow(clientY) {
+      if (!dragRow) return;
+      dragRow.style.pointerEvents = 'none';
+      var el = document.elementFromPoint(
+        dragRow.getBoundingClientRect().left + dragRow.offsetWidth / 2,
+        clientY
+      );
+      var target = el && el.closest ? el.closest('.admin-scene-row') : null;
+      if (!target || target === dragRow || !scenesEditor.contains(target)) return;
+      var rect = target.getBoundingClientRect();
+      var after = clientY > rect.top + rect.height / 2;
+      if (after) {
+        scenesEditor.insertBefore(dragRow, target.nextSibling);
+      } else {
+        scenesEditor.insertBefore(dragRow, target);
+      }
+    }
+
+    function startDrag(row, grip, clientY, pointerId) {
+      dragRow = row;
+      activeGrip = grip;
+      row.classList.add('dragging');
+      row.style.pointerEvents = 'none';
+      if (typeof pointerId === 'number' && grip.setPointerCapture) {
+        try {
+          grip.setPointerCapture(pointerId);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      moveDragRow(clientY);
+    }
+
     scenesEditor.querySelectorAll('.admin-scene-row').forEach(function (row) {
       var grip = row.querySelector('.admin-scene-drag');
       if (!grip) return;
 
       grip.addEventListener('pointerdown', function (e) {
         if (e.button !== 0) return;
-        dragRow = row;
-        row.classList.add('dragging');
-        grip.setPointerCapture(e.pointerId);
         e.preventDefault();
+        startDrag(row, grip, e.clientY, e.pointerId);
       });
 
       grip.addEventListener('pointermove', function (e) {
-        if (!dragRow || !grip.hasPointerCapture(e.pointerId)) return;
-        var el = document.elementFromPoint(e.clientX, e.clientY);
-        var target = el && el.closest ? el.closest('.admin-scene-row') : null;
-        if (!target || target === dragRow || !scenesEditor.contains(target)) return;
-        var rect = target.getBoundingClientRect();
-        var after = e.clientY > rect.top + rect.height / 2;
-        if (after) {
-          scenesEditor.insertBefore(dragRow, target.nextSibling);
-        } else {
-          scenesEditor.insertBefore(dragRow, target);
-        }
+        if (!dragRow || dragRow !== row) return;
+        e.preventDefault();
+        moveDragRow(e.clientY);
       });
 
-      function endDrag(e) {
-        if (!dragRow) return;
-        dragRow.classList.remove('dragging');
-        dragRow = null;
-        try {
-          grip.releasePointerCapture(e.pointerId);
-        } catch (err) {
-          /* ignore */
-        }
-        var list = readScenesFromDom();
-        persistScenesJson(list);
-        syncSceneSelects(list);
-      }
+      grip.addEventListener('pointerup', function (e) {
+        if (dragRow !== row) return;
+        e.preventDefault();
+        finishDrag(e);
+      });
 
-      grip.addEventListener('pointerup', endDrag);
-      grip.addEventListener('pointercancel', endDrag);
+      grip.addEventListener('pointercancel', function (e) {
+        if (dragRow !== row) return;
+        finishDrag(e);
+      });
+
+      grip.addEventListener('dragstart', function (e) {
+        e.preventDefault();
+      });
+    });
+
+    document.addEventListener('mousemove', function (e) {
+      if (!dragRow || e.buttons !== 1) return;
+      moveDragRow(e.clientY);
+    });
+
+    document.addEventListener('mouseup', function () {
+      if (!dragRow) return;
+      finishDrag(null);
     });
   }
 
@@ -277,8 +329,19 @@
   function visibleImageCards() {
     if (!imageGrid) return [];
     return Array.prototype.slice.call(imageGrid.querySelectorAll('.admin-media-card')).filter(function (card) {
-      return !card.classList.contains('is-filtered-out');
+      if (activeSceneFilter === 'all') {
+        return true;
+      }
+      return (card.getAttribute('data-scene-id') || 'main') === activeSceneFilter;
     });
+  }
+
+  function clearAllPicks() {
+    if (!imageGrid) return;
+    imageGrid.querySelectorAll('.admin-image-pick').forEach(function (cb) {
+      setCardPicked(cb.closest('.admin-media-card'), false);
+    });
+    lastPickedCard = null;
   }
 
   function setCardPicked(card, picked) {
@@ -311,12 +374,11 @@
   window.efpicSelectImagesByScene = function (sceneId, scrollToGrid) {
     if (!imageGrid) return;
     applySceneFilter(sceneId);
-    imageGrid.querySelectorAll('.admin-image-pick').forEach(function (cb) {
-      setCardPicked(cb.closest('.admin-media-card'), false);
-    });
+    clearAllPicks();
     imageGrid.querySelectorAll('.admin-media-card[data-scene-id="' + sceneId + '"]').forEach(function (card) {
       setCardPicked(card, true);
     });
+    lastPickedCard = imageGrid.querySelector('.admin-media-card[data-scene-id="' + sceneId + '"]');
     updatePickCount();
     if (scrollToGrid) {
       var bar = document.getElementById('admin-image-bulk-bar');
@@ -328,7 +390,10 @@
     imageGrid.addEventListener('change', function (evt) {
       if (evt.target && evt.target.classList && evt.target.classList.contains('admin-image-pick')) {
         var card = evt.target.closest('.admin-media-card');
-        if (card) card.classList.toggle('is-picked', evt.target.checked);
+        if (card) {
+          card.classList.toggle('is-picked', evt.target.checked);
+          if (evt.target.checked) lastPickedCard = card;
+        }
         updatePickCount();
       }
       if (evt.target && evt.target.closest && evt.target.closest('.admin-scene-pick select')) {
@@ -338,31 +403,43 @@
     });
 
     imageGrid.addEventListener('click', function (evt) {
+      var shiftPick = evt.shiftKey;
+      var thumb = evt.target.closest('.admin-media-thumb');
+      if (thumb && !shiftPick) {
+        return;
+      }
       if (
-        evt.target.closest(
-          '.admin-cover-pick, .admin-fav-pick, .admin-scene-pick, .admin-media-thumb, .admin-bulk-pick'
-        )
+        evt.target.closest('.admin-cover-pick, .admin-fav-pick, .admin-scene-pick, .admin-bulk-pick')
       ) {
         return;
       }
       var card = evt.target.closest('.admin-media-card');
-      if (!card || card.classList.contains('is-filtered-out')) return;
+      if (!card) return;
+      if (activeSceneFilter !== 'all' && (card.getAttribute('data-scene-id') || 'main') !== activeSceneFilter) {
+        return;
+      }
       var cb = card.querySelector('.admin-image-pick');
       if (!cb) return;
 
+      evt.preventDefault();
+
       var cards = visibleImageCards();
-      if (evt.shiftKey && lastPickedCard) {
+      if (shiftPick) {
+        if (!lastPickedCard || cards.indexOf(lastPickedCard) === -1) {
+          lastPickedCard = cards[0] || card;
+        }
         var start = cards.indexOf(lastPickedCard);
         var end = cards.indexOf(card);
-        if (start !== -1 && end !== -1) {
-          var lo = Math.min(start, end);
-          var hi = Math.max(start, end);
-          for (var i = lo; i <= hi; i++) {
-            setCardPicked(cards[i], true);
-          }
-          updatePickCount();
-          return;
+        if (start === -1) start = end;
+        if (end === -1) end = start;
+        var lo = Math.min(start, end);
+        var hi = Math.max(start, end);
+        for (var i = lo; i <= hi; i++) {
+          setCardPicked(cards[i], true);
         }
+        lastPickedCard = card;
+        updatePickCount();
+        return;
       }
 
       setCardPicked(card, !cb.checked);
@@ -423,9 +500,12 @@
   var selectVisibleImages = document.getElementById('admin-select-visible-images');
   if (selectVisibleImages && imageGrid) {
     selectVisibleImages.addEventListener('click', function () {
+      clearAllPicks();
       visibleImageCards().forEach(function (card) {
         setCardPicked(card, true);
       });
+      var visible = visibleImageCards();
+      lastPickedCard = visible.length ? visible[visible.length - 1] : null;
       updatePickCount();
     });
   }
@@ -433,10 +513,7 @@
   var clearImageSelection = document.getElementById('admin-clear-image-selection');
   if (clearImageSelection && imageGrid) {
     clearImageSelection.addEventListener('click', function () {
-      imageGrid.querySelectorAll('.admin-image-pick').forEach(function (cb) {
-        setCardPicked(cb.closest('.admin-media-card'), false);
-      });
-      lastPickedCard = null;
+      clearAllPicks();
       updatePickCount();
     });
   }
@@ -563,6 +640,7 @@
   document.addEventListener('click', function (evt) {
     var btn = evt.target && evt.target.closest ? evt.target.closest('.admin-media-thumb, .admin-fav-preview') : null;
     if (btn) {
+      if (evt.shiftKey) return;
       evt.preventDefault();
       openLightbox(btn.getAttribute('data-preview'));
       return;

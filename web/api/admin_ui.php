@@ -780,7 +780,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
         $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
-        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. ★ Mana favorīte, «Vāks» — uz kartītes.</p>';
+        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. Klikšķis uz bildes — atlase; <kbd>Shift</kbd>+klikšķis — diapazons (arī uz pašas bildes).</p>';
         $body .= efpic_admin_render_image_scene_toolbar($meta);
         $sceneOptions = efpic_gallery_scene_options($meta);
         $body .= '<ul id="sortable" class="admin-media-grid">';
