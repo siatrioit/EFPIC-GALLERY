@@ -241,63 +241,70 @@
     }, 2000);
   }
 
-  function downloadServerZip(downloadUrl, filename, hint) {
-    if (!downloadUrl) return;
-    openZipProgress(hint || 'ZIP tiek gatavots…');
-    if (zipFetchAbort) {
-      zipFetchAbort.abort();
+  function startZipDownload(scope, size) {
+    if (!text) return 'Neizdevās lejupielādēt.';
+    if (text.indexOf('<') >= 0 || text.indexOf('Internal Server Error') >= 0) {
+      return 'Servera timeout — izmanto tiešo Failiem lejupielādi (WEB/PRINT pogas).';
     }
-    zipFetchAbort = new AbortController();
-    fetch(downloadUrl, { credentials: 'same-origin', signal: zipFetchAbort.signal })
-      .then(function (res) {
-        if (!res.ok) {
-          return res.text().then(function (text) {
-            throw new Error(text || 'Lejupielāde neizdevās (' + res.status + ')');
-          });
-        }
-        var type = (res.headers.get('Content-Type') || '').toLowerCase();
-        if (type.indexOf('zip') < 0 && type.indexOf('octet-stream') < 0 && type.indexOf('html') >= 0) {
-          return res.text().then(function (text) {
-            throw new Error(text || 'Serveris neatgrieza ZIP failu');
-          });
-        }
-        return res.blob();
-      })
-      .then(function (blob) {
-        if (!blob || blob.size < 64) {
-          throw new Error('ZIP fails ir tukšs vai bojāts');
-        }
-        triggerBlobDownload(blob, filename);
-        closeZipProgress();
-      })
-      .catch(function (err) {
-        if (err && err.name === 'AbortError') return;
-        var hintEl = document.getElementById('zipProgressHint');
-        if (hintEl) {
-          hintEl.textContent =
-            err && err.message ? err.message : 'Neizdevās lejupielādēt ZIP. Mēģini vēlreiz.';
-        }
-        if (zipProgressModal) zipProgressModal.hidden = false;
-      })
-      .finally(function () {
-        zipFetchAbort = null;
-      });
+    if (text.length > 200) {
+      return text.slice(0, 200) + '…';
+    }
+    return text;
   }
 
   function downloadFailiemZip(failiemUrl, hint) {
     if (!failiemUrl) return;
-    openZipProgress(
-      hint || 'Failiem sagatavo ZIP — lielām galerijām tas var aizņemt vairākas minūtes…'
-    );
-    var iframe = document.createElement('iframe');
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;visibility:hidden';
-    iframe.src = failiemUrl;
-    document.body.appendChild(iframe);
+    openZipProgress(hint || 'Lejupielāde sākas no Failiem.lv…');
+    var hintEl = document.getElementById('zipProgressHint');
+    if (hintEl) {
+      hintEl.textContent =
+        'Lejupielāde sākas — skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem (PRINT) tas var aizņemt ilgi.';
+    }
+    var a = document.createElement('a');
+    a.href = failiemUrl;
+    a.target = '_blank';
+    a.rel = 'noopener noreferrer';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
     zipIframeTimer = setTimeout(function () {
-      iframe.remove();
       closeZipProgress();
-    }, 300000);
+    }, 5000);
+  }
+
+  function downloadFailiemFiles(files, hint) {
+    if (!files || !files.length) return;
+    openZipProgress(hint || 'Lejupielādē atlasītās bildes…');
+    var index = 0;
+    function next() {
+      if (index >= files.length) {
+        var hintEl = document.getElementById('zipProgressHint');
+        if (hintEl) {
+          hintEl.textContent = 'Lejupielādes iedarbinātas (' + files.length + ' faili).';
+        }
+        zipIframeTimer = setTimeout(closeZipProgress, 2500);
+        return;
+      }
+      var file = files[index];
+      var hintEl = document.getElementById('zipProgressHint');
+      if (hintEl) {
+        hintEl.textContent =
+          'Lejupielādē ' + (index + 1) + ' / ' + files.length + (file.name ? ': ' + file.name : '') + '…';
+      }
+      var a = document.createElement('a');
+      a.href = file.url;
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+      if (file.name) {
+        a.download = file.name;
+      }
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      index += 1;
+      setTimeout(next, 700);
+    }
+    next();
   }
 
   function startZipDownload(scope, size) {
@@ -320,18 +327,20 @@
         });
       })
       .then(function (data) {
-        var filename = data.filename || zipFilenameFor(scope, size);
         if (data.mode === 'failiem' && data.url) {
           downloadFailiemZip(data.url, data.hint);
           return;
         }
-        downloadServerZip(data.url, filename, data.hint);
+        if (data.mode === 'files' && data.files && data.files.length) {
+          downloadFailiemFiles(data.files, data.hint);
+          return;
+        }
+        throw new Error('Neatbalstīts lejupielādes režīms');
       })
       .catch(function (err) {
         var hintEl = document.getElementById('zipProgressHint');
         if (hintEl) {
-          hintEl.textContent =
-            err && err.message ? err.message : 'Neizdevās sākt lejupielādi.';
+          hintEl.textContent = humanZipError(err && err.message ? err.message : '');
         }
         if (zipProgressModal) zipProgressModal.hidden = false;
       });
