@@ -2,6 +2,37 @@
 
 declare(strict_types=1);
 
+function efpic_image_favorited_admin(array $img): bool
+{
+    return !empty($img['favorited_admin']);
+}
+
+function efpic_image_favorited_client(array $img): bool
+{
+    if (!empty($img['favorited_client'])) {
+        return true;
+    }
+
+    return !empty($img['favorited']);
+}
+
+function efpic_count_favorites(array $meta, string $who): int
+{
+    $n = 0;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        if ($who === 'admin' && efpic_image_favorited_admin($img)) {
+            $n++;
+        } elseif ($who === 'client' && efpic_image_favorited_client($img)) {
+            $n++;
+        }
+    }
+
+    return $n;
+}
+
 function efpic_client_session_start(): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -356,10 +387,23 @@ function efpic_resolve_gallery_cover_token(array $meta, array $visibleImages): s
         if (!is_array($img)) {
             continue;
         }
-        if (!empty($img['favorited'])) {
+        if (efpic_image_favorited_admin($img)) {
             $tok = (string) ($img['token'] ?? '');
             if ($tok !== '') {
                 $favorites[] = $tok;
+            }
+        }
+    }
+    if ($favorites === []) {
+        foreach ($visibleImages as $img) {
+            if (!is_array($img)) {
+                continue;
+            }
+            if (efpic_image_favorited_client($img)) {
+                $tok = (string) ($img['token'] ?? '');
+                if ($tok !== '') {
+                    $favorites[] = $tok;
+                }
             }
         }
     }

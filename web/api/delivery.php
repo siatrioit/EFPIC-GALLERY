@@ -84,7 +84,10 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
                 'size_bytes' => (int) $pair['web']['size_bytes'],
             ],
             'client_hidden' => is_array($prev) ? !empty($prev['client_hidden']) : false,
-            'favorited' => is_array($prev) ? !empty($prev['favorited']) : false,
+            'favorited_admin' => is_array($prev) ? !empty($prev['favorited_admin']) : false,
+            'favorited_client' => is_array($prev)
+                ? (!empty($prev['favorited_client']) || !empty($prev['favorited']))
+                : false,
         ];
     }
 

@@ -137,27 +137,96 @@ function efpic_admin_render_scenes_fieldset(array $meta): string
     return $html;
 }
 
-function efpic_admin_render_slideshow_fieldset(array $config, array $meta, string $galleryToken): string
+function efpic_admin_render_favorite_thumb_grid(array $config, array $meta, string $who, bool $editable): string
 {
-    $slideshow = efpic_gallery_normalize_slideshow($meta);
-    $favCount = 0;
-    foreach ($meta['images'] ?? [] as $img) {
-        if (is_array($img) && !empty($img['favorited'])) {
-            $favCount++;
+    $html = '<ul class="admin-fav-grid">';
+    $hasAny = false;
+    foreach (efpic_sort_images_for_display($meta) as $img) {
+        if (!is_array($img)) {
+            continue;
         }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '') {
+            continue;
+        }
+        $isFav = $who === 'admin' ? efpic_image_favorited_admin($img) : efpic_image_favorited_client($img);
+        if (!$isFav) {
+            continue;
+        }
+        $hasAny = true;
+        $thumb = efpic_admin_media_thumb_url($config, $img);
+        $preview = efpic_client_media_url($config, $img, 'web', 1200);
+        $html .= '<li class="admin-fav-item">';
+        if ($editable) {
+            $html .= '<label class="admin-fav-card is-selected">';
+            $html .= '<input type="checkbox" name="image_fav_admin[' . efpic_admin_esc($tok) . ']" value="1" checked>';
+        } else {
+            $html .= '<div class="admin-fav-card is-readonly">';
+        }
+        $html .= '<img src="' . efpic_admin_esc($thumb) . '" alt="">';
+        $html .= '<span class="admin-sort-name">' . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</span>';
+        $html .= $editable ? '</label>' : '</div>';
+        $html .= '<button type="button" class="admin-fav-preview" data-preview="' . efpic_admin_esc($preview) . '" aria-label="Priekšskatījums">⤢</button>';
+        $html .= '</li>';
     }
-    $html = '<fieldset class="admin-fieldset-full"><legend>Slideshow (favorīti + mūzika)</legend>';
-    $html .= '<p class="muted">Augšupielādē MP3 un atzīmē favorītbildes (šeit vai klienta panelī). Publiskajā galerijā parādās slideshow poga.</p>';
-    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
-    $html .= '<label>Intervāls starp bildēm (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) $slideshow['interval_sec'] . '"></label>';
-    $html .= '<p class="muted">Favorītu bildes šobrīd: <strong>' . $favCount . '</strong></p>';
-    if ($slideshow['audio_file'] !== '') {
-        $url = efpic_gallery_asset_url($config, $galleryToken, $slideshow['audio_file']);
-        $html .= '<p class="admin-ok">MP3: <a href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($slideshow['audio_file']) . '</a></p>';
-        $html .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
+    if (!$hasAny) {
+        $html .= '<li class="admin-fav-empty muted">' . ($who === 'admin' ? 'Vēl nav izvēlēts neviens favorīts.' : 'Klients vēl nav atzīmējis favorītus.') . '</li>';
     }
-    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
-    $html .= '</fieldset>';
+    $html .= '</ul>';
+
+    return $html;
+}
+
+function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, string $galleryToken): string
+{
+    $slots = efpic_gallery_slideshows_struct($meta);
+    $adminSlot = $slots['admin'];
+    $clientSlot = $slots['client'];
+    $adminFavCount = efpic_count_favorites($meta, 'admin');
+    $clientFavCount = efpic_count_favorites($meta, 'client');
+    $clientActive = efpic_slideshow_slot_ready($clientSlot, $clientFavCount);
+
+    $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
+
+    $html .= '<div class="admin-fav-columns">';
+    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mana favorītu izvēle</h3>';
+    $html .= '<p class="muted">Atzīmē ★ pie bildēm zemāk vai noņem šeit. Izmanto tavu slideshow.</p>';
+    $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'admin', true);
+    $html .= '</div>';
+
+    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Klienta favorīti</h3>';
+    $html .= '<p class="muted">Ko klients izvēlējies klienta panelī (tikai skatīšanai).</p>';
+    $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', false);
+    $html .= '</div></div>';
+
+    $html .= '<div class="admin-slideshow-columns">';
+    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mana slideshow</h3>';
+    if ($clientActive) {
+        $html .= '<p class="admin-warn">Klienta slideshow ir aktīva publiskajā galerijā — tava slideshow netiek rādīta.</p>';
+    }
+    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_enabled" value="1"' . ($adminSlot['enabled'] ? ' checked' : '') . '> Ieslēgt manu slideshow</label>';
+    $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_admin_interval" min="2" max="60" value="' . (int) $adminSlot['interval_sec'] . '"></label>';
+    $html .= '<p class="muted">Manas favorītbildes: <strong>' . $adminFavCount . '</strong></p>';
+    if ($adminSlot['audio_file'] !== '') {
+        $url = efpic_gallery_asset_url($config, $galleryToken, $adminSlot['audio_file']);
+        $html .= '<p class="admin-ok">MP3: <a href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($adminSlot['audio_file']) . '</a></p>';
+        $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_remove_audio" value="1"> Dzēst MP3</label>';
+    }
+    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_admin_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '</div>';
+
+    $html .= '<div class="admin-fav-col admin-fav-col--readonly"><h3 class="admin-fav-heading">Klienta slideshow</h3>';
+    $html .= '<p class="muted">Konfigurē klienta panelī. Rāda publiski, ja ir ieslēgta, MP3 un favorīti.</p>';
+    $html .= '<ul class="admin-status-list">';
+    $html .= '<li>Ieslēgta: <strong>' . ($clientSlot['enabled'] ? 'Jā' : 'Nē') . '</strong></li>';
+    $html .= '<li>Favorīti: <strong>' . $clientFavCount . '</strong></li>';
+    $html .= '<li>MP3: <strong>' . ($clientSlot['audio_file'] !== '' ? 'Jā' : 'Nē') . '</strong></li>';
+    $html .= '<li>Publiski aktīva: <strong>' . ($clientActive ? 'Jā (galvenā)' : 'Nē') . '</strong></li>';
+    $html .= '</ul>';
+    if ($clientSlot['audio_file'] !== '') {
+        $html .= '<p><a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, $clientSlot['audio_file'])) . '" target="_blank" rel="noopener">Klausīties klienta MP3</a></p>';
+    }
+    $html .= '</div></div></fieldset>';
 
     return $html;
 }
@@ -312,7 +381,8 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $meta['scenes'] = efpic_parse_scenes_from_post();
         efpic_reassign_orphan_scene_images($meta);
         efpic_apply_image_scenes_from_post($meta);
-        efpic_apply_slideshow_from_post($config, $slug, $meta);
+        efpic_apply_admin_favorites_from_post($meta);
+        efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
         efpic_apply_videos_from_post($config, $slug, $meta);
         efpic_save_gallery_meta($config, $slug, $meta);
     }
@@ -328,6 +398,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             $meta = efpic_load_gallery_meta($config, $slug);
             if ($meta !== null) {
                 efpic_apply_image_scenes_from_post($meta);
+                efpic_apply_admin_favorites_from_post($meta);
                 efpic_save_gallery_meta($config, $slug, $meta);
             }
         }
@@ -399,7 +470,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     if ($isEdit && is_array($meta)) {
         $body .= efpic_admin_render_scenes_fieldset($meta);
-        $body .= efpic_admin_render_slideshow_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
+        $body .= efpic_admin_render_favorites_and_slideshow($config, $meta, (string) ($meta['gallery_token'] ?? ''));
         $body .= efpic_admin_render_videos_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
     } elseif (!$isEdit) {
         $body .= '<fieldset class="admin-fieldset-full"><legend>Galerijas sadaļas</legend>';
@@ -445,7 +516,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
         $body .= '<fieldset class="admin-fieldset-full"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
-        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. Noklikšķiniet uz bildes priekšskatījumam. Atzīmējiet «Vāks» galvenajai bildei.</p>';
+        $body .= '<p class="muted">Velciet kartītes, lai mainītu secību. ★ Mana favorīte, «Vāks» galvenajai bildei. Klienta favorītus redzi augstāk.</p>';
         $sceneOptions = efpic_gallery_scene_options($meta);
         $body .= '<ul id="sortable" class="admin-media-grid">';
         foreach ($sortedImages as $img) {
@@ -460,6 +531,11 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= '<button type="button" class="admin-media-thumb" data-preview="' . efpic_admin_esc($preview) . '" aria-label="Priekšskatījums">';
             $body .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" width="240" height="240" loading="lazy" decoding="async"></button>';
             $body .= '<label class="admin-cover-pick"><input type="radio" name="cover_image_token" value="' . efpic_admin_esc($tok) . '"' . $checked . '> Vāks</label>';
+            $adminFav = efpic_image_favorited_admin($img);
+            $body .= '<label class="admin-fav-pick"><input type="checkbox" name="image_fav_admin[' . efpic_admin_esc($tok) . ']" value="1"' . ($adminFav ? ' checked' : '') . '> ★ Mana</label>';
+            if (efpic_image_favorited_client($img)) {
+                $body .= '<span class="admin-client-fav-badge" title="Klienta favorīts">★ Klients</span>';
+            }
             $imgScene = (string) ($img['scene_id'] ?? 'main');
             $body .= '<label class="admin-scene-pick">Sadaļa<select name="image_scene[' . efpic_admin_esc($tok) . ']">';
             foreach ($sceneOptions as $scene) {

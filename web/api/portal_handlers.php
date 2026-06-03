@@ -127,7 +127,8 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                         if (!is_array($img) || ($img['token'] ?? '') !== $imageToken) {
                             continue;
                         }
-                        $meta['images'][$i]['favorited'] = empty($img['favorited']);
+                        $meta['images'][$i]['favorited_client'] = !efpic_image_favorited_client($img);
+                        unset($meta['images'][$i]['favorited']);
                         efpic_save_gallery_meta($config, $slug, $meta);
 
                         return;
@@ -161,7 +162,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     efpic_save_gallery_meta($config, $slug, $meta);
                 })(),
                 'save_slideshow' => (function () use ($config, $slug, &$meta) {
-                    efpic_apply_slideshow_from_post($config, $slug, $meta);
+                    efpic_apply_slideshow_from_post($config, $slug, $meta, 'client');
                     efpic_save_gallery_meta($config, $slug, $meta);
                 })(),
                 'upload_video' => (function () use ($config, $slug, &$meta) {
@@ -218,21 +219,17 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     }
 
     $gt = (string) ($meta['gallery_token'] ?? '');
-    $slideshow = efpic_gallery_normalize_slideshow($meta);
-    $favCount = 0;
-    foreach ($meta['images'] ?? [] as $img) {
-        if (is_array($img) && !empty($img['favorited'])) {
-            $favCount++;
-        }
-    }
+    $slots = efpic_gallery_slideshows_struct($meta);
+    $slideshow = $slots['client'];
+    $favCount = efpic_count_favorites($meta, 'client');
 
-    $body .= '<section class="portal-panel"><h2>Slideshow (favorīti + mūzika)</h2>';
-    $body .= '<p class="muted">Atzīmē ★ favorītus zem bildēm, augšupielādē MP3 — publiskajā galerijā parādīsies slideshow.</p>';
+    $body .= '<section class="portal-panel"><h2>Tava slideshow (favorīti + mūzika)</h2>';
+    $body .= '<p class="muted">Atzīmē ★ favorītus zem bildēm un augšupielādē MP3. Kad slideshow ir gatava, tā kļūst par galveno publiskajā galerijā.</p>';
     $body .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_slideshow">';
     $body .= '<label class="portal-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
     $body .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) $slideshow['interval_sec'] . '"></label>';
-    $body .= '<p class="muted">Favorīti: <strong>' . $favCount . '</strong></p>';
+    $body .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
     if ($slideshow['audio_file'] !== '') {
         $body .= '<p><a href="' . efpic_client_esc(efpic_gallery_asset_url($config, $gt, $slideshow['audio_file'])) . '" target="_blank" rel="noopener">Pašreizējais MP3</a></p>';
         $body .= '<label class="portal-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
@@ -303,7 +300,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     foreach ($images as $img) {
         $tok = (string) ($img['token'] ?? '');
         $hidden = !empty($img['client_hidden']);
-        $fav = !empty($img['favorited']);
+        $fav = efpic_image_favorited_client($img);
         $body .= '<div class="portal-card' . ($hidden ? ' is-hidden' : '') . '">';
         $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt="">';
         $body .= '<div class="portal-card-actions">';

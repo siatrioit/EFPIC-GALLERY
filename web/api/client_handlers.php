@@ -335,11 +335,12 @@ function efpic_client_render_gallery_videos(array $config, array $meta, array $c
 
 function efpic_client_render_slideshow_overlay(array $config, array $meta, array $ctx): string
 {
-    $slideshow = efpic_gallery_normalize_slideshow($meta);
-    if (!$slideshow['enabled'] || $slideshow['audio_file'] === '') {
+    $resolved = efpic_resolve_public_slideshow($meta, $ctx, $config);
+    if ($resolved === null) {
         return '';
     }
-    $favs = efpic_slideshow_favorite_images($meta, $ctx, $config);
+    $slideshow = $resolved['slideshow'];
+    $favs = $resolved['images'];
     if ($favs === []) {
         return '';
     }
@@ -350,7 +351,7 @@ function efpic_client_render_slideshow_overlay(array $config, array $meta, array
     }
     $audioUrl = efpic_gallery_asset_url($config, $gt, $slideshow['audio_file']);
 
-    $html = '<div id="efpic-slideshow" class="efpic-slideshow" hidden data-interval="' . (int) $slideshow['interval_sec'] . '">';
+    $html = '<div id="efpic-slideshow" class="efpic-slideshow" hidden data-interval="' . (int) $slideshow['interval_sec'] . '" data-owner="' . efpic_client_esc($resolved['owner']) . '">';
     $html .= '<button type="button" class="efpic-slideshow-close" aria-label="Aizvērt">&times;</button>';
     $html .= '<div class="efpic-slideshow-stage"><img src="" alt=""></div>';
     $html .= '<audio class="efpic-slideshow-audio" src="' . efpic_client_esc($audioUrl) . '" loop></audio>';
@@ -507,9 +508,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     $body .= efpic_client_share_modal($name);
     if ($isPicTime) {
-        $slideshow = efpic_gallery_normalize_slideshow($meta);
-        $hasSlideshow = $slideshow['enabled'] && $slideshow['audio_file'] !== ''
-            && efpic_slideshow_favorite_images($meta, $ctx, $config) !== [];
+        $hasSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
         if ($hasSlideshow) {
             $body .= '<button type="button" class="float-btn" data-slideshow-open aria-label="Slideshow">';

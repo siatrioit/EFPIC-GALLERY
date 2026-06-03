@@ -257,9 +257,16 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'hero_accent_color' => '#9a9578',
         'images' => [],
         'slideshow' => [
-            'enabled' => false,
-            'audio_file' => '',
-            'interval_sec' => 5,
+            'admin' => [
+                'enabled' => false,
+                'audio_file' => '',
+                'interval_sec' => 5,
+            ],
+            'client' => [
+                'enabled' => false,
+                'audio_file' => '',
+                'interval_sec' => 5,
+            ],
         ],
         'videos' => [],
         'scenes' => [

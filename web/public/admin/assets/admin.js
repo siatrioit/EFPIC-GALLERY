@@ -188,7 +188,9 @@
   }
 
   document.addEventListener('click', function (evt) {
-    var btn = evt.target && evt.target.closest ? evt.target.closest('.admin-media-thumb') : null;
+    var btn = evt.target && evt.target.closest
+      ? evt.target.closest('.admin-media-thumb, .admin-fav-preview')
+      : null;
     if (btn) {
       evt.preventDefault();
       openLightbox(btn.getAttribute('data-preview'));
