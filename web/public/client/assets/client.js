@@ -244,7 +244,7 @@
 
     items.forEach(resetMasonryItem);
 
-    var gap = parseFloat(window.getComputedStyle(container).gap) || 6;
+    var gap = parseFloat(window.getComputedStyle(container).gap) || 16;
     var innerWidth = getContainerInnerWidth(container);
     if (innerWidth <= 0) {
       return;

@@ -656,8 +656,8 @@ input[type="password"] {
 .pic-feed {
   position: relative;
   width: 100%;
-  gap: 6px;
-  padding: 6px;
+  gap: 16px;
+  padding: 16px;
   background: var(--page-bg, #ffffff);
   box-sizing: border-box;
 }
@@ -678,15 +678,15 @@ input[type="password"] {
 
 @media (min-width: 640px) {
   .pic-feed {
-    gap: 8px;
-    padding: 8px;
+    gap: 20px;
+    padding: 20px;
   }
 }
 
 @media (min-width: 1024px) {
   .pic-feed {
-    gap: 10px;
-    padding: 10px;
+    gap: 24px;
+    padding: 24px;
     max-width: 100%;
     margin: 0 auto;
   }
