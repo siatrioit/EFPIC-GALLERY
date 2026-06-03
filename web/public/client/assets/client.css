@@ -514,7 +514,7 @@ input[type="password"] {
 }
 
 .gallery-intro-byline {
-  margin: 0 0 24px;
+  margin: 0 0 14px;
   text-align: left;
   font-size: 1rem;
   font-weight: 300;
@@ -522,25 +522,17 @@ input[type="password"] {
   opacity: 0.9;
 }
 
-.gallery-intro-layout {
-  flex: 1;
+.gallery-intro-head {
   display: flex;
-  flex-direction: column;
-  gap: 28px;
   justify-content: flex-end;
-}
-
-.gallery-intro-left {
-  display: flex;
-  align-items: flex-end;
-  order: 2;
+  width: 100%;
 }
 
 .gallery-intro-figure {
-  margin: 0;
-  width: 100%;
+  margin: 0 0 0 auto;
+  width: 94%;
+  max-width: 960px;
   position: relative;
-  order: 1;
 }
 
 .gallery-intro-photo {
@@ -561,13 +553,15 @@ input[type="password"] {
 }
 
 .gallery-intro-title {
-  margin: 0;
+  margin: auto 0 0;
+  padding-top: 36px;
   font-size: clamp(1.75rem, 5vw, 3rem);
   font-weight: 300;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   line-height: 1.15;
-  max-width: 16ch;
+  max-width: 18ch;
+  align-self: flex-start;
 }
 
 .topbar-floating {
@@ -660,40 +654,58 @@ input[type="password"] {
 }
 
 .pic-feed {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  display: flex;
+  flex-direction: column;
   gap: 6px;
   padding: 6px;
   background: var(--page-bg, #ffffff);
 }
 
+.pic-feed-row {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 6px;
+  width: 100%;
+  overflow: hidden;
+}
+
 .pic-feed-item {
   display: block;
+  flex-shrink: 0;
   text-decoration: none;
   line-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
 .pic-feed-item img {
   width: 100%;
-  height: auto;
+  height: 100%;
   display: block;
+  object-fit: cover;
   vertical-align: middle;
 }
 
 @media (min-width: 640px) {
-  .pic-feed {
-    grid-template-columns: repeat(3, 1fr);
+  .pic-feed,
+  .pic-feed-row {
     gap: 8px;
+  }
+
+  .pic-feed {
     padding: 8px;
   }
 }
 
 @media (min-width: 1024px) {
-  .pic-feed {
-    grid-template-columns: repeat(4, 1fr);
+  .pic-feed,
+  .pic-feed-row {
     gap: 10px;
+  }
+
+  .pic-feed {
     padding: 10px;
-    max-width: 1600px;
+    max-width: 100%;
     margin: 0 auto;
   }
 }
@@ -858,28 +870,12 @@ input[type="password"] {
   }
 
   .gallery-intro-byline {
-    margin-bottom: 32px;
+    margin-bottom: 16px;
     font-size: 1.05rem;
   }
 
-  .gallery-intro-layout {
-    flex-direction: row;
-    align-items: flex-end;
-    justify-content: space-between;
-    gap: 40px;
-  }
-
-  .gallery-intro-left {
-    flex: 1;
-    min-width: 0;
-    padding-bottom: 8px;
-    order: 1;
-  }
-
   .gallery-intro-figure {
-    flex: 0 1 58%;
-    max-width: 880px;
-    order: 2;
+    width: min(78%, 960px);
   }
 
   .gallery-intro-date {

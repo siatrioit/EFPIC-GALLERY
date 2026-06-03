@@ -161,8 +161,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $date = efpic_client_format_event_date($dateRaw);
         $html = '<section class="gallery-intro" id="galleryHero">';
         $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
-        $html .= '<div class="gallery-intro-layout">';
-        $html .= '<div class="gallery-intro-left"><h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1></div>';
+        $html .= '<div class="gallery-intro-head">';
         $html .= '<figure class="gallery-intro-figure">';
         if ($imgUrl !== '') {
             $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="">';
@@ -170,7 +169,9 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         if ($date !== '') {
             $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
         }
-        $html .= '</figure></div></section>';
+        $html .= '</figure></div>';
+        $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
+        $html .= '</section>';
 
         return $html;
     }
@@ -196,7 +197,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
 
     $theme = $theme !== '' ? $theme : efpic_client_effective_theme($meta);
     if ($theme === 'pic-time') {
-        $html = '<div class="pic-feed">';
+        $html = '<div class="pic-feed" data-justified-gallery>';
         foreach ($images as $img) {
             if (!is_array($img)) {
                 continue;
