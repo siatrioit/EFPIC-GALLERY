@@ -151,34 +151,38 @@
 
   var hero = document.getElementById('galleryHero');
   var floatingTopbar = document.querySelector('.topbar-floating');
+  var floatBar = document.querySelector('.gallery-float-bar');
 
   function scrollPastHero() {
     if (!hero) return false;
-    return window.scrollY > hero.offsetHeight - 80;
+    return window.scrollY > hero.offsetHeight - 72;
   }
 
-  function updateFloatingTopbar() {
-    if (!floatingTopbar) return;
-    if (scrollPastHero()) {
-      floatingTopbar.classList.add('is-visible');
-    } else {
-      floatingTopbar.classList.remove('is-visible');
+  function updateFloatingUi() {
+    var past = scrollPastHero();
+    if (floatingTopbar) {
+      floatingTopbar.classList.toggle('is-visible', past);
+    }
+    if (floatBar) {
+      floatBar.classList.toggle('is-visible', past);
     }
   }
 
-  document.querySelectorAll('[data-hero-scroll]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      var target = document.querySelector('.gallery-main') || document.getElementById('downloads');
-      if (target) {
-        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      } else if (hero) {
-        window.scrollTo({ top: hero.offsetHeight, behavior: 'smooth' });
-      }
-    });
-  });
-
-  if (hero && floatingTopbar) {
-    window.addEventListener('scroll', updateFloatingTopbar, { passive: true });
-    updateFloatingTopbar();
+  if (hero) {
+    window.addEventListener('scroll', updateFloatingUi, { passive: true });
+    updateFloatingUi();
   }
+
+  var prevUrl = window.EFPIC_VIEWER_PREV || '';
+  var nextUrl = window.EFPIC_VIEWER_NEXT || '';
+
+  document.addEventListener('keydown', function (evt) {
+    if (modal && !modal.hidden) return;
+    if (dlModal && !dlModal.hidden) return;
+    if (evt.key === 'ArrowLeft' && prevUrl) {
+      window.location.href = prevUrl;
+    } else if (evt.key === 'ArrowRight' && nextUrl) {
+      window.location.href = nextUrl;
+    }
+  });
 })();

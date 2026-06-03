@@ -118,7 +118,8 @@ function efpic_client_html(
     echo '<link rel="stylesheet" href="' . efpic_client_esc($base . '/client/assets/client.css') . '">';
     if ($meta !== null) {
         $accent = efpic_client_hero_accent_color($meta);
-        echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';}</style>';
+        $heroText = efpic_client_hero_text_color($accent);
+        echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';--hero-text:' . efpic_client_esc($heroText) . ';}</style>';
     }
     echo '</head><body' . $class . '>';
     echo $body;
@@ -136,7 +137,7 @@ function efpic_client_html(
 function efpic_client_render_cover(array $config, array $meta, array $images, string $theme = ''): string
 {
     $name = (string) ($meta['name'] ?? '');
-    $date = (string) ($meta['event_date'] ?? '');
+    $dateRaw = (string) ($meta['event_date'] ?? '');
     $theme = $theme !== '' ? $theme : efpic_client_effective_theme($meta);
     $isPicTime = $theme === 'pic-time';
     $coverTok = efpic_resolve_gallery_cover_token($meta, $images);
@@ -144,30 +145,29 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($coverTok !== '') {
         foreach ($images as $img) {
             if (is_array($img) && ($img['token'] ?? '') === $coverTok) {
-                $imgUrl = efpic_client_media_url($config, $img, 'web', 1600);
+                $imgUrl = efpic_client_media_url($config, $img, 'web', 1400);
                 break;
             }
         }
         if ($imgUrl === '') {
-            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1600);
+            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1400);
         }
     }
 
     if ($isPicTime) {
-        $html = '<section class="gallery-hero" id="galleryHero">';
+        $brand = efpic_client_brand_name($config);
+        $date = efpic_client_format_event_date($dateRaw);
+        $html = '<section class="gallery-intro" id="galleryHero">';
+        $html .= '<p class="gallery-intro-byline">Gallery by ' . efpic_client_esc($brand) . '</p>';
+        $html .= '<figure class="gallery-intro-figure">';
         if ($imgUrl !== '') {
-            $html .= '<img class="gallery-hero-img" src="' . efpic_client_esc($imgUrl) . '" alt="">';
+            $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="">';
         }
-        $html .= '<div class="gallery-hero-overlay"></div>';
-        $html .= '<div class="gallery-hero-content">';
-        $html .= '<h2 class="gallery-hero-title">' . efpic_client_esc($name) . '</h2>';
         if ($date !== '') {
-            $html .= '<p class="gallery-hero-date">' . efpic_client_esc($date) . '</p>';
+            $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
         }
-        $html .= '</div>';
-        $html .= '<button type="button" class="hero-scroll-hint" data-hero-scroll aria-label="Ritināt uz leju">';
-        $html .= '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">';
-        $html .= '<polyline points="6 9 12 15 18 9"/></svg></button>';
+        $html .= '</figure>';
+        $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
         $html .= '</section>';
 
         return $html;
@@ -178,18 +178,39 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $html .= '<img class="gallery-cover-img" src="' . efpic_client_esc($imgUrl) . '" alt="">';
     }
     $html .= '<div class="gallery-cover-text"><h2>' . efpic_client_esc($name) . '</h2>';
-    if ($date !== '') {
-        $html .= '<p class="gallery-cover-date">' . efpic_client_esc($date) . '</p>';
+    if ($dateRaw !== '') {
+        $html .= '<p class="gallery-cover-date">' . efpic_client_esc($dateRaw) . '</p>';
     }
     $html .= '</div></section>';
 
     return $html;
 }
 
-function efpic_client_render_gallery_grid(array $config, array $meta, array $images): string
+function efpic_client_render_gallery_grid(array $config, array $meta, array $images, string $theme = ''): string
 {
     if ($images === []) {
         return '<p class="feed-empty">Vēl nav bilžu.</p>';
+    }
+
+    $theme = $theme !== '' ? $theme : efpic_client_effective_theme($meta);
+    if ($theme === 'pic-time') {
+        $html = '<div class="pic-feed">';
+        foreach ($images as $img) {
+            if (!is_array($img)) {
+                continue;
+            }
+            $tok = (string) ($img['token'] ?? '');
+            if ($tok === '') {
+                continue;
+            }
+            $imgUrl = efpic_client_media_url($config, $img, 'web', 1600);
+            $pageUrl = efpic_image_view_url($config, $tok);
+            $html .= '<a class="pic-feed-item" href="' . efpic_client_esc($pageUrl) . '">';
+            $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
+        }
+        $html .= '</div>';
+
+        return $html;
     }
 
     $scenes = $meta['scenes'] ?? [];
@@ -287,13 +308,18 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
+    $failiemHint = '';
     if ($failiemParent !== '' && efpic_is_delivery_gallery($meta)) {
         $searchUrl = 'https://failiem.lv/u/' . rawurlencode($failiemParent);
-        $body .= '<p class="gallery-ai-hint"><a href="' . efpic_client_esc($searchUrl) . '" target="_blank" rel="noopener">Meklēt bildes Failiem.lv (sejas, atslēgvārdi)</a></p>';
+        $failiemHint = '<p class="gallery-ai-hint"><a href="' . efpic_client_esc($searchUrl) . '" target="_blank" rel="noopener">Meklēt bildes Failiem.lv (sejas, atslēgvārdi)</a></p>';
+    }
+
+    if (!$isPicTime && $failiemHint !== '') {
+        $body .= $failiemHint;
     }
 
     if (efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true)) {
-        $body .= '<main class="gallery-main">' . efpic_client_render_gallery_grid($config, $meta, $images) . '</main>';
+        $body .= '<main class="gallery-main">' . efpic_client_render_gallery_grid($config, $meta, $images, $theme) . '</main>';
     } else {
         $body .= '<main class="feed">';
         foreach ($images as $img) {
@@ -302,6 +328,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt="" loading="lazy"></a>';
         }
         $body .= '</main>';
+    }
+
+    if ($isPicTime && $failiemHint !== '') {
+        $body .= $failiemHint;
     }
 
     $body .= '<section class="downloads" id="downloads"><h2>Lejupielādes</h2><div class="download-row">';
@@ -325,6 +355,51 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [], $meta);
 }
 
+function efpic_client_render_pic_time_viewer(
+    array $config,
+    array $meta,
+    string $imageToken,
+    string $mediaUrl,
+    string $galleryUrl,
+    string $closeUrl,
+    array $navImages,
+    int $index,
+    int $total,
+    string $prevUrl,
+    string $nextUrl,
+): string {
+    $name = (string) ($meta['name'] ?? '');
+    $html = '<div class="pt-viewer">';
+    $html .= '<header class="pt-viewer-bar">';
+    $html .= '<a class="pt-viewer-back" href="' . efpic_client_esc($closeUrl) . '" aria-label="Atpakaļ">';
+    $html .= efpic_client_icon('chev-left') . '</a>';
+    $html .= '<span class="pt-viewer-title">' . efpic_client_esc($name) . '</span>';
+    $html .= '<div class="pt-viewer-actions">';
+    $html .= '<button type="button" class="icon-btn" data-dl-open aria-label="Lejupielādēt">';
+    $html .= efpic_client_icon('download') . '</button>';
+    $html .= '<button type="button" class="icon-btn" data-share-open aria-label="Dalīties">';
+    $html .= efpic_client_icon('share') . '</button>';
+    $html .= '<a class="icon-btn" href="' . efpic_client_esc($closeUrl) . '" aria-label="Aizvērt">';
+    $html .= efpic_client_icon('close') . '</a></div></header>';
+    $html .= '<div class="pt-viewer-stage" data-viewer-stage>';
+    if ($prevUrl !== '') {
+        $html .= '<a class="pt-viewer-zone prev" href="' . efpic_client_esc($prevUrl) . '" aria-label="Iepriekšējā">';
+        $html .= efpic_client_icon('chev-left') . '</a>';
+    }
+    $html .= '<figure class="pt-viewer-figure"><img src="' . efpic_client_esc($mediaUrl) . '" alt=""></figure>';
+    if ($nextUrl !== '') {
+        $html .= '<a class="pt-viewer-zone next" href="' . efpic_client_esc($nextUrl) . '" aria-label="Nākamā">';
+        $html .= efpic_client_icon('chev-right') . '</a>';
+    }
+    $html .= '</div>';
+    if ($total > 1) {
+        $html .= '<p class="pt-viewer-count">' . ($index + 1) . ' / ' . $total . '</p>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_handle_client_image(array $config, string $imageToken, string $method): void
 {
     $found = efpic_find_image_by_token($config, $imageToken);
@@ -338,8 +413,9 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     $canBrowseGallery = empty($meta['restrict_gallery_from_single_link']);
     $ctx = efpic_viewer_context($config, $meta);
     $galleryUrl = efpic_gallery_view_url($config, $gt, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
-    $mediaUrl = efpic_client_media_url_for_token($config, $meta, $imageToken, 'web');
+    $mediaUrl = efpic_client_media_url_for_token($config, $meta, $imageToken, 'web', 1920);
     $pageUrl = efpic_image_view_url($config, $imageToken);
+    $theme = efpic_client_effective_theme($meta);
 
     efpic_client_session_start();
     if (!efpic_gallery_session_unlocked($gt)) {
@@ -359,6 +435,33 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     $nextUrl = $index < $total - 1 ? efpic_image_view_url($config, (string) ($navImages[$index + 1]['token'] ?? '')) : '';
 
     $closeUrl = $canBrowseGallery ? $galleryUrl : $pageUrl;
+
+    if ($theme === 'pic-time') {
+        $body = efpic_client_render_pic_time_viewer(
+            $config,
+            $meta,
+            $imageToken,
+            $mediaUrl,
+            $galleryUrl,
+            $closeUrl,
+            $navImages,
+            $index,
+            $total,
+            $prevUrl,
+            $nextUrl,
+        );
+        $body .= efpic_client_share_modal($name);
+        $body .= efpic_client_download_modal();
+        efpic_client_html($name, $body, $config, 'page-viewer theme-pic-time', $pageUrl, [
+            'EFPIC_IMAGE_TOKEN' => $imageToken,
+            'EFPIC_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download',
+            'EFPIC_VIEWER_PREV' => $prevUrl,
+            'EFPIC_VIEWER_NEXT' => $nextUrl,
+        ], $meta);
+
+        return;
+    }
+
     $actions = '<div class="topbar-actions">';
     $actions .= '<button type="button" class="icon-btn" data-dl-open data-image-token="' . efpic_client_esc($imageToken) . '" aria-label="Lejupielādēt">';
     $actions .= efpic_client_icon('download') . '</button>';
@@ -390,11 +493,10 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
 
     $body .= efpic_client_share_modal($name);
     $body .= efpic_client_download_modal();
-    $theme = efpic_client_effective_theme($meta);
     efpic_client_html($name, $body, $config, 'page-viewer theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $pageUrl, [
         'EFPIC_IMAGE_TOKEN' => $imageToken,
         'EFPIC_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download',
-    ]);
+    ], $meta);
 }
 
 function efpic_handle_client_media(array $config, string $imageToken): void

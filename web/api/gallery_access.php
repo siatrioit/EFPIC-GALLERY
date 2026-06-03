@@ -237,7 +237,44 @@ function efpic_client_hero_accent_color(array $meta): string
         return strtolower($color);
     }
 
-    return '#1a1614';
+    return '#9a9578';
+}
+
+function efpic_client_hero_text_color(string $hex): string
+{
+    $r = hexdec(substr($hex, 1, 2));
+    $g = hexdec(substr($hex, 3, 2));
+    $b = hexdec(substr($hex, 5, 2));
+    $lum = 0.299 * $r + 0.587 * $g + 0.114 * $b;
+
+    return $lum > 145 ? '#1a1a1a' : '#ffffff';
+}
+
+function efpic_client_brand_name(array $config): string
+{
+    $name = trim((string) ($config['guest_delivery']['email']['from_name'] ?? ''));
+
+    return $name !== '' ? $name : 'Edgars Foto';
+}
+
+function efpic_client_format_event_date(string $date): string
+{
+    $date = trim($date);
+    if ($date === '') {
+        return '';
+    }
+    $ts = strtotime(substr($date, 0, 10));
+    if ($ts === false) {
+        return $date;
+    }
+    $months = [
+        1 => 'janvāris', 2 => 'februāris', 3 => 'marts', 4 => 'aprīlis',
+        5 => 'maijs', 6 => 'jūnijs', 7 => 'jūlijs', 8 => 'augusts',
+        9 => 'septembris', 10 => 'oktobris', 11 => 'novembris', 12 => 'decembris',
+    ];
+    $m = (int) date('n', $ts);
+
+    return (int) date('j', $ts) . '. ' . ($months[$m] ?? date('F', $ts)) . ' ' . date('Y', $ts);
 }
 
 /** Izvēlas vāka bildes tokenu: favorīti (nejauši) > admin vāks > nākamā redzamā. */

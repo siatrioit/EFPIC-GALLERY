@@ -209,7 +209,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'client_theme' => null,
         'event_date' => null,
         'cover_image_token' => null,
-        'hero_accent_color' => '#1a1614',
+        'hero_accent_color' => '#9a9578',
         'images' => [],
         'scenes' => [
             [
