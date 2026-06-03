@@ -14,7 +14,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         header('Location: delivery_edit.php?slug=' . rawurlencode($slug) . '&saved=1');
         exit;
     } catch (Throwable $e) {
-        efpic_admin_delivery_form($config, null, null, $e->getMessage());
+        efpic_admin_delivery_form($config, null, null, $e->getMessage(), true);
     }
 }
 

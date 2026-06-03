@@ -19,6 +19,7 @@ function efpic_client_icon(string $name): string
         'close' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>',
         'chev-left' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>',
         'chev-right' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>',
+        'chev-down' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
         'zip' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
     ];
 
@@ -215,49 +216,84 @@ function efpic_client_render_pic_feed_items(array $config, array $images): strin
     return $html;
 }
 
+function efpic_client_render_scene_jump_nav(array $meta, array $images): string
+{
+    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    if (count($visible) < 2) {
+        return '';
+    }
+
+    $html = '<nav class="gallery-scene-nav" aria-label="Galerijas sadaļas"><div class="gallery-scene-nav__inner">';
+    foreach ($visible as $scene) {
+        $anchor = efpic_scene_element_id($scene['id']);
+        $html .= '<a class="gallery-scene-nav__link" href="#' . efpic_client_esc($anchor) . '">'
+            . efpic_client_esc($scene['title']) . '</a>';
+    }
+    $html .= '</div></nav>';
+
+    return $html;
+}
+
+function efpic_client_render_scene_next_button(string $nextAnchor, string $nextTitle): string
+{
+    return '<div class="gallery-scene-next-wrap">'
+        . '<button type="button" class="gallery-scene-next" data-scene-target="#' . efpic_client_esc($nextAnchor) . '">'
+        . '<span class="gallery-scene-next__text"><span class="gallery-scene-next__kicker">Nākamā sadaļa</span>'
+        . '<span class="gallery-scene-next__title">' . efpic_client_esc($nextTitle) . '</span></span>'
+        . efpic_client_icon('chev-down')
+        . '</button></div>';
+}
+
+/** @param list<array{id: string, title: string}> $scenesWithImages */
+function efpic_client_scene_next_button_for_index(array $scenesWithImages, int $index): string
+{
+    if (!isset($scenesWithImages[$index + 1])) {
+        return '';
+    }
+    $next = $scenesWithImages[$index + 1];
+
+    return efpic_client_render_scene_next_button(
+        efpic_scene_element_id($next['id']),
+        $next['title']
+    );
+}
+
 function efpic_client_render_pic_time_scenes(array $config, array $meta, array $images): string
 {
-    $scenes = $meta['scenes'] ?? [];
-    if (!is_array($scenes) || $scenes === []) {
-        $scenes = [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
-    }
-    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $visible = efpic_gallery_scenes_with_content($meta, $images);
 
     $byScene = [];
     foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
         $sid = (string) ($img['scene_id'] ?? 'main');
         $byScene[$sid][] = $img;
     }
 
-    $html = '';
-    $sectionsWithImages = 0;
-    foreach ($scenes as $scene) {
-        if (!is_array($scene)) {
-            continue;
-        }
-        $sid = (string) ($scene['id'] ?? 'main');
-        if (($byScene[$sid] ?? []) !== []) {
-            $sectionsWithImages++;
+    $scenesWithImages = [];
+    foreach ($visible as $scene) {
+        if (($byScene[$scene['id']] ?? []) !== []) {
+            $scenesWithImages[] = $scene;
         }
     }
-    $multiScene = $sectionsWithImages > 1;
-    foreach ($scenes as $scene) {
-        if (!is_array($scene)) {
-            continue;
-        }
-        $sid = (string) ($scene['id'] ?? 'main');
+    $multiScene = count($scenesWithImages) > 1;
+
+    $html = '';
+    foreach ($scenesWithImages as $i => $scene) {
+        $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
-        if ($sceneImages === []) {
-            continue;
-        }
-        $title = (string) ($scene['title'] ?? $sid);
+        $title = $scene['title'];
+        $anchor = efpic_scene_element_id($sid);
         if ($multiScene) {
-            $html .= '<section class="scene-block scene-block--pic"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+            $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
+                . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         }
         $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
         $html .= efpic_client_render_pic_feed_items($config, $sceneImages);
         $html .= '</div>';
         if ($multiScene) {
+            $html .= efpic_client_scene_next_button_for_index($scenesWithImages, $i);
             $html .= '</section>';
         }
     }
@@ -301,7 +337,17 @@ function efpic_client_render_gallery_videos(array $config, array $meta, array $c
         if ($list === []) {
             continue;
         }
-        $html .= '<section class="gallery-videos scene-block"><h2 class="scene-title">' . efpic_client_esc((string) ($sceneTitles[$sid] ?? 'Video')) . ' — video</h2>';
+        $hasImages = false;
+        foreach ($meta['images'] ?? [] as $img) {
+            if (is_array($img) && (string) ($img['scene_id'] ?? 'main') === $sid) {
+                $hasImages = true;
+                break;
+            }
+        }
+        $anchor = efpic_scene_element_id($sid);
+        $idAttr = $hasImages ? '' : ' id="' . efpic_client_esc($anchor) . '"';
+        $html .= '<section' . $idAttr . ' class="gallery-videos scene-block" data-scene-id="'
+            . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc((string) ($sceneTitles[$sid] ?? 'Video')) . ' — video</h2>';
         foreach ($list as $video) {
             $title = trim((string) ($video['title'] ?? ''));
             if ($title !== '') {
@@ -373,31 +419,33 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         return efpic_client_render_pic_time_scenes($config, $meta, $images);
     }
 
-    $scenes = $meta['scenes'] ?? [];
-    if (!is_array($scenes) || $scenes === []) {
-        $scenes = [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
-    }
-
-    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $visible = efpic_gallery_scenes_with_content($meta, $images);
 
     $byScene = [];
     foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
         $sid = (string) ($img['scene_id'] ?? 'main');
         $byScene[$sid][] = $img;
     }
 
+    $scenesWithImages = [];
+    foreach ($visible as $scene) {
+        if (($byScene[$scene['id']] ?? []) !== []) {
+            $scenesWithImages[] = $scene;
+        }
+    }
+    $multiScene = count($scenesWithImages) > 1;
+
     $html = '';
-    foreach ($scenes as $scene) {
-        if (!is_array($scene)) {
-            continue;
-        }
-        $sid = (string) ($scene['id'] ?? 'main');
+    foreach ($scenesWithImages as $i => $scene) {
+        $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
-        if ($sceneImages === []) {
-            continue;
-        }
-        $title = (string) ($scene['title'] ?? $sid);
-        $html .= '<section class="scene-block"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+        $title = $scene['title'];
+        $anchor = efpic_scene_element_id($sid);
+        $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
+            . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         $html .= '<div class="grid">';
         foreach ($sceneImages as $img) {
             $tok = (string) ($img['token'] ?? '');
@@ -406,7 +454,11 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
             $html .= '<a class="grid-card" href="' . efpic_client_esc($pageUrl) . '">';
             $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
         }
-        $html .= '</div></section>';
+        $html .= '</div>';
+        if ($multiScene) {
+            $html .= efpic_client_scene_next_button_for_index($scenesWithImages, $i);
+        }
+        $html .= '</section>';
     }
 
     return $html;
@@ -479,7 +531,11 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     if (efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true)) {
+        $sceneNav = efpic_client_render_scene_jump_nav($meta, $images);
         $body .= '<main class="gallery-main">';
+        if ($sceneNav !== '') {
+            $body .= $sceneNav;
+        }
         $body .= efpic_client_render_gallery_videos($config, $meta, $ctx);
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme);
         $body .= '</main>';

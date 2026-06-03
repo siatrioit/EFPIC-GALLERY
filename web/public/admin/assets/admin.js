@@ -117,9 +117,15 @@
         persistScenesJson(list);
         syncSceneSelects(list);
       });
+      var grip = document.createElement('button');
+      grip.type = 'button';
+      grip.className = 'admin-scene-drag';
+      grip.setAttribute('aria-label', 'Pārvietot sadaļu');
+      grip.textContent = '⋮⋮';
       var meta = document.createElement('span');
       meta.className = 'admin-scene-meta';
       meta.textContent = (scene.count || 0) + ' bildes';
+      row.appendChild(grip);
       row.appendChild(titleInput);
       row.appendChild(meta);
       if (scene.id !== 'main') {
@@ -146,6 +152,41 @@
         titleInput.focus();
         titleInput.select();
       }
+    });
+    initSceneDrag();
+  }
+
+  function initSceneDrag() {
+    if (!scenesEditor) return;
+    var dragRow = null;
+    scenesEditor.querySelectorAll('.admin-scene-row').forEach(function (row) {
+      row.setAttribute('draggable', 'true');
+      row.addEventListener('dragstart', function (evt) {
+        if (!evt.target || !evt.target.closest || !evt.target.closest('.admin-scene-drag')) {
+          evt.preventDefault();
+          return;
+        }
+        dragRow = row;
+        row.classList.add('dragging');
+      });
+      row.addEventListener('dragend', function () {
+        row.classList.remove('dragging');
+        dragRow = null;
+        var list = readScenesFromDom();
+        persistScenesJson(list);
+        syncSceneSelects(list);
+      });
+      row.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (!dragRow || dragRow === row) return;
+        var rect = row.getBoundingClientRect();
+        var after = e.clientY > rect.top + rect.height / 2;
+        if (after) {
+          row.parentNode.insertBefore(dragRow, row.nextSibling);
+        } else {
+          row.parentNode.insertBefore(dragRow, row);
+        }
+      });
     });
   }
 

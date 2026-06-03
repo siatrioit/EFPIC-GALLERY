@@ -487,4 +487,76 @@
       if (!slideshowEl.hidden && evt.key === 'Escape') stopSlideshow();
     });
   }
+
+  var sceneNav = document.querySelector('.gallery-scene-nav');
+  var sceneLinks = sceneNav ? sceneNav.querySelectorAll('.gallery-scene-nav__link') : [];
+
+  function activateSceneNav(hash) {
+    if (!sceneLinks.length || !hash) return;
+    sceneLinks.forEach(function (a) {
+      a.classList.toggle('is-active', (a.getAttribute('href') || '') === hash);
+    });
+  }
+
+  function scrollToSceneHash(hash) {
+    if (!hash || hash.charAt(0) !== '#') return false;
+    var target = document.getElementById(hash.slice(1));
+    if (!target) return false;
+    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (history.replaceState) {
+      history.replaceState(null, '', hash);
+    }
+    activateSceneNav(hash);
+    return true;
+  }
+
+  document.addEventListener('click', function (evt) {
+    var nextBtn = evt.target && evt.target.closest ? evt.target.closest('[data-scene-target]') : null;
+    if (nextBtn) {
+      var targetHash = nextBtn.getAttribute('data-scene-target') || '';
+      if (scrollToSceneHash(targetHash)) {
+        evt.preventDefault();
+      }
+      return;
+    }
+  });
+
+  if (sceneNav) {
+    sceneNav.addEventListener('click', function (evt) {
+      var link = evt.target && evt.target.closest ? evt.target.closest('.gallery-scene-nav__link') : null;
+      if (!link) return;
+      var href = link.getAttribute('href') || '';
+      if (scrollToSceneHash(href)) {
+        evt.preventDefault();
+      }
+    });
+
+    if ('IntersectionObserver' in window && sceneLinks.length) {
+      var sections = [];
+      sceneLinks.forEach(function (link) {
+        var id = (link.getAttribute('href') || '').slice(1);
+        var el = id ? document.getElementById(id) : null;
+        if (el) sections.push({ link: link, el: el });
+      });
+      var observer = new IntersectionObserver(
+        function (entries) {
+          var visible = entries.filter(function (e) {
+            return e.isIntersecting;
+          });
+          if (!visible.length) return;
+          visible.sort(function (a, b) {
+            return b.intersectionRatio - a.intersectionRatio;
+          });
+          var top = visible[0].target;
+          sections.forEach(function (row) {
+            row.link.classList.toggle('is-active', row.el === top);
+          });
+        },
+        { rootMargin: '-30% 0px -55% 0px', threshold: [0, 0.15, 0.4] }
+      );
+      sections.forEach(function (row) {
+        observer.observe(row.el);
+      });
+    }
+  }
 })();

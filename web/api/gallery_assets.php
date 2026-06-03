@@ -17,6 +17,72 @@ function efpic_ensure_gallery_assets_dir(array $config, string $slug): string
     return $dir;
 }
 
+function efpic_scene_element_id(string $sceneId): string
+{
+    $safe = preg_replace('/[^a-zA-Z0-9_-]+/', '', $sceneId);
+
+    return 'scene-' . ($safe !== '' ? $safe : 'main');
+}
+
+/** @return list<array<string, mixed>> */
+function efpic_gallery_sorted_scenes(array $meta): array
+{
+    $scenes = $meta['scenes'] ?? [];
+    if (!is_array($scenes) || $scenes === []) {
+        return [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
+    }
+    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $out = [];
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $out[] = $scene;
+    }
+
+    return $out !== [] ? $out : [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
+}
+
+/**
+ * Sadaļas, kurām ir vismaz viena bilde vai video (kārtotas pēc sort).
+ *
+ * @return list<array{id: string, title: string, sort: int}>
+ */
+function efpic_gallery_scenes_with_content(array $meta, array $images): array
+{
+    $bySceneImages = [];
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $bySceneImages[$sid] = true;
+    }
+    $bySceneVideos = [];
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        $sid = (string) ($video['scene_id'] ?? 'main');
+        $bySceneVideos[$sid] = true;
+    }
+
+    $out = [];
+    foreach (efpic_gallery_sorted_scenes($meta) as $scene) {
+        $sid = (string) ($scene['id'] ?? 'main');
+        if (!isset($bySceneImages[$sid]) && !isset($bySceneVideos[$sid])) {
+            continue;
+        }
+        $out[] = [
+            'id' => $sid,
+            'title' => (string) ($scene['title'] ?? 'Galerija'),
+            'sort' => (int) ($scene['sort'] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
 /** @return list<array{id: string, title: string}> */
 function efpic_gallery_scene_options(array $meta): array
 {

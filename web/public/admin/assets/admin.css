@@ -74,6 +74,21 @@
   flex: 1;
 }
 
+.admin-nav-badge {
+  display: inline-block;
+  min-width: 1.25rem;
+  padding: 0 6px;
+  margin-left: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1.35rem;
+  text-align: center;
+  color: #fff;
+  background: var(--admin-accent);
+  border-radius: 999px;
+  vertical-align: middle;
+}
+
 .admin-nav a {
   display: block;
   padding: 10px 12px;
@@ -683,7 +698,12 @@
 }
 
 .admin-scenes-panel {
-  margin-bottom: 20px;
+  margin: 24px 0 16px;
+}
+
+.admin-scenes-panel--above-images {
+  border-top: 1px solid var(--admin-border);
+  padding-top: 20px;
 }
 
 .admin-scenes-editor {
@@ -702,6 +722,28 @@
   background: var(--admin-surface-2);
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius);
+}
+
+.admin-scene-row.dragging {
+  opacity: 0.55;
+}
+
+.admin-scene-drag {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  margin: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--admin-text-muted);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: grab;
+  letter-spacing: -0.12em;
+}
+
+.admin-scene-drag:active {
+  cursor: grabbing;
 }
 
 .admin-scene-title-input {
@@ -876,6 +918,24 @@
   align-items: center;
   gap: 12px;
   margin-bottom: 16px;
+  padding: 12px 14px;
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius);
+}
+
+.admin-view-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.admin-view-tabs .btn {
+  text-decoration: none;
+}
+
+.admin-view-tabs .btn.primary {
+  pointer-events: none;
 }
 
 .admin-sort-links a {
