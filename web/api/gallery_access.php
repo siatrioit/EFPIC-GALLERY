@@ -283,6 +283,28 @@ function efpic_client_page_bg_color(array $config, array $meta): string
     return '#ffffff';
 }
 
+/** @return array{mobile: int, tablet: int, desktop: int} */
+function efpic_client_gallery_feed_gaps(array $config): array
+{
+    $defaults = efpic_app_settings_defaults();
+    $settings = efpic_load_app_settings($config);
+    $mobile = efpic_sanitize_gallery_feed_gap($settings['gallery_feed_gap'] ?? null, (int) $defaults['gallery_feed_gap']);
+    $tablet = efpic_sanitize_gallery_feed_gap(
+        $settings['gallery_feed_gap_tablet'] ?? null,
+        (int) $defaults['gallery_feed_gap_tablet']
+    );
+    $desktop = efpic_sanitize_gallery_feed_gap(
+        $settings['gallery_feed_gap_desktop'] ?? null,
+        (int) $defaults['gallery_feed_gap_desktop']
+    );
+
+    return [
+        'mobile' => $mobile,
+        'tablet' => $tablet,
+        'desktop' => $desktop,
+    ];
+}
+
 function efpic_gallery_image_focus_hash(string $imageToken): string
 {
     return '#pic-' . $imageToken;

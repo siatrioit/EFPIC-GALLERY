@@ -244,7 +244,10 @@
 
     items.forEach(resetMasonryItem);
 
-    var gap = parseFloat(window.getComputedStyle(container).gap) || 16;
+    var containerStyle = window.getComputedStyle(container);
+    var gap = parseFloat(containerStyle.gap) || 16;
+    var padLeft = parseFloat(containerStyle.paddingLeft) || 0;
+    var padTop = parseFloat(containerStyle.paddingTop) || 0;
     var innerWidth = getContainerInnerWidth(container);
     if (innerWidth <= 0) {
       return;
@@ -282,10 +285,10 @@
         }
       }
 
-      var left = bestCol * (colWidth + gap);
+      var left = padLeft + bestCol * (colWidth + gap);
       item.style.position = 'absolute';
       item.style.left = Math.round(left) + 'px';
-      item.style.top = Math.round(bestTop) + 'px';
+      item.style.top = Math.round(padTop + bestTop) + 'px';
       item.style.width = Math.round(itemWidth) + 'px';
       item.style.height = 'auto';
 

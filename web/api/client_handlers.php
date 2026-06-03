@@ -120,8 +120,12 @@ function efpic_client_html(
         $accent = efpic_client_hero_accent_color($meta);
         $heroText = efpic_client_hero_text_color($accent);
         $pageBg = efpic_client_page_bg_color($config, $meta);
+        $gaps = efpic_client_gallery_feed_gaps($config);
         echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';--hero-text:' . efpic_client_esc($heroText)
-            . ';--page-bg:' . efpic_client_esc($pageBg) . ';}</style>';
+            . ';--page-bg:' . efpic_client_esc($pageBg)
+            . ';--pic-feed-gap:' . (int) $gaps['mobile'] . 'px'
+            . ';--pic-feed-gap-tablet:' . (int) $gaps['tablet'] . 'px'
+            . ';--pic-feed-gap-desktop:' . (int) $gaps['desktop'] . 'px;}</style>';
     }
     echo '</head><body' . $class . '>';
     echo $body;

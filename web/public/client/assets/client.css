@@ -656,8 +656,8 @@ input[type="password"] {
 .pic-feed {
   position: relative;
   width: 100%;
-  gap: 16px;
-  padding: 16px;
+  gap: var(--pic-feed-gap, 16px);
+  padding: var(--pic-feed-gap, 16px);
   background: var(--page-bg, #ffffff);
   box-sizing: border-box;
 }
@@ -678,15 +678,15 @@ input[type="password"] {
 
 @media (min-width: 640px) {
   .pic-feed {
-    gap: 20px;
-    padding: 20px;
+    gap: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+    padding: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
   }
 }
 
 @media (min-width: 1024px) {
   .pic-feed {
-    gap: 24px;
-    padding: 24px;
+    gap: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+    padding: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
     max-width: 100%;
     margin: 0 auto;
   }

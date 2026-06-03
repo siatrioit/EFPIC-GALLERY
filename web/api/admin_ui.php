@@ -337,9 +337,16 @@ function efpic_admin_save_settings_from_post(array $config): void
         throw new InvalidArgumentException('Nederīga pamatkrāsa');
     }
 
+    $gapMobile = efpic_sanitize_gallery_feed_gap($_POST['gallery_feed_gap'] ?? null);
+    $gapTablet = efpic_sanitize_gallery_feed_gap($_POST['gallery_feed_gap_tablet'] ?? null, 20);
+    $gapDesktop = efpic_sanitize_gallery_feed_gap($_POST['gallery_feed_gap_desktop'] ?? null, 24);
+
     efpic_save_app_settings($config, [
         'gallery_byline' => $byline,
         'gallery_page_bg' => strtolower($pageBg),
+        'gallery_feed_gap' => $gapMobile,
+        'gallery_feed_gap_tablet' => $gapTablet,
+        'gallery_feed_gap_desktop' => $gapDesktop,
     ]);
 }
 
@@ -367,6 +374,18 @@ function efpic_admin_settings_page(array $config): void
     $body .= '<label>Galerijas pamatkrāsa (režģis un bilžu skats)<input type="color" name="gallery_page_bg" value="'
         . efpic_admin_esc($pageBg) . '"></label>';
     $body .= '<p class="muted">Fons zem bildēm un atverot bildi pilnekrānā. Titulbildes fons joprojām ir galerijas «vāka krāsa».</p>';
+    $body .= '</fieldset>';
+    $gapMobile = (int) ($settings['gallery_feed_gap'] ?? 16);
+    $gapTablet = (int) ($settings['gallery_feed_gap_tablet'] ?? 20);
+    $gapDesktop = (int) ($settings['gallery_feed_gap_desktop'] ?? 24);
+    $body .= '<fieldset><legend>Galerijas iestatījumi</legend>';
+    $body .= '<label>Atstarpes — mobilais (px)<input type="number" name="gallery_feed_gap" min="0" max="120" step="1" required value="'
+        . efpic_admin_esc((string) $gapMobile) . '"></label>';
+    $body .= '<label>Atstarpes — planšete (640px+, px)<input type="number" name="gallery_feed_gap_tablet" min="0" max="120" step="1" required value="'
+        . efpic_admin_esc((string) $gapTablet) . '"></label>';
+    $body .= '<label>Atstarpes — desktop (1024px+, px)<input type="number" name="gallery_feed_gap_desktop" min="0" max="120" step="1" required value="'
+        . efpic_admin_esc((string) $gapDesktop) . '"></label>';
+    $body .= '<p class="muted">Attiecas uz Pic-Time galerijas režģi: atstarpe starp bildēm un vienādi horizontālie un vertikālie malu atkāpes.</p>';
     $body .= '</fieldset>';
     $body .= '<div class="admin-actions"><button type="submit" class="btn primary" name="save" value="1">Saglabāt</button></div>';
     $body .= '</form>';

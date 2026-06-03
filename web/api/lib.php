@@ -58,14 +58,26 @@ function efpic_app_settings_path(array $config): string
     return dirname(efpic_storage_path($config)) . '/app_settings.json';
 }
 
-/** @return array{gallery_byline: string, gallery_page_bg: string, updated_at: ?string} */
+/** @return array{gallery_byline: string, gallery_page_bg: string, gallery_feed_gap: int, gallery_feed_gap_tablet: int, gallery_feed_gap_desktop: int, updated_at: ?string} */
 function efpic_app_settings_defaults(): array
 {
     return [
         'gallery_byline' => 'Gallery by Edgars Foto',
         'gallery_page_bg' => '#ffffff',
+        'gallery_feed_gap' => 16,
+        'gallery_feed_gap_tablet' => 20,
+        'gallery_feed_gap_desktop' => 24,
         'updated_at' => null,
     ];
+}
+
+function efpic_sanitize_gallery_feed_gap(mixed $value, int $fallback = 16): int
+{
+    if (!is_numeric($value)) {
+        return max(0, min(120, $fallback));
+    }
+
+    return max(0, min(120, (int) round((float) $value)));
 }
 
 function efpic_load_app_settings(array $config): array
