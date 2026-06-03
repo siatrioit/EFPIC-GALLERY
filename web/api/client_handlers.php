@@ -134,9 +134,18 @@ function efpic_client_render_cover(array $config, array $meta, array $images): s
     if ($coverTok === '' && $images !== []) {
         $coverTok = (string) ($images[0]['token'] ?? '');
     }
-    $imgUrl = $coverTok !== ''
-        ? efpic_base_url($config) . '/v/media/' . rawurlencode($coverTok) . '?size=web&w=1200'
-        : '';
+    $imgUrl = '';
+    if ($coverTok !== '') {
+        foreach ($images as $img) {
+            if (is_array($img) && ($img['token'] ?? '') === $coverTok) {
+                $imgUrl = efpic_client_media_url($config, $img, 'web', 1200);
+                break;
+            }
+        }
+        if ($imgUrl === '') {
+            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1200);
+        }
+    }
 
     $html = '<section class="gallery-cover">';
     if ($imgUrl !== '') {
@@ -185,7 +194,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $html .= '<div class="grid">';
         foreach ($sceneImages as $img) {
             $tok = (string) ($img['token'] ?? '');
-            $imgUrl = efpic_base_url($config) . '/v/media/' . rawurlencode($tok) . '?size=web';
+            $imgUrl = efpic_client_media_url($config, $img, 'web');
             $pageUrl = efpic_image_view_url($config, $tok);
             $html .= '<a class="grid-card" href="' . efpic_client_esc($pageUrl) . '">';
             $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
@@ -257,7 +266,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         foreach ($images as $img) {
             $tok = (string) ($img['token'] ?? '');
             $body .= '<a class="feed-card" href="' . efpic_client_esc(efpic_image_view_url($config, $tok)) . '">';
-            $body .= '<img src="' . efpic_client_esc(efpic_base_url($config) . '/v/media/' . rawurlencode($tok) . '?size=web') . '" alt="" loading="lazy"></a>';
+            $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt="" loading="lazy"></a>';
         }
         $body .= '</main>';
     }
@@ -289,7 +298,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     $canBrowseGallery = empty($meta['restrict_gallery_from_single_link']);
     $ctx = efpic_viewer_context($config, $meta);
     $galleryUrl = efpic_gallery_view_url($config, $gt, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
-    $mediaUrl = efpic_base_url($config) . '/v/media/' . rawurlencode($imageToken) . '?size=web';
+    $mediaUrl = efpic_client_media_url_for_token($config, $meta, $imageToken, 'web');
     $pageUrl = efpic_image_view_url($config, $imageToken);
 
     efpic_client_session_start();
@@ -334,7 +343,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
             $tok = (string) ($img['token'] ?? '');
             $active = $tok === $imageToken ? ' is-active' : '';
             $body .= '<a class="viewer-thumb' . $active . '" href="' . efpic_client_esc(efpic_image_view_url($config, $tok)) . '">';
-            $body .= '<img src="' . efpic_client_esc(efpic_base_url($config) . '/v/media/' . rawurlencode($tok) . '?size=web') . '" alt=""></a>';
+            $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt=""></a>';
         }
         $body .= '</nav>';
     }

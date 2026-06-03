@@ -159,8 +159,12 @@ function efpic_failiem_pair_files(array $fullFiles, array $webFiles, array $stri
 
 function efpic_failiem_thumb_url(array $config, string $fileHash, int $width = 720): string
 {
-    return efpic_failiem_cdn_base($config)
-        . '/thumb/show.php?i=' . rawurlencode($fileHash) . '&v=1&w=' . $width;
+    $api = efpic_failiem_api_base($config);
+    if ($width > 0 && $width <= 420) {
+        return $api . '/thumb.php?i=' . rawurlencode($fileHash);
+    }
+
+    return $api . '/thumb_show.php?i=' . rawurlencode($fileHash);
 }
 
 function efpic_failiem_download_url(array $config, string $fileHash): string

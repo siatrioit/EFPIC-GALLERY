@@ -239,6 +239,33 @@ function efpic_delivery_file_hash(array $img, string $size): string
     return (string) ($img['failiem_web']['file_hash'] ?? $img['failiem_full']['file_hash'] ?? '');
 }
 
+/** Publiskais attēla URL — tieši no Failiem API (api.files.fm), ne /v/media/. */
+function efpic_client_media_url(array $config, array $img, string $size = 'web', int $width = 720): string
+{
+    $hash = efpic_delivery_file_hash($img, $size === 'full' ? 'full' : 'web');
+    if ($hash !== '') {
+        if ($size === 'full') {
+            return efpic_failiem_download_url($config, $hash);
+        }
+
+        return efpic_failiem_thumb_url($config, $hash, $width);
+    }
+    $token = (string) ($img['token'] ?? '');
+
+    return efpic_base_url($config) . '/v/media/' . rawurlencode($token) . '?size=' . rawurlencode($size);
+}
+
+function efpic_client_media_url_for_token(array $config, array $meta, string $token, string $size = 'web', int $width = 720): string
+{
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && ($img['token'] ?? '') === $token) {
+            return efpic_client_media_url($config, $img, $size, $width);
+        }
+    }
+
+    return efpic_base_url($config) . '/v/media/' . rawurlencode($token) . '?size=' . rawurlencode($size);
+}
+
 function efpic_can_download_size(array $meta, array $ctx, string $size): bool
 {
     $settings = efpic_gallery_settings($meta);

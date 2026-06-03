@@ -234,7 +234,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $hidden = !empty($img['client_hidden']);
         $fav = !empty($img['favorited']);
         $body .= '<div class="portal-card' . ($hidden ? ' is-hidden' : '') . '">';
-        $body .= '<img src="' . efpic_client_esc(efpic_base_url($config) . '/v/media/' . rawurlencode($tok) . '?size=web') . '" alt="">';
+        $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt="">';
         $body .= '<div class="portal-card-actions">';
         $body .= '<form method="post"><input type="hidden" name="portal_action" value="toggle_hidden">';
         $body .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
