@@ -49,9 +49,15 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         }
     }
 
+    $paired = $pairResult['paired'];
+    usort($paired, static fn ($a, $b) => strnatcasecmp(
+        (string) ($a['basename'] ?? ''),
+        (string) ($b['basename'] ?? '')
+    ));
+
     $newImages = [];
     $sort = 0;
-    foreach ($pairResult['paired'] as $pair) {
+    foreach ($paired as $pair) {
         $sort++;
         $key = (string) $pair['key'];
         $prev = $existingByKey[$key] ?? null;
@@ -62,7 +68,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
         $newImages[] = [
             'token' => $token,
-            'sort' => is_array($prev) ? (int) ($prev['sort'] ?? $sort) : $sort,
+            'sort' => $sort,
             'scene_id' => is_array($prev) ? (string) ($prev['scene_id'] ?? 'main') : 'main',
             'pair_key' => $key,
             'basename' => (string) $pair['basename'],

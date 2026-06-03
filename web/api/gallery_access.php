@@ -61,6 +61,16 @@ function efpic_find_gallery_by_token(array $config, string $galleryToken): ?arra
     $index = efpic_load_access_index($config);
     $slug = $index['galleries'][$galleryToken] ?? null;
     if ($slug === null) {
+        foreach (efpic_list_gallery_slugs($config) as $candidate) {
+            $m = efpic_load_gallery_meta($config, $candidate);
+            if ($m !== null && hash_equals((string) ($m['gallery_token'] ?? ''), $galleryToken)) {
+                $slug = $candidate;
+                efpic_rebuild_access_index($config);
+                break;
+            }
+        }
+    }
+    if ($slug === null) {
         return null;
     }
     $meta = efpic_load_gallery_meta($config, $slug);
@@ -79,10 +89,25 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
 {
     $index = efpic_load_access_index($config);
     $ref = $index['images'][$imageToken] ?? null;
-    if ($ref === null || !is_array($ref)) {
+    $slug = is_array($ref) ? (string) ($ref['slug'] ?? '') : '';
+    if ($slug === '') {
+        foreach (efpic_list_gallery_slugs($config) as $candidate) {
+            $m = efpic_load_gallery_meta($config, $candidate);
+            if ($m === null) {
+                continue;
+            }
+            foreach ($m['images'] ?? [] as $img) {
+                if (is_array($img) && hash_equals((string) ($img['token'] ?? ''), $imageToken)) {
+                    $slug = $candidate;
+                    efpic_rebuild_access_index($config);
+                    break 2;
+                }
+            }
+        }
+    }
+    if ($slug === '') {
         return null;
     }
-    $slug = (string) ($ref['slug'] ?? '');
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta === null) {
         return null;
@@ -97,7 +122,7 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
         }
         if (($img['token'] ?? '') === $imageToken) {
             $imgRow = $img;
-            $file = (string) ($img['file'] ?? $ref['file'] ?? '');
+            $file = (string) ($img['file'] ?? '');
             break;
         }
     }
@@ -194,7 +219,12 @@ function efpic_sort_images_for_display(array $meta): array
             return $sa <=> $sb;
         }
 
-        return ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0));
+        $bySort = ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0));
+        if ($bySort !== 0) {
+            return $bySort;
+        }
+
+        return efpic_compare_image_basenames($a, $b);
     });
 
     return $images;

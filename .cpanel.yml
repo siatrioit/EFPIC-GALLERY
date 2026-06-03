@@ -7,4 +7,4 @@ deployment:
     - /bin/cp -R web/api/* $DEPLOYPATH/api/
     - /bin/cp -R web/public/* $DEPLOYPATH/public/
     - /bin/cp -R web/storage/gallery_templates $DEPLOYPATH/storage/ 2>/dev/null || true
-    - test -f web/storage/access_index.json && /bin/cp -f web/storage/access_index.json $DEPLOYPATH/storage/ || true
+    # NEKAD nepārrakstīt access_index.json — tas dzīvo tikai serverī (pēc sync/saglabāšanas).

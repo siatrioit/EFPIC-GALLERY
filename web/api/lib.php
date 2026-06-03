@@ -278,6 +278,15 @@ function efpic_is_delivery_gallery(array $meta): bool
     return ($meta['type'] ?? '') === 'delivery';
 }
 
+/** Natural compare for image basenames (EdgarsFoto_PRINT_1002 …). */
+function efpic_compare_image_basenames(array $a, array $b): int
+{
+    $na = (string) ($a['basename'] ?? $a['failiem_full']['name'] ?? '');
+    $nb = (string) ($b['basename'] ?? $b['failiem_full']['name'] ?? '');
+
+    return strnatcasecmp($na, $nb);
+}
+
 function efpic_gallery_settings(array $meta): array
 {
     $s = $meta['settings'] ?? [];

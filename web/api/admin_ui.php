@@ -255,7 +255,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '<fieldset><legend>Kārtība (' . count($meta['images']) . ' bildes)</legend>';
         $body .= '<p class="muted">Velciet rindas, lai mainītu secību, tad saglabājiet.</p>';
         $body .= '<ul id="sortable" class="admin-sort">';
-        foreach ($meta['images'] as $img) {
+        foreach (efpic_sort_images_for_display($meta) as $img) {
             if (!is_array($img)) {
                 continue;
             }
