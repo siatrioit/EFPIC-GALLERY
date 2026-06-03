@@ -254,7 +254,7 @@ function efpic_client_brand_name(array $config): string
 {
     $name = trim((string) ($config['guest_delivery']['email']['from_name'] ?? ''));
 
-    return $name !== '' ? $name : 'Edgars Foto';
+    return $name !== '' ? $name : 'EdgarsFoto';
 }
 
 function efpic_client_gallery_byline(array $config): string

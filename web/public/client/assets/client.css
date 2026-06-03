@@ -949,13 +949,15 @@ input[type="password"] {
 
 /* —— Client portal —— */
 .page-portal .portal-toolbar {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 12px 16px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 12px clamp(12px, 2vw, 24px);
   display: flex;
   flex-wrap: wrap;
   gap: 12px;
   align-items: flex-end;
+  box-sizing: border-box;
 }
 
 .page-portal .inline-form {
@@ -970,10 +972,12 @@ input[type="password"] {
 }
 
 .page-portal .portal-guests {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 16px 16px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0 clamp(12px, 2vw, 24px) 16px;
   font-size: 0.85rem;
+  box-sizing: border-box;
 }
 
 .page-portal .portal-guests ul {
@@ -983,9 +987,25 @@ input[type="password"] {
 }
 
 .page-portal .portal-grid {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 0 16px 40px;
+  max-width: none;
+  width: 100%;
+  margin: 0;
+  padding: 0 clamp(12px, 2vw, 24px) 40px;
+  box-sizing: border-box;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+}
+
+@media (min-width: 640px) {
+  .page-portal .portal-grid {
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 12px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .page-portal .portal-grid {
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  }
 }
 
 .portal-card {

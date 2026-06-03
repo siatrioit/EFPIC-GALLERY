@@ -34,7 +34,7 @@ return [
         'sms' => ['account_sid' => '', 'auth_token' => '', 'from' => ''],
         'email' => [
             'from' => 'noreply@edgarsfoto.lv',
-            'from_name' => 'Edgars Foto',
+            'from_name' => 'EdgarsFoto',
             'subject' => 'Tava bilde{event}',
             'use_php_mail' => true,
             'smtp_host' => '',

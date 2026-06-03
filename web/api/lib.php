@@ -62,7 +62,7 @@ function efpic_app_settings_path(array $config): string
 function efpic_app_settings_defaults(): array
 {
     return [
-        'gallery_byline' => 'Gallery by Edgars Foto',
+        'gallery_byline' => 'Gallery by EdgarsFoto',
         'gallery_page_bg' => '#ffffff',
         'gallery_feed_gap' => 16,
         'gallery_feed_gap_tablet' => 20,
