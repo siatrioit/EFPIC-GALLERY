@@ -50,9 +50,12 @@ function efpic_admin_render_login(bool $failed): void
     http_response_code($failed ? 401 : 200);
     header('Content-Type: text/html; charset=utf-8');
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
-    echo '<title>Admin — EdgarsFoto</title><link rel="stylesheet" href="/client/assets/client.css">';
-    echo '<link rel="stylesheet" href="/admin/assets/admin.css"></head><body class="page-auth">';
-    echo '<div class="auth-card"><h1>Fotogrāfa panelis</h1>';
+    echo '<title>Admin — EdgarsFoto</title>';
+    echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
+    echo '<link rel="stylesheet" href="/client/assets/client.css">';
+    echo '<link rel="stylesheet" href="/admin/assets/admin.css"></head><body class="page-auth admin-login">';
+    echo '<div class="auth-card"><h1>EdgarsFoto</h1><p class="muted" style="margin:0 0 20px">Fotogrāfa panelis</p>';
     if ($failed) {
         echo '<p class="err">Nepareiza parole.</p>';
     }
@@ -66,20 +69,82 @@ function efpic_admin_esc(string $s): string
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
-function efpic_admin_layout(string $title, string $body, string $active = ''): void
+function efpic_admin_layout(string $title, string $body, string $active = '', ?string $pageHeading = null, ?string $pageLead = null): void
 {
     header('Content-Type: text/html; charset=utf-8');
+    $heading = $pageHeading ?? $title;
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
-    echo '<title>' . efpic_admin_esc($title) . '</title>';
+    echo '<title>' . efpic_admin_esc($title) . ' — EdgarsFoto</title>';
+    echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
     echo '<link rel="stylesheet" href="/client/assets/client.css">';
     echo '<link rel="stylesheet" href="/admin/assets/admin.css"></head><body class="admin-body">';
-    echo '<header class="admin-header"><strong>EdgarsFoto</strong><nav>';
+    echo '<div class="admin-shell">';
+    echo '<aside class="admin-sidebar" aria-label="Galvenā izvēlne">';
+    echo '<a class="admin-brand" href="index.php">EdgarsFoto</a>';
+    echo '<nav class="admin-nav">';
     echo '<a href="index.php"' . ($active === 'list' ? ' class="active"' : '') . '>Galerijas</a>';
     echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna piegāde</a>';
     echo '<a href="settings.php"' . ($active === 'settings' ? ' class="active"' : '') . '>Iestatījumi</a>';
-    echo '</nav><a class="admin-logout" href="index.php?logout=1">Iziet</a></header>';
-    echo '<main class="admin-main">' . $body . '</main></body></html>';
+    echo '</nav>';
+    echo '<div class="admin-sidebar-foot"><a class="admin-logout" href="index.php?logout=1">Iziet</a></div>';
+    echo '</aside>';
+    echo '<div class="admin-workspace">';
+    echo '<header class="admin-page-head"><h1>' . efpic_admin_esc($heading) . '</h1>';
+    if ($pageLead !== null && $pageLead !== '') {
+        echo '<p class="admin-lead">' . $pageLead . '</p>';
+    }
+    echo '</header>';
+    echo '<main class="admin-main">' . $body . '</main></div></div></body></html>';
     exit;
+}
+
+/** @return array<string, int> */
+function efpic_admin_scene_image_counts(array $meta): array
+{
+    $counts = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $counts[$sid] = ($counts[$sid] ?? 0) + 1;
+    }
+
+    return $counts;
+}
+
+function efpic_admin_render_scenes_fieldset(array $meta, string $sceneTitle): string
+{
+    $scenes = $meta['scenes'] ?? [];
+    if (!is_array($scenes) || $scenes === []) {
+        $scenes = [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
+    }
+    usort($scenes, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $counts = efpic_admin_scene_image_counts($meta);
+
+    $html = '<fieldset><legend>Galerijas sadaļas</legend>';
+    $html .= '<p class="muted">Klients redz atsevišķus blokus ar virsrakstu (kā Pic-Time). Drīzumā varēs pievienot vairākas sadaļas un pārvietāt bildes starp tām.</p>';
+    $html .= '<ul class="admin-scene-list">';
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $sid = (string) ($scene['id'] ?? 'main');
+        $title = (string) ($scene['title'] ?? $sid);
+        $n = $counts[$sid] ?? 0;
+        $html .= '<li class="admin-scene-card"><strong>' . efpic_admin_esc($title) . '</strong>';
+        $html .= '<span class="admin-scene-meta">' . $n . ' bildes</span></li>';
+    }
+    $html .= '</ul>';
+    $html .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
+    $html .= '<div class="admin-roadmap" aria-label="Plānotās funkcijas">';
+    $html .= '<span class="admin-roadmap-item">Vairākas sadaļas</span>';
+    $html .= '<span class="admin-roadmap-item">Slideshow no favorītiem</span>';
+    $html .= '<span class="admin-roadmap-item">Fona mūzika (MP3)</span>';
+    $html .= '</div></fieldset>';
+
+    return $html;
 }
 
 function efpic_admin_handle_logout(): void
@@ -117,10 +182,14 @@ function efpic_admin_list_delivery_galleries(array $config): void
         $rows = '<tr><td colspan="4" class="muted">Vēl nav delivery galeriju. <a href="delivery_new.php">Izveidot</a></td></tr>';
     }
 
-    $body = '<h1>Klientu piegādes galerijas</h1>';
-    $body .= '<p class="muted">Bildes glabājas Failiem.lv; kārtība un dizains — šeit.</p>';
-    $body .= '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Nosaukums</th><th>Bildes</th><th>Sync</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>';
-    efpic_admin_layout('Galerijas', $body, 'list');
+    $body = '<div class="admin-table-wrap"><table class="admin-table"><thead><tr><th>Nosaukums</th><th>Bildes</th><th>Sync</th><th></th></tr></thead><tbody>' . $rows . '</tbody></table></div>';
+    efpic_admin_layout(
+        'Galerijas',
+        $body,
+        'list',
+        'Klientu piegādes galerijas',
+        'Bildes glabājas Failiem.lv; kārtība, sadaļas un dizains — šeit.'
+    );
 }
 
 function efpic_admin_save_delivery_from_post(array $config, ?string $slug): string
@@ -230,7 +299,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $failiem = is_array($meta) ? ($meta['failiem'] ?? []) : [];
     $sceneTitle = is_array($meta) && isset($meta['scenes'][0]['title']) ? (string) $meta['scenes'][0]['title'] : 'Galerija';
 
-    $body = '<h1>' . ($isEdit ? 'Rediģēt galeriju' : 'Jauna klientu piegāde') . '</h1>';
+    $body = '';
     if ($flash !== null) {
         $body .= '<p class="admin-flash">' . efpic_admin_esc($flash) . '</p>';
     }
@@ -284,8 +353,15 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '</select></label>';
     $body .= '<label>Vāka krāsa (sākuma ekrāns)<input type="color" name="hero_accent_color" value="' . efpic_admin_esc($heroAccent) . '"></label>';
     $body .= '<p class="muted">Krāsa tiek lietota virs vāka bildes gradientā Pic-Time tēmā.</p>';
-    $body .= '<label>Sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
     $body .= '</fieldset>';
+
+    if ($isEdit && is_array($meta)) {
+        $body .= efpic_admin_render_scenes_fieldset($meta, $sceneTitle);
+    } elseif (!$isEdit) {
+        $body .= '<fieldset><legend>Galerijas sadaļas</legend>';
+        $body .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
+        $body .= '<p class="muted">Pēc izveides varēs pievienot papildu sadaļas (drīzumā).</p></fieldset>';
+    }
 
     $body .= '<fieldset><legend>Failiem.lv mapes</legend>';
     $body .= '<p class="muted">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
@@ -332,7 +408,13 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '<script src="/admin/assets/admin.js" defer></script>';
     }
 
-    efpic_admin_layout($isEdit ? 'Rediģēt' : 'Jauna', $body, $isEdit ? 'list' : 'new');
+    efpic_admin_layout(
+        $isEdit ? 'Rediģēt' : 'Jauna',
+        $body,
+        $isEdit ? 'list' : 'new',
+        $isEdit ? 'Rediģēt galeriju' : 'Jauna klientu piegāde',
+        $isEdit ? 'Kārtība, vāks, sadaļas un sinhronizācija ar Failiem.' : 'Izveido jaunu piegādes galeriju un piesaisti Failiem mapes.'
+    );
 }
 
 function efpic_admin_save_settings_from_post(array $config): void
@@ -366,8 +448,7 @@ function efpic_admin_settings_page(array $config): void
     $saved = isset($_GET['saved']);
     $error = trim((string) ($_GET['error'] ?? ''));
 
-    $body = '<h1>Iestatījumi</h1>';
-    $body .= '<p class="muted">Globālie iestatījumi visām publiskajām galerijām.</p>';
+    $body = '';
     if ($saved) {
         $body .= '<p class="admin-ok">Saglabāts.</p>';
     }
@@ -400,5 +481,11 @@ function efpic_admin_settings_page(array $config): void
     $body .= '<p class="muted">Attiecas uz Pic-Time galerijas režģi: atstarpe starp bildēm un vienādi horizontālie un vertikālie malu atkāpes.</p>';
     $body .= '</fieldset></div></form>';
 
-    efpic_admin_layout('Iestatījumi', $body, 'settings');
+    efpic_admin_layout(
+        'Iestatījumi',
+        $body,
+        'settings',
+        'Iestatījumi',
+        'Globālie iestatījumi visām publiskajām galerijām (paraksts, fons, atstarpes).'
+    );
 }
