@@ -285,7 +285,7 @@
     return text;
   }
 
-  function downloadFailiemZip(failiemUrl, hint) {
+  function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
     openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
     var a = document.createElement('a');
@@ -296,7 +296,7 @@
     a.click();
     a.remove();
     showZipProgressDone(
-      'Lejupielāde sākta',
+      doneTitle || 'Lejupielāde sākta',
       'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem (PRINT) tas var aizņemt ilgi.'
     );
   }
@@ -332,7 +332,8 @@
     if (!gdlBase) return;
     closeGalleryDlModal();
     closeCollectionDlModal();
-    openZipProgressLoading('Sagatavo lejupielādi…', 'Sagatavo lejupielādi…');
+    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
+    openZipProgressLoading(loadingTitle, loadingTitle);
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var prepareUrl = gdlBase + path + '?size=' + encodeURIComponent(size) + '&prepare=1';
     fetch(prepareUrl, {
@@ -349,7 +350,9 @@
       })
       .then(function (data) {
         if (data.mode === 'failiem' && data.url) {
-          downloadFailiemZip(data.url, data.hint);
+          var doneTitle =
+            scope === 'collection' ? 'Izlases lejupielāde sākta' : 'Lejupielāde sākta';
+          downloadFailiemZip(data.url, data.hint, doneTitle);
           return;
         }
         if (data.mode === 'server') {

@@ -257,6 +257,124 @@ function efpic_failiem_folder_zip_url(array $config, string $folderHash): string
         . rawurlencode($folderHash);
 }
 
+/** @return list<string> */
+function efpic_failiem_file_hashes_from_images(array $images, string $size): array
+{
+    $sizeKey = $size === 'full' ? 'full' : 'web';
+    $hashes = [];
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $hash = efpic_delivery_file_hash($img, $sizeKey);
+        if ($hash !== '') {
+            $hashes[] = $hash;
+        }
+    }
+
+    return $hashes;
+}
+
+/**
+ * Failiem atlasīto failu ZIP (download_selected_zip.php → upload_zip_streamer.php).
+ *
+ * @param list<string> $fileHashes
+ */
+function efpic_failiem_selected_zip_url(array $config, string $folderHash, array $fileHashes, bool $webSize = false): ?string
+{
+    $folderHash = efpic_failiem_parse_folder_hash($folderHash);
+    if ($folderHash === '') {
+        return null;
+    }
+
+    $fileHashes = array_values(array_filter(
+        array_map(static fn ($h): string => trim((string) $h), $fileHashes),
+        static fn (string $h): bool => $h !== ''
+    ));
+    if (count($fileHashes) < 2) {
+        return null;
+    }
+
+    if (!function_exists('curl_init')) {
+        return null;
+    }
+
+    $parts = ['upload_hash=' . rawurlencode($folderHash)];
+    foreach ($fileHashes as $hash) {
+        $parts[] = 'selected_items%5Bfiles%5D%5B%5D=' . rawurlencode($hash);
+    }
+
+    $f = efpic_failiem_cfg($config);
+    $url = efpic_failiem_cdn_base($config)
+        . '/server_scripts/zip/zip_streamer/download_selected_zip.php';
+    $headers = [
+        'Content-Type: application/x-www-form-urlencoded',
+        'Accept: application/json',
+        'User-Agent: EFPIC-Gallery/1.0',
+    ];
+    $apiKey = (string) ($f['api_key'] ?? '');
+    if ($apiKey !== '') {
+        $headers[] = 'Authorization: Bearer ' . $apiKey;
+    }
+
+    $ch = curl_init($url);
+    if ($ch === false) {
+        return null;
+    }
+
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => implode('&', $parts),
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_HTTPHEADER => $headers,
+    ];
+    $user = (string) ($f['user'] ?? '');
+    $pass = (string) ($f['pass'] ?? '');
+    if ($user !== '' && $pass !== '') {
+        $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+    }
+
+    curl_setopt_array($ch, $opts);
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($body === false || $code < 200 || $code >= 300) {
+        return null;
+    }
+
+    $decoded = json_decode($body, true);
+    if (!is_array($decoded) || ($decoded['status'] ?? '') !== 'ok') {
+        return null;
+    }
+
+    $data = $decoded['data'] ?? null;
+    if (!is_array($data)) {
+        return null;
+    }
+
+    $key = trim((string) ($data['selected_download_key'] ?? ''));
+    $host = trim((string) ($data['file_host'] ?? ''));
+    if ($key === '' || $host === '') {
+        return null;
+    }
+
+    $host = preg_replace('#^https?://#i', '', rtrim($host, '/'));
+    $zipUrl = 'https://' . $host
+        . '/server_scripts/zip/zip_streamer/upload_zip_streamer.php?uhash='
+        . rawurlencode($folderHash)
+        . '&selected_download_key='
+        . rawurlencode($key);
+    if ($webSize) {
+        $zipUrl .= '&img_as_websize';
+    }
+
+    return $zipUrl;
+}
+
 function efpic_failiem_delivery_folder_hash(array $meta, string $size): string
 {
     $failiem = $meta['failiem'] ?? [];

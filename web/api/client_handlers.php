@@ -1150,6 +1150,86 @@ function efpic_client_zip_files_from_images(array $config, array $images, string
     return $files;
 }
 
+/**
+ * @return array{mode: string, url: string, filename: string, hint: string}|null
+ */
+function efpic_client_failiem_zip_prepare_payload(
+    array $config,
+    array $meta,
+    array $images,
+    string $size,
+    string $filename,
+    string $hintZip,
+    string $hintSingle = 'Lejupielāde sākas no Failiem.lv…'
+): ?array {
+    if (($meta['type'] ?? '') !== 'delivery') {
+        return null;
+    }
+
+    $sizeKey = $size === 'full' ? 'full' : 'web';
+    $hashes = efpic_failiem_file_hashes_from_images($images, $size);
+    if ($hashes === []) {
+        return null;
+    }
+
+    if (count($hashes) === 1) {
+        return [
+            'mode' => 'failiem',
+            'url' => efpic_failiem_download_url($config, $hashes[0]),
+            'filename' => $filename,
+            'hint' => $hintSingle,
+        ];
+    }
+
+    $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
+    if ($folderHash === '') {
+        return null;
+    }
+
+    $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $hashes, $sizeKey === 'web');
+    if ($zipUrl === null) {
+        return null;
+    }
+
+    return [
+        'mode' => 'failiem',
+        'url' => $zipUrl,
+        'filename' => $filename,
+        'hint' => $hintZip,
+    ];
+}
+
+function efpic_client_redirect_failiem_image_zip(
+    array $config,
+    array $meta,
+    array $images,
+    string $size
+): bool {
+    if (($meta['type'] ?? '') !== 'delivery' || $size === 'both') {
+        return false;
+    }
+
+    $sizeKey = $size === 'full' ? 'full' : 'web';
+    $hashes = efpic_failiem_file_hashes_from_images($images, $size);
+    if ($hashes === []) {
+        return false;
+    }
+
+    if (count($hashes) === 1) {
+        header('Location: ' . efpic_failiem_download_url($config, $hashes[0]), true, 302);
+        exit;
+    }
+
+    $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
+    $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $hashes, $sizeKey === 'web');
+    if ($zipUrl === null) {
+        return false;
+    }
+
+    header('Location: ' . $zipUrl, true, 302);
+    exit;
+}
+
 function efpic_client_zip_prepare_response(
     array $config,
     array $found,
@@ -1167,25 +1247,26 @@ function efpic_client_zip_prepare_response(
         if ($images === []) {
             efpic_json_response(400, ['ok' => false, 'error' => 'Nav atlasītu bildes']);
         }
-        $files = efpic_client_zip_files_from_images($config, $images, $size);
-        if ($files === []) {
-            efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
+        $payload = efpic_client_failiem_zip_prepare_payload(
+            $config,
+            $meta,
+            $images,
+            $size,
+            $filename,
+            'Sagatavo ZIP ar ' . count($images) . ' atlasītajām bildēm…'
+        );
+        if ($payload !== null) {
+            efpic_json_response(200, ['ok' => true] + $payload);
         }
-        if (count($files) === 1) {
+        if (count($images) >= 2) {
             efpic_json_response(200, [
                 'ok' => true,
-                'mode' => 'failiem',
-                'url' => $files[0]['url'],
-                'filename' => $files[0]['name'],
-                'hint' => 'Lejupielāde sākas no Failiem.lv…',
+                'mode' => 'server',
+                'filename' => $filename,
+                'hint' => 'Sagatavo ZIP ar ' . count($images) . ' atlasītajām bildēm…',
             ]);
         }
-        efpic_json_response(200, [
-            'ok' => true,
-            'mode' => 'server',
-            'filename' => $filename,
-            'hint' => 'Sagatavo ZIP ar ' . count($files) . ' atlasītajām bildēm…',
-        ]);
+        efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
     }
 
     if ($scope === 'all' && $size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
@@ -1206,25 +1287,26 @@ function efpic_client_zip_prepare_response(
         if ($images === []) {
             efpic_json_response(400, ['ok' => false, 'error' => 'Nav lejupielādējamu bildes']);
         }
-        $files = efpic_client_zip_files_from_images($config, $images, $size);
-        if ($files === []) {
-            efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
+        $payload = efpic_client_failiem_zip_prepare_payload(
+            $config,
+            $meta,
+            $images,
+            $size,
+            $filename,
+            'Sagatavo ZIP ar ' . count($images) . ' redzamajām bildēm…'
+        );
+        if ($payload !== null) {
+            efpic_json_response(200, ['ok' => true] + $payload);
         }
-        if (count($files) === 1) {
+        if (count($images) >= 2) {
             efpic_json_response(200, [
                 'ok' => true,
-                'mode' => 'failiem',
-                'url' => $files[0]['url'],
-                'filename' => $files[0]['name'],
-                'hint' => 'Lejupielāde sākas no Failiem.lv…',
+                'mode' => 'server',
+                'filename' => $filename,
+                'hint' => 'Sagatavo ZIP ar ' . count($images) . ' bildēm…',
             ]);
         }
-        efpic_json_response(200, [
-            'ok' => true,
-            'mode' => 'server',
-            'filename' => $filename,
-            'hint' => 'Sagatavo ZIP ar ' . count($files) . ' redzamajām bildēm…',
-        ]);
+        efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
     }
 
     efpic_json_response(500, [
@@ -1310,6 +1392,8 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
             exit;
         }
     }
+
+    efpic_client_redirect_failiem_image_zip($config, $meta, $images, $size);
 
     efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }
@@ -1417,6 +1501,8 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
     if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'collection', $galleryToken);
     }
+
+    efpic_client_redirect_failiem_image_zip($config, $meta, $images, $size);
 
     efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }
