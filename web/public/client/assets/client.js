@@ -148,4 +148,37 @@
       closeDlModal();
     });
   });
+
+  var hero = document.getElementById('galleryHero');
+  var floatingTopbar = document.querySelector('.topbar-floating');
+
+  function scrollPastHero() {
+    if (!hero) return false;
+    return window.scrollY > hero.offsetHeight - 80;
+  }
+
+  function updateFloatingTopbar() {
+    if (!floatingTopbar) return;
+    if (scrollPastHero()) {
+      floatingTopbar.classList.add('is-visible');
+    } else {
+      floatingTopbar.classList.remove('is-visible');
+    }
+  }
+
+  document.querySelectorAll('[data-hero-scroll]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var target = document.querySelector('.gallery-main') || document.getElementById('downloads');
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      } else if (hero) {
+        window.scrollTo({ top: hero.offsetHeight, behavior: 'smooth' });
+      }
+    });
+  });
+
+  if (hero && floatingTopbar) {
+    window.addEventListener('scroll', updateFloatingTopbar, { passive: true });
+    updateFloatingTopbar();
+  }
 })();

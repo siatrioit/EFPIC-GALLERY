@@ -205,10 +205,11 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'gallery_token' => efpic_random_hex(24),
         'password_hash' => '',
         'restrict_gallery_from_single_link' => false,
-        'theme' => 'classic',
+        'theme' => $type === 'delivery' ? 'pic-time' : 'classic',
         'client_theme' => null,
         'event_date' => null,
         'cover_image_token' => null,
+        'hero_accent_color' => '#1a1614',
         'images' => [],
         'scenes' => [
             [

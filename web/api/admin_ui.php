@@ -141,7 +141,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'folder_parent_url' => trim((string) ($_POST['folder_parent_url'] ?? '')),
             'folder_full_url' => trim((string) ($_POST['folder_full_url'] ?? '')),
             'folder_web_url' => trim((string) ($_POST['folder_web_url'] ?? '')),
-            'theme' => (string) ($_POST['theme'] ?? 'classic'),
+            'theme' => (string) ($_POST['theme'] ?? 'pic-time'),
         ]);
         $slug = $created['slug'];
         $meta = $created['meta'];
@@ -153,6 +153,21 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $meta['name'] = $name;
         $meta['event_date'] = trim((string) ($_POST['event_date'] ?? '')) ?: null;
         $meta['theme'] = (string) ($_POST['theme'] ?? $meta['theme']);
+
+        $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
+        if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
+            $meta['hero_accent_color'] = strtolower($accent);
+        }
+
+        $coverTok = trim((string) ($_POST['cover_image_token'] ?? ''));
+        if ($coverTok !== '') {
+            foreach ($meta['images'] ?? [] as $img) {
+                if (is_array($img) && ($img['token'] ?? '') === $coverTok) {
+                    $meta['cover_image_token'] = $coverTok;
+                    break;
+                }
+            }
+        }
 
         $gp = (string) ($_POST['gallery_password'] ?? '');
         if ($gp !== '') {
@@ -251,13 +266,16 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Galerijas parole (jauna)<input type="password" name="gallery_password" autocomplete="new-password"></label>';
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($meta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '<label>Klienta parole (jauna)<input type="password" name="client_password" autocomplete="new-password"></label>';
-    $theme = (string) ($meta['theme'] ?? 'classic');
+    $theme = (string) ($meta['theme'] ?? 'pic-time');
+    $heroAccent = efpic_client_hero_accent_color($meta);
     $body .= '<label>Tēma<select name="theme">';
-    foreach (['classic' => 'Klasisks', 'masonry' => 'Masonry', 'dark' => 'Tumšs'] as $k => $lbl) {
+    foreach (['pic-time' => 'Pic-Time (moderns)', 'classic' => 'Klasisks', 'masonry' => 'Masonry', 'dark' => 'Tumšs'] as $k => $lbl) {
         $sel = $k === $theme ? ' selected' : '';
         $body .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
     }
     $body .= '</select></label>';
+    $body .= '<label>Vāka krāsa (sākuma ekrāns)<input type="color" name="hero_accent_color" value="' . efpic_admin_esc($heroAccent) . '"></label>';
+    $body .= '<p class="muted">Krāsa tiek lietota virs vāka bildes gradientā Pic-Time tēmā.</p>';
     $body .= '<label>Sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
     $body .= '</fieldset>';
 
@@ -270,16 +288,24 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '</fieldset>';
 
     if ($isEdit && ($meta['images'] ?? []) !== []) {
-        $body .= '<fieldset><legend>Kārtība (' . count($meta['images']) . ' bildes)</legend>';
-        $body .= '<p class="muted">Velciet rindas, lai mainītu secību, tad saglabājiet.</p>';
+        $coverTok = trim((string) ($meta['cover_image_token'] ?? ''));
+        $sortedImages = efpic_sort_images_for_display($meta);
+        if ($coverTok === '' && $sortedImages !== []) {
+            $first = $sortedImages[0];
+            $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
+        }
+        $body .= '<fieldset><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
+        $body .= '<p class="muted">Velciet rindas, lai mainītu secību. Atzīmējiet «Vāks», lai izvēlētos galveno bildi (ja nav — pirmā sarakstā).</p>';
         $body .= '<ul id="sortable" class="admin-sort">';
-        foreach (efpic_sort_images_for_display($meta) as $img) {
+        foreach ($sortedImages as $img) {
             if (!is_array($img)) {
                 continue;
             }
             $tok = (string) ($img['token'] ?? '');
+            $checked = $tok !== '' && $tok === $coverTok ? ' checked' : '';
             $body .= '<li data-token="' . efpic_admin_esc($tok) . '"><img src="' . efpic_admin_esc(efpic_admin_media_thumb_url($config, $img)) . '" alt="" width="48" height="48" loading="lazy"> '
-                . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</li>';
+                . '<span class="admin-sort-name">' . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</span>'
+                . '<label class="admin-cover-pick"><input type="radio" name="cover_image_token" value="' . efpic_admin_esc($tok) . '"' . $checked . '> Vāks</label></li>';
         }
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';
     }

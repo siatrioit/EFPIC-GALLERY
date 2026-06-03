@@ -15,7 +15,11 @@
 
   list.querySelectorAll('li').forEach(function (li) {
     li.setAttribute('draggable', 'true');
-    li.addEventListener('dragstart', function () {
+    li.addEventListener('dragstart', function (evt) {
+      if (evt.target && evt.target.closest && evt.target.closest('.admin-cover-pick')) {
+        evt.preventDefault();
+        return;
+      }
       dragEl = li;
       li.classList.add('dragging');
     });

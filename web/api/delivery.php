@@ -106,7 +106,20 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         'web_count' => count($webFiles),
     ];
 
-    if (($meta['cover_image_token'] ?? '') === '' && $newImages !== []) {
+    $coverTok = trim((string) ($meta['cover_image_token'] ?? ''));
+    if ($coverTok !== '') {
+        $coverExists = false;
+        foreach ($newImages as $img) {
+            if (is_array($img) && ($img['token'] ?? '') === $coverTok) {
+                $coverExists = true;
+                break;
+            }
+        }
+        if (!$coverExists) {
+            $coverTok = '';
+        }
+    }
+    if ($coverTok === '' && $newImages !== []) {
         $meta['cover_image_token'] = $newImages[0]['token'];
     }
 
@@ -146,7 +159,7 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta = efpic_gallery_defaults('delivery');
     $meta['name'] = $name;
     $meta['event_date'] = trim((string) ($input['event_date'] ?? '')) ?: null;
-    $meta['theme'] = (string) ($input['theme'] ?? 'classic');
+    $meta['theme'] = (string) ($input['theme'] ?? 'pic-time');
 
     $pass = (string) ($input['password'] ?? '');
     if ($pass !== '') {

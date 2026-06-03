@@ -230,6 +230,80 @@ function efpic_sort_images_for_display(array $meta): array
     return $images;
 }
 
+function efpic_client_hero_accent_color(array $meta): string
+{
+    $color = trim((string) ($meta['hero_accent_color'] ?? ''));
+    if (preg_match('/^#[0-9a-fA-F]{6}$/', $color) === 1) {
+        return strtolower($color);
+    }
+
+    return '#1a1614';
+}
+
+/** Izvēlas vāka bildes tokenu: favorīti (nejauši) > admin vāks > nākamā redzamā. */
+function efpic_resolve_gallery_cover_token(array $meta, array $visibleImages): string
+{
+    if ($visibleImages === []) {
+        return '';
+    }
+
+    $visibleTokens = [];
+    foreach ($visibleImages as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $visibleTokens[] = $tok;
+        }
+    }
+    if ($visibleTokens === []) {
+        return '';
+    }
+
+    $favorites = [];
+    foreach ($visibleImages as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        if (!empty($img['favorited'])) {
+            $tok = (string) ($img['token'] ?? '');
+            if ($tok !== '') {
+                $favorites[] = $tok;
+            }
+        }
+    }
+    if ($favorites !== []) {
+        return $favorites[array_rand($favorites)];
+    }
+
+    $adminCover = trim((string) ($meta['cover_image_token'] ?? ''));
+    if ($adminCover === '') {
+        return $visibleTokens[0];
+    }
+
+    if (in_array($adminCover, $visibleTokens, true)) {
+        return $adminCover;
+    }
+
+    $foundCover = false;
+    foreach (efpic_sort_images_for_display($meta) as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === $adminCover) {
+            $foundCover = true;
+            continue;
+        }
+        if ($foundCover && in_array($tok, $visibleTokens, true)) {
+            return $tok;
+        }
+    }
+
+    return $visibleTokens[0];
+}
+
 function efpic_delivery_file_hash(array $img, string $size): string
 {
     if ($size === 'full') {
