@@ -20,6 +20,8 @@ function efpic_client_icon(string $name): string
         'chev-left' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>',
         'chev-right' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>',
         'chev-down' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
+        'heart' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
+        'heart-fill' => '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
         'zip' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
     ];
 
@@ -594,14 +596,18 @@ function efpic_client_render_pic_time_viewer(
     int $total,
     string $prevUrl,
     string $nextUrl,
+    bool $liked = false,
 ): string {
     $name = (string) ($meta['name'] ?? '');
-    $html = '<div class="pt-viewer">';
+    $html = '<div class="pt-viewer" data-image-token="' . efpic_client_esc($imageToken) . '">';
     $html .= '<header class="pt-viewer-bar">';
     $html .= '<a class="pt-viewer-back" href="' . efpic_client_esc($closeUrl) . '" aria-label="Atpakaļ">';
     $html .= efpic_client_icon('chev-left') . '</a>';
     $html .= '<span class="pt-viewer-title">' . efpic_client_esc($name) . '</span>';
     $html .= '<div class="pt-viewer-actions">';
+    $html .= '<button type="button" class="icon-btn pt-like-btn' . ($liked ? ' is-liked' : '') . '" data-like-toggle aria-label="Patīk" aria-pressed="'
+        . ($liked ? 'true' : 'false') . '">';
+    $html .= ($liked ? efpic_client_icon('heart-fill') : efpic_client_icon('heart')) . '</button>';
     $html .= '<button type="button" class="icon-btn" data-dl-open aria-label="Lejupielādēt">';
     $html .= efpic_client_icon('download') . '</button>';
     $html .= '<button type="button" class="icon-btn" data-share-open aria-label="Dalīties">';
@@ -663,6 +669,15 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
 
     $closeUrl = $canBrowseGallery ? ($galleryUrl . efpic_gallery_image_focus_hash($imageToken)) : $pageUrl;
 
+    $viewerKey = efpic_viewer_like_key();
+    $liked = false;
+    foreach ($meta['images'] ?? [] as $imgRow) {
+        if (is_array($imgRow) && ($imgRow['token'] ?? '') === $imageToken) {
+            $liked = efpic_image_liked_by_viewer($imgRow, $viewerKey);
+            break;
+        }
+    }
+
     if ($theme === 'pic-time') {
         $body = efpic_client_render_pic_time_viewer(
             $config,
@@ -676,6 +691,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
             $total,
             $prevUrl,
             $nextUrl,
+            $liked,
         );
         $body .= efpic_client_share_modal($name);
         $body .= efpic_client_download_modal();
@@ -685,19 +701,24 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
             'EFPIC_VIEWER_PREV' => $prevUrl,
             'EFPIC_VIEWER_NEXT' => $nextUrl,
             'EFPIC_GALLERY_RETURN' => $closeUrl,
+            'EFPIC_LIKE_URL' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/like',
+            'EFPIC_IMAGE_LIKED' => $liked ? '1' : '0',
         ], $meta);
 
         return;
     }
 
     $actions = '<div class="topbar-actions">';
+    $actions .= '<button type="button" class="icon-btn pt-like-btn' . ($liked ? ' is-liked' : '') . '" data-like-toggle aria-label="Patīk" aria-pressed="'
+        . ($liked ? 'true' : 'false') . '">';
+    $actions .= ($liked ? efpic_client_icon('heart-fill') : efpic_client_icon('heart')) . '</button>';
     $actions .= '<button type="button" class="icon-btn" data-dl-open data-image-token="' . efpic_client_esc($imageToken) . '" aria-label="Lejupielādēt">';
     $actions .= efpic_client_icon('download') . '</button>';
     $actions .= '<button type="button" class="icon-btn" data-share-open aria-label="Dalīties">' . efpic_client_icon('share') . '</button>';
     $actions .= '<a class="icon-btn" href="' . efpic_client_esc($closeUrl) . '" aria-label="Aizvērt">' . efpic_client_icon('close') . '</a></div>';
 
     $body = efpic_client_topbar($name, $actions);
-    $body .= '<div class="viewer-wrap"><div class="viewer">';
+    $body .= '<div class="viewer-wrap" data-image-token="' . efpic_client_esc($imageToken) . '"><div class="viewer">';
     $prevClass = 'viewer-nav prev' . ($prevUrl === '' ? ' is-disabled' : '');
     $body .= '<a class="' . $prevClass . '" href="' . ($prevUrl !== '' ? efpic_client_esc($prevUrl) : '#') . '">' . efpic_client_icon('chev-left') . '</a>';
     $body .= '<figure class="viewer-stage"><img src="' . efpic_client_esc($mediaUrl) . '" alt="">';
@@ -724,7 +745,49 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     efpic_client_html($name, $body, $config, 'page-viewer theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $pageUrl, [
         'EFPIC_IMAGE_TOKEN' => $imageToken,
         'EFPIC_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download',
+        'EFPIC_LIKE_URL' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/like',
+        'EFPIC_IMAGE_LIKED' => $liked ? '1' : '0',
     ], $meta);
+}
+
+function efpic_handle_client_image_like(array $config, string $imageToken, string $method): void
+{
+    if ($method !== 'POST') {
+        efpic_json_response(405, ['ok' => false, 'error' => 'method_not_allowed']);
+    }
+
+    $found = efpic_find_image_by_token($config, $imageToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    if (!efpic_can_view_image_file($meta, $imageToken)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+
+    $imageIndex = null;
+    foreach ($meta['images'] ?? [] as $i => $img) {
+        if (is_array($img) && ($img['token'] ?? '') === $imageToken) {
+            $imageIndex = $i;
+            break;
+        }
+    }
+    if ($imageIndex === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+
+    $viewerKey = efpic_viewer_like_key();
+    $result = efpic_toggle_image_like($meta, $imageIndex, $viewerKey);
+    efpic_save_gallery_meta($config, $slug, $meta);
+
+    efpic_json_response(200, [
+        'ok' => true,
+        'liked' => $result['liked'],
+        'count' => $result['count'],
+    ]);
 }
 
 function efpic_handle_client_media(array $config, string $imageToken): void

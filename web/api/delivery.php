@@ -56,9 +56,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     ));
 
     $newImages = [];
-    $sort = 0;
     foreach ($paired as $pair) {
-        $sort++;
         $key = (string) $pair['key'];
         $prev = $existingByKey[$key] ?? null;
         $token = is_array($prev) ? (string) ($prev['token'] ?? '') : '';
@@ -68,7 +66,8 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
         $newImages[] = [
             'token' => $token,
-            'sort' => $sort,
+            'sort' => is_array($prev) ? (int) ($prev['sort'] ?? 0) : 0,
+            'sort_manual' => is_array($prev) ? !empty($prev['sort_manual']) : false,
             'scene_id' => is_array($prev) ? (string) ($prev['scene_id'] ?? 'main') : 'main',
             'pair_key' => $key,
             'basename' => (string) $pair['basename'],
@@ -88,12 +87,13 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             'favorited_client' => is_array($prev)
                 ? (!empty($prev['favorited_client']) || !empty($prev['favorited']))
                 : false,
+            'likes_count' => is_array($prev) ? (int) ($prev['likes_count'] ?? 0) : 0,
+            'like_voters' => is_array($prev) && is_array($prev['like_voters'] ?? null) ? $prev['like_voters'] : [],
         ];
     }
 
-    usort($newImages, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
-
     $meta['images'] = $newImages;
+    efpic_reconcile_auto_scene_sorts($meta);
     $meta['failiem']['folder_full_hash'] = $fullHash;
     $meta['failiem']['folder_web_hash'] = $webHash;
     $parentUrl = trim((string) ($meta['failiem']['folder_parent_url'] ?? ''));
@@ -208,24 +208,41 @@ function efpic_update_delivery_image_order(array $config, string $slug, array $o
         }
     }
 
-    $sort = 0;
-    $newList = [];
+    $byToken = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && ($img['token'] ?? '') !== '') {
+            $byToken[$img['token']] = $img;
+        }
+    }
+
+    $byScene = [];
     foreach ($orderedTokens as $tok) {
         $tok = (string) $tok;
         if ($tok === '' || !isset($byToken[$tok])) {
             continue;
         }
-        $sort++;
-        $row = $byToken[$tok];
-        $row['sort'] = $sort;
-        $newList[] = $row;
-        unset($byToken[$tok]);
+        $sid = (string) ($byToken[$tok]['scene_id'] ?? 'main');
+        $byScene[$sid][] = $tok;
     }
 
-    foreach ($byToken as $row) {
-        $sort++;
-        $row['sort'] = $sort;
-        $newList[] = $row;
+    foreach ($byScene as $tokens) {
+        $n = count($tokens);
+        for ($i = 0; $i < $n; $i++) {
+            $tok = $tokens[$i];
+            $byToken[$tok]['sort'] = ($i + 1) * 10;
+            $byToken[$tok]['sort_manual'] = true;
+        }
+    }
+
+    $newList = array_values($byToken);
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '' && !isset($byToken[$tok])) {
+            $newList[] = $img;
+        }
     }
 
     $meta['images'] = $newList;

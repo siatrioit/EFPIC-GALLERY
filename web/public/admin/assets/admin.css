@@ -469,9 +469,17 @@
   }
 }
 
+@media (min-width: 640px) {
+  .admin-media-grid {
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 16px;
+  }
+}
+
 @media (min-width: 1024px) {
   .admin-media-grid {
-    grid-template-columns: repeat(auto-fill, minmax(168px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 18px;
   }
 }
 
@@ -523,9 +531,47 @@
 
 .admin-media-thumb img {
   width: 100%;
-  aspect-ratio: 1;
+  aspect-ratio: 4 / 3;
   object-fit: cover;
   display: block;
+}
+
+.admin-media-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  min-height: 2rem;
+}
+
+.admin-like-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #b4234a;
+  padding: 2px 7px;
+  background: #fdeef2;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+.admin-scene-drag-ghost {
+  position: fixed;
+  z-index: 600;
+  left: 0;
+  top: 0;
+  width: min(520px, calc(100vw - 24px));
+  pointer-events: none;
+  opacity: 0.94;
+  box-shadow: 0 12px 40px rgba(20, 20, 20, 0.22);
+  border: 2px solid var(--admin-accent);
+  background: var(--admin-surface);
+  border-radius: var(--admin-radius);
+}
+
+.admin-scene-row.dragging {
+  opacity: 0.35;
 }
 
 .admin-media-thumb:focus-visible {
@@ -736,7 +782,7 @@
 }
 
 .admin-scene-row.dragging {
-  opacity: 0.55;
+  opacity: 0.35;
   box-shadow: var(--admin-shadow);
 }
 
@@ -930,13 +976,16 @@
 }
 
 .admin-client-fav-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
   font-size: 0.68rem;
   font-weight: 600;
   color: #6b6560;
   padding: 2px 6px;
   background: #ebe8e3;
   border-radius: 4px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .admin-status-list {

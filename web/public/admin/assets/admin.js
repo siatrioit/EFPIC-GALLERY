@@ -205,6 +205,20 @@
     if (!scenesEditor) return;
     var dragRow = null;
     var activeGrip = null;
+    var dragGhost = null;
+
+    function removeGhost() {
+      if (dragGhost && dragGhost.parentNode) {
+        dragGhost.parentNode.removeChild(dragGhost);
+      }
+      dragGhost = null;
+    }
+
+    function positionGhost(clientX, clientY) {
+      if (!dragGhost) return;
+      dragGhost.style.left = clientX + 12 + 'px';
+      dragGhost.style.top = clientY + 12 + 'px';
+    }
 
     function finishDrag(e) {
       if (!dragRow) return;
@@ -213,6 +227,7 @@
       dragRow.style.pointerEvents = '';
       dragRow = null;
       activeGrip = null;
+      removeGhost();
       if (e && grip && grip.releasePointerCapture) {
         try {
           grip.releasePointerCapture(e.pointerId);
@@ -229,7 +244,7 @@
       if (!dragRow) return;
       dragRow.style.pointerEvents = 'none';
       var el = document.elementFromPoint(
-        dragRow.getBoundingClientRect().left + dragRow.offsetWidth / 2,
+        dragRow.getBoundingClientRect().left + Math.min(dragRow.offsetWidth / 2, 120),
         clientY
       );
       var target = el && el.closest ? el.closest('.admin-scene-row') : null;
@@ -243,11 +258,17 @@
       }
     }
 
-    function startDrag(row, grip, clientY, pointerId) {
+    function startDrag(row, grip, clientX, clientY, pointerId) {
       dragRow = row;
       activeGrip = grip;
       row.classList.add('dragging');
       row.style.pointerEvents = 'none';
+      dragGhost = row.cloneNode(true);
+      dragGhost.classList.add('admin-scene-drag-ghost');
+      dragGhost.classList.remove('dragging');
+      dragGhost.style.pointerEvents = 'none';
+      document.body.appendChild(dragGhost);
+      positionGhost(clientX, clientY);
       if (typeof pointerId === 'number' && grip.setPointerCapture) {
         try {
           grip.setPointerCapture(pointerId);
@@ -265,12 +286,13 @@
       grip.addEventListener('pointerdown', function (e) {
         if (e.button !== 0) return;
         e.preventDefault();
-        startDrag(row, grip, e.clientY, e.pointerId);
+        startDrag(row, grip, e.clientX, e.clientY, e.pointerId);
       });
 
       grip.addEventListener('pointermove', function (e) {
         if (!dragRow || dragRow !== row) return;
         e.preventDefault();
+        positionGhost(e.clientX, e.clientY);
         moveDragRow(e.clientY);
       });
 
@@ -292,6 +314,7 @@
 
     document.addEventListener('mousemove', function (e) {
       if (!dragRow || e.buttons !== 1) return;
+      positionGhost(e.clientX, e.clientY);
       moveDragRow(e.clientY);
     });
 
@@ -326,13 +349,28 @@
   var activeSceneFilter = 'all';
   var lastPickedCard = null;
 
+  function cardMatchesFilter(card, filterId) {
+    var fid = filterId !== undefined ? filterId : activeSceneFilter;
+    if (fid === 'all') {
+      return true;
+    }
+    if (fid === 'admin-fav') {
+      return card.getAttribute('data-admin-fav') === '1';
+    }
+    if (fid === 'client-fav') {
+      return card.getAttribute('data-client-fav') === '1';
+    }
+    if (fid === 'liked') {
+      return parseInt(card.getAttribute('data-likes') || '0', 10) > 0;
+    }
+
+    return (card.getAttribute('data-scene-id') || 'main') === fid;
+  }
+
   function visibleImageCards() {
     if (!imageGrid) return [];
     return Array.prototype.slice.call(imageGrid.querySelectorAll('.admin-media-card')).filter(function (card) {
-      if (activeSceneFilter === 'all') {
-        return true;
-      }
-      return (card.getAttribute('data-scene-id') || 'main') === activeSceneFilter;
+      return cardMatchesFilter(card);
     });
   }
 
@@ -362,9 +400,7 @@
     activeSceneFilter = filterId;
     if (!imageGrid) return;
     imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
-      var sid = card.getAttribute('data-scene-id') || 'main';
-      var hide = filterId !== 'all' && sid !== filterId;
-      card.classList.toggle('is-filtered-out', hide);
+      card.classList.toggle('is-filtered-out', !cardMatchesFilter(card, filterId));
     });
     document.querySelectorAll('.admin-scene-filter-btn').forEach(function (btn) {
       btn.classList.toggle('is-active', btn.getAttribute('data-scene-filter') === filterId);
@@ -396,6 +432,12 @@
         }
         updatePickCount();
       }
+      if (evt.target && evt.target.closest && evt.target.closest('.admin-fav-pick input')) {
+        var favCard = evt.target.closest('.admin-media-card');
+        if (favCard) {
+          favCard.setAttribute('data-admin-fav', evt.target.checked ? '1' : '0');
+        }
+      }
       if (evt.target && evt.target.closest && evt.target.closest('.admin-scene-pick select')) {
         var cardSel = evt.target.closest('.admin-media-card');
         if (cardSel) cardSel.setAttribute('data-scene-id', evt.target.value);
@@ -415,7 +457,7 @@
       }
       var card = evt.target.closest('.admin-media-card');
       if (!card) return;
-      if (activeSceneFilter !== 'all' && (card.getAttribute('data-scene-id') || 'main') !== activeSceneFilter) {
+      if (activeSceneFilter !== 'all' && !cardMatchesFilter(card)) {
         return;
       }
       var cb = card.querySelector('.admin-image-pick');

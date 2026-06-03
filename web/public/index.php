@@ -88,6 +88,10 @@ try {
         efpic_handle_client_image_download($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/i/([a-f0-9]{48})/like$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_client_image_like($config, strtolower($m[1]), $method);
+    }
+
     if (preg_match('#^/v/i/([a-f0-9]{48})$#i', $uri, $m) && $method === 'GET') {
         efpic_handle_client_image($config, strtolower($m[1]), $method);
     }

@@ -559,4 +559,41 @@
       });
     }
   }
+
+  var likeUrl = window.EFPIC_LIKE_URL || '';
+  function setLikeButtonState(btn, liked) {
+    if (!btn) return;
+    btn.classList.toggle('is-liked', liked);
+    btn.setAttribute('aria-pressed', liked ? 'true' : 'false');
+    btn.innerHTML = liked
+      ? '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>'
+      : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>';
+  }
+
+  document.querySelectorAll('[data-like-toggle]').forEach(function (btn) {
+    setLikeButtonState(btn, window.EFPIC_IMAGE_LIKED === '1');
+  });
+
+  document.addEventListener('click', function (evt) {
+    var likeBtn = evt.target && evt.target.closest ? evt.target.closest('[data-like-toggle]') : null;
+    if (!likeBtn || !likeUrl) return;
+    evt.preventDefault();
+    if (likeBtn.disabled) return;
+    likeBtn.disabled = true;
+    fetch(likeUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setLikeButtonState(likeBtn, !!data.liked);
+        }
+      })
+      .catch(function () {
+        /* ignore */
+      })
+      .finally(function () {
+        likeBtn.disabled = false;
+      });
+  });
 })();

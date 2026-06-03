@@ -16,6 +16,160 @@ function efpic_image_favorited_client(array $img): bool
     return !empty($img['favorited']);
 }
 
+function efpic_image_likes_count(array $img): int
+{
+    return max(0, (int) ($img['likes_count'] ?? 0));
+}
+
+function efpic_gallery_total_likes(array $meta): int
+{
+    $n = 0;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img)) {
+            $n += efpic_image_likes_count($img);
+        }
+    }
+
+    return $n;
+}
+
+function efpic_viewer_like_key(): string
+{
+    efpic_client_session_start();
+    if (empty($_SESSION['efpic_viewer_id'])) {
+        $_SESSION['efpic_viewer_id'] = bin2hex(random_bytes(16));
+    }
+
+    return (string) $_SESSION['efpic_viewer_id'];
+}
+
+function efpic_image_liked_by_viewer(array $img, string $viewerKey): bool
+{
+    $voters = $img['like_voters'] ?? [];
+    if (!is_array($voters)) {
+        return false;
+    }
+
+    return in_array($viewerKey, $voters, true);
+}
+
+/** @return array{liked: bool, count: int} */
+function efpic_toggle_image_like(array &$meta, int $imageIndex, string $viewerKey): array
+{
+    if (!isset($meta['images'][$imageIndex]) || !is_array($meta['images'][$imageIndex])) {
+        throw new InvalidArgumentException('Bilde nav atrasta');
+    }
+    $img = &$meta['images'][$imageIndex];
+    $voters = $img['like_voters'] ?? [];
+    if (!is_array($voters)) {
+        $voters = [];
+    }
+    $count = efpic_image_likes_count($img);
+    $liked = in_array($viewerKey, $voters, true);
+    if ($liked) {
+        $voters = array_values(array_filter($voters, static fn ($v) => $v !== $viewerKey));
+        $count = max(0, $count - 1);
+    } else {
+        $voters[] = $viewerKey;
+        $count++;
+    }
+    $img['like_voters'] = $voters;
+    $img['likes_count'] = $count;
+
+    return ['liked' => !$liked, 'count' => $count];
+}
+
+function efpic_compare_images_in_scene(array $a, array $b): int
+{
+    if (!is_array($a) || !is_array($b)) {
+        return 0;
+    }
+    $cmp = ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0));
+    if ($cmp !== 0) {
+        return $cmp;
+    }
+
+    return efpic_compare_image_basenames($a, $b);
+}
+
+function efpic_assign_image_sort_in_scene_by_basename(array &$meta, int $imageIndex): void
+{
+    if (!isset($meta['images'][$imageIndex]) || !is_array($meta['images'][$imageIndex])) {
+        return;
+    }
+    $img = &$meta['images'][$imageIndex];
+    unset($img['sort_manual']);
+    $sid = (string) ($img['scene_id'] ?? 'main');
+    $peers = [];
+    foreach ($meta['images'] as $j => $other) {
+        if ($j === $imageIndex || !is_array($other)) {
+            continue;
+        }
+        if ((string) ($other['scene_id'] ?? 'main') === $sid) {
+            $peers[] = $other;
+        }
+    }
+    usort($peers, 'efpic_compare_images_in_scene');
+
+    $insertSort = 10;
+    foreach ($peers as $peer) {
+        if (efpic_compare_image_basenames($img, $peer) > 0) {
+            $insertSort = max($insertSort, (int) ($peer['sort'] ?? 0) + 10);
+        }
+    }
+    $used = [];
+    foreach ($peers as $peer) {
+        $used[(int) ($peer['sort'] ?? 0)] = true;
+    }
+    while (isset($used[$insertSort])) {
+        $insertSort++;
+    }
+    $img['sort'] = $insertSort;
+}
+
+function efpic_reconcile_auto_scene_sorts(array &$meta): void
+{
+    $byScene = [];
+    foreach ($meta['images'] ?? [] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $byScene[$sid][] = $i;
+    }
+    foreach ($byScene as $indices) {
+        $auto = [];
+        foreach ($indices as $i) {
+            if (!empty($meta['images'][$i]['sort_manual'])) {
+                continue;
+            }
+            if ((int) ($meta['images'][$i]['sort'] ?? 0) === 0) {
+                $auto[] = $i;
+            }
+        }
+        usort($auto, static function ($ia, $ib) use ($meta) {
+            return efpic_compare_image_basenames($meta['images'][$ia], $meta['images'][$ib]);
+        });
+        $sort = 10;
+        foreach ($auto as $i) {
+            $meta['images'][$i]['sort'] = $sort;
+            unset($meta['images'][$i]['sort_manual']);
+            $sort += 10;
+        }
+    }
+}
+
+function efpic_rebaseline_auto_scene_sorts(array &$meta): void
+{
+    foreach ($meta['images'] ?? [] as $i => $img) {
+        if (!is_array($img) || !empty($img['sort_manual'])) {
+            continue;
+        }
+        $meta['images'][$i]['sort'] = 0;
+    }
+    efpic_reconcile_auto_scene_sorts($meta);
+}
+
 function efpic_count_favorites(array $meta, string $who): int
 {
     $n = 0;
@@ -253,12 +407,12 @@ function efpic_sort_images_for_display(array $meta): array
             return $sa <=> $sb;
         }
 
-        $bySort = ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0));
+        $bySort = efpic_compare_images_in_scene($a, $b);
         if ($bySort !== 0) {
             return $bySort;
         }
 
-        return efpic_compare_image_basenames($a, $b);
+        return 0;
     });
 
     return $images;

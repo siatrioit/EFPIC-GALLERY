@@ -765,6 +765,14 @@ input[type="password"] {
   background: rgba(0, 0, 0, 0.06);
 }
 
+.pt-like-btn.is-liked {
+  color: #e11d48;
+}
+
+.pt-like-btn.is-liked svg {
+  fill: currentColor;
+}
+
 .pt-viewer-stage {
   position: relative;
   flex: 1;
