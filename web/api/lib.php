@@ -340,6 +340,8 @@ function efpic_gallery_defaults(string $type = 'live'): array
                 'guest' => ['web', 'zip'],
                 'public' => ['web', 'zip'],
             ],
+            'disable_public_download_all_web' => false,
+            'disable_public_download_all_full' => false,
         ],
         'analytics' => [
             'views' => 0,

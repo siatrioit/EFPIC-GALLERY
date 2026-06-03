@@ -73,11 +73,108 @@ function efpic_client_download_modal(): string
     $html .= efpic_client_icon('close') . '</button>';
     $html .= '<h2 id="downloadModalTitle">Lejupielādes izmērs</h2>';
     $html .= '<div class="dl-size-row">';
-    $html .= '<a class="btn primary dl-size-btn" href="#" data-dl-size="web">Web (ātrs)</a>';
-    $html .= '<a class="btn dl-size-btn" href="#" data-dl-size="full">Pilns izmērs</a>';
+    $html .= '<a class="btn primary dl-size-btn" href="#" data-dl-size="web">WEB</a>';
+    $html .= '<a class="btn dl-size-btn" href="#" data-dl-size="full">PRINT</a>';
     $html .= '</div></div></div>';
 
     return $html;
+}
+
+function efpic_client_gallery_download_modal(array $meta, array $ctx, string $galleryUrl, int $collectionCount): string
+{
+    $canAllWeb = efpic_can_download_all_gallery_zip($meta, $ctx, 'web');
+    $canAllFull = efpic_can_download_all_gallery_zip($meta, $ctx, 'full');
+    $canAllBoth = efpic_can_download_all_gallery_zip($meta, $ctx, 'both');
+    $canColWeb = $collectionCount > 0 && efpic_can_download_collection_zip($meta, $ctx, 'web');
+    $canColFull = $collectionCount > 0 && efpic_can_download_collection_zip($meta, $ctx, 'full');
+    $canColBoth = $collectionCount > 0 && efpic_can_download_collection_zip($meta, $ctx, 'both');
+
+    if (!$canAllWeb && !$canAllFull && !$canAllBoth && !$canColWeb && !$canColFull && !$canColBoth) {
+        return '';
+    }
+
+    $html = '<div class="modal-backdrop" id="galleryDownloadModal" hidden role="dialog" aria-labelledby="galleryDownloadModalTitle">';
+    $html .= '<div class="modal"><button type="button" class="icon-btn modal-close" data-gdl-close aria-label="Aizvērt">';
+    $html .= efpic_client_icon('close') . '</button>';
+    $html .= '<h2 id="galleryDownloadModalTitle">Lejupielāde</h2>';
+
+    if ($canAllWeb || $canAllFull || $canAllBoth) {
+        $html .= '<p class="modal-kicker">Visas redzamās bildes</p>';
+        $html .= '<div class="dl-size-row">';
+        if ($canAllWeb) {
+            $html .= '<a class="btn primary gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="web">WEB</a>';
+        }
+        if ($canAllFull) {
+            $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="full">PRINT</a>';
+        }
+        if ($canAllBoth) {
+            $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="both">WEB + PRINT</a>';
+        }
+        $html .= '</div>';
+    }
+
+    if ($canColWeb || $canColFull || $canColBoth) {
+        $html .= '<p class="modal-kicker">Izvēlētā izlase (' . $collectionCount . ')</p>';
+        $html .= '<div class="dl-size-row">';
+        if ($canColWeb) {
+            $html .= '<a class="btn primary gdl-btn" href="#" data-gdl-scope="collection" data-gdl-size="web">WEB</a>';
+        }
+        if ($canColFull) {
+            $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="collection" data-gdl-size="full">PRINT</a>';
+        }
+        if ($canColBoth) {
+            $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="collection" data-gdl-size="both">WEB + PRINT</a>';
+        }
+        $html .= '</div>';
+    }
+
+    $html .= '</div></div>';
+
+    return $html;
+}
+
+function efpic_zip_add_gallery_images(ZipArchive $zip, array $config, array $meta, array $images, string $sizeMode): void
+{
+    $sizeMode = strtolower($sizeMode);
+    $sizes = $sizeMode === 'both' ? ['web', 'full'] : [$sizeMode];
+    if (!efpic_is_delivery_gallery($meta)) {
+        return;
+    }
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $baseName = basename((string) ($img['basename'] ?? 'image.jpg'));
+        foreach ($sizes as $size) {
+            $hash = efpic_delivery_file_hash($img, $size);
+            if ($hash === '') {
+                continue;
+            }
+            $url = efpic_failiem_download_url($config, $hash);
+            $data = @file_get_contents($url);
+            if ($data === false) {
+                continue;
+            }
+            $zipPath = $sizeMode === 'both'
+                ? ($size === 'full' ? 'print/' : 'web/') . $baseName
+                : $baseName;
+            $zip->addFromString($zipPath, $data);
+        }
+    }
+}
+
+function efpic_zip_add_live_gallery_images(ZipArchive $zip, string $dir, array $images, string $sizeMode): void
+{
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $file = (string) ($img['file'] ?? '');
+        $path = $dir . DIRECTORY_SEPARATOR . $file;
+        if ($file !== '' && is_file($path)) {
+            $zip->addFile($path, $file);
+        }
+    }
 }
 
 function efpic_client_topbar(string $title, string $rightHtml, string $extraClass = ''): string
@@ -136,9 +233,10 @@ function efpic_client_html(
         $accent = efpic_client_hero_accent_color($meta);
         $heroText = efpic_client_hero_text_color($accent);
         $pageBg = efpic_client_page_bg_color($config, $meta);
+        $pageText = efpic_client_hero_text_color($pageBg);
         $gaps = efpic_client_gallery_feed_gaps($config);
         echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';--hero-text:' . efpic_client_esc($heroText)
-            . ';--page-bg:' . efpic_client_esc($pageBg)
+            . ';--page-bg:' . efpic_client_esc($pageBg) . ';--page-text:' . efpic_client_esc($pageText)
             . ';--pic-feed-gap:' . (int) $gaps['mobile'] . 'px'
             . ';--pic-feed-gap-tablet:' . (int) $gaps['tablet'] . 'px'
             . ';--pic-feed-gap-desktop:' . (int) $gaps['desktop'] . 'px;}</style>';
@@ -247,18 +345,19 @@ function efpic_client_render_image_grid_actions(array $gridCtx, array $img): str
     return $html;
 }
 
-function efpic_client_render_collection_tray(string $galleryUrl, int $count, bool $canFull): string
+function efpic_client_render_collection_tray(string $galleryUrl, int $count, array $meta, array $ctx): string
 {
+    $canWeb = $count > 0 && efpic_can_download_collection_zip($meta, $ctx, 'web');
+    $canFull = $count > 0 && efpic_can_download_collection_zip($meta, $ctx, 'full');
+    $canBoth = $count > 0 && efpic_can_download_collection_zip($meta, $ctx, 'both');
     $hidden = $count > 0 ? '' : ' hidden';
     $html = '<aside class="collection-tray' . ($count > 0 ? ' is-visible' : '') . '" id="collectionTray"' . $hidden . ' aria-live="polite">';
     $html .= '<p class="collection-tray-text"><strong id="collectionTrayCount">' . $count . '</strong> '
         . ($count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas') . '</p>';
     $html .= '<div class="collection-tray-actions">';
     $html .= '<button type="button" class="btn" data-collection-clear>Notīrīt</button>';
-    $html .= '<a class="btn primary" id="collectionZipWeb" href="' . efpic_client_esc($galleryUrl . '/collection/zip?size=web') . '">'
-        . efpic_client_icon('zip') . ' Lejupielādēt (web)</a>';
-    if ($canFull) {
-        $html .= '<a class="btn" id="collectionZipFull" href="' . efpic_client_esc($galleryUrl . '/collection/zip?size=full') . '">Pilns izmērs</a>';
+    if ($canWeb || $canFull || $canBoth) {
+        $html .= '<button type="button" class="btn primary" data-collection-dl-open>Lejupielādēt izlasi</button>';
     }
     $html .= '</div></aside>';
 
@@ -582,8 +681,15 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
     $gridCtx = efpic_client_build_grid_context($config, $galleryToken);
     $collectionCount = count($gridCtx['collection']);
+    $galleryDlModal = efpic_client_gallery_download_modal($meta, $ctx, $galleryUrl, $collectionCount);
+    $hasGalleryDl = $galleryDlModal !== '';
 
-    $right = '<div class="topbar-actions"><button type="button" class="icon-btn" data-share-open aria-label="Dalīties">';
+    $right = '<div class="topbar-actions">';
+    if ($hasGalleryDl) {
+        $right .= '<button type="button" class="icon-btn" data-gallery-dl-open aria-label="Lejupielādēt">';
+        $right .= efpic_client_icon('download') . '</button>';
+    }
+    $right .= '<button type="button" class="icon-btn" data-share-open aria-label="Dalīties">';
     $right .= efpic_client_icon('share') . '</button></div>';
 
     $isPicTime = $theme === 'pic-time';
@@ -639,23 +745,9 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= $failiemHint;
     }
 
-    $body .= '<section class="downloads" id="downloads"><h2>Lejupielādes</h2>';
-    $body .= '<p class="muted gallery-collection-hint">Atzīmē bildes ar apļa ikonu (kreisajā augšā) — apakšā parādīsies tava izlase lejupielādei.</p>';
-    $body .= '<div class="download-row">';
-    $body .= '<a class="download-btn" href="' . efpic_client_esc($galleryUrl . '/download.zip?size=web') . '">';
-    $body .= efpic_client_icon('zip') . ' Visas (web)</a>';
-    if (efpic_can_download_size($meta, $ctx, 'full')) {
-        $body .= '<a class="download-btn" href="' . efpic_client_esc($galleryUrl . '/download.zip?size=full') . '">';
-        $body .= efpic_client_icon('zip') . ' Visas (pilns)</a>';
-    }
-    $body .= '</div></section>';
-
     $body .= efpic_client_share_modal($name);
-    $body .= efpic_client_render_collection_tray(
-        $galleryUrl,
-        $collectionCount,
-        efpic_can_download_size($meta, $ctx, 'full')
-    );
+    $body .= $galleryDlModal;
+    $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
     if ($isPicTime) {
         $hasSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
@@ -665,13 +757,17 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         }
         $body .= '<button type="button" class="float-btn" data-share-open aria-label="Dalīties">';
         $body .= efpic_client_icon('share') . '<span>Dalīties</span></button>';
-        $body .= '<a class="float-btn" href="#downloads" aria-label="Lejupielādes">';
-        $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></a></nav>';
+        if ($hasGalleryDl) {
+            $body .= '<button type="button" class="float-btn" data-gallery-dl-open aria-label="Lejupielādēt">';
+            $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></button>';
+        }
+        $body .= '</nav>';
         $body .= efpic_client_render_slideshow_overlay($config, $meta, $ctx);
     }
     $pageClass = 'page-gallery theme-' . preg_replace('/[^a-z0-9-]/', '', $theme);
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [
         'EFPIC_GALLERY_TOKEN' => $galleryToken,
+        'EFPIC_GALLERY_DL_URL' => $galleryUrl,
         'EFPIC_COLLECTION_TOGGLE_URL' => $galleryUrl . '/collection/toggle',
         'EFPIC_COLLECTION_CLEAR_URL' => $galleryUrl . '/collection/clear',
         'EFPIC_COLLECTION_COUNT' => $collectionCount,
@@ -998,10 +1094,10 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
 
     $ctx = efpic_viewer_context($config, $meta);
     $size = strtolower((string) ($_GET['size'] ?? 'web'));
-    if (!in_array($size, ['web', 'full'], true)) {
+    if (!in_array($size, ['web', 'full', 'both'], true)) {
         $size = 'web';
     }
-    if (!efpic_can_download_size($meta, $ctx, $size)) {
+    if (!efpic_can_download_all_gallery_zip($meta, $ctx, $size)) {
         http_response_code(403);
         exit;
     }
@@ -1026,28 +1122,9 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
     }
 
     if (efpic_is_delivery_gallery($meta)) {
-        foreach ($images as $img) {
-            $hash = efpic_delivery_file_hash($img, $size);
-            if ($hash === '') {
-                continue;
-            }
-            $url = efpic_failiem_download_url($config, $hash);
-            $data = @file_get_contents($url);
-            if ($data === false) {
-                continue;
-            }
-            $name = (string) ($img['basename'] ?? $hash . '.jpg');
-            $zip->addFromString(basename($name), $data);
-        }
+        efpic_zip_add_gallery_images($zip, $config, $meta, $images, $size);
     } else {
-        $dir = $found['dir'];
-        foreach ($images as $img) {
-            $file = (string) ($img['file'] ?? '');
-            $path = $dir . DIRECTORY_SEPARATOR . $file;
-            if ($file !== '' && is_file($path)) {
-                $zip->addFile($path, $file);
-            }
-        }
+        efpic_zip_add_live_gallery_images($zip, $found['dir'], $images, $size);
     }
 
     $zip->close();
@@ -1142,10 +1219,10 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
 
     $ctx = efpic_viewer_context($config, $meta);
     $size = strtolower((string) ($_GET['size'] ?? 'web'));
-    if (!in_array($size, ['web', 'full'], true)) {
+    if (!in_array($size, ['web', 'full', 'both'], true)) {
         $size = 'web';
     }
-    if (!efpic_can_download_size($meta, $ctx, $size)) {
+    if (!efpic_can_download_collection_zip($meta, $ctx, $size)) {
         http_response_code(403);
         exit;
     }
@@ -1170,28 +1247,9 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
     }
 
     if (efpic_is_delivery_gallery($meta)) {
-        foreach ($images as $img) {
-            $hash = efpic_delivery_file_hash($img, $size);
-            if ($hash === '') {
-                continue;
-            }
-            $url = efpic_failiem_download_url($config, $hash);
-            $data = @file_get_contents($url);
-            if ($data === false) {
-                continue;
-            }
-            $name = (string) ($img['basename'] ?? $hash . '.jpg');
-            $zip->addFromString(basename($name), $data);
-        }
+        efpic_zip_add_gallery_images($zip, $config, $meta, $images, $size);
     } else {
-        $dir = $found['dir'];
-        foreach ($images as $img) {
-            $file = (string) ($img['file'] ?? '');
-            $path = $dir . DIRECTORY_SEPARATOR . $file;
-            if ($file !== '' && is_file($path)) {
-                $zip->addFile($path, $file);
-            }
-        }
+        efpic_zip_add_live_gallery_images($zip, $found['dir'], $images, $size);
     }
 
     $zip->close();

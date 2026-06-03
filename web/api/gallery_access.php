@@ -773,3 +773,39 @@ function efpic_can_download_size(array $meta, array $ctx, string $size): bool
 
     return in_array($size, $allowed, true) || ($size === 'full' && in_array('full', $allowed, true));
 }
+
+/** Vai drīkst lejupielādēt visas galerijas bildes ZIP (nevis tikai izlasi). */
+function efpic_can_download_all_gallery_zip(array $meta, array $ctx, string $size): bool
+{
+    $size = strtolower($size);
+    if ($size === 'both') {
+        return efpic_can_download_all_gallery_zip($meta, $ctx, 'web')
+            && efpic_can_download_all_gallery_zip($meta, $ctx, 'full');
+    }
+    if (!in_array($size, ['web', 'full'], true)) {
+        return false;
+    }
+    if (!efpic_can_download_size($meta, $ctx, $size)) {
+        return false;
+    }
+    $settings = efpic_gallery_settings($meta);
+    if ($size === 'web' && !empty($settings['disable_public_download_all_web'])) {
+        return false;
+    }
+    if ($size === 'full' && !empty($settings['disable_public_download_all_full'])) {
+        return false;
+    }
+
+    return true;
+}
+
+function efpic_can_download_collection_zip(array $meta, array $ctx, string $size): bool
+{
+    $size = strtolower($size);
+    if ($size === 'both') {
+        return efpic_can_download_collection_zip($meta, $ctx, 'web')
+            && efpic_can_download_collection_zip($meta, $ctx, 'full');
+    }
+
+    return in_array($size, ['web', 'full'], true) && efpic_can_download_size($meta, $ctx, $size);
+}

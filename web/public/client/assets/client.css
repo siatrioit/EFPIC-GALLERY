@@ -11,6 +11,7 @@
   --hero-accent: #9a9578;
   --hero-text: #1a1a1a;
   --page-bg: #ffffff;
+  --page-text: #1a1a1a;
 }
 
 * {
@@ -1080,7 +1081,8 @@ input[type="password"] {
   top: 52px;
   margin: 0;
   padding: 10px clamp(12px, 2vw, 20px);
-  background: color-mix(in srgb, #fff 94%, transparent);
+  background: color-mix(in srgb, var(--page-bg, #ffffff) 94%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 12%, transparent);
 }
 
 .gallery-scene-nav__inner {
@@ -1122,9 +1124,31 @@ input[type="password"] {
 }
 
 .gallery-scene-nav__link.is-active {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--page-bg, var(--accent));
+  border-color: color-mix(in srgb, var(--page-text, var(--text)) 22%, var(--page-bg, var(--accent)));
+  color: var(--page-text, #fff);
+}
+
+.page-gallery .scene-title {
+  margin: 0;
+  padding: 12px clamp(12px, 2vw, 24px);
+  background: var(--page-bg, var(--surface));
+  color: var(--page-text, var(--text));
+  border-top: 3px solid color-mix(in srgb, var(--page-text, var(--text)) 18%, var(--page-bg, var(--surface)));
+  border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 10%, transparent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.scene-title {
+  margin: 0 0 12px;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
 
 .scene-block {
@@ -1204,15 +1228,6 @@ input[type="password"] {
 
 .theme-pic-time .gallery-scene-next {
   background: #fff;
-}
-
-.scene-title {
-  margin: 0 0 12px;
-  font-size: 1rem;
-  font-weight: 700;
-  letter-spacing: 0.03em;
-  text-transform: uppercase;
-  color: var(--muted);
 }
 
 .grid {
@@ -1567,7 +1582,6 @@ input[type="password"] {
 }
 
 .scene-block--pic .scene-title {
-  padding: 0 clamp(12px, 2vw, 24px);
   max-width: 100%;
   box-sizing: border-box;
 }

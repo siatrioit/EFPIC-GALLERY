@@ -162,6 +162,15 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     efpic_save_gallery_meta($config, $slug, $meta);
                     $_SESSION['efpic_portal_flash'] = 'Krāsas saglabātas.';
                 })(),
+                'save_download_settings' => (function () use ($config, $slug, &$meta) {
+                    if (!isset($meta['settings']) || !is_array($meta['settings'])) {
+                        $meta['settings'] = [];
+                    }
+                    $meta['settings']['disable_public_download_all_web'] = isset($_POST['disable_public_download_all_web']);
+                    $meta['settings']['disable_public_download_all_full'] = isset($_POST['disable_public_download_all_full']);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                    $_SESSION['efpic_portal_flash'] = 'Lejupielādes iestatījumi saglabāti.';
+                })(),
                 'add_comment' => (function () use ($config, $slug, &$meta, $imageToken) {
                     $text = trim((string) ($_POST['comment'] ?? ''));
                     if ($text === '') {
@@ -330,6 +339,19 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_client_color_field('hero_accent_color', 'Vāka krāsa', $heroAccent);
     $body .= efpic_client_color_field('page_bg_color', 'Galerijas pamatkrāsa', $pageBg);
     $body .= '<button type="submit" class="btn primary">Saglabāt krāsas</button></form></section>';
+
+    $settings = efpic_gallery_settings($meta);
+    $disableAllWeb = !empty($settings['disable_public_download_all_web']);
+    $disableAllFull = !empty($settings['disable_public_download_all_full']);
+    $body .= '<section class="portal-panel"><h2>Lejupielādes publiskajā galerijā</h2>';
+    $body .= '<p class="muted">Atzīmē, lai apmeklētājiem vairs nerādītos «lejupielādēt visas bildes» attiecīgajā izmērā. Izvēlētās bildes (izlase) joprojām var lejupielādēt, ja izmērs ir atļauts.</p>';
+    $body .= '<form method="post" class="portal-stack">';
+    $body .= '<input type="hidden" name="portal_action" value="save_download_settings">';
+    $body .= '<label class="portal-check"><input type="checkbox" name="disable_public_download_all_web" value="1"'
+        . ($disableAllWeb ? ' checked' : '') . '> Atslēgt «visas bildes» — WEB</label>';
+    $body .= '<label class="portal-check"><input type="checkbox" name="disable_public_download_all_full" value="1"'
+        . ($disableAllFull ? ' checked' : '') . '> Atslēgt «visas bildes» — PRINT</label>';
+    $body .= '<button type="submit" class="btn primary">Saglabāt</button></form></section>';
 
     $body .= '<section class="portal-toolbar">';
     $body .= '<form method="post" class="inline-form"><input type="hidden" name="portal_action" value="invite_guest">';

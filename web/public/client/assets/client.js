@@ -103,7 +103,10 @@
   });
 
   document.addEventListener('keydown', function (evt) {
-    if (evt.key === 'Escape') closeModal();
+    if (evt.key !== 'Escape') return;
+    closeModal();
+    closeDlModal();
+    closeGalleryDlModal();
   });
 
   var dlModal = document.getElementById('downloadModal');
@@ -146,6 +149,51 @@
         window.location.href = dlBase + (dlBase.indexOf('?') >= 0 ? '&' : '?') + 'size=' + encodeURIComponent(size);
       }
       closeDlModal();
+    });
+  });
+
+  var gdlModal = document.getElementById('galleryDownloadModal');
+  var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
+
+  function openGalleryDlModal() {
+    if (!gdlModal) return;
+    gdlModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeGalleryDlModal() {
+    if (!gdlModal) return;
+    gdlModal.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('[data-gallery-dl-open], [data-collection-dl-open]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      openGalleryDlModal();
+    });
+  });
+
+  document.querySelectorAll('[data-gdl-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeGalleryDlModal);
+  });
+
+  if (gdlModal) {
+    gdlModal.addEventListener('click', function (evt) {
+      if (evt.target === gdlModal) closeGalleryDlModal();
+    });
+  }
+
+  document.querySelectorAll('[data-gdl-scope][data-gdl-size]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      if (!gdlBase) return;
+      var scope = btn.getAttribute('data-gdl-scope') || 'all';
+      var size = btn.getAttribute('data-gdl-size') || 'web';
+      var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
+      window.location.href =
+        gdlBase + path + '?size=' + encodeURIComponent(size);
+      closeGalleryDlModal();
     });
   });
 

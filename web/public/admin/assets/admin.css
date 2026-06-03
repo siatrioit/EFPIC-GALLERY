@@ -1091,15 +1091,24 @@
 }
 
 .admin-image-bulk-bar {
-  position: sticky;
-  top: calc(var(--admin-topbar-h) + var(--admin-sticky-h) - 4px);
-  z-index: 45;
-  margin: 0 0 14px;
+  position: relative;
+  z-index: 2;
+  margin: 0 0 16px;
   padding: 14px 16px;
   background: var(--admin-surface);
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-lg);
   box-shadow: var(--admin-shadow);
+}
+
+.admin-images-panel {
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-images-panel .admin-media-grid {
+  position: relative;
+  z-index: 1;
 }
 
 .admin-image-bulk-lead {
