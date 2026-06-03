@@ -197,7 +197,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
 
     $theme = $theme !== '' ? $theme : efpic_client_effective_theme($meta);
     if ($theme === 'pic-time') {
-        $html = '<div class="pic-feed" data-justified-gallery>';
+        $html = '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
         foreach ($images as $img) {
             if (!is_array($img)) {
                 continue;

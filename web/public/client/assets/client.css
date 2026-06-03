@@ -654,18 +654,16 @@ input[type="password"] {
 }
 
 .pic-feed {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  position: relative;
+  width: 100%;
   gap: 6px;
   padding: 6px;
   background: var(--page-bg, #ffffff);
+  box-sizing: border-box;
 }
 
 .pic-feed-item {
   display: block;
-  flex: 0 0 auto;
-  max-width: 100%;
   text-decoration: none;
   line-height: 0;
   box-sizing: border-box;

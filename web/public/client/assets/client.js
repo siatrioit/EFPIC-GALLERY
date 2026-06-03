@@ -209,27 +209,40 @@
     return 1.5;
   }
 
-  /** Kolonnu platuma reizinātājs pēc orientācijas + neliela variācija secībā. */
-  function pickMosaicSpan(aspect, index, columns) {
-    var n = index % 5;
-    if (aspect >= 1.55) {
-      return Math.min(columns, [2.2, 2.8, 2, 3, 2.4][n]);
+  /** Cik kolonnu platuma bilde aizņem (1–3), kā Pic-Time “enlarge”. */
+  function pickColumnSpan(aspect, index, columns) {
+    if (columns <= 1) {
+      return 1;
     }
-    if (aspect >= 1.12) {
-      return Math.min(columns, [1.8, 2.2, 1.5, 2, 1.65][n]);
+    if (aspect < 1.12) {
+      return 1;
     }
-    if (aspect >= 0.88) {
-      return Math.min(columns, [1.35, 1, 1.5, 1.15, 1.25][n]);
+    if (columns >= 4 && aspect >= 2.1 && index % 7 === 2) {
+      return 3;
     }
-    return Math.min(columns, [1, 0.92, 1.08, 1, 0.95][n]);
+    if (aspect >= 1.18 && (index % 3 === 1 || aspect >= 1.55)) {
+      return Math.min(2, columns);
+    }
+    return 1;
   }
 
-  function layoutMosaicGallery(container) {
+  function resetMasonryItem(item) {
+    item.style.position = '';
+    item.style.left = '';
+    item.style.top = '';
+    item.style.width = '';
+    item.style.height = '';
+  }
+
+  function layoutColumnMasonry(container) {
     unwrapFeedRows(container);
     var items = collectFeedItems(container);
     if (!items.length) {
+      container.style.height = '';
       return;
     }
+
+    items.forEach(resetMasonryItem);
 
     var gap = parseFloat(window.getComputedStyle(container).gap) || 6;
     var innerWidth = getContainerInnerWidth(container);
@@ -238,29 +251,74 @@
     }
 
     var columns = getMosaicColumnCount();
-    var colUnit = (innerWidth - gap * (columns - 1)) / columns;
+    var colWidth = (innerWidth - gap * (columns - 1)) / columns;
+    var colHeights = [];
+    var c;
+    for (c = 0; c < columns; c++) {
+      colHeights.push(0);
+    }
 
     items.forEach(function (item, index) {
       var img = item.querySelector('img');
       var aspect = readAspectRatio(img);
-      var span = pickMosaicSpan(aspect, index, columns);
-      var gapsInside = Math.max(0, Math.ceil(span) - 1) * gap;
-      var width = Math.min(innerWidth, Math.round(span * colUnit + gapsInside));
+      var span = pickColumnSpan(aspect, index, columns);
+      var itemWidth = span * colWidth + gap * (span - 1);
+      var itemHeight = itemWidth / aspect;
 
-      item.style.width = width + 'px';
-      item.style.height = '';
-      item.setAttribute('data-orient', aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square');
+      var bestCol = 0;
+      var bestTop = Infinity;
+      var startCol;
+      for (startCol = 0; startCol <= columns - span; startCol++) {
+        var top = 0;
+        var s;
+        for (s = 0; s < span; s++) {
+          if (colHeights[startCol + s] > top) {
+            top = colHeights[startCol + s];
+          }
+        }
+        if (top < bestTop) {
+          bestTop = top;
+          bestCol = startCol;
+        }
+      }
+
+      var left = bestCol * (colWidth + gap);
+      item.style.position = 'absolute';
+      item.style.left = Math.round(left) + 'px';
+      item.style.top = Math.round(bestTop) + 'px';
+      item.style.width = Math.round(itemWidth) + 'px';
+      item.style.height = 'auto';
+
+      item.setAttribute(
+        'data-orient',
+        aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square'
+      );
+      item.setAttribute('data-span', String(span));
 
       if (img) {
         img.style.width = '100%';
         img.style.height = 'auto';
         img.style.objectFit = '';
+        img.style.display = 'block';
+      }
+
+      var newBottom = bestTop + itemHeight + gap;
+      for (s = 0; s < span; s++) {
+        colHeights[bestCol + s] = newBottom;
       }
     });
+
+    var maxH = 0;
+    for (c = 0; c < colHeights.length; c++) {
+      if (colHeights[c] > maxH) {
+        maxH = colHeights[c];
+      }
+    }
+    container.style.height = Math.max(0, Math.ceil(maxH - gap)) + 'px';
   }
 
   function initMosaicGalleries(done) {
-    var containers = document.querySelectorAll('[data-justified-gallery]');
+    var containers = document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]');
     if (!containers.length) {
       if (done) done();
       return;
@@ -270,7 +328,7 @@
     var doneCalled = false;
 
     function relayout() {
-      containers.forEach(layoutMosaicGallery);
+      containers.forEach(layoutColumnMasonry);
     }
 
     function maybeDone() {
@@ -303,7 +361,10 @@
     if (pending === 0) {
       maybeDone();
     } else {
-      setTimeout(maybeDone, 4000);
+      setTimeout(function () {
+        relayout();
+        maybeDone();
+      }, 4000);
     }
   }
 
@@ -311,7 +372,7 @@
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
-      document.querySelectorAll('[data-justified-gallery]').forEach(layoutMosaicGallery);
+      document.querySelectorAll('[data-justified-gallery]').forEach(layoutColumnMasonry);
     }, 150);
   });
 
@@ -332,6 +393,7 @@
     window.addEventListener('load', scrollToThumb);
     setTimeout(scrollToThumb, 120);
     setTimeout(scrollToThumb, 400);
+    setTimeout(scrollToThumb, 1200);
   }
 
   initMosaicGalleries(restoreGalleryFocus);
