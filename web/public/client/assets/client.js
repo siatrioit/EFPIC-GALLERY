@@ -372,7 +372,7 @@
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
-      document.querySelectorAll('[data-justified-gallery]').forEach(layoutColumnMasonry);
+      document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]').forEach(layoutColumnMasonry);
     }, 150);
   });
 
