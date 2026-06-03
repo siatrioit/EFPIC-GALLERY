@@ -173,12 +173,11 @@
     updateFloatingUi();
   }
 
-  function getTargetRowHeight() {
+  function getMosaicColumnCount() {
     var w = window.innerWidth;
-    if (w >= 1200) return 260;
-    if (w >= 768) return 220;
-    if (w >= 480) return 175;
-    return 140;
+    if (w >= 1200) return 4;
+    if (w >= 768) return 3;
+    return 2;
   }
 
   function getContainerInnerWidth(container) {
@@ -189,11 +188,7 @@
   }
 
   function collectFeedItems(container) {
-    var items = [];
-    container.querySelectorAll('.pic-feed-item').forEach(function (el) {
-      items.push(el);
-    });
-    return items;
+    return Array.prototype.slice.call(container.querySelectorAll(':scope > .pic-feed-item'));
   }
 
   function unwrapFeedRows(container) {
@@ -205,100 +200,66 @@
     });
   }
 
-  function buildJustifiedRows(items, containerWidth, targetHeight, gap) {
-    var rows = [];
-    var row = [];
-    var aspectSum = 0;
-
-    function flush(current, sum) {
-      if (current.length) {
-        rows.push({ items: current.slice(), aspectSum: sum });
-      }
+  function readAspectRatio(img) {
+    var w = img && img.naturalWidth ? img.naturalWidth : 0;
+    var h = img && img.naturalHeight ? img.naturalHeight : 0;
+    if (w > 0 && h > 0) {
+      return w / h;
     }
-
-    items.forEach(function (item) {
-      var img = item.querySelector('img');
-      var w = img && img.naturalWidth ? img.naturalWidth : 3;
-      var h = img && img.naturalHeight ? img.naturalHeight : 2;
-      var aspect = w / h;
-      if (!isFinite(aspect) || aspect <= 0) {
-        aspect = 1.5;
-      }
-
-      row.push({ el: item, aspect: aspect });
-      aspectSum += aspect;
-
-      var gaps = gap * (row.length - 1);
-      var rowWidth = aspectSum * targetHeight + gaps;
-      if (rowWidth >= containerWidth) {
-        if (row.length === 1) {
-          flush(row, aspectSum);
-          row = [];
-          aspectSum = 0;
-        } else {
-          var last = row.pop();
-          aspectSum -= last.aspect;
-          flush(row, aspectSum);
-          row = [last];
-          aspectSum = last.aspect;
-        }
-      }
-    });
-
-    if (row.length) {
-      rows.push({ items: row, aspectSum: aspectSum });
-    }
-
-    return rows;
+    return 1.5;
   }
 
-  function layoutJustifiedGallery(container) {
+  /** Kolonnu platuma reizinātājs pēc orientācijas + neliela variācija secībā. */
+  function pickMosaicSpan(aspect, index, columns) {
+    var n = index % 5;
+    if (aspect >= 1.55) {
+      return Math.min(columns, [2.2, 2.8, 2, 3, 2.4][n]);
+    }
+    if (aspect >= 1.12) {
+      return Math.min(columns, [1.8, 2.2, 1.5, 2, 1.65][n]);
+    }
+    if (aspect >= 0.88) {
+      return Math.min(columns, [1.35, 1, 1.5, 1.15, 1.25][n]);
+    }
+    return Math.min(columns, [1, 0.92, 1.08, 1, 0.95][n]);
+  }
+
+  function layoutMosaicGallery(container) {
     unwrapFeedRows(container);
     var items = collectFeedItems(container);
     if (!items.length) {
       return;
     }
 
-    items.forEach(function (item) {
-      item.style.width = '';
-      item.style.height = '';
-    });
-
     var gap = parseFloat(window.getComputedStyle(container).gap) || 6;
-    var containerWidth = getContainerInnerWidth(container);
-    if (containerWidth <= 0) {
+    var innerWidth = getContainerInnerWidth(container);
+    if (innerWidth <= 0) {
       return;
     }
 
-    var targetHeight = getTargetRowHeight();
-    var rows = buildJustifiedRows(items, containerWidth, targetHeight, gap);
+    var columns = getMosaicColumnCount();
+    var colUnit = (innerWidth - gap * (columns - 1)) / columns;
 
-    rows.forEach(function (rowData, idx) {
-      var rowEl = document.createElement('div');
-      rowEl.className = 'pic-feed-row';
-      var isLast = idx === rows.length - 1;
-      var count = rowData.items.length;
-      var gaps = gap * Math.max(0, count - 1);
-      var rowHeight;
+    items.forEach(function (item, index) {
+      var img = item.querySelector('img');
+      var aspect = readAspectRatio(img);
+      var span = pickMosaicSpan(aspect, index, columns);
+      var gapsInside = Math.max(0, Math.ceil(span) - 1) * gap;
+      var width = Math.min(innerWidth, Math.round(span * colUnit + gapsInside));
 
-      if (isLast && count < 4) {
-        rowHeight = targetHeight;
-      } else {
-        rowHeight = (containerWidth - gaps) / rowData.aspectSum;
+      item.style.width = width + 'px';
+      item.style.height = '';
+      item.setAttribute('data-orient', aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square');
+
+      if (img) {
+        img.style.width = '100%';
+        img.style.height = 'auto';
+        img.style.objectFit = '';
       }
-
-      rowData.items.forEach(function (entry) {
-        var width = entry.aspect * rowHeight;
-        entry.el.style.width = Math.max(1, Math.floor(width)) + 'px';
-        entry.el.style.height = Math.max(1, Math.floor(rowHeight)) + 'px';
-        rowEl.appendChild(entry.el);
-      });
-
-      container.appendChild(rowEl);
     });
   }
 
-  function initJustifiedGalleries(done) {
+  function initMosaicGalleries(done) {
     var containers = document.querySelectorAll('[data-justified-gallery]');
     if (!containers.length) {
       if (done) done();
@@ -306,13 +267,18 @@
     }
 
     var pending = 0;
-    var finished = false;
+    var doneCalled = false;
 
-    function finish() {
-      if (finished) return;
-      finished = true;
-      containers.forEach(layoutJustifiedGallery);
-      if (done) done();
+    function relayout() {
+      containers.forEach(layoutMosaicGallery);
+    }
+
+    function maybeDone() {
+      relayout();
+      if (!doneCalled) {
+        doneCalled = true;
+        if (done) done();
+      }
     }
 
     containers.forEach(function (container) {
@@ -323,8 +289,9 @@
         pending++;
         function doneImg() {
           pending--;
+          relayout();
           if (pending <= 0) {
-            finish();
+            maybeDone();
           }
         }
         img.addEventListener('load', doneImg, { once: true });
@@ -332,10 +299,11 @@
       });
     });
 
+    relayout();
     if (pending === 0) {
-      finish();
+      maybeDone();
     } else {
-      setTimeout(finish, 3000);
+      setTimeout(maybeDone, 4000);
     }
   }
 
@@ -343,7 +311,7 @@
   window.addEventListener('resize', function () {
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
-      document.querySelectorAll('[data-justified-gallery]').forEach(layoutJustifiedGallery);
+      document.querySelectorAll('[data-justified-gallery]').forEach(layoutMosaicGallery);
     }, 150);
   });
 
@@ -366,7 +334,7 @@
     setTimeout(scrollToThumb, 400);
   }
 
-  initJustifiedGalleries(restoreGalleryFocus);
+  initMosaicGalleries(restoreGalleryFocus);
 
   document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (link) {
     link.addEventListener('click', function () {

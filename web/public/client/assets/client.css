@@ -655,55 +655,39 @@ input[type="password"] {
 
 .pic-feed {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 6px;
   padding: 6px;
   background: var(--page-bg, #ffffff);
 }
 
-.pic-feed-row {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 6px;
-  width: 100%;
-  overflow: hidden;
-}
-
 .pic-feed-item {
   display: block;
-  flex-shrink: 0;
+  flex: 0 0 auto;
+  max-width: 100%;
   text-decoration: none;
   line-height: 0;
-  overflow: hidden;
-  position: relative;
+  box-sizing: border-box;
 }
 
 .pic-feed-item img {
   width: 100%;
-  height: 100%;
+  height: auto;
   display: block;
-  object-fit: cover;
   vertical-align: middle;
 }
 
 @media (min-width: 640px) {
-  .pic-feed,
-  .pic-feed-row {
-    gap: 8px;
-  }
-
   .pic-feed {
+    gap: 8px;
     padding: 8px;
   }
 }
 
 @media (min-width: 1024px) {
-  .pic-feed,
-  .pic-feed-row {
-    gap: 10px;
-  }
-
   .pic-feed {
+    gap: 10px;
     padding: 10px;
     max-width: 100%;
     margin: 0 auto;
