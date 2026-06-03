@@ -1,0 +1,17 @@
+{
+  "name": "Noklusējuma piegāde",
+  "theme": "masonry",
+  "settings": {
+    "allow_client_sharing": true,
+    "favorites_visible_to_guests": false,
+    "hide_client_hidden_from_public": true,
+    "downloads": {
+      "main_client": ["web", "full", "zip"],
+      "guest": ["web", "zip"],
+      "public": ["web", "zip"]
+    }
+  },
+  "scenes": [
+    { "id": "main", "title": "Galerija", "sort": 1, "hidden_from_guests": false }
+  ]
+}

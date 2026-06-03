@@ -7,4 +7,5 @@ web/storage/booth_events/*
 !web/storage/booth_events/.gitkeep
 web/storage/gallery_templates/*
 !web/storage/gallery_templates/.gitkeep
+!web/storage/gallery_templates/default-delivery.json
 !web/storage/access_index.json
