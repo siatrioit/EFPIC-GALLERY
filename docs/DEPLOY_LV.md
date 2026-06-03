@@ -92,7 +92,7 @@ storage/booth_events/*
 1. cPanel → **FTP Accounts** vai SFTP lietotājs ar tiesībām tikai uz `klientiem...` mapi.
 2. GitHub repo → **Settings → Secrets**:
    - `FTP_HOST`, `FTP_USER`, `FTP_PASS`, `FTP_REMOTE_PATH` (piem. `/home2/trioitlv/klientiem.edgarsfoto.lv`)
-3. Repozitorijā pievienojiet workflow (piemērs: `.github/workflows/deploy.yml` — skatīt komentārus repozitorijā, ja pievienots).
+3. Kopējiet `docs/examples/deploy-sftp.yml` → `.github/workflows/deploy.yml` un aizpildiet Secrets.
 
 Katrs `git push` uz `main` augšupielādē `web/api` un `web/public`, bet **ne** `config.php`.
 
@@ -106,6 +106,7 @@ Katrs `git push` uz `main` augšupielādē `web/api` un `web/public`, bet **ne**
 | Pārrakstīts `config.php` | Deploy exclude; atjaunojiet no backup |
 | `/api/health` 404 | Trūkst `public/.htaccess` |
 | Saites uz www | `config.php` → `base_url` = `https://klientiem.edgarsfoto.lv` |
+| E-pasts «Run failed: deploy-sftp.example.yml» | Noņemiet `.github/workflows/*.example.yml`; piemērs ir tikai `docs/examples/` |
 
 ---
 
