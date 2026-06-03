@@ -172,6 +172,48 @@ function efpic_failiem_download_url(array $config, string $fileHash): string
     return efpic_failiem_cdn_base($config) . '/down.php?i=' . rawurlencode($fileHash);
 }
 
+/** Lejupielādē faila saturu no Failiem (curl, ja file_get_contents bloķēts). */
+function efpic_failiem_fetch_binary(array $config, string $url): ?string
+{
+    if (function_exists('curl_init')) {
+        $f = efpic_failiem_cfg($config);
+        $headers = ['Accept: */*'];
+        $apiKey = (string) ($f['api_key'] ?? '');
+        if ($apiKey !== '') {
+            $headers[] = 'Authorization: Bearer ' . $apiKey;
+        }
+        $ch = curl_init($url);
+        if ($ch === false) {
+            return null;
+        }
+        $opts = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 300,
+            CURLOPT_HTTPHEADER => $headers,
+        ];
+        $user = (string) ($f['user'] ?? '');
+        $pass = (string) ($f['pass'] ?? '');
+        if ($user !== '' && $pass !== '') {
+            $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+        }
+        curl_setopt_array($ch, $opts);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        if ($body === false || $code < 200 || $code >= 300) {
+            return null;
+        }
+
+        return $body;
+    }
+
+    $ctx = stream_context_create(['http' => ['timeout' => 300, 'follow_location' => 1]]);
+    $data = @file_get_contents($url, false, $ctx);
+
+    return $data === false ? null : $data;
+}
+
 function efpic_failiem_redirect_media(array $config, string $fileHash, bool $thumb, int $width = 720): void
 {
     $url = $thumb

@@ -771,7 +771,15 @@ function efpic_can_download_size(array $meta, array $ctx, string $size): bool
         $allowed = ['web', 'zip'];
     }
 
-    return in_array($size, $allowed, true) || ($size === 'full' && in_array('full', $allowed, true));
+    if (in_array($size, $allowed, true)) {
+        return true;
+    }
+    // «zip» nozīmē arī pilna izmēra (PRINT) lejupielādi delivery galerijās.
+    if ($size === 'full' && (in_array('full', $allowed, true) || in_array('zip', $allowed, true))) {
+        return true;
+    }
+
+    return false;
 }
 
 /** Vai drīkst lejupielādēt visas galerijas bildes ZIP (nevis tikai izlasi). */

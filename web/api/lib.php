@@ -337,8 +337,8 @@ function efpic_gallery_defaults(string $type = 'live'): array
             'expires_at' => null,
             'downloads' => [
                 'main_client' => ['web', 'full', 'zip'],
-                'guest' => ['web', 'zip'],
-                'public' => ['web', 'zip'],
+                'guest' => ['web', 'full', 'zip'],
+                'public' => ['web', 'full', 'zip'],
             ],
             'disable_public_download_all_web' => false,
             'disable_public_download_all_full' => false,

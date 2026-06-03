@@ -7,8 +7,8 @@
     "hide_client_hidden_from_public": true,
     "downloads": {
       "main_client": ["web", "full", "zip"],
-      "guest": ["web", "zip"],
-      "public": ["web", "zip"]
+      "guest": ["web", "full", "zip"],
+      "public": ["web", "full", "zip"]
     }
   },
   "scenes": [
