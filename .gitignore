@@ -1,0 +1,10 @@
+# Servera secrets — tikai config.php (example.php ir gitā)
+web/config/config.php
+config/config.php
+web/storage/galleries/*
+!web/storage/galleries/.gitkeep
+web/storage/booth_events/*
+!web/storage/booth_events/.gitkeep
+web/storage/gallery_templates/*
+!web/storage/gallery_templates/.gitkeep
+!web/storage/access_index.json

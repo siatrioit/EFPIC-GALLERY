@@ -1,0 +1,10 @@
+---
+# Pēc katra «Pull» cPanel kopē kodu no repo mapes web/ uz dzīvo vietni.
+# VIENREIZ labojiet DEPLOYPATH uz savu absolūto ceļu (File Manager → klientiem mapes ceļš).
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home2/trioitlv/klientiem.edgarsfoto.lv
+    - /bin/cp -R web/api/* $DEPLOYPATH/api/
+    - /bin/cp -R web/public/* $DEPLOYPATH/public/
+    - /bin/cp -R web/storage/gallery_templates $DEPLOYPATH/storage/ 2>/dev/null || true
+    - test -f web/storage/access_index.json && /bin/cp -f web/storage/access_index.json $DEPLOYPATH/storage/ || true
