@@ -7,29 +7,30 @@ $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
 Set-Location $root
 
+$git = @('git', '-c', "safe.directory=$root")
+
 if (-not (Test-Path '.git')) {
-    Write-Error "Nav .git — vispirms palaidiet: git init && git commit"
+    Write-Error 'Nav .git - vispirms: git init, tad git commit'
 }
 
-$existing = git remote get-url origin 2>$null
+$existing = & $git[0] $git[1] $git[2] remote get-url origin 2>$null
 if ($LASTEXITCODE -eq 0) {
     Write-Host "Remote origin jau ir: $existing"
-    $ans = Read-Host "Aizstāt ar $RemoteUrl ? (y/n)"
+    $ans = Read-Host "Aizstat ar $RemoteUrl ? (y/n)"
     if ($ans -eq 'y') {
-        git remote set-url origin $RemoteUrl
+        & $git[0] $git[1] $git[2] remote set-url origin $RemoteUrl
     }
 } else {
-    git remote add origin $RemoteUrl
+    & $git[0] $git[1] $git[2] remote add origin $RemoteUrl
 }
 
-git branch -M main
-Write-Host "Push uz origin main..."
-git push -u origin main
+& $git[0] $git[1] $git[2] branch -M main
+Write-Host 'Push uz origin main...'
+& $git[0] $git[1] $git[2] push -u origin main
 if ($LASTEXITCODE -ne 0) {
-    Write-Host ""
-    Write-Host "Ja push atteicās: GitHub → Settings → Developer settings → Personal access token (repo)."
-    Write-Host "Vai piesakieties: git credential manager"
+    Write-Host ''
+    Write-Host 'Ja push atteicas: GitHub Personal Access Token (repo) vai git credential manager.'
     exit $LASTEXITCODE
 }
 
-Write-Host "Gatavs. cPanel → Git Version Control → Clone URL: $RemoteUrl"
+Write-Host "Gatavs. cPanel Git Version Control Clone URL: $RemoteUrl"
