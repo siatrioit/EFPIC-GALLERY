@@ -188,14 +188,29 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
     return $slug;
 }
 
-function efpic_admin_media_thumb_url(array $config, string $token): string
+function efpic_admin_media_thumb_url(array $config, array $img): string
 {
+    $hash = '';
+    if (is_array($img['failiem_web'] ?? null)) {
+        $hash = (string) ($img['failiem_web']['file_hash'] ?? '');
+    }
+    if ($hash === '' && is_array($img['failiem_full'] ?? null)) {
+        $hash = (string) ($img['failiem_full']['file_hash'] ?? '');
+    }
+    if ($hash !== '') {
+        return efpic_failiem_thumb_url($config, $hash, 120);
+    }
+    $token = (string) ($img['token'] ?? '');
+
     return efpic_base_url($config) . '/v/media/' . rawurlencode($token) . '?size=web&w=120';
 }
 
 function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?string $flash = null): void
 {
     $isEdit = $meta !== null && $slug !== null;
+    if ($isEdit) {
+        efpic_ensure_gallery_indexed($config, $slug, $meta);
+    }
     $failiem = is_array($meta) ? ($meta['failiem'] ?? []) : [];
     $sceneTitle = is_array($meta) && isset($meta['scenes'][0]['title']) ? (string) $meta['scenes'][0]['title'] : 'Galerija';
 
@@ -212,6 +227,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '</a></p>';
         $body .= '<p><strong>Klienta panelis:</strong> <a href="' . efpic_admin_esc(efpic_portal_url($config, $portal)) . '" target="_blank" rel="noopener">'
             . efpic_admin_esc(efpic_portal_url($config, $portal)) . '</a></p>';
+        if (efpic_gallery_has_password($meta)) {
+            $body .= '<p class="admin-warn">Galerijai ir <strong>parole</strong> — publiskajā saitē klientam tā jāievada, lai redzētu bildes.</p>';
+        }
         $stats = $failiem['sync_stats'] ?? null;
         if (is_array($stats)) {
             $body .= '<p class="muted">Sync: ' . (int) ($stats['paired'] ?? 0) . ' pāri';
@@ -260,7 +278,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
                 continue;
             }
             $tok = (string) ($img['token'] ?? '');
-            $body .= '<li data-token="' . efpic_admin_esc($tok) . '"><img src="' . efpic_admin_esc(efpic_admin_media_thumb_url($config, $tok)) . '" alt="" width="48" height="48"> '
+            $body .= '<li data-token="' . efpic_admin_esc($tok) . '"><img src="' . efpic_admin_esc(efpic_admin_media_thumb_url($config, $img)) . '" alt="" width="48" height="48" loading="lazy"> '
                 . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</li>';
         }
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';

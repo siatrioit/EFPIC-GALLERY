@@ -287,6 +287,38 @@ function efpic_compare_image_basenames(array $a, array $b): int
     return strnatcasecmp($na, $nb);
 }
 
+function efpic_admin_session_active(): bool
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        session_start();
+    }
+
+    return !empty($_SESSION['efpic_admin']);
+}
+
+/** Atjauno access_index, ja galerija vai bildes nav indeksā. */
+function efpic_ensure_gallery_indexed(array $config, string $slug, array $meta): void
+{
+    $index = efpic_load_access_index($config);
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    if ($gt !== '' && (($index['galleries'][$gt] ?? '') !== $slug)) {
+        efpic_rebuild_access_index($config);
+
+        return;
+    }
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '' && !isset($index['images'][$tok])) {
+            efpic_rebuild_access_index($config);
+
+            return;
+        }
+    }
+}
+
 function efpic_gallery_settings(array $meta): array
 {
     $s = $meta['settings'] ?? [];

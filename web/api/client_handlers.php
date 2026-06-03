@@ -205,6 +205,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     $meta = $found['meta'];
     $slug = $found['slug'];
+    efpic_ensure_gallery_indexed($config, $slug, $meta);
     $name = (string) ($meta['name'] ?? $slug);
 
     if (efpic_gallery_expired($meta)) {
@@ -366,13 +367,9 @@ function efpic_handle_client_media(array $config, string $imageToken): void
         $size = 'web';
     }
 
-    if (efpic_is_delivery_gallery($meta)) {
-        $img = $found['image'] ?? [];
-        $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
-        if ($hash === '') {
-            http_response_code(404);
-            exit;
-        }
+    $img = $found['image'] ?? [];
+    $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
+    if ($hash !== '') {
         $thumb = $size === 'web' || isset($_GET['w']);
         $w = (int) ($_GET['w'] ?? 720);
         efpic_failiem_redirect_media($config, $hash, $thumb, $w > 0 ? $w : 720);
@@ -391,6 +388,9 @@ function efpic_handle_client_media(array $config, string $imageToken): void
 
 function efpic_can_view_image_file(array $meta, string $imageToken): bool
 {
+    if (efpic_admin_session_active()) {
+        return true;
+    }
     if (!efpic_gallery_has_password($meta)) {
         return true;
     }
@@ -427,13 +427,9 @@ function efpic_handle_client_image_download(array $config, string $imageToken): 
         exit;
     }
 
-    if (efpic_is_delivery_gallery($meta)) {
-        $img = $found['image'] ?? [];
-        $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
-        if ($hash === '') {
-            http_response_code(404);
-            exit;
-        }
+    $img = $found['image'] ?? [];
+    $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
+    if ($hash !== '') {
         $name = is_array($img) ? (string) ($img['basename'] ?? 'image.jpg') : 'image.jpg';
         header('Location: ' . efpic_failiem_download_url($config, $hash), true, 302);
         header('Content-Disposition: attachment; filename="' . basename($name) . '"');

@@ -117,6 +117,14 @@
   margin-bottom: 16px;
 }
 
+.admin-warn {
+  padding: 10px 14px;
+  background: #fffbeb;
+  color: #92400e;
+  border-radius: 8px;
+  margin: 0 0 12px;
+}
+
 .admin-links {
   background: #fff;
   padding: 14px;
