@@ -169,7 +169,33 @@ function efpic_failiem_thumb_url(array $config, string $fileHash, int $width = 7
 
 function efpic_failiem_download_url(array $config, string $fileHash): string
 {
-    return efpic_failiem_cdn_base($config) . '/down.php?i=' . rawurlencode($fileHash);
+    $candidates = efpic_failiem_download_url_candidates($config, $fileHash);
+
+    return $candidates[0];
+}
+
+/** @return list<string> */
+function efpic_failiem_download_url_candidates(array $config, string $fileHash): array
+{
+    $hash = rawurlencode($fileHash);
+
+    return [
+        efpic_failiem_cdn_base($config) . '/down.php?i=' . $hash,
+        efpic_failiem_api_base($config) . '/down.php?i=' . $hash,
+    ];
+}
+
+/** Lejupielādē faila saturu no Failiem pēc file hash. */
+function efpic_failiem_fetch_file(array $config, string $fileHash): ?string
+{
+    foreach (efpic_failiem_download_url_candidates($config, $fileHash) as $url) {
+        $data = efpic_failiem_fetch_binary($config, $url);
+        if ($data !== null && $data !== '') {
+            return $data;
+        }
+    }
+
+    return null;
 }
 
 /** Lejupielādē faila saturu no Failiem (curl, ja file_get_contents bloķēts). */
@@ -177,7 +203,10 @@ function efpic_failiem_fetch_binary(array $config, string $url): ?string
 {
     if (function_exists('curl_init')) {
         $f = efpic_failiem_cfg($config);
-        $headers = ['Accept: */*'];
+        $headers = [
+            'Accept: */*',
+            'User-Agent: EFPIC-Gallery/1.0',
+        ];
         $apiKey = (string) ($f['api_key'] ?? '');
         if ($apiKey !== '') {
             $headers[] = 'Authorization: Bearer ' . $apiKey;
@@ -189,7 +218,8 @@ function efpic_failiem_fetch_binary(array $config, string $url): ?string
         $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => true,
-            CURLOPT_TIMEOUT => 300,
+            CURLOPT_TIMEOUT => 600,
+            CURLOPT_CONNECTTIMEOUT => 30,
             CURLOPT_HTTPHEADER => $headers,
         ];
         $user = (string) ($f['user'] ?? '');
@@ -208,7 +238,13 @@ function efpic_failiem_fetch_binary(array $config, string $url): ?string
         return $body;
     }
 
-    $ctx = stream_context_create(['http' => ['timeout' => 300, 'follow_location' => 1]]);
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 600,
+            'follow_location' => 1,
+            'header' => "User-Agent: EFPIC-Gallery/1.0\r\nAccept: */*\r\n",
+        ],
+    ]);
     $data = @file_get_contents($url, false, $ctx);
 
     return $data === false ? null : $data;

@@ -11,8 +11,16 @@ function efpic_zip_supported(): bool
 /**
  * @param callable(callable(string, string): void): void $populate
  */
-function efpic_zip_build_file(string $zipPath, callable $populate): bool
+function efpic_zip_build_file(string $zipPath, callable $populate, ?int &$entryCount = null): bool
 {
+    $count = 0;
+    $trackAdd = static function (callable $add) use (&$count): callable {
+        return static function (string $name, string $data) use ($add, &$count): void {
+            $add($name, $data);
+            $count++;
+        };
+    };
+
     if (class_exists('ZipArchive')) {
         $zip = new ZipArchive();
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
@@ -21,19 +29,25 @@ function efpic_zip_build_file(string $zipPath, callable $populate): bool
         $add = static function (string $name, string $data) use ($zip): void {
             $zip->addFromString(str_replace('\\', '/', $name), $data);
         };
-        $populate($add);
+        $populate($trackAdd($add));
         $zip->close();
+        if ($entryCount !== null) {
+            $entryCount = $count;
+        }
 
-        return is_file($zipPath) && filesize($zipPath) > 0;
+        return $count > 0 && is_file($zipPath) && filesize($zipPath) > 0;
     }
 
     $writer = new EfpicPureZipWriter($zipPath);
     $add = static function (string $name, string $data) use ($writer): void {
         $writer->addFromString($name, $data);
     };
-    $populate($add);
+    $populate($trackAdd($add));
+    if ($entryCount !== null) {
+        $entryCount = $count;
+    }
 
-    return $writer->finish();
+    return $count > 0 && $writer->finish();
 }
 
 final class EfpicPureZipWriter

@@ -168,8 +168,7 @@ function efpic_zip_populate_delivery_images(
             if ($hash === '') {
                 continue;
             }
-            $url = efpic_failiem_download_url($config, $hash);
-            $data = efpic_failiem_fetch_binary($config, $url);
+            $data = efpic_failiem_fetch_file($config, $hash);
             if ($data === null) {
                 continue;
             }
@@ -1120,6 +1119,86 @@ function efpic_handle_client_image_download(array $config, string $imageToken): 
     exit;
 }
 
+function efpic_client_zip_filename(string $slug, string $size, string $scope): string
+{
+    if ($scope === 'collection') {
+        return $slug . '-izlase-' . $size . '.zip';
+    }
+
+    return $slug . '-' . $size . '.zip';
+}
+
+function efpic_client_zip_prepare_response(
+    array $config,
+    array $found,
+    array $meta,
+    array $ctx,
+    string $size,
+    string $scope
+): void {
+    $slug = (string) ($found['slug'] ?? 'galerija');
+    $filename = efpic_client_zip_filename($slug, $size, $scope);
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $guest = (string) ($ctx['guest_token'] ?? '');
+    $galleryUrl = efpic_gallery_view_url($config, $gt, $guest !== '' ? $guest : null);
+    $path = $scope === 'collection' ? '/collection/zip' : '/download.zip';
+
+    if ($scope === 'all' && $size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
+        $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
+        if ($folderHash !== '') {
+            efpic_json_response(200, [
+                'ok' => true,
+                'mode' => 'failiem',
+                'url' => efpic_failiem_folder_zip_url($config, $folderHash),
+                'filename' => $filename,
+                'hint' => 'Failiem sagatavo ZIP — lielām galerijām tas var aizņemt vairākas minūtes.',
+            ]);
+        }
+    }
+
+    efpic_json_response(200, [
+        'ok' => true,
+        'mode' => 'server',
+        'url' => $galleryUrl . $path . '?size=' . rawurlencode($size),
+        'filename' => $filename,
+        'hint' => 'ZIP tiek gatavots…',
+    ]);
+}
+
+function efpic_client_build_delivery_zip(
+    array $config,
+    array $found,
+    array $meta,
+    array $images,
+    string $size,
+    string $filename
+): void {
+    if (!efpic_zip_supported()) {
+        http_response_code(501);
+        echo 'ZIP nav pieejams serverī';
+        exit;
+    }
+
+    $zipPath = sys_get_temp_dir() . '/efpic_' . bin2hex(random_bytes(8)) . '.zip';
+    $entryCount = 0;
+    $ok = efpic_zip_build_file($zipPath, function (callable $add) use ($config, $meta, $images, $size, $found): void {
+        if (efpic_is_delivery_gallery($meta)) {
+            efpic_zip_populate_delivery_images($add, $config, $meta, $images, $size);
+        } else {
+            efpic_zip_populate_live_images($add, $found['dir'], $images);
+        }
+    }, $entryCount);
+
+    if (!$ok || $entryCount === 0) {
+        @unlink($zipPath);
+        http_response_code(500);
+        echo 'Neizdevās lejupielādēt bildes no Failiem (0 faili ZIP). Pārbaudi servera savienojumu ar failiem.lv.';
+        exit;
+    }
+
+    efpic_client_send_zip_download($zipPath, $filename);
+}
+
 function efpic_handle_client_gallery_zip(array $config, string $galleryToken): void
 {
     @set_time_limit(0);
@@ -1150,41 +1229,21 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
         exit;
     }
 
-    $filename = $found['slug'] . '-' . $size . '.zip';
+    $filename = efpic_client_zip_filename($found['slug'], $size, 'all');
+
+    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'all');
+    }
+
     if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
         if ($folderHash !== '') {
-            header('Content-Type: application/zip');
-            header('Content-Disposition: attachment; filename="' . $filename . '"');
-            header('Cache-Control: no-store');
-            if (efpic_failiem_stream_folder_zip($config, $folderHash, $filename)) {
-                exit;
-            }
+            header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
+            exit;
         }
     }
 
-    if (!efpic_zip_supported()) {
-        http_response_code(501);
-        echo 'ZIP nav pieejams serverī';
-        exit;
-    }
-
-    $zipPath = sys_get_temp_dir() . '/efpic_' . bin2hex(random_bytes(8)) . '.zip';
-    $ok = efpic_zip_build_file($zipPath, function (callable $add) use ($config, $meta, $images, $size, $found): void {
-        if (efpic_is_delivery_gallery($meta)) {
-            efpic_zip_populate_delivery_images($add, $config, $meta, $images, $size);
-        } else {
-            efpic_zip_populate_live_images($add, $found['dir'], $images);
-        }
-    });
-    if (!$ok) {
-        @unlink($zipPath);
-        http_response_code(500);
-        echo 'Neizdevās izveidot ZIP arhīvu';
-        exit;
-    }
-
-    efpic_client_send_zip_download($zipPath, $filename);
+    efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }
 
 function efpic_client_collection_images(array $meta, array $ctx, string $galleryToken): array
@@ -1285,26 +1344,11 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
         exit;
     }
 
-    if (!efpic_zip_supported()) {
-        http_response_code(501);
-        echo 'ZIP nav pieejams serverī';
-        exit;
+    $filename = efpic_client_zip_filename($found['slug'], $size, 'collection');
+
+    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'collection');
     }
 
-    $zipPath = sys_get_temp_dir() . '/efpic_col_' . bin2hex(random_bytes(8)) . '.zip';
-    $ok = efpic_zip_build_file($zipPath, function (callable $add) use ($config, $meta, $images, $size, $found): void {
-        if (efpic_is_delivery_gallery($meta)) {
-            efpic_zip_populate_delivery_images($add, $config, $meta, $images, $size);
-        } else {
-            efpic_zip_populate_live_images($add, $found['dir'], $images);
-        }
-    });
-    if (!$ok) {
-        @unlink($zipPath);
-        http_response_code(500);
-        echo 'Neizdevās izveidot ZIP arhīvu';
-        exit;
-    }
-
-    efpic_client_send_zip_download($zipPath, $found['slug'] . '-izlase-' . $size . '.zip');
+    efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }
