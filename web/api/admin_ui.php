@@ -181,6 +181,7 @@ function efpic_admin_render_image_scene_toolbar(array $meta): string
     $html .= '<button type="button" class="btn admin-btn-inline" id="admin-select-all-images">Atlasīt visas</button>';
     $html .= '<button type="button" class="btn admin-btn-inline" id="admin-clear-image-selection">Noņemt atlasi</button>';
     $html .= '<button type="submit" class="btn admin-btn-inline" name="rebaseline_scene_sort" value="1" formnovalidate>Kārtot pēc nosaukuma (sadaļās)</button>';
+    $html .= '<span class="muted admin-sort-hint">Ja secība šķiet nepareiza, spied šo pogu un Saglabāt.</span>';
     $html .= '</div>';
     $html .= '<div class="admin-scene-filter" id="admin-scene-filter" role="group" aria-label="Filtrēt bildes">';
     $html .= '<button type="button" class="btn admin-scene-filter-btn is-active" data-scene-filter="all">Visas (' . $total . ')</button>';
@@ -652,6 +653,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         if (!empty($_POST['rebaseline_scene_sort'])) {
             efpic_rebaseline_auto_scene_sorts($meta);
         }
+        efpic_normalize_gallery_image_sorts($meta);
         efpic_save_gallery_meta($config, $slug, $meta);
     }
 
@@ -659,7 +661,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         efpic_sync_delivery_gallery($config, $slug);
     }
 
-    if (!empty($_POST['image_order']) && is_string($_POST['image_order'])) {
+    if (!empty($_POST['image_order_dirty']) && !empty($_POST['image_order']) && is_string($_POST['image_order'])) {
         $tokens = array_filter(array_map('trim', explode(',', $_POST['image_order'])));
         if ($tokens !== []) {
             efpic_update_delivery_image_order($config, $slug, $tokens);
@@ -698,6 +700,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $formMeta = is_array($meta) ? $meta : [];
     if ($isEdit) {
         efpic_ensure_gallery_indexed($config, $slug, $meta);
+        efpic_normalize_gallery_image_sorts($meta);
     }
     $failiem = $formMeta['failiem'] ?? [];
     if (!is_array($failiem)) {
@@ -837,6 +840,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= '<span class="admin-sort-name">' . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</span></li>';
         }
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';
+        $body .= '<input type="hidden" name="image_order_dirty" id="image_order_dirty" value="0">';
         $body .= '</fieldset>';
         $body .= '<div id="admin-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
         $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';

@@ -187,7 +187,130 @@
         titleInput.select();
       }
     });
-    initSceneDrag();
+  }
+
+  function setupSceneDragOnce() {
+    if (!scenesEditor || scenesEditor.dataset.dragBound === '1') {
+      return;
+    }
+    scenesEditor.dataset.dragBound = '1';
+
+    var dragRow = null;
+    var dragGhost = null;
+    var dragGrip = null;
+    var dragRaf = 0;
+    var dragX = 0;
+    var dragY = 0;
+    var dragInsertKey = '';
+
+    function removeGhost() {
+      if (dragGhost && dragGhost.parentNode) {
+        dragGhost.parentNode.removeChild(dragGhost);
+      }
+      dragGhost = null;
+    }
+
+    function positionGhost() {
+      if (!dragGhost) return;
+      dragGhost.style.transform = 'translate(' + (dragX + 14) + 'px,' + (dragY + 14) + 'px)';
+    }
+
+    function finishDrag() {
+      if (!dragRow) return;
+      dragRow.classList.remove('dragging');
+      dragRow.style.pointerEvents = '';
+      dragRow = null;
+      dragGrip = null;
+      dragInsertKey = '';
+      removeGhost();
+      if (dragRaf) {
+        cancelAnimationFrame(dragRaf);
+        dragRaf = 0;
+      }
+      var list = readScenesFromDom();
+      persistScenesJson(list);
+      syncSceneSelects(list);
+    }
+
+    function moveDragRow() {
+      if (!dragRow) return;
+      dragRow.style.pointerEvents = 'none';
+      var probeX = Math.min(window.innerWidth - 8, Math.max(8, dragX));
+      var el = document.elementFromPoint(probeX, dragY);
+      var target = el && el.closest ? el.closest('.admin-scene-row') : null;
+      if (!target || target === dragRow || !scenesEditor.contains(target)) return;
+      var rect = target.getBoundingClientRect();
+      var after = dragY > rect.top + rect.height / 2;
+      var targetId = target.getAttribute('data-id') || '';
+      var insertKey = targetId + ':' + (after ? '1' : '0');
+      if (insertKey === dragInsertKey) return;
+      dragInsertKey = insertKey;
+      if (after) {
+        scenesEditor.insertBefore(dragRow, target.nextSibling);
+      } else {
+        scenesEditor.insertBefore(dragRow, target);
+      }
+    }
+
+    function onDragFrame() {
+      dragRaf = 0;
+      positionGhost();
+      moveDragRow();
+    }
+
+    function scheduleDragFrame() {
+      if (dragRaf) return;
+      dragRaf = requestAnimationFrame(onDragFrame);
+    }
+
+    scenesEditor.addEventListener('pointerdown', function (e) {
+      var grip = e.target.closest ? e.target.closest('.admin-scene-drag') : null;
+      if (!grip || e.button !== 0) return;
+      dragRow = grip.closest('.admin-scene-row');
+      if (!dragRow) return;
+      e.preventDefault();
+      dragGrip = grip;
+      dragX = e.clientX;
+      dragY = e.clientY;
+      dragInsertKey = '';
+      dragRow.classList.add('dragging');
+      dragRow.style.pointerEvents = 'none';
+      removeGhost();
+      dragGhost = document.createElement('div');
+      dragGhost.className = 'admin-scene-drag-ghost';
+      var titleEl = dragRow.querySelector('.admin-scene-title-input');
+      dragGhost.textContent = titleEl && titleEl.value ? titleEl.value : 'Galerijas sadaļa';
+      document.body.appendChild(dragGhost);
+      positionGhost();
+      try {
+        grip.setPointerCapture(e.pointerId);
+      } catch (err) {
+        /* ignore */
+      }
+    });
+
+    scenesEditor.addEventListener('pointermove', function (e) {
+      if (!dragRow || !dragGrip) return;
+      dragX = e.clientX;
+      dragY = e.clientY;
+      scheduleDragFrame();
+    });
+
+    scenesEditor.addEventListener('pointerup', function (e) {
+      if (!dragRow) return;
+      if (dragGrip) {
+        try {
+          dragGrip.releasePointerCapture(e.pointerId);
+        } catch (err) {
+          /* ignore */
+        }
+      }
+      finishDrag();
+    });
+
+    scenesEditor.addEventListener('pointercancel', function () {
+      finishDrag();
+    });
   }
 
   function moveSceneRow(fromIndex, delta) {
@@ -201,131 +324,9 @@
     syncSceneSelects(list);
   }
 
-  function initSceneDrag() {
-    if (!scenesEditor) return;
-    var dragRow = null;
-    var activeGrip = null;
-    var dragGhost = null;
-
-    function removeGhost() {
-      if (dragGhost && dragGhost.parentNode) {
-        dragGhost.parentNode.removeChild(dragGhost);
-      }
-      dragGhost = null;
-    }
-
-    function positionGhost(clientX, clientY) {
-      if (!dragGhost) return;
-      dragGhost.style.left = clientX + 12 + 'px';
-      dragGhost.style.top = clientY + 12 + 'px';
-    }
-
-    function finishDrag(e) {
-      if (!dragRow) return;
-      var grip = activeGrip;
-      dragRow.classList.remove('dragging');
-      dragRow.style.pointerEvents = '';
-      dragRow = null;
-      activeGrip = null;
-      removeGhost();
-      if (e && grip && grip.releasePointerCapture) {
-        try {
-          grip.releasePointerCapture(e.pointerId);
-        } catch (err) {
-          /* ignore */
-        }
-      }
-      var list = readScenesFromDom();
-      persistScenesJson(list);
-      syncSceneSelects(list);
-    }
-
-    function moveDragRow(clientY) {
-      if (!dragRow) return;
-      dragRow.style.pointerEvents = 'none';
-      var el = document.elementFromPoint(
-        dragRow.getBoundingClientRect().left + Math.min(dragRow.offsetWidth / 2, 120),
-        clientY
-      );
-      var target = el && el.closest ? el.closest('.admin-scene-row') : null;
-      if (!target || target === dragRow || !scenesEditor.contains(target)) return;
-      var rect = target.getBoundingClientRect();
-      var after = clientY > rect.top + rect.height / 2;
-      if (after) {
-        scenesEditor.insertBefore(dragRow, target.nextSibling);
-      } else {
-        scenesEditor.insertBefore(dragRow, target);
-      }
-    }
-
-    function startDrag(row, grip, clientX, clientY, pointerId) {
-      dragRow = row;
-      activeGrip = grip;
-      row.classList.add('dragging');
-      row.style.pointerEvents = 'none';
-      dragGhost = row.cloneNode(true);
-      dragGhost.classList.add('admin-scene-drag-ghost');
-      dragGhost.classList.remove('dragging');
-      dragGhost.style.pointerEvents = 'none';
-      document.body.appendChild(dragGhost);
-      positionGhost(clientX, clientY);
-      if (typeof pointerId === 'number' && grip.setPointerCapture) {
-        try {
-          grip.setPointerCapture(pointerId);
-        } catch (err) {
-          /* ignore */
-        }
-      }
-      moveDragRow(clientY);
-    }
-
-    scenesEditor.querySelectorAll('.admin-scene-row').forEach(function (row) {
-      var grip = row.querySelector('.admin-scene-drag');
-      if (!grip) return;
-
-      grip.addEventListener('pointerdown', function (e) {
-        if (e.button !== 0) return;
-        e.preventDefault();
-        startDrag(row, grip, e.clientX, e.clientY, e.pointerId);
-      });
-
-      grip.addEventListener('pointermove', function (e) {
-        if (!dragRow || dragRow !== row) return;
-        e.preventDefault();
-        positionGhost(e.clientX, e.clientY);
-        moveDragRow(e.clientY);
-      });
-
-      grip.addEventListener('pointerup', function (e) {
-        if (dragRow !== row) return;
-        e.preventDefault();
-        finishDrag(e);
-      });
-
-      grip.addEventListener('pointercancel', function (e) {
-        if (dragRow !== row) return;
-        finishDrag(e);
-      });
-
-      grip.addEventListener('dragstart', function (e) {
-        e.preventDefault();
-      });
-    });
-
-    document.addEventListener('mousemove', function (e) {
-      if (!dragRow || e.buttons !== 1) return;
-      positionGhost(e.clientX, e.clientY);
-      moveDragRow(e.clientY);
-    });
-
-    document.addEventListener('mouseup', function () {
-      if (!dragRow) return;
-      finishDrag(null);
-    });
-  }
-
   if (scenesEditor) {
     renderScenes(readScenes());
+    setupSceneDragOnce();
     if (addSceneBtn) {
       addSceneBtn.addEventListener('click', function () {
         var scenes = readScenesFromDom();
@@ -602,8 +603,13 @@
 
   var list = document.getElementById('sortable');
   var input = document.getElementById('image_order');
+  var orderDirty = document.getElementById('image_order_dirty');
   if (list && input) {
     var dragEl = null;
+
+    function markOrderDirty() {
+      if (orderDirty) orderDirty.value = '1';
+    }
 
     function syncOrder() {
       var tokens = [];
@@ -637,6 +643,7 @@
         li.classList.remove('dragging');
         dragEl = null;
         syncOrder();
+        markOrderDirty();
       });
       li.addEventListener('dragover', function (e) {
         e.preventDefault();

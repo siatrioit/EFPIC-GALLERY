@@ -412,7 +412,11 @@ function efpic_apply_image_scenes_from_post(array &$meta): void
             $oldSid = (string) ($meta['images'][$i]['scene_id'] ?? 'main');
             if ($oldSid !== $sid) {
                 $meta['images'][$i]['scene_id'] = $sid;
-                efpic_assign_image_sort_in_scene_by_basename($meta, $i);
+                if (!empty($meta['images'][$i]['sort_manual'])) {
+                    efpic_assign_image_sort_in_scene_by_basename($meta, $i);
+                } else {
+                    unset($meta['images'][$i]['sort'], $meta['images'][$i]['sort_manual']);
+                }
             } else {
                 $meta['images'][$i]['scene_id'] = $sid;
             }

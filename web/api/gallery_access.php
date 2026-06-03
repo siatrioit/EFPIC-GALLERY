@@ -84,9 +84,18 @@ function efpic_compare_images_in_scene(array $a, array $b): int
     if (!is_array($a) || !is_array($b)) {
         return 0;
     }
-    $cmp = ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0));
-    if ($cmp !== 0) {
-        return $cmp;
+    $manualA = !empty($a['sort_manual']);
+    $manualB = !empty($b['sort_manual']);
+    if ($manualA && $manualB) {
+        $cmp = ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0));
+        if ($cmp !== 0) {
+            return $cmp;
+        }
+
+        return efpic_compare_image_basenames($a, $b);
+    }
+    if ($manualA !== $manualB) {
+        return $manualA ? -1 : 1;
     }
 
     return efpic_compare_image_basenames($a, $b);
@@ -165,9 +174,29 @@ function efpic_rebaseline_auto_scene_sorts(array &$meta): void
         if (!is_array($img) || !empty($img['sort_manual'])) {
             continue;
         }
-        $meta['images'][$i]['sort'] = 0;
+        unset($meta['images'][$i]['sort'], $meta['images'][$i]['sort_manual']);
     }
-    efpic_reconcile_auto_scene_sorts($meta);
+}
+
+/** Noņem vecos globālos sort laukus, ja nav manuālas kārtības. */
+function efpic_normalize_gallery_image_sorts(array &$meta): void
+{
+    $hasManual = false;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && !empty($img['sort_manual'])) {
+            $hasManual = true;
+            break;
+        }
+    }
+    if ($hasManual) {
+        return;
+    }
+    foreach ($meta['images'] ?? [] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        unset($meta['images'][$i]['sort'], $meta['images'][$i]['sort_manual']);
+    }
 }
 
 function efpic_count_favorites(array $meta, string $who): int

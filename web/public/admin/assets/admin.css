@@ -561,13 +561,17 @@
   z-index: 600;
   left: 0;
   top: 0;
-  width: min(520px, calc(100vw - 24px));
+  max-width: min(420px, calc(100vw - 24px));
+  padding: 12px 18px;
   pointer-events: none;
-  opacity: 0.94;
+  opacity: 0.96;
   box-shadow: 0 12px 40px rgba(20, 20, 20, 0.22);
   border: 2px solid var(--admin-accent);
   background: var(--admin-surface);
   border-radius: var(--admin-radius);
+  font-weight: 600;
+  font-size: 0.95rem;
+  will-change: transform;
 }
 
 .admin-scene-row.dragging {
@@ -1082,6 +1086,11 @@
   align-items: center;
   gap: 10px;
   margin-bottom: 12px;
+}
+
+.admin-sort-hint {
+  font-size: 0.82rem;
+  flex: 1 1 200px;
 }
 
 .admin-pick-count {
