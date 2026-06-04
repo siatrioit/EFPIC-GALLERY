@@ -333,12 +333,48 @@
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
     var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
-    var loadingHint =
-      window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1'
-        ? 'Sagatavo Failiem ZIP…'
-        : 'Failiem sagatavo ZIP no redzamajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — lūdzu uzgaidiet.';
-    openZipProgressLoading(loadingTitle, loadingHint);
-    triggerBrowserDownload(downloadUrl);
+    var usesFolderZip =
+      scope === 'all' &&
+      (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1');
+
+    if (usesFolderZip) {
+      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIP…');
+      triggerBrowserDownload(downloadUrl);
+      return;
+    }
+
+    openZipProgressLoading(
+      loadingTitle,
+      'Failiem sagatavo ZIP no redzamajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — neaizveriet šo logu.'
+    );
+    fetch(downloadUrl + '&prepare=1', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok || !data || !data.ok) {
+            throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
+          }
+          return data;
+        });
+      })
+      .then(function (data) {
+        if (data.mode === 'failiem' && data.url) {
+          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
+          triggerBrowserDownload(data.url);
+          return;
+        }
+        if (data.mode === 'stream_ready') {
+          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
+          triggerBrowserDownload(downloadUrl + '&dl=1');
+          return;
+        }
+        throw new Error('Neatbalstīts lejupielādes režīms');
+      })
+      .catch(function (err) {
+        showZipProgressError(humanZipError(err && err.message ? err.message : ''));
+      });
   }
 
   function zipFilenameFor(scope, size) {

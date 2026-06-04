@@ -451,24 +451,64 @@ function efpic_failiem_register_selected_zip(
     return null;
 }
 
+function efpic_failiem_prepared_zip_session_key(string $galleryToken, string $scope, string $size): string
+{
+    return 'efpic_failiem_zip_' . hash('sha256', $galleryToken . '|' . $scope . '|' . $size);
+}
+
+/** @param array{stream_url: string, cookie_file: string} $reg */
+function efpic_failiem_stash_prepared_zip(
+    string $galleryToken,
+    string $scope,
+    string $size,
+    array $reg,
+    string $filename
+): void {
+    efpic_client_session_start();
+    $cookiePath = sys_get_temp_dir() . '/efpic_zip_ck_' . bin2hex(random_bytes(8)) . '.txt';
+    $cookieSrc = $reg['cookie_file'];
+    if (is_readable($cookieSrc)) {
+        @copy($cookieSrc, $cookiePath);
+        @unlink($cookieSrc);
+    }
+    $_SESSION[efpic_failiem_prepared_zip_session_key($galleryToken, $scope, $size)] = [
+        'stream_url' => $reg['stream_url'],
+        'cookie_path' => $cookiePath,
+        'filename' => $filename,
+        'expires' => time() + 900,
+    ];
+}
+
+function efpic_failiem_take_prepared_zip(string $galleryToken, string $scope, string $size): ?array
+{
+    efpic_client_session_start();
+    $key = efpic_failiem_prepared_zip_session_key($galleryToken, $scope, $size);
+    $data = $_SESSION[$key] ?? null;
+    unset($_SESSION[$key]);
+    if (!is_array($data) || (int) ($data['expires'] ?? 0) < time()) {
+        if (is_array($data) && is_string($data['cookie_path'] ?? null)) {
+            @unlink($data['cookie_path']);
+        }
+
+        return null;
+    }
+
+    return $data;
+}
+
 /**
- * Straumē atlasīto failu ZIP no Failiem (ar reģistrācijas sesiju).
- *
- * @param list<string> $fileHashes
+ * Straumē no sagatavotas Failiem ZIP sesijas; HTTP galvenes tikai pēc pirmā baita.
  */
-function efpic_failiem_stream_selected_zip(
-    array $config,
-    string $folderHash,
-    array $fileHashes,
-    bool $webSize = false
-): bool {
-    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes, $webSize);
-    if ($reg === null) {
+function efpic_failiem_stream_prepared_zip(array $config, array $prepared): bool
+{
+    $streamUrl = (string) ($prepared['stream_url'] ?? '');
+    $cookieFile = (string) ($prepared['cookie_path'] ?? '');
+    $filename = (string) ($prepared['filename'] ?? 'galerija.zip');
+    if ($streamUrl === '' || $cookieFile === '' || !is_readable($cookieFile)) {
         return false;
     }
 
-    $streamUrl = $reg['stream_url'];
-    $cookieFile = $reg['cookie_file'];
+    $safeName = str_replace(['"', "\r", "\n"], '', $filename);
     $f = efpic_failiem_cfg($config);
     $curlHeaders = ['Accept: application/zip'];
     $apiKey = (string) ($f['api_key'] ?? '');
@@ -476,7 +516,10 @@ function efpic_failiem_stream_selected_zip(
         $curlHeaders[] = 'Authorization: Bearer ' . $apiKey;
     }
 
+    $headersSent = false;
+    $totalBytes = 0;
     $ok = false;
+
     if (function_exists('curl_init')) {
         $ch = curl_init($streamUrl);
         if ($ch !== false) {
@@ -486,14 +529,30 @@ function efpic_failiem_stream_selected_zip(
                 CURLOPT_HTTPHEADER => $curlHeaders,
                 CURLOPT_COOKIEJAR => $cookieFile,
                 CURLOPT_COOKIEFILE => $cookieFile,
-                CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk): int {
-                    echo $chunk;
-                    if (function_exists('ob_get_level') && ob_get_level() > 0) {
-                        @ob_flush();
+                CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (
+                    &$headersSent,
+                    &$totalBytes,
+                    $safeName
+                ): int {
+                    $len = strlen($chunk);
+                    if ($len > 0) {
+                        if (!$headersSent) {
+                            while (ob_get_level() > 0) {
+                                ob_end_clean();
+                            }
+                            header('Content-Type: application/zip');
+                            header('Content-Disposition: attachment; filename="' . $safeName . '"');
+                            $headersSent = true;
+                        }
+                        echo $chunk;
+                        if (function_exists('ob_get_level') && ob_get_level() > 0) {
+                            @ob_flush();
+                        }
+                        flush();
+                        $totalBytes += $len;
                     }
-                    flush();
 
-                    return strlen($chunk);
+                    return $len;
                 },
             ];
             $user = (string) ($f['user'] ?? '');
@@ -505,13 +564,39 @@ function efpic_failiem_stream_selected_zip(
             curl_exec($ch);
             $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
             curl_close($ch);
-            $ok = $code >= 200 && $code < 300;
+            $ok = $code >= 200 && $code < 300 && $totalBytes > 0;
         }
     }
 
     @unlink($cookieFile);
 
     return $ok;
+}
+
+/**
+ * Straumē atlasīto failu ZIP no Failiem (ar reģistrācijas sesiju).
+ *
+ * @param list<string> $fileHashes
+ */
+function efpic_failiem_stream_selected_zip(
+    array $config,
+    string $folderHash,
+    array $fileHashes,
+    bool $webSize = false,
+    string $filename = 'galerija.zip'
+): bool {
+    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes, $webSize);
+    if ($reg === null) {
+        return false;
+    }
+
+    $prepared = [
+        'stream_url' => $reg['stream_url'],
+        'cookie_path' => $reg['cookie_file'],
+        'filename' => $filename,
+    ];
+
+    return efpic_failiem_stream_prepared_zip($config, $prepared);
 }
 
 /**
