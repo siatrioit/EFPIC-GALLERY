@@ -68,7 +68,7 @@ function efpic_videos_grouped_by_scene(array $meta): array
  *
  * @return list<array{id: string, title: string, sort: int}>
  */
-function efpic_gallery_scenes_with_content(array $meta, array $images, bool $countVideos = true): array
+function efpic_gallery_scenes_with_content(array $meta, array $images): array
 {
     $bySceneImages = [];
     foreach ($images as $img) {
@@ -79,14 +79,12 @@ function efpic_gallery_scenes_with_content(array $meta, array $images, bool $cou
         $bySceneImages[$sid] = true;
     }
     $bySceneVideos = [];
-    if ($countVideos) {
-        foreach ($meta['videos'] ?? [] as $video) {
-            if (!is_array($video)) {
-                continue;
-            }
-            $sid = (string) ($video['scene_id'] ?? 'main');
-            $bySceneVideos[$sid] = true;
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video)) {
+            continue;
         }
+        $sid = (string) ($video['scene_id'] ?? 'main');
+        $bySceneVideos[$sid] = true;
     }
 
     $out = [];
@@ -951,14 +949,14 @@ function efpic_update_share_set_meta(array &$meta, string $guestToken, bool $inc
     throw new InvalidArgumentException('Izlase nav atrasta.');
 }
 
-function efpic_apply_share_actions_from_post(array &$meta, string $createdBy = 'admin'): void
+function efpic_admin_apply_share_actions_from_post(array &$meta): void
 {
     $action = trim((string) ($_POST['share_action'] ?? ''));
     if ($action === 'create') {
         $label = trim((string) ($_POST['share_set_label'] ?? ''));
         $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
         $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
-        efpic_create_share_set($meta, $label, $tokens, $createdBy, !empty($_POST['share_include_videos']));
+        efpic_create_share_set($meta, $label, $tokens, 'admin', !empty($_POST['share_include_videos']));
 
         return;
     }
@@ -986,12 +984,6 @@ function efpic_apply_share_actions_from_post(array &$meta, string $createdBy = '
         $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
         efpic_update_share_set_meta($meta, $guestToken, !empty($_POST['share_include_videos']));
     }
-}
-
-/** @deprecated Use efpic_apply_share_actions_from_post() */
-function efpic_admin_apply_share_actions_from_post(array &$meta): void
-{
-    efpic_apply_share_actions_from_post($meta, 'admin');
 }
 
 function efpic_share_set_image_count(array $guest): int

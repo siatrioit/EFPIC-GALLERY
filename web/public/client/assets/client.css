@@ -1571,63 +1571,6 @@ input[type="password"] {
   background: var(--surface);
 }
 
-.portal-share-set-foot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px 12px;
-  margin-top: 8px;
-}
-
-.portal-link-row {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  max-width: 100%;
-  min-width: 0;
-}
-
-.portal-link-row__url {
-  font-size: 0.82rem;
-  color: var(--accent, #1a4fad);
-  text-decoration: none;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: min(100%, 360px);
-}
-
-.portal-link-row__url:hover {
-  text-decoration: underline;
-}
-
-.portal-link-row__actions {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex-shrink: 0;
-}
-
-.portal-link-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--surface);
-  color: var(--muted);
-  cursor: pointer;
-}
-
-.portal-link-btn:hover {
-  background: var(--bg);
-  color: var(--text);
-}
-
 .portal-share-pick-label {
   position: absolute;
   top: 8px;
@@ -1782,6 +1725,8 @@ input[type="password"] {
 .gallery-video-file video {
   width: 100%;
   max-height: 70vh;
+  aspect-ratio: 16 / 9;
+  object-fit: contain;
   border-radius: 10px;
   background: #111;
 }

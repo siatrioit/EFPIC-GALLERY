@@ -239,42 +239,7 @@ function efpic_admin_share_created_by_label(array $guest): string
     return $by === 'client' ? 'Klienta panelis' : 'Fotogrāfa panelis';
 }
 
-function efpic_admin_short_display_url(string $url, int $maxLen = 52): string
-{
-    if (strlen($url) <= $maxLen) {
-        return $url;
-    }
-
-    return substr($url, 0, $maxLen - 1) . '…';
-}
-
-function efpic_admin_link_icon_copy(): string
-{
-    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>';
-}
-
-function efpic_admin_link_icon_share(): string
-{
-    return '<svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true"><path fill="currentColor" d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/></svg>';
-}
-
-function efpic_admin_render_link_row(string $url): string
-{
-    $display = efpic_admin_short_display_url($url);
-    $html = '<span class="admin-link-row">';
-    $html .= '<a class="admin-link-row__url" href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener" title="'
-        . efpic_admin_esc($url) . '">' . efpic_admin_esc($display) . '</a>';
-    $html .= '<span class="admin-link-row__actions">';
-    $html .= '<button type="button" class="admin-link-btn admin-link-copy" data-copy-url="' . efpic_admin_esc($url)
-        . '" title="Kopēt saiti" aria-label="Kopēt saiti">' . efpic_admin_link_icon_copy() . '</button>';
-    $html .= '<button type="button" class="admin-link-btn admin-link-share" data-share-url="' . efpic_admin_esc($url)
-        . '" title="Kopīgot" aria-label="Kopīgot">' . efpic_admin_link_icon_share() . '</button>';
-    $html .= '</span></span>';
-
-    return $html;
-}
-
-function efpic_admin_render_share_set_thumbs(array $config, array $meta, array $guest): string
+function efpic_admin_render_share_set_thumbs(array $config, array $meta, array $guest, int $limit = 10): string
 {
     $tokens = $guest['image_tokens'] ?? [];
     if (!is_array($tokens) || $tokens === []) {
@@ -287,13 +252,22 @@ function efpic_admin_render_share_set_thumbs(array $config, array $meta, array $
         }
     }
     $html = '<div class="admin-share-set-thumbs">';
+    $shown = 0;
     foreach ($tokens as $tok) {
         $tok = (string) $tok;
         if ($tok === '' || !isset($byToken[$tok])) {
             continue;
         }
+        if ($shown >= $limit) {
+            break;
+        }
         $thumb = efpic_admin_media_thumb_url($config, $byToken[$tok]);
-        $html .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" width="48" height="48" loading="lazy">';
+        $html .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" width="56" height="56" loading="lazy">';
+        $shown++;
+    }
+    $rest = count($tokens) - $shown;
+    if ($rest > 0) {
+        $html .= '<span class="admin-share-set-thumbs-more">+' . $rest . '</span>';
     }
     $html .= '</div>';
 
@@ -314,7 +288,7 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
     $html .= '<div class="admin-share-compose-row">';
     $html .= '<label>Kam / nosaukums<input type="text" id="admin-share-new-label" placeholder="piem. Dekorators Anna" autocomplete="off"></label>';
     $html .= '<label class="admin-check admin-share-videos-check"><input type="checkbox" id="admin-share-new-videos" value="1"> Video izlasē</label>';
-    $html .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-start-new">Sākt jaunu izlasi</button>';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-share-start-new">Sākt jaunu izlasi</button>';
     $html .= '</div></div>';
 
     $html .= '<div class="admin-share-list-wrap"><h3 class="admin-share-block-title">Izveidotās izlases</h3>';
@@ -360,14 +334,12 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
                 . efpic_admin_esc($gtok) . '"' . ($includeVideos ? ' checked' : '') . '> Video izlasē</label>';
             $html .= '</div>';
             $html .= efpic_admin_render_share_set_thumbs($config, $meta, $g);
-            $html .= '<div class="admin-share-set-foot">';
-            $html .= efpic_admin_render_link_row($url);
-            $html .= '<div class="admin-share-set-actions">';
-            $html .= '<button type="button" class="btn admin-btn-sm primary admin-share-edit" data-guest-token="' . efpic_admin_esc($gtok)
-                . '">Labot izlasi</button>';
-            $html .= '<button type="button" class="btn admin-btn-sm admin-share-delete" data-guest-token="' . efpic_admin_esc($gtok)
+            $html .= '<a class="admin-share-set-url" href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($url) . '</a>';
+            $html .= '<button type="button" class="btn primary admin-btn-inline admin-share-edit" data-guest-token="' . efpic_admin_esc($gtok)
+                . '">Labot bildes</button>';
+            $html .= '<button type="button" class="btn admin-btn-inline admin-share-delete" data-guest-token="' . efpic_admin_esc($gtok)
                 . '">Dzēst</button>';
-            $html .= '</div></div></li>';
+            $html .= '</li>';
         }
         $html .= '</ul>';
     }
@@ -379,7 +351,7 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
 function efpic_admin_render_share_sets(array $config, array $meta): string
 {
     $html = '<fieldset class="admin-fieldset-full admin-share-sets-panel" id="admin-share-sets-panel"><legend>Kopīgojamās izlases</legend>';
-    $html .= '<p class="muted">Atsevišķas saites ar izvēlētām bildēm. Spied <strong>Labot izlasi</strong>, lai mainītu bildes cilnē Bildes — vari pievienot vai noņemt.</p>';
+    $html .= '<p class="muted">Atsevišķas saites ar izvēlētām bildēm. Spied <strong>Labot bildes</strong>, lai mainītu izlasi cilnē Bildes — vari pievienot vai noņemt bildes.</p>';
     $html .= '<div id="admin-share-sets-body">' . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
     $html .= '</fieldset>';
 
@@ -507,13 +479,9 @@ function efpic_admin_render_video_preview(array $config, string $galleryToken, a
         . efpic_admin_esc($url) . '"></video></div>';
 }
 
-function efpic_admin_render_existing_videos_list(array $config, array $meta, string $galleryToken, bool $readOnly = false): string
+function efpic_admin_render_existing_videos_list(array $config, array $meta, string $galleryToken): string
 {
     $scenes = efpic_gallery_scene_options($meta);
-    $sceneTitles = [];
-    foreach ($scenes as $scene) {
-        $sceneTitles[$scene['id']] = $scene['title'];
-    }
     $html = '';
     foreach ($meta['videos'] ?? [] as $video) {
         if (!is_array($video)) {
@@ -527,29 +495,20 @@ function efpic_admin_render_existing_videos_list(array $config, array $meta, str
         $kind = (string) ($video['kind'] ?? 'file');
         $sceneId = (string) ($video['scene_id'] ?? 'main');
         $providerLabel = $kind === 'embed' ? strtoupper((string) ($video['provider'] ?? 'video')) : 'MP4';
-        $sceneTitle = (string) ($sceneTitles[$sceneId] ?? $sceneId);
-        $html .= '<div class="admin-video-card' . ($readOnly ? ' admin-video-card--readonly' : '') . '" data-video-id="' . efpic_admin_esc($vid) . '">';
+        $html .= '<div class="admin-video-card" data-video-id="' . efpic_admin_esc($vid) . '">';
         $html .= efpic_admin_render_video_preview($config, $galleryToken, $video);
         $html .= '<div class="admin-video-card__meta">';
-        if ($readOnly) {
-            if ($title !== '') {
-                $html .= '<p class="admin-video-readonly-title"><strong>' . efpic_admin_esc($title) . '</strong></p>';
-            }
-            $html .= '<p class="muted admin-video-readonly-scene">' . efpic_admin_esc($sceneTitle) . '</p>';
-            $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
-        } else {
-            $html .= '<label>Virsraksts<input type="text" name="video_title[' . efpic_admin_esc($vid) . ']" value="'
-                . efpic_admin_esc($title) . '" placeholder="Video virsraksts"></label>';
-            $html .= '<label>Sadaļa<select name="video_scene[' . efpic_admin_esc($vid) . ']" class="admin-video-scene-select">';
-            foreach ($scenes as $scene) {
-                $sel = $scene['id'] === $sceneId ? ' selected' : '';
-                $html .= '<option value="' . efpic_admin_esc($scene['id']) . '"' . $sel . '>' . efpic_admin_esc($scene['title']) . '</option>';
-            }
-            $html .= '</select></label>';
-            $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
-            $html .= '<button type="button" class="btn admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
-            $html .= '<input type="hidden" name="delete_video[' . efpic_admin_esc($vid) . ']" value="0" class="admin-video-delete-flag">';
+        $html .= '<label>Virsraksts<input type="text" name="video_title[' . efpic_admin_esc($vid) . ']" value="'
+            . efpic_admin_esc($title) . '" placeholder="Video virsraksts"></label>';
+        $html .= '<label>Sadaļa<select name="video_scene[' . efpic_admin_esc($vid) . ']" class="admin-video-scene-select">';
+        foreach ($scenes as $scene) {
+            $sel = $scene['id'] === $sceneId ? ' selected' : '';
+            $html .= '<option value="' . efpic_admin_esc($scene['id']) . '"' . $sel . '>' . efpic_admin_esc($scene['title']) . '</option>';
         }
+        $html .= '</select></label>';
+        $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
+        $html .= '<button type="button" class="btn admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
+        $html .= '<input type="hidden" name="delete_video[' . efpic_admin_esc($vid) . ']" value="0" class="admin-video-delete-flag">';
         $html .= '</div></div>';
     }
 
@@ -875,7 +834,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
 
         if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
-            efpic_apply_share_actions_from_post($meta, 'admin');
+            efpic_admin_apply_share_actions_from_post($meta);
         }
 
         if (!empty($_POST['delete_share_token'])) {
@@ -1068,10 +1027,10 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $gt = (string) ($meta['gallery_token'] ?? '');
         $portal = (string) ($meta['client_access']['portal_token'] ?? '');
         $body .= '<div class="admin-links">';
-        $body .= '<p class="admin-links-row"><strong>Publiska saite:</strong> '
-            . efpic_admin_render_link_row(efpic_gallery_view_url($config, $gt)) . '</p>';
-        $body .= '<p class="admin-links-row"><strong>Klienta panelis:</strong> '
-            . efpic_admin_render_link_row(efpic_portal_url($config, $portal)) . '</p>';
+        $body .= '<p><strong>Publiska saite:</strong> <a href="' . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '" target="_blank" rel="noopener">'
+            . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '</a></p>';
+        $body .= '<p><strong>Klienta panelis:</strong> <a href="' . efpic_admin_esc(efpic_portal_url($config, $portal)) . '" target="_blank" rel="noopener">'
+            . efpic_admin_esc(efpic_portal_url($config, $portal)) . '</a></p>';
         if (efpic_gallery_has_password($meta)) {
             $body .= '<p class="admin-warn">Galerijai ir <strong>parole</strong> — publiskajā saitē klientam tā jāievada, lai redzētu bildes.</p>';
         }
@@ -1169,8 +1128,8 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_image_scene_toolbar($meta);
         $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
         $body .= '<span class="admin-share-edit-bar__label" id="admin-share-edit-bar-label"></span>';
-        $body .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-edit-save">Saglabāt izlasi</button>';
-        $body .= '<button type="button" class="btn admin-btn-sm" id="admin-share-edit-cancel">Atcelt</button>';
+        $body .= '<button type="button" class="btn primary admin-btn-inline" id="admin-share-edit-save">Saglabāt izlasi</button>';
+        $body .= '<button type="button" class="btn admin-btn-inline" id="admin-share-edit-cancel">Atcelt</button>';
         $body .= '</div>';
         $sceneOptions = efpic_gallery_scene_options($meta);
         $shareIndex = efpic_share_sets_token_index($meta);
@@ -1216,7 +1175,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
                     . $shareCount . '</span>';
             }
             if ($clientFav) {
-                $body .= '<span class="admin-client-fav-badge" title="Klienta favorīts" aria-label="Klienta favorīts">★</span>';
+                $body .= '<span class="admin-client-fav-badge" title="Klienta favorīts" aria-label="Klienta favorīts">♥</span>';
             }
             if ($likes > 0) {
                 $body .= '<span class="admin-like-badge" title="Publiskās sirsniņas">♥ ' . $likes . '</span>';

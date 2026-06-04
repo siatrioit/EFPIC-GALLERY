@@ -461,4 +461,241 @@
   initPortalTabs();
   initPortalShareSets();
   initPortalColorInputs();
+  initPortalLightbox();
+  initPortalScenesEditor();
+  bindPortalVideoRowEvents();
+
+  function initPortalLightbox() {
+    var lightbox = document.getElementById('portal-lightbox') || document.getElementById('admin-lightbox');
+    if (!lightbox) return;
+    var lightImg = lightbox.querySelector('img');
+    var closeBtn = lightbox.querySelector('.admin-lightbox-close');
+
+    function openLightbox(url) {
+      if (!url || !lightImg) return;
+      lightImg.src = url;
+      lightbox.hidden = false;
+      document.body.style.overflow = 'hidden';
+    }
+
+    function closeLightbox() {
+      lightbox.hidden = true;
+      if (lightImg) lightImg.removeAttribute('src');
+      document.body.style.overflow = '';
+    }
+
+    document.addEventListener('click', function (evt) {
+      var thumb = evt.target && evt.target.closest ? evt.target.closest('.admin-media-thumb, .admin-fav-preview') : null;
+      if (thumb) {
+        if (evt.shiftKey) return;
+        if (thumb.closest('.portal-share-pick-label, .admin-bulk-pick')) return;
+        evt.preventDefault();
+        openLightbox(thumb.getAttribute('data-preview'));
+        return;
+      }
+      if (evt.target === lightbox || evt.target === closeBtn) {
+        closeLightbox();
+      }
+    });
+
+    document.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Escape' && !lightbox.hidden) {
+        closeLightbox();
+      }
+    });
+  }
+
+  function initPortalScenesEditor() {
+    var editor = document.getElementById('portal-scenes-editor');
+    var hiddenInput = document.getElementById('portal_scenes_json');
+    var form = document.getElementById('portal-scenes-form');
+    if (!editor || !hiddenInput) return;
+
+    function readScenes() {
+      try {
+        var raw = editor.getAttribute('data-scenes') || '[]';
+        var data = JSON.parse(raw);
+        return Array.isArray(data) ? data : [];
+      } catch (e) {
+        return [];
+      }
+    }
+
+    function readScenesFromDom() {
+      var scenes = [];
+      editor.querySelectorAll('.admin-scene-row').forEach(function (row, index) {
+        var input = row.querySelector('.admin-scene-title-input');
+        var visibleCb = row.querySelector('.portal-scene-visible-cb');
+        scenes.push({
+          id: row.getAttribute('data-id') || row.dataset.id || '',
+          title: input ? input.value : '',
+          sort: index + 1,
+          hidden_from_guests: visibleCb ? !visibleCb.checked : false,
+        });
+      });
+      return scenes;
+    }
+
+    function persistScenesJson(scenes) {
+      editor.setAttribute('data-scenes', JSON.stringify(scenes));
+      hiddenInput.value = JSON.stringify(
+        scenes.map(function (s, i) {
+          return {
+            id: s.id,
+            title: s.title,
+            sort: i + 1,
+            hidden_from_guests: !!s.hidden_from_guests,
+          };
+        })
+      );
+    }
+
+    function renderScenes(scenes) {
+      editor.innerHTML = '';
+      scenes.forEach(function (scene, index) {
+        var row = document.createElement('div');
+        row.className = 'admin-scene-row';
+        row.setAttribute('data-id', scene.id);
+        row.dataset.id = scene.id;
+
+        var moveWrap = document.createElement('div');
+        moveWrap.className = 'admin-scene-move-wrap';
+        var grip = document.createElement('span');
+        grip.className = 'admin-scene-drag';
+        grip.setAttribute('role', 'button');
+        grip.setAttribute('tabindex', '0');
+        grip.setAttribute('aria-label', 'Velciet, lai mainītu secību');
+        grip.textContent = '⋮⋮';
+        var upBtn = document.createElement('button');
+        upBtn.type = 'button';
+        upBtn.className = 'btn admin-scene-move';
+        upBtn.textContent = '↑';
+        upBtn.disabled = index === 0;
+        upBtn.addEventListener('click', function () {
+          moveSceneRow(index, -1);
+        });
+        var downBtn = document.createElement('button');
+        downBtn.type = 'button';
+        downBtn.className = 'btn admin-scene-move';
+        downBtn.textContent = '↓';
+        downBtn.disabled = index >= scenes.length - 1;
+        downBtn.addEventListener('click', function () {
+          moveSceneRow(index, 1);
+        });
+        moveWrap.appendChild(grip);
+        moveWrap.appendChild(upBtn);
+        moveWrap.appendChild(downBtn);
+
+        var titleInput = document.createElement('input');
+        titleInput.type = 'text';
+        titleInput.value = scene.title || '';
+        titleInput.placeholder = 'Sadaļas nosaukums';
+        titleInput.className = 'admin-scene-title-input';
+        titleInput.addEventListener('input', function () {
+          persistScenesJson(readScenesFromDom());
+        });
+
+        var visibleLabel = document.createElement('label');
+        visibleLabel.className = 'portal-scene-visible admin-check';
+        var visibleCb = document.createElement('input');
+        visibleCb.type = 'checkbox';
+        visibleCb.className = 'portal-scene-visible-cb';
+        visibleCb.checked = !scene.hidden_from_guests;
+        visibleCb.addEventListener('change', function () {
+          persistScenesJson(readScenesFromDom());
+        });
+        visibleLabel.appendChild(visibleCb);
+        visibleLabel.appendChild(document.createTextNode(' Rādīt publiskajā saitē'));
+
+        row.appendChild(moveWrap);
+        row.appendChild(titleInput);
+        row.appendChild(visibleLabel);
+        editor.appendChild(row);
+      });
+    }
+
+    function moveSceneRow(fromIndex, delta) {
+      var list = readScenesFromDom();
+      var toIndex = fromIndex + delta;
+      if (toIndex < 0 || toIndex >= list.length) return;
+      var moved = list.splice(fromIndex, 1)[0];
+      list.splice(toIndex, 0, moved);
+      persistScenesJson(list);
+      renderScenes(list);
+    }
+
+    function setupSceneDrag() {
+      if (editor.dataset.dragBound === '1') return;
+      editor.dataset.dragBound = '1';
+      var dragRow = null;
+      var dragGrip = null;
+
+      editor.addEventListener('pointerdown', function (e) {
+        var grip = e.target.closest ? e.target.closest('.admin-scene-drag') : null;
+        if (!grip || e.button !== 0) return;
+        dragRow = grip.closest('.admin-scene-row');
+        if (!dragRow) return;
+        e.preventDefault();
+        dragGrip = grip;
+        dragRow.classList.add('dragging');
+        try {
+          grip.setPointerCapture(e.pointerId);
+        } catch (err) {}
+      });
+
+      function finishDrag() {
+        if (!dragRow) return;
+        dragRow.classList.remove('dragging');
+        dragRow = null;
+        dragGrip = null;
+        persistScenesJson(readScenesFromDom());
+        renderScenes(readScenesFromDom());
+      }
+
+      editor.addEventListener('pointermove', function (e) {
+        if (!dragRow || !dragGrip) return;
+        var probeX = Math.min(window.innerWidth - 8, Math.max(8, e.clientX));
+        var el = document.elementFromPoint(probeX, e.clientY);
+        var target = el && el.closest ? el.closest('.admin-scene-row') : null;
+        if (!target || target === dragRow || !editor.contains(target)) return;
+        var rect = target.getBoundingClientRect();
+        var after = e.clientY > rect.top + rect.height / 2;
+        if (after) {
+          editor.insertBefore(dragRow, target.nextSibling);
+        } else {
+          editor.insertBefore(dragRow, target);
+        }
+      });
+
+      editor.addEventListener('pointerup', finishDrag);
+      editor.addEventListener('pointercancel', finishDrag);
+    }
+
+    renderScenes(readScenes());
+    setupSceneDrag();
+
+    if (form) {
+      form.addEventListener('submit', function () {
+        persistScenesJson(readScenesFromDom());
+      });
+    }
+  }
+
+  function bindPortalVideoRowEvents() {
+    document.querySelectorAll('.admin-video-delete').forEach(function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var vid = btn.getAttribute('data-video-id');
+        if (!vid) return;
+        if (!window.confirm('Dzēst šo video?')) return;
+        var flag = document.querySelector('input.admin-video-delete-flag[name="delete_video[' + vid + ']"]');
+        if (flag) flag.value = '1';
+        var card = btn.closest('.admin-video-card');
+        if (card) card.classList.add('is-deleted');
+        var form = document.getElementById('portal-videos-form');
+        if (form) form.submit();
+      });
+    });
+  }
 })();

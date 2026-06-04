@@ -480,70 +480,11 @@
       if (shareBody) {
         shareBody.innerHTML = data.share_sets_html;
         bindAdminShareSetEvents();
-        bindAdminLinkActions(shareBody);
       }
     }
     if (data.share_index && imageGrid) {
       updateShareIndexOnCards(data.share_index, data.share_counts);
     }
-  }
-
-  function copyTextToClipboard(text) {
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text);
-    }
-    return new Promise(function (resolve, reject) {
-      try {
-        var ta = document.createElement('textarea');
-        ta.value = text;
-        ta.setAttribute('readonly', '');
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-        resolve();
-      } catch (e) {
-        reject(e);
-      }
-    });
-  }
-
-  function bindAdminLinkActions(root) {
-    root = root || document;
-    root.querySelectorAll('.admin-link-copy:not([data-bound])').forEach(function (btn) {
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', function () {
-        var url = btn.getAttribute('data-copy-url') || '';
-        if (!url) return;
-        copyTextToClipboard(url)
-          .then(function () {
-            showAdminAutoSaveToast('Saite nokopēta', false);
-          })
-          .catch(function () {
-            window.prompt('Kopē saiti:', url);
-          });
-      });
-    });
-    root.querySelectorAll('.admin-link-share:not([data-bound])').forEach(function (btn) {
-      btn.dataset.bound = '1';
-      btn.addEventListener('click', function () {
-        var url = btn.getAttribute('data-share-url') || '';
-        if (!url) return;
-        if (navigator.share) {
-          navigator.share({ url: url, title: document.title }).catch(function () {});
-          return;
-        }
-        copyTextToClipboard(url)
-          .then(function () {
-            showAdminAutoSaveToast('Saite nokopēta kopīgošanai', false);
-          })
-          .catch(function () {
-            window.prompt('Kopē saiti:', url);
-          });
-      });
-    });
   }
 
   function updateShareIndexOnCards(tokens, counts) {
@@ -636,8 +577,6 @@
     if (!bar || !labelEl) return;
     if (!shareEditMode) {
       bar.hidden = true;
-      bar.classList.remove('is-floating');
-      document.body.classList.remove('admin-share-edit-active');
       if (imageGrid) {
         imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
           card.classList.remove('is-share-edit-pick');
@@ -646,15 +585,12 @@
       return;
     }
     bar.hidden = false;
-    bar.classList.add('is-floating');
-    document.body.classList.add('admin-share-edit-active');
     var name = shareEditMode.label || 'Izlase';
     if (shareEditMode.isNew) {
       labelEl.innerHTML = 'Jauna izlase: <strong>' + escapeHtml(name) + '</strong> — atzīmē bildes un spied Saglabāt.';
     } else {
       labelEl.innerHTML = 'Labot izlasi: <strong>' + escapeHtml(name) + '</strong> — pievieno vai noņem bildes, tad Saglabāt.';
     }
-    updatePickCount();
   }
 
   function escapeHtml(s) {
@@ -697,22 +633,15 @@
     if (typeof window.efpicActivateAdminTab === 'function') {
       window.efpicActivateAdminTab('admin-tab-images', true);
     }
-    window.setTimeout(function () {
-      var panel = document.getElementById('admin-tab-images');
-      if (panel) {
-        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }
-    }, 60);
+    var bar = document.getElementById('admin-image-bulk-bar');
+    if (bar) bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  function exitShareEditMode(returnToShare) {
+  function exitShareEditMode() {
     shareEditMode = null;
     clearAllPicks();
     updateShareEditBar();
     updatePickCount();
-    if (returnToShare !== false && typeof window.efpicActivateAdminTab === 'function') {
-      window.efpicActivateAdminTab('admin-tab-share', true);
-    }
   }
 
   function saveShareEditMode() {
@@ -847,7 +776,6 @@
 
   function initAdminShareSets() {
     bindAdminShareSetEvents();
-    bindAdminLinkActions(document);
     var saveBtn = document.getElementById('admin-share-edit-save');
     var cancelBtn = document.getElementById('admin-share-edit-cancel');
     if (saveBtn && saveBtn.dataset.bound !== '1') {
@@ -856,9 +784,7 @@
     }
     if (cancelBtn && cancelBtn.dataset.bound !== '1') {
       cancelBtn.dataset.bound = '1';
-      cancelBtn.addEventListener('click', function () {
-        exitShareEditMode(true);
-      });
+      cancelBtn.addEventListener('click', exitShareEditMode);
     }
   }
 
@@ -866,40 +792,6 @@
   var scenePopoverAnchor = null;
   var sceneBlurTimer = 0;
   var scenePopoverIgnoreBlur = false;
-  var scenePopoverScrollHandler = null;
-
-  function unbindScenePopoverScrollClose() {
-    if (scenePopoverScrollHandler) {
-      window.removeEventListener('scroll', scenePopoverScrollHandler, true);
-      scenePopoverScrollHandler = null;
-    }
-  }
-
-  function bindScenePopoverScrollClose() {
-    unbindScenePopoverScrollClose();
-    scenePopoverScrollHandler = function () {
-      closeScenePopover();
-    };
-    window.addEventListener('scroll', scenePopoverScrollHandler, true);
-  }
-
-  function positionScenePopover(pop, input) {
-    var rect = input.getBoundingClientRect();
-    var popRect = pop.getBoundingClientRect();
-    var left = rect.left;
-    if (left + popRect.width > window.innerWidth - 12) {
-      left = window.innerWidth - popRect.width - 12;
-    }
-    pop.style.left = Math.max(8, left) + 'px';
-    pop.style.minWidth = Math.max(rect.width + 28, 200) + 'px';
-    var belowTop = rect.bottom + 4;
-    var aboveTop = rect.top - popRect.height - 4;
-    if (belowTop + popRect.height > window.innerHeight - 12 && aboveTop > 8) {
-      pop.style.top = Math.max(8, aboveTop) + 'px';
-    } else {
-      pop.style.top = belowTop + 'px';
-    }
-  }
 
   function closeScenePopover() {
     if (scenePopover) {
@@ -907,7 +799,6 @@
       scenePopover = null;
       scenePopoverAnchor = null;
     }
-    unbindScenePopoverScrollClose();
   }
 
   function openScenePopover(input) {
@@ -920,22 +811,6 @@
     var pop = document.createElement('div');
     pop.className = 'admin-scene-popover';
     pop.setAttribute('role', 'listbox');
-    var custom = document.createElement('button');
-    custom.type = 'button';
-    custom.className = 'admin-scene-popover-item admin-scene-popover-item--custom';
-    custom.setAttribute('role', 'option');
-    custom.textContent = 'Jauns nosaukums…';
-    custom.addEventListener('mousedown', function (evt) {
-      evt.preventDefault();
-      scenePopoverIgnoreBlur = true;
-    });
-    custom.addEventListener('click', function () {
-      closeScenePopover();
-      scenePopoverIgnoreBlur = false;
-      input.focus();
-      input.select();
-    });
-    pop.appendChild(custom);
     scenes.forEach(function (scene) {
       var title = (scene.title || scene.id || '').trim();
       if (title === '') return;
@@ -956,10 +831,33 @@
       });
       pop.appendChild(btn);
     });
+    var custom = document.createElement('button');
+    custom.type = 'button';
+    custom.className = 'admin-scene-popover-item admin-scene-popover-item--custom';
+    custom.setAttribute('role', 'option');
+    custom.textContent = 'Jauns nosaukums…';
+    custom.addEventListener('mousedown', function (evt) {
+      evt.preventDefault();
+      scenePopoverIgnoreBlur = true;
+    });
+    custom.addEventListener('click', function () {
+      closeScenePopover();
+      scenePopoverIgnoreBlur = false;
+      input.focus();
+      input.select();
+    });
+    pop.appendChild(custom);
     document.body.appendChild(pop);
     scenePopover = pop;
-    positionScenePopover(pop, input);
-    bindScenePopoverScrollClose();
+    var rect = input.getBoundingClientRect();
+    var popRect = pop.getBoundingClientRect();
+    var left = rect.left;
+    if (left + popRect.width > window.innerWidth - 12) {
+      left = window.innerWidth - popRect.width - 12;
+    }
+    pop.style.left = Math.max(8, left) + 'px';
+    pop.style.top = rect.bottom + 4 + 'px';
+    pop.style.minWidth = Math.max(rect.width + 28, 200) + 'px';
     filterScenePopover('');
   }
 
@@ -1317,7 +1215,7 @@
     var floatBar = document.getElementById('admin-scene-float-bar');
     var floatCount = document.getElementById('admin-scene-float-count');
     if (floatBar) {
-      floatBar.hidden = n < 2 || !!shareEditMode;
+      floatBar.hidden = n < 2;
     }
     if (floatCount) {
       floatCount.textContent = n === 1 ? '1 bilde atlasīta' : n + ' atlasītas';

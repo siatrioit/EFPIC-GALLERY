@@ -986,4 +986,50 @@
         });
     }
   });
+
+  (function initPortalEditTabs() {
+    if (!document.body.classList.contains('page-portal')) return;
+    var main = document.querySelector('.portal-main');
+    if (!main) return;
+    var tabs = main.querySelectorAll('.portal-edit-tab[data-portal-tab]');
+    var panels = main.querySelectorAll('[data-portal-tab-panel]');
+    if (!tabs.length || !panels.length) return;
+
+    var storageKey = 'efpic_portal_tab';
+
+    function activate(tabId, persist) {
+      tabs.forEach(function (tab) {
+        var on = tab.getAttribute('data-portal-tab') === tabId;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panels.forEach(function (panel) {
+        var on = panel.id === tabId;
+        if (on) {
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
+      });
+      if (persist && tabId) {
+        try {
+          sessionStorage.setItem(storageKey, tabId);
+        } catch (e) {}
+      }
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        activate(tab.getAttribute('data-portal-tab'), true);
+      });
+    });
+
+    var saved = '';
+    try {
+      saved = sessionStorage.getItem(storageKey) || '';
+    } catch (e) {}
+    if (saved && main.querySelector('#' + saved + '[data-portal-tab-panel]')) {
+      activate(saved, false);
+    }
+  })();
 })();
