@@ -481,35 +481,42 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
         $byScene[$sid][] = $img;
     }
 
-    $scenesWithImages = [];
+    $videosByScene = efpic_videos_grouped_by_scene($meta);
+    $scenesWithContent = [];
     foreach ($visible as $scene) {
-        if (($byScene[$scene['id']] ?? []) !== []) {
-            $scenesWithImages[] = $scene;
+        $sid = $scene['id'];
+        if (($byScene[$sid] ?? []) !== [] || ($videosByScene[$sid] ?? []) !== []) {
+            $scenesWithContent[] = $scene;
         }
     }
-    $multiScene = count($scenesWithImages) > 1;
+    $multiScene = count($scenesWithContent) > 1;
 
     $html = '';
-    foreach ($scenesWithImages as $i => $scene) {
+    foreach ($scenesWithContent as $i => $scene) {
         $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
+        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid);
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
         if ($multiScene) {
             $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
                 . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         }
-        $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
-        $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx);
-        $html .= '</div>';
+        $html .= $sceneVideos;
+        if ($sceneImages !== []) {
+            $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
+            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx);
+            $html .= '</div>';
+        }
         if ($multiScene) {
-            $html .= efpic_client_scene_next_button_for_index($scenesWithImages, $i);
+            $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
             $html .= '</section>';
         }
     }
 
     if ($html === '') {
-        $html = '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
+        $html = efpic_client_render_videos_for_scene($config, $meta, 'main');
+        $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
         $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx);
         $html .= '</div>';
     }
@@ -517,76 +524,60 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
     return $html;
 }
 
-function efpic_client_render_gallery_videos(array $config, array $meta, array $ctx): string
+function efpic_client_render_single_video(array $config, array $meta, array $video): string
 {
-    $videos = $meta['videos'] ?? [];
-    if (!is_array($videos) || $videos === []) {
-        return '';
-    }
-    usort($videos, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
     $gt = (string) ($meta['gallery_token'] ?? '');
-    $scenes = efpic_gallery_scene_options($meta);
-    $sceneTitles = [];
-    foreach ($scenes as $s) {
-        $sceneTitles[$s['id']] = $s['title'];
-    }
-
-    $byScene = [];
-    foreach ($videos as $video) {
-        if (!is_array($video)) {
-            continue;
-        }
-        $sid = (string) ($video['scene_id'] ?? 'main');
-        $byScene[$sid][] = $video;
-    }
-
+    $title = trim((string) ($video['title'] ?? ''));
     $html = '';
-    foreach ($scenes as $scene) {
-        $sid = $scene['id'];
-        $list = $byScene[$sid] ?? [];
-        if ($list === []) {
-            continue;
+    if ($title !== '') {
+        $html .= '<h3 class="gallery-video-title">' . efpic_client_esc($title) . '</h3>';
+    }
+    $kind = (string) ($video['kind'] ?? 'file');
+    if ($kind === 'embed') {
+        $provider = (string) ($video['provider'] ?? '');
+        $embedId = (string) ($video['embed_id'] ?? '');
+        if ($embedId === '') {
+            return $html;
         }
-        $hasImages = false;
-        foreach ($meta['images'] ?? [] as $img) {
-            if (is_array($img) && (string) ($img['scene_id'] ?? 'main') === $sid) {
-                $hasImages = true;
-                break;
-            }
+        $src = $provider === 'vimeo'
+            ? 'https://player.vimeo.com/video/' . rawurlencode($embedId)
+            : 'https://www.youtube-nocookie.com/embed/' . rawurlencode($embedId);
+        $html .= '<div class="gallery-video-embed"><iframe src="' . efpic_client_esc($src) . '" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+    } else {
+        $file = (string) ($video['file'] ?? '');
+        if ($file === '') {
+            return $html;
         }
-        $anchor = efpic_scene_element_id($sid);
-        $idAttr = $hasImages ? '' : ' id="' . efpic_client_esc($anchor) . '"';
-        $html .= '<section' . $idAttr . ' class="gallery-videos scene-block" data-scene-id="'
-            . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc((string) ($sceneTitles[$sid] ?? 'Video')) . ' — video</h2>';
-        foreach ($list as $video) {
-            $title = trim((string) ($video['title'] ?? ''));
-            if ($title !== '') {
-                $html .= '<h3 class="gallery-video-title">' . efpic_client_esc($title) . '</h3>';
-            }
-            $kind = (string) ($video['kind'] ?? 'file');
-            if ($kind === 'embed') {
-                $provider = (string) ($video['provider'] ?? '');
-                $embedId = (string) ($video['embed_id'] ?? '');
-                if ($embedId === '') {
-                    continue;
-                }
-                $src = $provider === 'vimeo'
-                    ? 'https://player.vimeo.com/video/' . rawurlencode($embedId)
-                    : 'https://www.youtube-nocookie.com/embed/' . rawurlencode($embedId);
-                $html .= '<div class="gallery-video-embed"><iframe src="' . efpic_client_esc($src) . '" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
-            } else {
-                $file = (string) ($video['file'] ?? '');
-                if ($file === '') {
-                    continue;
-                }
-                $url = efpic_gallery_asset_url($config, $gt, $file);
-                $html .= '<div class="gallery-video-file"><video controls playsinline preload="metadata" src="' . efpic_client_esc($url) . '"></video></div>';
-            }
-        }
-        $html .= '</section>';
+        $url = efpic_gallery_asset_url($config, $gt, $file);
+        $html .= '<div class="gallery-video-file"><video controls playsinline preload="metadata" src="' . efpic_client_esc($url) . '"></video></div>';
     }
 
     return $html;
+}
+
+function efpic_client_render_videos_for_scene(array $config, array $meta, string $sceneId): string
+{
+    $byScene = efpic_videos_grouped_by_scene($meta);
+    $list = $byScene[$sceneId] ?? [];
+    if ($list === []) {
+        return '';
+    }
+    $html = '<div class="gallery-videos-inline" data-scene-id="' . efpic_client_esc($sceneId) . '">';
+    foreach ($list as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        $html .= efpic_client_render_single_video($config, $meta, $video);
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+/** @deprecated Izmanto efpic_client_render_videos_for_scene pie katra scene-block */
+function efpic_client_render_gallery_videos(array $config, array $meta, array $ctx): string
+{
+    return '';
 }
 
 function efpic_client_render_slideshow_overlay(array $config, array $meta, array $ctx): string
@@ -640,22 +631,25 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $byScene[$sid][] = $img;
     }
 
-    $scenesWithImages = [];
+    $videosByScene = efpic_videos_grouped_by_scene($meta);
+    $scenesWithContent = [];
     foreach ($visible as $scene) {
-        if (($byScene[$scene['id']] ?? []) !== []) {
-            $scenesWithImages[] = $scene;
+        $sid = $scene['id'];
+        if (($byScene[$sid] ?? []) !== [] || ($videosByScene[$sid] ?? []) !== []) {
+            $scenesWithContent[] = $scene;
         }
     }
-    $multiScene = count($scenesWithImages) > 1;
+    $multiScene = count($scenesWithContent) > 1;
 
     $html = '';
-    foreach ($scenesWithImages as $i => $scene) {
+    foreach ($scenesWithContent as $i => $scene) {
         $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
         $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
             . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+        $html .= efpic_client_render_videos_for_scene($config, $meta, $sid);
         $html .= '<div class="grid">';
         foreach ($sceneImages as $img) {
             $tok = (string) ($img['token'] ?? '');
@@ -669,7 +663,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         }
         $html .= '</div>';
         if ($multiScene) {
-            $html .= efpic_client_scene_next_button_for_index($scenesWithImages, $i);
+            $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
         }
         $html .= '</section>';
     }
@@ -767,7 +761,6 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         if ($sceneNav !== '') {
             $body .= $sceneNav;
         }
-        $body .= efpic_client_render_gallery_videos($config, $meta, $ctx);
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx);
         $body .= '</main>';
     } else {

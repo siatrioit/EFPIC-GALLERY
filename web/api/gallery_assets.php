@@ -43,6 +43,26 @@ function efpic_gallery_sorted_scenes(array $meta): array
     return $out !== [] ? $out : [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]];
 }
 
+/** @return array<string, list<array<string, mixed>>> */
+function efpic_videos_grouped_by_scene(array $meta): array
+{
+    $byScene = [];
+    $videos = $meta['videos'] ?? [];
+    if (!is_array($videos)) {
+        return $byScene;
+    }
+    usort($videos, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    foreach ($videos as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        $sid = (string) ($video['scene_id'] ?? 'main');
+        $byScene[$sid][] = $video;
+    }
+
+    return $byScene;
+}
+
 /**
  * Sadaļas, kurām ir vismaz viena bilde vai video (kārtotas pēc sort).
  *
@@ -511,8 +531,30 @@ function efpic_apply_videos_from_post(array $config, string $slug, array &$meta)
         ];
     }
 
+    $postedVideoScenes = $_POST['video_scene'] ?? [];
+    $postedVideoTitles = $_POST['video_title'] ?? [];
+    if (is_array($postedVideoScenes) || is_array($postedVideoTitles)) {
+        foreach ($videos as $vi => $video) {
+            $vid = (string) ($video['id'] ?? '');
+            if ($vid === '') {
+                continue;
+            }
+            if (is_array($postedVideoScenes) && isset($postedVideoScenes[$vid])) {
+                $sid = (string) $postedVideoScenes[$vid];
+                if (isset($sceneIds[$sid])) {
+                    $videos[$vi]['scene_id'] = $sid;
+                }
+            }
+            if (is_array($postedVideoTitles) && isset($postedVideoTitles[$vid])) {
+                $videos[$vi]['title'] = trim((string) $postedVideoTitles[$vid]);
+            }
+        }
+    }
+
     $embedUrl = trim((string) ($_POST['video_embed_url'] ?? ''));
-    if ($embedUrl !== '') {
+    $allowNewEmbed = $embedUrl !== ''
+        && (empty($_POST['autosave']) || !empty($_POST['add_video_embed']));
+    if ($allowNewEmbed) {
         $parsed = efpic_parse_video_embed_url($embedUrl);
         if ($parsed === null) {
             throw new InvalidArgumentException('Neatpazīts YouTube vai Vimeo links');

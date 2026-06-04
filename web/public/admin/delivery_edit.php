@@ -25,8 +25,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         efpic_admin_save_delivery_from_post($config, $slug);
         if (!empty($_POST['autosave'])) {
+            $meta = efpic_load_gallery_meta($config, $slug);
+            $payload = [
+                'ok' => true,
+                'message' => 'Saglabāts automātiski.',
+            ];
+            if ($meta !== null) {
+                $gt = (string) ($meta['gallery_token'] ?? '');
+                $payload['videos_html'] = efpic_admin_render_existing_videos_list($config, $meta, $gt);
+            }
             header('Content-Type: application/json; charset=utf-8');
-            echo json_encode(['ok' => true, 'message' => 'Saglabāts automātiski.'], JSON_UNESCAPED_UNICODE);
+            echo json_encode($payload, JSON_UNESCAPED_UNICODE);
             exit;
         }
         if (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {

@@ -356,43 +356,102 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     return $html;
 }
 
-function efpic_admin_render_videos_fieldset(array $config, array $meta, string $galleryToken): string
+function efpic_admin_render_video_preview(array $config, string $galleryToken, array $video): string
+{
+    $kind = (string) ($video['kind'] ?? 'file');
+    if ($kind === 'embed') {
+        $provider = (string) ($video['provider'] ?? '');
+        $embedId = (string) ($video['embed_id'] ?? '');
+        if ($embedId === '') {
+            return '';
+        }
+        $src = $provider === 'vimeo'
+            ? 'https://player.vimeo.com/video/' . rawurlencode($embedId)
+            : 'https://www.youtube-nocookie.com/embed/' . rawurlencode($embedId);
+
+        return '<div class="admin-video-preview admin-video-preview--embed"><iframe src="' . efpic_admin_esc($src)
+            . '" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin" title="Video priekšskatījums"></iframe></div>';
+    }
+
+    $file = (string) ($video['file'] ?? '');
+    if ($file === '') {
+        return '';
+    }
+    $url = efpic_gallery_asset_url($config, $galleryToken, $file);
+
+    return '<div class="admin-video-preview admin-video-preview--file"><video controls playsinline preload="metadata" src="'
+        . efpic_admin_esc($url) . '"></video></div>';
+}
+
+function efpic_admin_render_existing_videos_list(array $config, array $meta, string $galleryToken): string
 {
     $scenes = efpic_gallery_scene_options($meta);
-    $html = '<fieldset class="admin-fieldset-full"><legend>Video</legend>';
-    $html .= '<p class="muted">Augšupielādē MP4/MOV/WebM vai ievieto YouTube / Vimeo saiti.</p>';
+    $html = '';
     foreach ($meta['videos'] ?? [] as $video) {
         if (!is_array($video)) {
             continue;
         }
         $vid = (string) ($video['id'] ?? '');
-        $title = (string) ($video['title'] ?? '');
-        $kind = (string) ($video['kind'] ?? 'file');
-        $label = $title !== '' ? $title : ($kind === 'embed' ? (string) ($video['provider'] ?? 'video') : (string) ($video['file'] ?? ''));
-        $html .= '<div class="admin-video-row">';
-        $html .= '<span>' . efpic_admin_esc($label) . ' <span class="muted">(' . efpic_admin_esc((string) ($video['scene_id'] ?? 'main')) . ')</span></span>';
-        if ($kind === 'file' && ($video['file'] ?? '') !== '') {
-            $html .= ' <a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, (string) $video['file'])) . '" target="_blank" rel="noopener">Skatīt</a>';
+        if ($vid === '') {
+            continue;
         }
-        $html .= '<label class="admin-check"><input type="checkbox" name="delete_video[' . efpic_admin_esc($vid) . ']" value="1"> Dzēst</label></div>';
+        $title = trim((string) ($video['title'] ?? ''));
+        $kind = (string) ($video['kind'] ?? 'file');
+        $sceneId = (string) ($video['scene_id'] ?? 'main');
+        $providerLabel = $kind === 'embed' ? strtoupper((string) ($video['provider'] ?? 'video')) : 'MP4';
+        $html .= '<div class="admin-video-card" data-video-id="' . efpic_admin_esc($vid) . '">';
+        $html .= efpic_admin_render_video_preview($config, $galleryToken, $video);
+        $html .= '<div class="admin-video-card__meta">';
+        $html .= '<label>Virsraksts<input type="text" name="video_title[' . efpic_admin_esc($vid) . ']" value="'
+            . efpic_admin_esc($title) . '" placeholder="Video virsraksts"></label>';
+        $html .= '<label>Sadaļa<select name="video_scene[' . efpic_admin_esc($vid) . ']" class="admin-video-scene-select">';
+        foreach ($scenes as $scene) {
+            $sel = $scene['id'] === $sceneId ? ' selected' : '';
+            $html .= '<option value="' . efpic_admin_esc($scene['id']) . '"' . $sel . '>' . efpic_admin_esc($scene['title']) . '</option>';
+        }
+        $html .= '</select></label>';
+        $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
+        $html .= '<button type="button" class="btn admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
+        $html .= '<input type="hidden" name="delete_video[' . efpic_admin_esc($vid) . ']" value="0" class="admin-video-delete-flag">';
+        $html .= '</div></div>';
     }
+
+    if ($html === '') {
+        return '<p class="muted admin-videos-empty">Vēl nav pievienotu video.</p>';
+    }
+
+    return $html;
+}
+
+function efpic_admin_render_videos_fieldset(array $config, array $meta, string $galleryToken): string
+{
+    $scenes = efpic_gallery_scene_options($meta);
+    $html = '<fieldset class="admin-fieldset-full" id="admin-videos-panel"><legend>Video</legend>';
+    $html .= '<p class="muted">Video tiek rādīti publiskajā galerijā <strong>pirms</strong> izvēlētās sadaļas bildēm. Izmaiņas saglabājas automātiski.</p>';
+    $html .= '<div id="admin-videos-list" class="admin-videos-list">';
+    $html .= efpic_admin_render_existing_videos_list($config, $meta, $galleryToken);
+    $html .= '</div>';
+    $html .= '<div class="admin-video-add">';
+    $html .= '<h3 class="admin-video-add-title">Pievienot video failu</h3>';
     $html .= '<div class="admin-form-split">';
     $html .= '<label>Video fails (MP4)<input type="file" name="gallery_video" accept="video/mp4,video/quicktime,video/webm,.mp4,.mov,.webm"></label>';
     $html .= '<label>Virsraksts<input name="video_upload_title" placeholder="piem. Laulību ceremonija"></label>';
-    $html .= '<label>Sadaļa<select name="video_upload_scene">';
+    $html .= '<label>Sadaļa<select name="video_upload_scene" class="admin-video-scene-select">';
     foreach ($scenes as $scene) {
         $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
     }
     $html .= '</select></label></div>';
-    $html .= '<div class="admin-form-split">';
+    $html .= '<h3 class="admin-video-add-title">Pievienot YouTube / Vimeo</h3>';
+    $html .= '<div class="admin-form-split admin-video-embed-add">';
     $html .= '<label>YouTube / Vimeo saite<input name="video_embed_url" placeholder="https://youtube.com/watch?v=..."></label>';
     $html .= '<label>Virsraksts<input name="video_embed_title" placeholder="Ievietots video"></label>';
-    $html .= '<label>Sadaļa<select name="video_embed_scene">';
+    $html .= '<label>Sadaļa<select name="video_embed_scene" class="admin-video-scene-select">';
     foreach ($scenes as $scene) {
         $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
     }
-    $html .= '</select></label></div>';
-    $html .= '</fieldset>';
+    $html .= '</select></label>';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-add-embed-video">Pievienot video</button>';
+    $html .= '</div></div></fieldset>';
 
     return $html;
 }

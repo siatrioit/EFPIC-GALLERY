@@ -89,7 +89,9 @@
       var sid = hidden.value || card.getAttribute('data-scene-id') || 'main';
       text.value = sceneTitleById(scenes, sid);
     });
-    document.querySelectorAll('select[name="video_upload_scene"], select[name="video_embed_scene"]').forEach(function (sel) {
+    document.querySelectorAll(
+      '.admin-video-scene-select, select[name="video_upload_scene"], select[name="video_embed_scene"]'
+    ).forEach(function (sel) {
       var current = sel.value;
       sel.innerHTML = '';
       scenes.forEach(function (scene) {
@@ -242,6 +244,150 @@
     }, isError ? 4500 : 2200);
   }
 
+  function clearTransientVideoFields() {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form) return;
+    ['video_embed_url', 'video_embed_title', 'video_upload_title'].forEach(function (name) {
+      var el = form.querySelector('[name="' + name + '"]');
+      if (el) el.value = '';
+    });
+    var file = form.querySelector('[name="gallery_video"]');
+    if (file) file.value = '';
+    var mp3 = form.querySelector('[name="slideshow_admin_mp3"]');
+    if (mp3) mp3.value = '';
+  }
+
+  function bindAdminVideoRowEvents() {
+    document.querySelectorAll('.admin-video-delete').forEach(function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var vid = btn.getAttribute('data-video-id');
+        if (!vid) return;
+        if (!window.confirm('Dzēst šo video?')) return;
+        var flag = document.querySelector('input.admin-video-delete-flag[name="delete_video[' + vid + ']"]');
+        if (flag) flag.value = '1';
+        var card = btn.closest('.admin-video-card');
+        if (card) card.classList.add('is-deleted');
+        runAdminAutoSave();
+      });
+    });
+    document.querySelectorAll('.admin-video-scene-select').forEach(function (sel) {
+      if (sel.dataset.autosaveBound === '1') return;
+      sel.dataset.autosaveBound = '1';
+      sel.addEventListener('change', function () {
+        scheduleAdminAutoSave();
+      });
+    });
+    document.querySelectorAll('input[name^="video_title["]').forEach(function (inp) {
+      if (inp.dataset.autosaveBound === '1') return;
+      inp.dataset.autosaveBound = '1';
+      inp.addEventListener('change', function () {
+        scheduleAdminAutoSave();
+      });
+    });
+  }
+
+  function shouldAutoSaveTarget(target) {
+    if (!target || !target.name) return false;
+    if (target.classList && target.classList.contains('admin-scene-input')) return false;
+    if (target.classList && target.classList.contains('admin-image-pick')) return false;
+    if (target.name === 'video_embed_url' || target.name === 'video_embed_title') return false;
+    if (target.type === 'file') return false;
+    if (target.name === 'save' || target.name === 'sync_now') return false;
+    return true;
+  }
+
+  function initAdminFormAutoSave() {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form || !adminFormIsEditDelivery()) return;
+
+    bindAdminVideoRowEvents();
+
+    form.addEventListener('change', function (evt) {
+      if (shouldAutoSaveTarget(evt.target)) {
+        scheduleAdminAutoSave();
+      }
+    });
+
+    form.addEventListener('input', function (evt) {
+      var t = evt.target;
+      if (!shouldAutoSaveTarget(t)) return;
+      if (t.tagName === 'SELECT' || t.type === 'checkbox' || t.type === 'radio') return;
+      scheduleAdminAutoSave();
+    });
+
+    var galleryVideo = form.querySelector('[name="gallery_video"]');
+    if (galleryVideo) {
+      galleryVideo.addEventListener('change', function () {
+        if (galleryVideo.files && galleryVideo.files.length) {
+          runAdminAutoSave();
+        }
+      });
+    }
+
+    var slideshowMp3 = form.querySelector('[name="slideshow_admin_mp3"]');
+    if (slideshowMp3) {
+      slideshowMp3.addEventListener('change', function () {
+        if (slideshowMp3.files && slideshowMp3.files.length) {
+          runAdminAutoSave();
+        }
+      });
+    }
+
+    var addEmbedBtn = document.getElementById('admin-add-embed-video');
+    if (addEmbedBtn) {
+      addEmbedBtn.addEventListener('click', function () {
+        var embedUrl = form.querySelector('[name="video_embed_url"]');
+        if (!embedUrl || !embedUrl.value.trim()) {
+          window.alert('Ievadi YouTube vai Vimeo saiti.');
+          return;
+        }
+        var fd = new FormData(form);
+        fd.set('autosave', '1');
+        fd.set('add_video_embed', '1');
+        fd.delete('sync_now');
+        fd.delete('create_share_set');
+        adminAutoSaveInFlight = true;
+        fetch(window.location.pathname + window.location.search, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            var ct = (res.headers.get('content-type') || '').toLowerCase();
+            if (ct.indexOf('application/json') === -1) {
+              throw new Error('Servera atbilde nav derīga.');
+            }
+            return res.json().then(function (data) {
+              if (!res.ok || !data || !data.ok) {
+                throw new Error((data && data.error) || 'Neizdevās pievienot video');
+              }
+              return data;
+            });
+          })
+          .then(function (data) {
+            showAdminAutoSaveToast(data.message || 'Video pievienots', false);
+            clearTransientVideoFields();
+            if (data.videos_html) {
+              var videosList = document.getElementById('admin-videos-list');
+              if (videosList) {
+                videosList.innerHTML = data.videos_html;
+                bindAdminVideoRowEvents();
+              }
+            }
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            adminAutoSaveInFlight = false;
+          });
+      });
+    }
+  }
+
   function scheduleAdminAutoSave() {
     if (!adminFormIsEditDelivery()) return;
     if (adminAutoSaveTimer) clearTimeout(adminAutoSaveTimer);
@@ -297,6 +443,14 @@
       })
       .then(function (data) {
         showAdminAutoSaveToast(data.message || 'Saglabāts', false);
+        clearTransientVideoFields();
+        if (data.videos_html) {
+          var videosList = document.getElementById('admin-videos-list');
+          if (videosList) {
+            videosList.innerHTML = data.videos_html;
+            bindAdminVideoRowEvents();
+          }
+        }
       })
       .catch(function (err) {
         showAdminAutoSaveToast(err && err.message ? err.message : 'Neizdevās saglabāt', true);
@@ -1228,4 +1382,6 @@
     input.addEventListener('input', sync);
     sync();
   });
+
+  initAdminFormAutoSave();
 })();

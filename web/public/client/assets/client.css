@@ -1579,16 +1579,23 @@ input[type="password"] {
 }
 
 /* —— Gallery videos —— */
-.gallery-videos {
+.gallery-videos-inline {
   max-width: 900px;
-  margin: 0 auto 24px;
+  margin: 0 auto 20px;
   padding: 0 clamp(12px, 2vw, 24px);
 }
 
 .gallery-video-title {
-  margin: 0 0 8px;
-  font-size: 0.95rem;
-  font-weight: 600;
+  margin: 0 0 12px;
+  padding: 12px clamp(12px, 2vw, 24px);
+  background: var(--page-bg, var(--surface));
+  color: var(--page-text, var(--text));
+  border-top: 3px solid color-mix(in srgb, var(--page-text, var(--text)) 18%, var(--page-bg, var(--surface)));
+  border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 10%, transparent);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 
 .gallery-video-embed {
