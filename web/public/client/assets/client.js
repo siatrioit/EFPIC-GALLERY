@@ -157,7 +157,6 @@
   var gdlModal = document.getElementById('galleryDownloadModal');
   var cdlModal = document.getElementById('collectionDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
-  var zipBatchState = null;
   var ZIP_DONE_HINT =
     'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem lejupielāde var aizņemt ilgāku laiku.';
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
@@ -293,15 +292,11 @@
     window.location.assign(url);
   }
 
-  function downloadFailiemZip(failiemUrl, hint, doneTitle, batchInfo) {
+  function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
     openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
     triggerBrowserDownload(failiemUrl);
-    var doneHint = ZIP_DONE_HINT;
-    if (batchInfo && batchInfo.total > 1 && batchInfo.index < batchInfo.total - 1) {
-      doneHint += ' Pēc šīs daļas nospied Labi nākamajai ZIP daļai.';
-    }
-    showZipProgressDone(doneTitle || 'Lejupielāde sākta', doneHint);
+    showZipProgressDone(doneTitle || 'Lejupielāde sākta', ZIP_DONE_HINT);
   }
 
   function downloadServerZip(url, filename, hint) {
@@ -338,15 +333,10 @@
     );
   }
 
-  function fetchFailiemZipBatch(scope, size, batchIndex) {
+  function fetchFailiemZipPrepare(scope, size) {
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var prepareUrl =
-      gdlBase +
-      path +
-      '?prepare=1&size=' +
-      encodeURIComponent(size) +
-      '&batch=' +
-      encodeURIComponent(String(batchIndex));
+      gdlBase + path + '?prepare=1&size=' + encodeURIComponent(size);
     return fetch(prepareUrl, {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
@@ -364,30 +354,18 @@
     var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
     openZipProgressLoading(
       loadingTitle,
-      'Failiem sagatavo ZIP. Lielai izlasei tas var aizņemt līdz minūtei katrā daļā.'
+      'Failiem sagatavo ZIP no atlasītajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — lūdzu uzgaidiet.'
     );
-    fetchFailiemZipBatch(scope, size, 0)
+    fetchFailiemZipPrepare(scope, size)
       .then(function (data) {
         if (data.mode !== 'failiem' || !data.url) {
           throw new Error('Neatbalstīts lejupielādes režīms');
         }
-        var batchTotal = data.batch_total || 1;
-        zipBatchState =
-          batchTotal > 1
-            ? { scope: scope, size: size, next: 1, total: batchTotal }
-            : null;
         var doneTitle =
           scope === 'collection' ? 'Izlases lejupielāde sākta' : 'Lejupielāde sākta';
-        if (batchTotal > 1) {
-          doneTitle += ' (1/' + batchTotal + ')';
-        }
-        downloadFailiemZip(data.url, data.hint, doneTitle, {
-          index: data.batch_index || 0,
-          total: batchTotal,
-        });
+        downloadFailiemZip(data.url, data.hint, doneTitle);
       })
       .catch(function (err) {
-        zipBatchState = null;
         showZipProgressError(humanZipError(err && err.message ? err.message : ''));
       });
   }
@@ -436,46 +414,7 @@
   });
 
   document.querySelectorAll('[data-zip-progress-ok]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      if (zipBatchState && zipBatchState.next < zipBatchState.total) {
-        var scope = zipBatchState.scope;
-        var size = zipBatchState.size;
-        var batchIndex = zipBatchState.next;
-        zipBatchState.next += 1;
-        openZipProgressLoading(
-          'Sagatavo ZIP (' + (batchIndex + 1) + '/' + zipBatchState.total + ')…',
-          'Failiem sagatavo nākamo ZIP daļu…'
-        );
-        fetchFailiemZipBatch(scope, size, batchIndex)
-          .then(function (data) {
-            if (data.mode !== 'failiem' || !data.url) {
-              throw new Error('Neatbalstīts lejupielādes režīms');
-            }
-            var batchTotal = data.batch_total || zipBatchState.total;
-            var doneTitle =
-              (scope === 'collection' ? 'Izlases lejupielāde sākta' : 'Lejupielāde sākta') +
-              ' (' +
-              (batchIndex + 1) +
-              '/' +
-              batchTotal +
-              ')';
-            if (zipBatchState.next >= zipBatchState.total) {
-              zipBatchState = null;
-            }
-            downloadFailiemZip(data.url, data.hint, doneTitle, {
-              index: batchIndex,
-              total: batchTotal,
-            });
-          })
-          .catch(function (err) {
-            zipBatchState = null;
-            showZipProgressError(humanZipError(err && err.message ? err.message : ''));
-          });
-        return;
-      }
-      zipBatchState = null;
-      closeZipProgress();
-    });
+    btn.addEventListener('click', closeZipProgress);
   });
 
   if (gdlModal) {

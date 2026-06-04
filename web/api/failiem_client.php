@@ -275,11 +275,6 @@ function efpic_failiem_file_hashes_from_images(array $images, string $size): arr
     return $hashes;
 }
 
-function efpic_failiem_selected_zip_batch_size(): int
-{
-    return 80;
-}
-
 function efpic_failiem_cookie_phpsessid(string $cookieFile): string
 {
     if ($cookieFile === '' || !is_readable($cookieFile)) {
@@ -292,16 +287,42 @@ function efpic_failiem_cookie_phpsessid(string $cookieFile): string
     }
 
     foreach ($lines as $line) {
-        if ($line === '' || $line[0] === '#') {
+        $line = trim($line);
+        if ($line === '') {
             continue;
         }
-        $parts = preg_split('/\s+/', trim($line));
+        if (str_starts_with($line, '#HttpOnly_')) {
+            $line = substr($line, strlen('#HttpOnly_'));
+        } elseif ($line[0] === '#') {
+            continue;
+        }
+        $parts = preg_split('/\s+/', $line);
         if (count($parts) >= 7 && $parts[5] === 'PHPSESSID') {
             return (string) $parts[6];
         }
     }
 
     return '';
+}
+
+/**
+ * @return array{ok: true, url: string}|array{ok: false, error: string}
+ */
+function efpic_failiem_selected_zip_prepare(
+    array $config,
+    string $folderHash,
+    array $fileHashes,
+    bool $webSize = false
+): array {
+    $url = efpic_failiem_selected_zip_url($config, $folderHash, $fileHashes, $webSize);
+    if ($url !== null) {
+        return ['ok' => true, 'url' => $url];
+    }
+
+    return [
+        'ok' => false,
+        'error' => 'Failiem neatgrieza ZIP saiti. Pārbaudi savienojumu ar failiem.lv.',
+    ];
 }
 
 /**
@@ -331,14 +352,18 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
         return null;
     }
 
-    $parts = ['upload_hash=' . rawurlencode($folderHash)];
+    $postBody = 'upload_hash=' . rawurlencode($folderHash);
     foreach ($fileHashes as $hash) {
-        $parts[] = 'selected_items%5Bfiles%5D%5B%5D=' . rawurlencode($hash);
+        $postBody .= '&selected_items%5Bfiles%5D%5B%5D=' . rawurlencode($hash);
     }
 
     $f = efpic_failiem_cfg($config);
-    $url = efpic_failiem_cdn_base($config)
-        . '/server_scripts/zip/zip_streamer/download_selected_zip.php';
+    $bases = array_values(array_unique(array_filter([
+        efpic_failiem_cdn_base($config),
+        'https://failiem.lv',
+        efpic_failiem_api_base($config),
+    ])));
+    $endpoint = '/server_scripts/zip/zip_streamer/download_selected_zip.php';
     $headers = [
         'Content-Type: application/x-www-form-urlencoded',
         'Accept: application/json',
@@ -350,66 +375,76 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
     }
 
     $cookieFile = sys_get_temp_dir() . '/efpic_failiem_' . bin2hex(random_bytes(6)) . '.cookies';
-    $ch = curl_init($url);
-    if ($ch === false) {
-        return null;
-    }
-
-    $opts = [
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_POST => true,
-        CURLOPT_POSTFIELDS => implode('&', $parts),
-        CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT => 300,
-        CURLOPT_CONNECTTIMEOUT => 45,
-        CURLOPT_HTTPHEADER => $headers,
-        CURLOPT_COOKIEJAR => $cookieFile,
-    ];
+    @file_put_contents($cookieFile, '');
     $user = (string) ($f['user'] ?? '');
     $pass = (string) ($f['pass'] ?? '');
-    if ($user !== '' && $pass !== '') {
-        $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+
+    foreach ($bases as $base) {
+        $url = rtrim($base, '/') . $endpoint;
+        $ch = curl_init($url);
+        if ($ch === false) {
+            continue;
+        }
+
+        $opts = [
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => $postBody,
+            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_TIMEOUT => 300,
+            CURLOPT_CONNECTTIMEOUT => 45,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_COOKIEJAR => $cookieFile,
+            CURLOPT_COOKIEFILE => $cookieFile,
+        ];
+        if ($user !== '' && $pass !== '') {
+            $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+        }
+
+        curl_setopt_array($ch, $opts);
+        $body = curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        curl_close($ch);
+        $phpSessId = efpic_failiem_cookie_phpsessid($cookieFile);
+
+        if ($body === false || $code < 200 || $code >= 300) {
+            continue;
+        }
+
+        $decoded = json_decode($body, true);
+        if (!is_array($decoded) || ($decoded['status'] ?? '') !== 'ok') {
+            continue;
+        }
+
+        $data = $decoded['data'] ?? null;
+        if (!is_array($data)) {
+            continue;
+        }
+
+        $key = trim((string) ($data['selected_download_key'] ?? ''));
+        $host = trim((string) ($data['file_host'] ?? ''));
+        if ($key === '' || $host === '' || $phpSessId === '') {
+            continue;
+        }
+
+        @unlink($cookieFile);
+        $host = preg_replace('#^https?://#i', '', rtrim($host, '/'));
+        $zipUrl = 'https://' . $host
+            . '/server_scripts/zip/zip_streamer/upload_zip_streamer.php?uhash='
+            . rawurlencode($folderHash)
+            . '&selected_download_key='
+            . rawurlencode($key);
+        $zipUrl .= '&PHPSESSID=' . rawurlencode($phpSessId);
+        if ($webSize) {
+            $zipUrl .= '&img_as_websize';
+        }
+
+        return $zipUrl;
     }
 
-    curl_setopt_array($ch, $opts);
-    $body = curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    $phpSessId = efpic_failiem_cookie_phpsessid($cookieFile);
     @unlink($cookieFile);
 
-    if ($body === false || $code < 200 || $code >= 300) {
-        return null;
-    }
-
-    $decoded = json_decode($body, true);
-    if (!is_array($decoded) || ($decoded['status'] ?? '') !== 'ok') {
-        return null;
-    }
-
-    $data = $decoded['data'] ?? null;
-    if (!is_array($data)) {
-        return null;
-    }
-
-    $key = trim((string) ($data['selected_download_key'] ?? ''));
-    $host = trim((string) ($data['file_host'] ?? ''));
-    if ($key === '' || $host === '' || $phpSessId === '') {
-        return null;
-    }
-
-    $host = preg_replace('#^https?://#i', '', rtrim($host, '/'));
-    $zipUrl = 'https://' . $host
-        . '/server_scripts/zip/zip_streamer/upload_zip_streamer.php?uhash='
-        . rawurlencode($folderHash)
-        . '&selected_download_key='
-        . rawurlencode($key);
-    $zipUrl .= '&PHPSESSID=' . rawurlencode($phpSessId);
-    if ($webSize) {
-        $zipUrl .= '&img_as_websize';
-    }
-
-    return $zipUrl;
+    return null;
 }
 
 function efpic_failiem_delivery_folder_hash(array $meta, string $size): string
