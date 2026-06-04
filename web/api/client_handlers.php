@@ -470,6 +470,7 @@ function efpic_client_scene_next_button_for_index(array $scenesWithImages, int $
 
 function efpic_client_render_pic_time_scenes(array $config, array $meta, array $images, array $gridCtx): string
 {
+    $ctx = is_array($gridCtx['viewer_ctx'] ?? null) ? $gridCtx['viewer_ctx'] : [];
     $visible = efpic_gallery_scenes_with_content($meta, $images);
 
     $byScene = [];
@@ -495,7 +496,7 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
     foreach ($scenesWithContent as $i => $scene) {
         $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
-        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid);
+        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
         if ($multiScene) {
@@ -515,7 +516,7 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
     }
 
     if ($html === '') {
-        $html = efpic_client_render_videos_for_scene($config, $meta, 'main');
+        $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
         $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
         $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx);
         $html .= '</div>';
@@ -555,8 +556,31 @@ function efpic_client_render_single_video(array $config, array $meta, array $vid
     return $html;
 }
 
-function efpic_client_render_videos_for_scene(array $config, array $meta, string $sceneId): string
+function efpic_client_scene_has_shared_images(array $meta, string $sceneId, array $whitelist): bool
 {
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '' && isset($whitelist[$tok]) && (string) ($img['scene_id'] ?? 'main') === $sceneId) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function efpic_client_render_videos_for_scene(array $config, array $meta, string $sceneId, array $ctx = []): string
+{
+    $whitelist = $ctx['share_image_tokens'] ?? null;
+    if (is_array($whitelist) && empty($ctx['share_include_videos'])) {
+        return '';
+    }
+    if (is_array($whitelist) && !empty($ctx['share_include_videos']) && !efpic_client_scene_has_shared_images($meta, $sceneId, $whitelist)) {
+        return '';
+    }
+
     $byScene = efpic_videos_grouped_by_scene($meta);
     $list = $byScene[$sceneId] ?? [];
     if ($list === []) {
@@ -641,6 +665,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
     }
     $multiScene = count($scenesWithContent) > 1;
 
+    $ctx = is_array($gridCtx['viewer_ctx'] ?? null) ? $gridCtx['viewer_ctx'] : [];
     $html = '';
     foreach ($scenesWithContent as $i => $scene) {
         $sid = $scene['id'];
@@ -649,7 +674,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $anchor = efpic_scene_element_id($sid);
         $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
             . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
-        $html .= efpic_client_render_videos_for_scene($config, $meta, $sid);
+        $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $html .= '<div class="grid">';
         foreach ($sceneImages as $img) {
             $tok = (string) ($img['token'] ?? '');
@@ -713,6 +738,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $theme = efpic_client_effective_theme($meta);
     $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
     $gridCtx = efpic_client_build_grid_context($config, $galleryToken);
+    $gridCtx['viewer_ctx'] = $ctx;
     $collectionCount = count($gridCtx['collection']);
     $galleryDlModal = efpic_client_gallery_download_modal($meta, $ctx);
     $hasGalleryDl = $galleryDlModal !== '';

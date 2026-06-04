@@ -432,7 +432,7 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
     ];
 }
 
-/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string} */
+/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string, share_include_videos: bool} */
 function efpic_viewer_context(array $config, array $meta): array
 {
     $guestToken = trim((string) ($_GET['g'] ?? ''));
@@ -464,6 +464,7 @@ function efpic_viewer_context(array $config, array $meta): array
                 'hide_client_hidden' => true,
                 'share_image_tokens' => $whitelist,
                 'share_label' => (string) ($g['label'] ?? ''),
+                'share_include_videos' => !empty($g['include_videos']),
             ];
         }
     }
@@ -479,6 +480,7 @@ function efpic_viewer_context(array $config, array $meta): array
         'hide_client_hidden' => $hideHidden,
         'share_image_tokens' => null,
         'share_label' => '',
+        'share_include_videos' => false,
     ];
 }
 

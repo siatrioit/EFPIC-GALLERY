@@ -377,6 +377,7 @@
                 bindAdminVideoRowEvents();
               }
             }
+            applyAdminShareAutosavePayload(data);
           })
           .catch(function (err) {
             showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
@@ -451,6 +452,7 @@
             bindAdminVideoRowEvents();
           }
         }
+        applyAdminShareAutosavePayload(data);
       })
       .catch(function (err) {
         showAdminAutoSaveToast(err && err.message ? err.message : 'Neizdevās saglabāt', true);
@@ -462,6 +464,227 @@
           scheduleAdminAutoSave();
         }
       });
+  }
+
+  function applyAdminShareAutosavePayload(data) {
+    if (!data) return;
+    if (data.share_sets_html) {
+      var shareBody = document.getElementById('admin-share-sets-body');
+      if (shareBody) {
+        shareBody.innerHTML = data.share_sets_html;
+        bindAdminShareSetEvents();
+      }
+    }
+    if (data.share_index && imageGrid) {
+      updateShareIndexOnCards(data.share_index);
+    }
+  }
+
+  function updateShareIndexOnCards(tokens) {
+    if (!imageGrid) return;
+    var set = {};
+    (tokens || []).forEach(function (t) {
+      if (t) set[t] = true;
+    });
+    imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
+      var tok = card.getAttribute('data-token');
+      var inShare = !!(tok && set[tok]);
+      card.setAttribute('data-in-share', inShare ? '1' : '0');
+      var badge = card.querySelector('.admin-share-badge');
+      var actions = card.querySelector('.admin-media-card__actions');
+      if (inShare) {
+        if (!badge && actions) {
+          badge = document.createElement('span');
+          badge.className = 'admin-share-badge';
+          badge.title = 'Iekļauta kopīgojamā izlasē';
+          badge.textContent = '⎘ Kopīgots';
+          actions.appendChild(badge);
+        }
+      } else if (badge) {
+        badge.remove();
+      }
+      if (activeSceneFilter !== 'all') {
+        card.classList.toggle('is-filtered-out', !cardMatchesFilter(card));
+      }
+    });
+    var inShareBtn = document.querySelector('.admin-scene-filter-btn[data-scene-filter="in-share"]');
+    if (inShareBtn) {
+      var label = inShareBtn.textContent.replace(/\s*\(\d+\)\s*$/, '').trim();
+      inShareBtn.textContent = label + ' (' + (tokens ? tokens.length : 0) + ')';
+    }
+  }
+
+  function getPickedImageTokens() {
+    if (!imageGrid) return [];
+    var tokens = [];
+    imageGrid.querySelectorAll('.admin-image-pick:checked').forEach(function (cb) {
+      if (cb.value) tokens.push(cb.value);
+    });
+    return tokens;
+  }
+
+  function postAdminShareRequest(extra) {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form) return Promise.reject(new Error('Nav formas'));
+    persistScenesBeforeSave();
+    syncImageOrderField();
+    var fd = new FormData(form);
+    fd.set('autosave', '1');
+    fd.delete('sync_now');
+    fd.delete('create_share_set');
+    fd.delete('share_set_tokens');
+    Object.keys(extra || {}).forEach(function (key) {
+      fd.set(key, extra[key]);
+    });
+    return fetch(window.location.pathname + window.location.search, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    }).then(function (res) {
+      var ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('application/json') === -1) {
+        throw new Error('Servera atbilde nav derīga.');
+      }
+      return res.json().then(function (data) {
+        if (!res.ok || !data || !data.ok) {
+          throw new Error((data && data.error) || 'Neizdevās saglabāt');
+        }
+        return data;
+      });
+    });
+  }
+
+  function bindAdminShareSetEvents() {
+    var createBtn = document.getElementById('admin-share-create-new');
+    if (createBtn && createBtn.dataset.bound !== '1') {
+      createBtn.dataset.bound = '1';
+      createBtn.addEventListener('click', function () {
+        var tokens = getPickedImageTokens();
+        if (!tokens.length) {
+          window.alert('Cilnē Bildes atzīmē vismaz vienu bildi.');
+          return;
+        }
+        var labelEl = document.getElementById('admin-share-new-label');
+        var label = labelEl ? labelEl.value.trim() : '';
+        if (!label) {
+          window.alert('Ievadi kam paredzēta izlase (piem. Dekorators Anna).');
+          if (labelEl) labelEl.focus();
+          return;
+        }
+        var videosEl = document.getElementById('admin-share-new-videos');
+        var extra = {
+          share_action: 'create',
+          share_set_label: label,
+          share_set_tokens: tokens.join(','),
+        };
+        if (videosEl && videosEl.checked) {
+          extra.share_include_videos = '1';
+        }
+        createBtn.disabled = true;
+        postAdminShareRequest(extra)
+          .then(function (data) {
+            showAdminAutoSaveToast('Kopīgojamā izlase izveidota', false);
+            applyAdminShareAutosavePayload(data);
+            if (labelEl) labelEl.value = '';
+            if (videosEl) videosEl.checked = false;
+            clearAllPicks();
+            updatePickCount();
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            createBtn.disabled = false;
+          });
+      });
+    }
+
+    var appendBtn = document.getElementById('admin-share-append-btn');
+    if (appendBtn && appendBtn.dataset.bound !== '1') {
+      appendBtn.dataset.bound = '1';
+      appendBtn.addEventListener('click', function () {
+        var tokens = getPickedImageTokens();
+        if (!tokens.length) {
+          window.alert('Cilnē Bildes atzīmē bildes, kuras pievienot izlasei.');
+          return;
+        }
+        var sel = document.getElementById('admin-share-append-target');
+        if (!sel || !sel.value) {
+          window.alert('Izvēlies izlasi.');
+          return;
+        }
+        appendBtn.disabled = true;
+        postAdminShareRequest({
+          share_action: 'append',
+          share_guest_token: sel.value,
+          share_set_tokens: tokens.join(','),
+        })
+          .then(function (data) {
+            showAdminAutoSaveToast('Bildes pievienotas izlasei', false);
+            applyAdminShareAutosavePayload(data);
+            clearAllPicks();
+            updatePickCount();
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            appendBtn.disabled = false;
+          });
+      });
+    }
+
+    document.querySelectorAll('.admin-share-delete').forEach(function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var gtok = btn.getAttribute('data-guest-token');
+        if (!gtok) return;
+        if (!window.confirm('Dzēst šo kopīgojamo izlasi?')) return;
+        btn.disabled = true;
+        postAdminShareRequest({ delete_share_token: gtok })
+          .then(function (data) {
+            showAdminAutoSaveToast('Izlase dzēsta', false);
+            applyAdminShareAutosavePayload(data);
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
+      });
+    });
+
+    document.querySelectorAll('.admin-share-videos-cb').forEach(function (cb) {
+      if (cb.dataset.bound === '1') return;
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', function () {
+        var gtok = cb.getAttribute('data-guest-token');
+        if (!gtok) return;
+        var extra = {
+          share_action: 'update_videos',
+          share_guest_token: gtok,
+        };
+        if (cb.checked) {
+          extra.share_include_videos = '1';
+        }
+        postAdminShareRequest(extra)
+          .then(function (data) {
+            showAdminAutoSaveToast('Saglabāts', false);
+            applyAdminShareAutosavePayload(data);
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+            cb.checked = !cb.checked;
+          });
+      });
+    });
+  }
+
+  function initAdminShareSets() {
+    bindAdminShareSetEvents();
   }
 
   var scenePopover = null;
@@ -854,6 +1077,9 @@
     if (fid === 'liked') {
       return parseInt(card.getAttribute('data-likes') || '0', 10) > 0;
     }
+    if (fid === 'in-share') {
+      return card.getAttribute('data-in-share') === '1';
+    }
 
     return (card.getAttribute('data-scene-id') || 'main') === fid;
   }
@@ -1159,26 +1385,7 @@
     });
   }
 
-  var createShareSetBtn = document.getElementById('admin-create-share-set');
-  var shareSetTokens = document.getElementById('share_set_tokens');
-  var createShareSetFlag = document.getElementById('create_share_set');
-  var deliveryForm = document.getElementById('admin-delivery-form');
-  if (createShareSetBtn && imageGrid && shareSetTokens && createShareSetFlag && deliveryForm) {
-    createShareSetBtn.addEventListener('click', function () {
-      var picks = imageGrid.querySelectorAll('.admin-image-pick:checked');
-      if (!picks.length) {
-        window.alert('Vispirms atlasiet bildes: klikšķiniet uz bildēm vai izmantojiet filtrus.');
-        return;
-      }
-      var tokens = [];
-      picks.forEach(function (cb) {
-        tokens.push(cb.value);
-      });
-      shareSetTokens.value = tokens.join(',');
-      createShareSetFlag.value = '1';
-      deliveryForm.requestSubmit();
-    });
-  }
+  initAdminShareSets();
 
   window.efpicRefreshSceneFilterCounts = function () {
     if (!imageGrid || !sceneFilter) return;

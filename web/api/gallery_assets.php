@@ -657,7 +657,13 @@ function efpic_handle_gallery_asset(array $config, string $galleryToken, string 
 }
 
 /** @return array{guest_token: string, label: string, image_tokens: list<string>} */
-function efpic_create_share_set(array &$meta, string $label, array $imageTokens, string $createdBy = 'admin'): array
+function efpic_create_share_set(
+    array &$meta,
+    string $label,
+    array $imageTokens,
+    string $createdBy = 'admin',
+    bool $includeVideos = false
+): array
 {
     $index = [];
     foreach ($meta['images'] ?? [] as $img) {
@@ -685,6 +691,7 @@ function efpic_create_share_set(array &$meta, string $label, array $imageTokens,
         'guest_token' => efpic_random_hex(16),
         'label' => $label !== '' ? $label : 'Izlase',
         'image_tokens' => $valid,
+        'include_videos' => $includeVideos,
         'created_at' => gmdate('c'),
         'created_by' => $createdBy,
     ];
@@ -707,6 +714,116 @@ function efpic_delete_share_set(array &$meta, string $guestToken): void
     $meta['guests'] = array_values(array_filter($guests, static function ($g) use ($guestToken) {
         return !is_array($g) || (string) ($g['guest_token'] ?? '') !== $guestToken;
     }));
+}
+
+/** @return array<string, true> */
+function efpic_share_sets_token_index(array $meta): array
+{
+    $index = [];
+    foreach ($meta['guests'] ?? [] as $guest) {
+        if (!is_array($guest)) {
+            continue;
+        }
+        foreach ($guest['image_tokens'] ?? [] as $tok) {
+            $tok = (string) $tok;
+            if ($tok !== '') {
+                $index[$tok] = true;
+            }
+        }
+    }
+
+    return $index;
+}
+
+function efpic_append_to_share_set(array &$meta, string $guestToken, array $imageTokens): void
+{
+    $guestToken = trim($guestToken);
+    if ($guestToken === '') {
+        throw new InvalidArgumentException('Nav izvēlēta izlase.');
+    }
+    $index = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && ($img['token'] ?? '') !== '') {
+            $index[(string) $img['token']] = true;
+        }
+    }
+    $add = [];
+    foreach ($imageTokens as $tok) {
+        $tok = trim((string) $tok);
+        if ($tok !== '' && isset($index[$tok])) {
+            $add[$tok] = true;
+        }
+    }
+    if ($add === []) {
+        throw new InvalidArgumentException('Izvēlies vismaz vienu derīgu bildi.');
+    }
+
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        throw new InvalidArgumentException('Izlase nav atrasta.');
+    }
+    $found = false;
+    foreach ($guests as $gi => $guest) {
+        if (!is_array($guest) || (string) ($guest['guest_token'] ?? '') !== $guestToken) {
+            continue;
+        }
+        $existing = [];
+        foreach ($guest['image_tokens'] ?? [] as $tok) {
+            $tok = (string) $tok;
+            if ($tok !== '') {
+                $existing[$tok] = true;
+            }
+        }
+        foreach (array_keys($add) as $tok) {
+            $existing[$tok] = true;
+        }
+        $guests[$gi]['image_tokens'] = array_keys($existing);
+        $found = true;
+        break;
+    }
+    if (!$found) {
+        throw new InvalidArgumentException('Izlase nav atrasta.');
+    }
+    $meta['guests'] = $guests;
+}
+
+function efpic_update_share_set_meta(array &$meta, string $guestToken, bool $includeVideos): void
+{
+    $guestToken = trim($guestToken);
+    foreach ($meta['guests'] ?? [] as $gi => $guest) {
+        if (!is_array($guest) || (string) ($guest['guest_token'] ?? '') !== $guestToken) {
+            continue;
+        }
+        $meta['guests'][$gi]['include_videos'] = $includeVideos;
+
+        return;
+    }
+    throw new InvalidArgumentException('Izlase nav atrasta.');
+}
+
+function efpic_admin_apply_share_actions_from_post(array &$meta): void
+{
+    $action = trim((string) ($_POST['share_action'] ?? ''));
+    if ($action === 'create') {
+        $label = trim((string) ($_POST['share_set_label'] ?? ''));
+        $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
+        $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
+        efpic_create_share_set($meta, $label, $tokens, 'admin', !empty($_POST['share_include_videos']));
+
+        return;
+    }
+    if ($action === 'append') {
+        $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
+        $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
+        $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
+        efpic_append_to_share_set($meta, $guestToken, $tokens);
+
+        return;
+    }
+    if ($action === 'update_videos') {
+        $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
+        efpic_update_share_set_meta($meta, $guestToken, !empty($_POST['share_include_videos']));
+    }
 }
 
 function efpic_share_set_image_count(array $guest): int

@@ -33,6 +33,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($meta !== null) {
                 $gt = (string) ($meta['gallery_token'] ?? '');
                 $payload['videos_html'] = efpic_admin_render_existing_videos_list($config, $meta, $gt);
+                $shareIndex = efpic_share_sets_token_index($meta);
+                $payload['share_sets_html'] = efpic_admin_render_share_sets_body($config, $meta);
+                $payload['share_index'] = array_keys($shareIndex);
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);
