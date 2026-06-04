@@ -118,7 +118,10 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     echo '<div class="admin-sidebar-foot">';
     echo '<a href="settings.php" class="admin-sidebar-foot-link' . ($active === 'settings' ? ' active' : '') . '">';
     echo efpic_admin_icon_settings() . '<span>Iestatījumi</span></a>';
+    echo '<div class="admin-sidebar-foot-exit">';
     echo '<a class="admin-sidebar-foot-link admin-logout" href="index.php?logout=1"><span>Iziet</span></a>';
+    echo '<span class="admin-app-version" title="EFPIC Gallery">' . efpic_admin_esc(efpic_app_version_label()) . '</span>';
+    echo '</div>';
     echo '</div></aside>';
     echo '<div class="admin-workspace">';
     echo '<header class="admin-page-head"><h1>' . efpic_admin_esc($heading) . '</h1>';

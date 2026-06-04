@@ -2,6 +2,37 @@
 
 declare(strict_types=1);
 
+function efpic_app_version(): string
+{
+    static $cached = null;
+    if (is_string($cached)) {
+        return $cached;
+    }
+
+    $path = __DIR__ . '/VERSION';
+    if (!is_file($path)) {
+        $cached = '0.0.0';
+
+        return $cached;
+    }
+
+    $raw = trim((string) file_get_contents($path));
+    if ($raw === '' || preg_match('/^\d+\.\d+\.\d+(?:[-+][0-9A-Za-z.-]+)?$/', $raw) !== 1) {
+        $cached = '0.0.0';
+
+        return $cached;
+    }
+
+    $cached = $raw;
+
+    return $cached;
+}
+
+function efpic_app_version_label(): string
+{
+    return 'v' . efpic_app_version();
+}
+
 function efpic_load_config(): array
 {
     $path = dirname(__DIR__) . '/config/config.php';

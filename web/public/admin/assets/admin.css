@@ -202,6 +202,29 @@
   opacity: 0.9;
 }
 
+.admin-sidebar-foot-exit {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.admin-sidebar-foot-exit .admin-logout {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-app-version {
+  flex-shrink: 0;
+  padding: 0 4px;
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
+  color: rgba(255, 255, 255, 0.38);
+  user-select: text;
+}
+
 .admin-logout {
   /* mantots selektoram */
 }
