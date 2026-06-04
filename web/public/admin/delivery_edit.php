@@ -24,6 +24,11 @@ if ($meta === null || !efpic_is_delivery_gallery($meta)) {
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         efpic_admin_save_delivery_from_post($config, $slug);
+        if (!empty($_POST['autosave'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            echo json_encode(['ok' => true, 'message' => 'Saglabāts automātiski.'], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         if (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
             $flash = 'Kopīgojamā izlase izveidota — saite sadaļā «Kopīgojamās izlases».';
         } else {
@@ -32,6 +37,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $meta = efpic_load_gallery_meta($config, $slug);
         efpic_admin_delivery_form($config, $meta, $slug, $flash);
     } catch (Throwable $e) {
+        if (!empty($_POST['autosave'])) {
+            header('Content-Type: application/json; charset=utf-8');
+            http_response_code(400);
+            echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
         efpic_admin_delivery_form($config, $meta, $slug, $e->getMessage(), true);
     }
 }

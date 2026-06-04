@@ -188,6 +188,126 @@
       window.efpicRefreshSceneFilterCounts();
     }
     updateSceneCountsInEditor();
+    scheduleAdminAutoSave();
+  }
+
+  var adminAutoSaveTimer = 0;
+  var adminAutoSaveInFlight = false;
+  var adminAutoSaveQueued = false;
+
+  function adminFormIsEditDelivery() {
+    var form = document.getElementById('admin-delivery-form');
+    return !!(form && form.getAttribute('data-admin-edit-slug'));
+  }
+
+  function syncImageOrderField() {
+    var list = document.getElementById('sortable');
+    var input = document.getElementById('image_order');
+    if (!list || !input) return;
+    var tokens = [];
+    list.querySelectorAll('li[data-token]').forEach(function (li) {
+      var tok = li.getAttribute('data-token');
+      if (tok) tokens.push(tok);
+    });
+    input.value = tokens.join(',');
+  }
+
+  function persistScenesBeforeSave() {
+    if (!scenesEditor) return;
+    var scenes = readScenesFromDom();
+    if (scenes.length) {
+      persistScenesJson(scenes);
+    } else if (scenesInput && scenesInput.value.trim() !== '') {
+      /* jau hidden laukā */
+    }
+  }
+
+  function showAdminAutoSaveToast(message, isError) {
+    var toast = document.getElementById('admin-autosave-toast');
+    if (!toast) {
+      toast = document.createElement('div');
+      toast.id = 'admin-autosave-toast';
+      toast.className = 'admin-autosave-toast';
+      toast.setAttribute('role', 'status');
+      toast.setAttribute('aria-live', 'polite');
+      document.body.appendChild(toast);
+    }
+    toast.textContent = message || (isError ? 'Neizdevās saglabāt' : 'Saglabāts');
+    toast.classList.toggle('is-error', !!isError);
+    toast.classList.toggle('is-saving', false);
+    toast.hidden = false;
+    if (toast._hideTimer) clearTimeout(toast._hideTimer);
+    toast._hideTimer = setTimeout(function () {
+      toast.hidden = true;
+    }, isError ? 4500 : 2200);
+  }
+
+  function scheduleAdminAutoSave() {
+    if (!adminFormIsEditDelivery()) return;
+    if (adminAutoSaveTimer) clearTimeout(adminAutoSaveTimer);
+    adminAutoSaveTimer = setTimeout(function () {
+      adminAutoSaveTimer = 0;
+      runAdminAutoSave();
+    }, 450);
+  }
+
+  function runAdminAutoSave() {
+    if (!adminFormIsEditDelivery()) return;
+    if (adminAutoSaveInFlight) {
+      adminAutoSaveQueued = true;
+      return;
+    }
+    var form = document.getElementById('admin-delivery-form');
+    if (!form) return;
+
+    persistScenesBeforeSave();
+    syncImageOrderField();
+
+    var toast = document.getElementById('admin-autosave-toast');
+    if (toast) {
+      toast.classList.add('is-saving');
+      toast.textContent = 'Saglabā…';
+      toast.hidden = false;
+    }
+
+    var fd = new FormData(form);
+    fd.set('autosave', '1');
+    fd.delete('sync_now');
+    fd.delete('create_share_set');
+    fd.delete('share_set_tokens');
+
+    adminAutoSaveInFlight = true;
+    fetch(window.location.pathname + window.location.search, {
+      method: 'POST',
+      body: fd,
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (res) {
+        var ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (ct.indexOf('application/json') === -1) {
+          throw new Error('Servera atbilde nav derīga (nav JSON).');
+        }
+        return res.json().then(function (data) {
+          if (!res.ok || !data || !data.ok) {
+            throw new Error((data && data.error) || (data && data.message) || 'Neizdevās saglabāt');
+          }
+          return data;
+        });
+      })
+      .then(function (data) {
+        showAdminAutoSaveToast(data.message || 'Saglabāts', false);
+      })
+      .catch(function (err) {
+        showAdminAutoSaveToast(err && err.message ? err.message : 'Neizdevās saglabāt', true);
+      })
+      .finally(function () {
+        adminAutoSaveInFlight = false;
+        if (adminAutoSaveQueued) {
+          adminAutoSaveQueued = false;
+          scheduleAdminAutoSave();
+        }
+      });
   }
 
   var scenePopover = null;
@@ -356,6 +476,7 @@
         var list = readScenesFromDom();
         persistScenesJson(list);
         syncSceneInputs(list);
+        scheduleAdminAutoSave();
       });
       var meta = document.createElement('span');
       meta.className = 'admin-scene-meta';
@@ -389,6 +510,7 @@
           persistScenesJson(next);
           renderScenes(next);
           syncSceneInputs(next);
+          scheduleAdminAutoSave();
         });
         row.appendChild(del);
       }
@@ -548,6 +670,7 @@
         persistScenesJson(scenes);
         renderScenes(scenes, id);
         syncSceneInputs(scenes);
+        scheduleAdminAutoSave();
       });
     }
     var deliveryForm = scenesEditor.closest('form');
@@ -808,6 +931,9 @@
     if (clearAfter) {
       clearAllPicks();
       updatePickCount();
+      closeScenePopover();
+      var floatInput = document.getElementById('admin-float-scene-input');
+      if (floatInput) floatInput.value = '';
     }
   }
 
@@ -829,12 +955,12 @@
   var floatSceneInput = document.getElementById('admin-float-scene-input');
   if (floatApplyBtn && floatSceneInput && imageGrid) {
     floatApplyBtn.addEventListener('click', function () {
-      applySceneToCheckedPicks(floatSceneInput.value, false);
+      applySceneToCheckedPicks(floatSceneInput.value, true);
     });
     floatSceneInput.addEventListener('keydown', function (evt) {
       if (evt.key === 'Enter') {
         evt.preventDefault();
-        applySceneToCheckedPicks(floatSceneInput.value, false);
+        applySceneToCheckedPicks(floatSceneInput.value, true);
       }
     });
   }

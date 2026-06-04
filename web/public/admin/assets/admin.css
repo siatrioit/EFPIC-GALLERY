@@ -1144,6 +1144,33 @@
   color: #fff;
 }
 
+.admin-autosave-toast {
+  position: fixed;
+  top: 72px;
+  right: 20px;
+  z-index: 700;
+  max-width: min(92vw, 320px);
+  padding: 10px 14px;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: #fff;
+  background: var(--admin-success);
+  border-radius: var(--admin-radius);
+  box-shadow: 0 6px 20px rgba(20, 20, 20, 0.2);
+}
+
+.admin-autosave-toast[hidden] {
+  display: none !important;
+}
+
+.admin-autosave-toast.is-saving {
+  background: var(--admin-accent);
+}
+
+.admin-autosave-toast.is-error {
+  background: #b42318;
+}
+
 @media (max-width: 600px) {
   .admin-scene-float-bar {
     left: 8px;
