@@ -1230,7 +1230,7 @@ function efpic_client_stream_failiem_image_zip(
 }
 
 function efpic_client_stream_prepared_failiem_zip(
-    string $config,
+    array $config,
     string $galleryToken,
     string $scope,
     string $size
