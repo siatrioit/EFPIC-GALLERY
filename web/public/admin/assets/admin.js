@@ -62,30 +62,33 @@
     });
   }
 
-  function syncSceneSelects(scenes) {
-    document.querySelectorAll('.admin-scene-pick select').forEach(function (sel) {
-      var current = sel.value;
-      sel.innerHTML = '';
-      scenes.forEach(function (scene) {
-        var opt = document.createElement('option');
-        opt.value = scene.id;
-        opt.textContent = scene.title || scene.id;
-        if (scene.id === current) opt.selected = true;
-        sel.appendChild(opt);
-      });
+  function sceneTitleById(scenes, sceneId) {
+    var hit = scenes.find(function (s) {
+      return s.id === sceneId;
     });
-    var bulkTarget = document.getElementById('admin-bulk-scene-target');
-    if (bulkTarget) {
-      var bulkCurrent = bulkTarget.value;
-      bulkTarget.innerHTML = '';
-      scenes.forEach(function (scene) {
-        var opt = document.createElement('option');
-        opt.value = scene.id;
-        opt.textContent = scene.title || scene.id;
-        if (scene.id === bulkCurrent) opt.selected = true;
-        bulkTarget.appendChild(opt);
-      });
-    }
+    return hit ? hit.title || hit.id : sceneId;
+  }
+
+  function syncSceneDatalist(scenes) {
+    var datalist = document.getElementById('admin-scene-datalist');
+    if (!datalist) return;
+    datalist.innerHTML = '';
+    scenes.forEach(function (scene) {
+      var opt = document.createElement('option');
+      opt.value = scene.title || scene.id;
+      datalist.appendChild(opt);
+    });
+  }
+
+  function syncSceneInputs(scenes) {
+    syncSceneDatalist(scenes);
+    document.querySelectorAll('.admin-media-card').forEach(function (card) {
+      var hidden = card.querySelector('.admin-scene-id');
+      var text = card.querySelector('.admin-scene-input');
+      if (!hidden || !text) return;
+      var sid = hidden.value || card.getAttribute('data-scene-id') || 'main';
+      text.value = sceneTitleById(scenes, sid);
+    });
     document.querySelectorAll('select[name="video_upload_scene"], select[name="video_embed_scene"]').forEach(function (sel) {
       var current = sel.value;
       sel.innerHTML = '';
@@ -97,6 +100,120 @@
         sel.appendChild(opt);
       });
     });
+  }
+
+  function currentScenesList() {
+    var fromDom = readScenesFromDom();
+    if (fromDom.length) {
+      return fromDom;
+    }
+    if (scenesInput && scenesInput.value.trim() !== '') {
+      try {
+        var parsed = JSON.parse(scenesInput.value);
+        if (Array.isArray(parsed)) {
+          return parsed.map(function (s, index) {
+            return {
+              id: s.id,
+              title: s.title || s.id,
+              count: 0,
+              sort: s.sort || index + 1,
+            };
+          });
+        }
+      } catch (e) {
+        /* ignore */
+      }
+    }
+    return readScenes();
+  }
+
+  function ensureSceneForTitle(title) {
+    var trimmed = (title || '').trim();
+    var scenes = currentScenesList();
+    if (trimmed === '') {
+      return { id: 'main', title: sceneTitleById(scenes, 'main') };
+    }
+    var lower = trimmed.toLowerCase();
+    var found = scenes.find(function (s) {
+      return ((s.title || '') + '').trim().toLowerCase() === lower;
+    });
+    if (found) {
+      return { id: found.id, title: (found.title || found.id).trim() };
+    }
+    var id = 'scene_' + Math.random().toString(16).slice(2, 10);
+    scenes.push({ id: id, title: trimmed, count: 0 });
+    persistScenesJson(scenes);
+    if (scenesEditor) {
+      renderScenes(scenes, id);
+    }
+    syncSceneInputs(scenes);
+    return { id: id, title: trimmed };
+  }
+
+  function setCardScene(card, sceneId, sceneTitle) {
+    if (!card) return;
+    var hidden = card.querySelector('.admin-scene-id');
+    var text = card.querySelector('.admin-scene-input');
+    if (hidden) hidden.value = sceneId;
+    if (text) text.value = sceneTitle;
+    card.setAttribute('data-scene-id', sceneId);
+  }
+
+  function pickedImageCards() {
+    if (!imageGrid) return [];
+    return Array.prototype.slice
+      .call(imageGrid.querySelectorAll('.admin-image-pick:checked'))
+      .map(function (cb) {
+        return cb.closest('.admin-media-card');
+      })
+      .filter(Boolean);
+  }
+
+  function sceneChangeTargets(changedCard) {
+    var picks = pickedImageCards();
+    if (picks.length >= 2 && picks.indexOf(changedCard) !== -1) {
+      return picks;
+    }
+
+    return [changedCard];
+  }
+
+  function applySceneTitleToCards(cards, title) {
+    if (!cards.length) return;
+    var scene = ensureSceneForTitle(title);
+    cards.forEach(function (card) {
+      setCardScene(card, scene.id, scene.title);
+    });
+    if (typeof window.efpicRefreshSceneFilterCounts === 'function') {
+      window.efpicRefreshSceneFilterCounts();
+    }
+    updateSceneCountsInEditor();
+  }
+
+  function commitSceneInput(input) {
+    var card = input.closest('.admin-media-card');
+    if (!card) return;
+    applySceneTitleToCards(sceneChangeTargets(card), input.value);
+  }
+
+  function updateSceneCountsInEditor() {
+    if (!scenesEditor || !imageGrid) return;
+    var counts = {};
+    imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
+      var sid = card.getAttribute('data-scene-id') || 'main';
+      counts[sid] = (counts[sid] || 0) + 1;
+    });
+    var scenes = currentScenesList();
+    scenes = scenes.map(function (s) {
+      return {
+        id: s.id,
+        title: s.title,
+        count: counts[s.id] || 0,
+        sort: s.sort,
+      };
+    });
+    scenesEditor.setAttribute('data-scenes', JSON.stringify(scenes));
+    updateSceneMetaCounts(scenes);
   }
 
   function renderScenes(scenes, focusId) {
@@ -144,7 +261,7 @@
       titleInput.addEventListener('input', function () {
         var list = readScenesFromDom();
         persistScenesJson(list);
-        syncSceneSelects(list);
+        syncSceneInputs(list);
       });
       var meta = document.createElement('span');
       meta.className = 'admin-scene-meta';
@@ -177,7 +294,7 @@
           });
           persistScenesJson(next);
           renderScenes(next);
-          syncSceneSelects(next);
+          syncSceneInputs(next);
         });
         row.appendChild(del);
       }
@@ -229,7 +346,7 @@
       }
       var list = readScenesFromDom();
       persistScenesJson(list);
-      syncSceneSelects(list);
+      syncSceneInputs(list);
     }
 
     function moveDragRow() {
@@ -321,11 +438,13 @@
     list.splice(toIndex, 0, moved);
     persistScenesJson(list);
     renderScenes(list);
-    syncSceneSelects(list);
+    syncSceneInputs(list);
   }
 
   if (scenesEditor) {
-    renderScenes(readScenes());
+    var initialScenes = readScenes();
+    renderScenes(initialScenes);
+    syncSceneInputs(initialScenes);
     setupSceneDragOnce();
     if (addSceneBtn) {
       addSceneBtn.addEventListener('click', function () {
@@ -334,7 +453,7 @@
         scenes.push({ id: id, title: 'Jauna sadaļa', count: 0 });
         persistScenesJson(scenes);
         renderScenes(scenes, id);
-        syncSceneSelects(scenes);
+        syncSceneInputs(scenes);
       });
     }
     var deliveryForm = scenesEditor.closest('form');
@@ -395,6 +514,14 @@
     if (!el || !imageGrid) return;
     var n = imageGrid.querySelectorAll('.admin-image-pick:checked').length;
     el.textContent = n === 1 ? '1 bilde atlasīta' : n + ' atlasītas';
+    var floatBar = document.getElementById('admin-scene-float-bar');
+    var floatCount = document.getElementById('admin-scene-float-count');
+    if (floatBar) {
+      floatBar.hidden = n === 0;
+    }
+    if (floatCount) {
+      floatCount.textContent = n === 1 ? '1 bilde atlasīta' : n + ' atlasītas';
+    }
   }
 
   function applySceneFilter(filterId) {
@@ -439,9 +566,28 @@
           favCard.setAttribute('data-admin-fav', evt.target.checked ? '1' : '0');
         }
       }
-      if (evt.target && evt.target.closest && evt.target.closest('.admin-scene-pick select')) {
-        var cardSel = evt.target.closest('.admin-media-card');
-        if (cardSel) cardSel.setAttribute('data-scene-id', evt.target.value);
+    });
+
+    imageGrid.addEventListener(
+      'blur',
+      function (evt) {
+        if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input')) {
+          commitSceneInput(evt.target);
+        }
+      },
+      true
+    );
+
+    imageGrid.addEventListener('keydown', function (evt) {
+      if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') && evt.key === 'Enter') {
+        evt.preventDefault();
+        evt.target.blur();
+      }
+    });
+
+    imageGrid.addEventListener('focusin', function (evt) {
+      if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input')) {
+        evt.stopPropagation();
       }
     });
 
@@ -452,7 +598,9 @@
         return;
       }
       if (
-        evt.target.closest('.admin-cover-pick, .admin-fav-pick, .admin-scene-pick, .admin-bulk-pick')
+        evt.target.closest(
+          '.admin-cover-pick, .admin-fav-pick, .admin-scene-pick, .admin-scene-input, .admin-bulk-pick'
+        )
       ) {
         return;
       }
@@ -502,30 +650,52 @@
     });
   }
 
-  var assignSceneBtn = document.getElementById('admin-assign-scene');
-  var bulkSceneTarget = document.getElementById('admin-bulk-scene-target');
-  if (assignSceneBtn && bulkSceneTarget && imageGrid) {
-    assignSceneBtn.addEventListener('click', function () {
-      var sceneId = bulkSceneTarget.value;
-      var picks = imageGrid.querySelectorAll('.admin-image-pick:checked');
-      if (!picks.length) {
-        window.alert('Atlasiet bildes: klikšķiniet uz bildēm vai izmantojiet «Atlasīt bildes» pie sadaļas.');
-        return;
-      }
-      picks.forEach(function (cb) {
-        var card = cb.closest('.admin-media-card');
-        if (!card) return;
-        var sel = card.querySelector('.admin-scene-pick select');
-        if (sel) {
-          sel.value = sceneId;
-          card.setAttribute('data-scene-id', sceneId);
-        }
-        setCardPicked(card, false);
-      });
+  function applySceneToCheckedPicks(title, clearAfter) {
+    var picks = pickedImageCards();
+    if (!picks.length) {
+      window.alert('Atlasiet bildes: klikšķiniet uz bildēm vai izmantojiet «Atlasīt bildes» pie sadaļas.');
+      return;
+    }
+    applySceneTitleToCards(picks, title);
+    if (clearAfter) {
+      clearAllPicks();
       updatePickCount();
-      if (typeof window.efpicRefreshSceneFilterCounts === 'function') {
-        window.efpicRefreshSceneFilterCounts();
+    }
+  }
+
+  var assignSceneBtn = document.getElementById('admin-assign-scene');
+  var bulkSceneInput = document.getElementById('admin-bulk-scene-input');
+  if (assignSceneBtn && bulkSceneInput && imageGrid) {
+    assignSceneBtn.addEventListener('click', function () {
+      applySceneToCheckedPicks(bulkSceneInput.value, false);
+    });
+    bulkSceneInput.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        applySceneToCheckedPicks(bulkSceneInput.value, false);
       }
+    });
+  }
+
+  var floatApplyBtn = document.getElementById('admin-float-apply-scene');
+  var floatSceneInput = document.getElementById('admin-float-scene-input');
+  if (floatApplyBtn && floatSceneInput && imageGrid) {
+    floatApplyBtn.addEventListener('click', function () {
+      applySceneToCheckedPicks(floatSceneInput.value, false);
+    });
+    floatSceneInput.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        applySceneToCheckedPicks(floatSceneInput.value, false);
+      }
+    });
+  }
+
+  var floatClearBtn = document.getElementById('admin-float-clear-picks');
+  if (floatClearBtn && imageGrid) {
+    floatClearBtn.addEventListener('click', function () {
+      clearAllPicks();
+      updatePickCount();
     });
   }
 
