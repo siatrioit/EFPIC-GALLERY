@@ -285,19 +285,28 @@
     return text;
   }
 
+  function triggerBrowserDownload(url) {
+    if (!url) return;
+    var iframe = document.createElement('iframe');
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.style.cssText =
+      'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
+    iframe.src = url;
+    document.body.appendChild(iframe);
+    setTimeout(function () {
+      if (iframe.parentNode) {
+        iframe.parentNode.removeChild(iframe);
+      }
+    }, 120000);
+  }
+
   function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
     openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
-    var a = document.createElement('a');
-    a.href = failiemUrl;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
+    triggerBrowserDownload(failiemUrl);
     showZipProgressDone(
       doneTitle || 'Lejupielāde sākta',
-      'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem (PRINT) tas var aizņemt ilgi.'
+      'Skaties pārlūkprogrammas lejupielādēs (augšā). Lieliem arhīviem (PRINT) progress var parādīties ar nobīdi.'
     );
   }
 
@@ -332,39 +341,21 @@
     if (!gdlBase) return;
     closeGalleryDlModal();
     closeCollectionDlModal();
-    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
-    openZipProgressLoading(loadingTitle, loadingTitle);
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
-    var prepareUrl = gdlBase + path + '?size=' + encodeURIComponent(size) + '&prepare=1';
-    fetch(prepareUrl, {
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-    })
-      .then(function (res) {
-        return res.json().then(function (data) {
-          if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
-          }
-          return data;
-        });
-      })
-      .then(function (data) {
-        if (data.mode === 'failiem' && data.url) {
-          var doneTitle =
-            scope === 'collection' ? 'Izlases lejupielāde sākta' : 'Lejupielāde sākta';
-          downloadFailiemZip(data.url, data.hint, doneTitle);
-          return;
-        }
-        if (data.mode === 'server') {
-          var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
-          downloadServerZip(downloadUrl, data.filename || zipFilenameFor(scope, size), data.hint);
-          return;
-        }
-        throw new Error('Neatbalstīts lejupielādes režīms');
-      })
-      .catch(function (err) {
-        showZipProgressError(humanZipError(err && err.message ? err.message : ''));
-      });
+    var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
+    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
+    var loadingHint =
+      scope === 'collection'
+        ? 'Failiem sagatavo ZIP no atlasītajām bildēm. Lielākai izlasei tas var aizņemt līdz 1–2 minūtēm.'
+        : 'Failiem sagatavo ZIP. Lieliem arhīviem (PRINT) progress parādās pārlūkprogrammas lejupielādēs.';
+    openZipProgressLoading(loadingTitle, loadingHint);
+    triggerBrowserDownload(downloadUrl);
+    var doneTitle =
+      scope === 'collection' ? 'Izlases lejupielāde sākta' : 'Lejupielāde sākta';
+    showZipProgressDone(
+      doneTitle,
+      'Skaties pārlūkprogrammas lejupielādēs (augšā). Ja progress neskrien, pagaidi — liels ZIP sākas ar nobīdi.'
+    );
   }
 
   function zipFilenameFor(scope, size) {

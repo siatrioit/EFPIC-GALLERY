@@ -306,6 +306,9 @@ function efpic_failiem_cookie_phpsessid(string $cookieFile): string
  */
 function efpic_failiem_selected_zip_url(array $config, string $folderHash, array $fileHashes, bool $webSize = false): ?string
 {
+    @set_time_limit(0);
+    @ignore_user_abort(true);
+
     $folderHash = efpic_failiem_parse_folder_hash($folderHash);
     if ($folderHash === '') {
         return null;
@@ -352,8 +355,8 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => implode('&', $parts),
         CURLOPT_FOLLOWLOCATION => true,
-        CURLOPT_TIMEOUT => 120,
-        CURLOPT_CONNECTTIMEOUT => 30,
+        CURLOPT_TIMEOUT => 300,
+        CURLOPT_CONNECTTIMEOUT => 45,
         CURLOPT_HTTPHEADER => $headers,
         CURLOPT_COOKIEJAR => $cookieFile,
     ];
