@@ -3,6 +3,7 @@
   "theme": "masonry",
   "settings": {
     "allow_client_sharing": true,
+    "client_comments_enabled": false,
     "favorites_visible_to_guests": false,
     "hide_client_hidden_from_public": true,
     "downloads": {

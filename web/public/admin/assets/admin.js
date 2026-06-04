@@ -480,14 +480,73 @@
       if (shareBody) {
         shareBody.innerHTML = data.share_sets_html;
         bindAdminShareSetEvents();
+        bindAdminLinkActions(shareBody);
       }
     }
     if (data.share_index && imageGrid) {
-      updateShareIndexOnCards(data.share_index);
+      updateShareIndexOnCards(data.share_index, data.share_counts);
     }
   }
 
-  function updateShareIndexOnCards(tokens) {
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return navigator.clipboard.writeText(text);
+    }
+    return new Promise(function (resolve, reject) {
+      try {
+        var ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        resolve();
+      } catch (e) {
+        reject(e);
+      }
+    });
+  }
+
+  function bindAdminLinkActions(root) {
+    root = root || document;
+    root.querySelectorAll('.admin-link-copy:not([data-bound])').forEach(function (btn) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var url = btn.getAttribute('data-copy-url') || '';
+        if (!url) return;
+        copyTextToClipboard(url)
+          .then(function () {
+            showAdminAutoSaveToast('Saite nokopēta', false);
+          })
+          .catch(function () {
+            window.prompt('Kopē saiti:', url);
+          });
+      });
+    });
+    root.querySelectorAll('.admin-link-share:not([data-bound])').forEach(function (btn) {
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var url = btn.getAttribute('data-share-url') || '';
+        if (!url) return;
+        if (navigator.share) {
+          navigator.share({ url: url, title: document.title }).catch(function () {});
+          return;
+        }
+        copyTextToClipboard(url)
+          .then(function () {
+            showAdminAutoSaveToast('Saite nokopēta kopīgošanai', false);
+          })
+          .catch(function () {
+            window.prompt('Kopē saiti:', url);
+          });
+      });
+    });
+  }
+
+  function updateShareIndexOnCards(tokens, counts) {
     if (!imageGrid) return;
     var set = {};
     (tokens || []).forEach(function (t) {
@@ -495,17 +554,24 @@
     });
     imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
       var tok = card.getAttribute('data-token');
-      var inShare = !!(tok && set[tok]);
+      var shareCount = tok && counts && counts[tok] ? parseInt(counts[tok], 10) : 0;
+      if (!shareCount && tok && set[tok]) {
+        shareCount = 1;
+      }
+      var inShare = shareCount > 0;
       card.setAttribute('data-in-share', inShare ? '1' : '0');
+      card.setAttribute('data-share-count', String(shareCount));
       var badge = card.querySelector('.admin-share-badge');
-      var actions = card.querySelector('.admin-media-card__actions');
+      var metaRow = card.querySelector('.admin-media-card__row--meta');
       if (inShare) {
-        if (!badge && actions) {
+        if (!badge && metaRow) {
           badge = document.createElement('span');
           badge.className = 'admin-share-badge';
-          badge.title = 'Iekļauta kopīgojamā izlasē';
-          badge.textContent = '⎘ Kopīgots';
-          actions.appendChild(badge);
+          metaRow.insertBefore(badge, metaRow.firstChild);
+        }
+        if (badge) {
+          badge.title = 'Iekļauta ' + shareCount + ' kopīgojamā izlasē';
+          badge.textContent = '⎘ Kopīgots · ' + shareCount;
         }
       } else if (badge) {
         badge.remove();
@@ -570,6 +636,8 @@
     if (!bar || !labelEl) return;
     if (!shareEditMode) {
       bar.hidden = true;
+      bar.classList.remove('is-floating');
+      document.body.classList.remove('admin-share-edit-active');
       if (imageGrid) {
         imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
           card.classList.remove('is-share-edit-pick');
@@ -578,6 +646,8 @@
       return;
     }
     bar.hidden = false;
+    bar.classList.add('is-floating');
+    document.body.classList.add('admin-share-edit-active');
     var name = shareEditMode.label || 'Izlase';
     if (shareEditMode.isNew) {
       labelEl.innerHTML = 'Jauna izlase: <strong>' + escapeHtml(name) + '</strong> — atzīmē bildes un spied Saglabāt.';
@@ -626,15 +696,22 @@
     if (typeof window.efpicActivateAdminTab === 'function') {
       window.efpicActivateAdminTab('admin-tab-images', true);
     }
-    var bar = document.getElementById('admin-image-bulk-bar');
-    if (bar) bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    window.setTimeout(function () {
+      var panel = document.getElementById('admin-tab-images');
+      if (panel) {
+        panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
+    }, 60);
   }
 
-  function exitShareEditMode() {
+  function exitShareEditMode(returnToShare) {
     shareEditMode = null;
     clearAllPicks();
     updateShareEditBar();
     updatePickCount();
+    if (returnToShare !== false && typeof window.efpicActivateAdminTab === 'function') {
+      window.efpicActivateAdminTab('admin-tab-share', true);
+    }
   }
 
   function saveShareEditMode() {
@@ -769,6 +846,7 @@
 
   function initAdminShareSets() {
     bindAdminShareSetEvents();
+    bindAdminLinkActions(document);
     var saveBtn = document.getElementById('admin-share-edit-save');
     var cancelBtn = document.getElementById('admin-share-edit-cancel');
     if (saveBtn && saveBtn.dataset.bound !== '1') {
@@ -777,7 +855,9 @@
     }
     if (cancelBtn && cancelBtn.dataset.bound !== '1') {
       cancelBtn.dataset.bound = '1';
-      cancelBtn.addEventListener('click', exitShareEditMode);
+      cancelBtn.addEventListener('click', function () {
+        exitShareEditMode(true);
+      });
     }
   }
 

@@ -800,6 +800,28 @@ function efpic_share_sets_token_index(array $meta): array
     return $index;
 }
 
+/** @return array<string, int> */
+function efpic_share_sets_count_index(array $meta): array
+{
+    $index = [];
+    foreach ($meta['guests'] ?? [] as $guest) {
+        if (!is_array($guest)) {
+            continue;
+        }
+        $seen = [];
+        foreach ($guest['image_tokens'] ?? [] as $tok) {
+            $tok = (string) $tok;
+            if ($tok === '' || isset($seen[$tok])) {
+                continue;
+            }
+            $seen[$tok] = true;
+            $index[$tok] = ($index[$tok] ?? 0) + 1;
+        }
+    }
+
+    return $index;
+}
+
 function efpic_replace_share_set_images(array &$meta, string $guestToken, array $imageTokens): void
 {
     $guestToken = trim($guestToken);

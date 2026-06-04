@@ -36,6 +36,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $shareIndex = efpic_share_sets_token_index($meta);
                 $payload['share_sets_html'] = efpic_admin_render_share_sets_body($config, $meta);
                 $payload['share_index'] = array_keys($shareIndex);
+                $payload['share_counts'] = efpic_share_sets_count_index($meta);
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);

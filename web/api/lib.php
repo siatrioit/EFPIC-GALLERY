@@ -331,6 +331,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'access_requests' => [],
         'settings' => [
             'allow_client_sharing' => true,
+            'client_comments_enabled' => false,
             'favorites_visible_to_guests' => false,
             'allow_access_requests' => false,
             'hide_client_hidden_from_public' => true,
@@ -505,6 +506,11 @@ function efpic_gallery_settings(array $meta): array
     $s = $meta['settings'] ?? [];
 
     return is_array($s) ? $s : [];
+}
+
+function efpic_client_comments_enabled(array $meta): bool
+{
+    return !empty(efpic_gallery_settings($meta)['client_comments_enabled']);
 }
 
 function efpic_gallery_expired(array $meta): bool
