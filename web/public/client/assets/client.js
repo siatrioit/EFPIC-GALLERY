@@ -287,27 +287,13 @@
 
   function triggerBrowserDownload(url) {
     if (!url) return;
-    var iframe = document.createElement('iframe');
-    iframe.setAttribute('aria-hidden', 'true');
-    iframe.style.cssText =
-      'position:fixed;width:0;height:0;border:0;opacity:0;pointer-events:none';
-    iframe.src = url;
-    document.body.appendChild(iframe);
-    setTimeout(function () {
-      if (iframe.parentNode) {
-        iframe.parentNode.removeChild(iframe);
-      }
-    }, 120000);
+    window.location.assign(url);
   }
 
   function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
     openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
     triggerBrowserDownload(failiemUrl);
-    showZipProgressDone(
-      doneTitle || 'Lejupielāde sākta',
-      'Skaties pārlūkprogrammas lejupielādēs (augšā). Lieliem arhīviem (PRINT) progress var parādīties ar nobīdi.'
-    );
   }
 
   function downloadServerZip(url, filename, hint) {
