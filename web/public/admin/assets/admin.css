@@ -1988,34 +1988,93 @@
   margin: 0;
 }
 
-/* —— Client portal (admin-like, full width, no sidebar) —— */
-.admin-body--portal {
-  --admin-sidebar-w: 0px;
-}
-
+/* —— Client portal (admin-like shell with sidebar) —— */
 .admin-shell--portal {
-  display: block;
+  display: flex;
   min-height: 100vh;
   min-height: 100dvh;
 }
 
-.admin-body--portal .admin-workspace {
-  margin-left: 0;
+.admin-brand--portal {
+  display: block;
+  margin: 0 0 0 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #fff;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-nav--portal .admin-nav-tab {
+  display: block;
   width: 100%;
+  margin: 0;
+  padding: 10px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--admin-sidebar-muted);
+  font: inherit;
+  font-size: 0.92rem;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.admin-nav--portal .admin-nav-tab:hover {
+  color: var(--admin-sidebar-text);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-nav--portal .admin-nav-tab.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.admin-sidebar-foot-tab {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  margin: 0;
+  border: 0;
+  cursor: pointer;
+  font: inherit;
+  text-align: left;
+}
+
+.admin-sidebar-foot-tab.active {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.admin-app-version--portal {
+  display: block;
+  padding: 8px 12px 0;
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.32);
+}
+
+.admin-page-head--portal {
+  padding-top: 20px;
+}
+
+.admin-body--portal .admin-workspace {
+  margin-left: var(--admin-sidebar-w);
+  width: auto;
   max-width: none;
+}
+
+.admin-body--portal.admin-sidebar-hidden .admin-workspace {
+  margin-left: 0;
 }
 
 .admin-body--portal .admin-main {
   max-width: none;
   width: 100%;
-}
-
-.admin-body--portal .admin-portal-topbar {
-  position: sticky;
-  top: 0;
-  z-index: 200;
-  background: var(--admin-surface);
-  border-bottom: 1px solid var(--admin-border);
 }
 
 .admin-body--portal.admin-share-edit-active #admin-tab-images {
@@ -2064,7 +2123,7 @@
   grid-template-columns: auto 1fr auto auto;
 }
 
-.admin-body--portal #portal-videos-panel .admin-video-card.is-deleted {
+.admin-body--portal #admin-videos-panel .admin-video-card.is-deleted {
   opacity: 0.45;
   pointer-events: none;
 }

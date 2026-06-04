@@ -386,7 +386,7 @@
   function initPortalTabs() {
     var shell = document.querySelector('.admin-shell--portal');
     if (!shell) return;
-    var tabs = shell.querySelectorAll('.admin-edit-tab[data-admin-tab]');
+    var tabs = shell.querySelectorAll('[data-admin-tab]');
     var panels = shell.querySelectorAll('[data-admin-tab-panel]');
     if (!tabs.length || !panels.length) return;
 
@@ -395,8 +395,14 @@
     function activate(tabId, persist) {
       tabs.forEach(function (tab) {
         var on = tab.getAttribute('data-admin-tab') === tabId;
-        tab.classList.toggle('is-active', on);
-        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        if (tab.classList.contains('admin-edit-tab')) {
+          tab.classList.toggle('is-active', on);
+        } else {
+          tab.classList.toggle('active', on);
+        }
+        if (tab.getAttribute('role') === 'tab') {
+          tab.setAttribute('aria-selected', on ? 'true' : 'false');
+        }
       });
       panels.forEach(function (panel) {
         var on = panel.id === tabId;
@@ -432,6 +438,40 @@
     };
   }
 
+  function initPortalSidebar() {
+    var hideBtn = document.getElementById('adminSidebarHide');
+    var reopenBtn = document.getElementById('adminSidebarReopen');
+    if (!hideBtn || !reopenBtn) return;
+
+    var storageKey = 'efpic_portal_sidebar_hidden';
+
+    function setSidebarHidden(hidden, persist) {
+      document.body.classList.toggle('admin-sidebar-hidden', hidden);
+      reopenBtn.hidden = !hidden;
+      if (persist) {
+        try {
+          sessionStorage.setItem(storageKey, hidden ? '1' : '0');
+        } catch (e) {}
+      }
+    }
+
+    hideBtn.addEventListener('click', function () {
+      setSidebarHidden(true, true);
+    });
+
+    reopenBtn.addEventListener('click', function () {
+      setSidebarHidden(false, true);
+    });
+
+    var saved = '';
+    try {
+      saved = sessionStorage.getItem(storageKey) || '';
+    } catch (e) {}
+    if (saved === '1') {
+      setSidebarHidden(true, false);
+    }
+  }
+
   function initPortalColorInputs() {
     document.querySelectorAll('.portal-color-input, .admin-color-input').forEach(function (input) {
       var wrap = input.closest('.portal-color-control, .admin-color-control');
@@ -459,6 +499,7 @@
   }
 
   initPortalTabs();
+  initPortalSidebar();
   initPortalShareSets();
   initPortalColorInputs();
   initPortalLightbox();
@@ -697,5 +738,25 @@
         if (form) form.submit();
       });
     });
+
+    var addEmbedBtn = document.getElementById('portal-add-embed-video');
+    var videosForm = document.getElementById('portal-videos-form');
+    if (addEmbedBtn && videosForm && addEmbedBtn.dataset.bound !== '1') {
+      addEmbedBtn.dataset.bound = '1';
+      addEmbedBtn.addEventListener('click', function () {
+        var urlInput = videosForm.querySelector('input[name="video_embed_url"]');
+        if (!urlInput || !String(urlInput.value || '').trim()) {
+          window.alert('Ievadi YouTube vai Vimeo saiti.');
+          urlInput && urlInput.focus();
+          return;
+        }
+        var hidden = document.createElement('input');
+        hidden.type = 'hidden';
+        hidden.name = 'add_video_embed';
+        hidden.value = '1';
+        videosForm.appendChild(hidden);
+        videosForm.submit();
+      });
+    }
   }
 })();

@@ -280,14 +280,17 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $pageBg = efpic_client_page_bg_color($config, $meta);
 
     $body = '<div class="admin-shell admin-shell--portal">';
+    $body .= efpic_portal_render_sidebar($name, $config, $gt);
     $body .= '<div class="admin-workspace">';
-    $body .= efpic_client_topbar($name, '<a class="btn" href="' . efpic_client_esc(efpic_gallery_view_url($config, $gt)) . '">Publiskā galerija</a>', 'admin-portal-topbar');
+    $body .= '<header class="admin-page-head admin-page-head--portal">';
+    $body .= '<h1>' . efpic_client_esc($name) . '</h1>';
+    $body .= '<p class="admin-lead">Klienta panelis — pārvaldi bildes, izlases un publisko galeriju.</p>';
+    $body .= '</header>';
     $body .= '<main class="admin-main">';
     if ($flash !== '') {
         $body .= '<p class="admin-flash">' . efpic_client_esc($flash) . '</p>';
     }
 
-    $body .= efpic_portal_render_tabs_nav();
     $body .= efpic_admin_tab_panel_open('admin-tab-images', true);
     $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
     $body .= '<span class="admin-share-edit-bar__label" id="admin-share-edit-bar-label"></span>';
@@ -309,24 +312,8 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_tab_panel_close();
 
     $body .= efpic_admin_tab_panel_open('admin-tab-media');
-    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Tavi favorīti</h2>';
-    $body .= '<p class="muted">Atzīmē favorītus cilnē Bildes. Šeit redzamas tavas izvēlētās bildes slideshow.</p>';
-    $body .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', false);
-    $body .= '</section>';
-    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Tava slideshow (favorīti + mūzika)</h2>';
-    $body .= '<p class="muted">Augšupielādē MP3. Kad slideshow ir gatava, tā kļūst par galveno publiskajā galerijā.</p>';
-    $body .= '<form method="post" enctype="multipart/form-data" class="admin-form-split portal-stack">';
-    $body .= '<input type="hidden" name="portal_action" value="save_slideshow">';
-    $body .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
-    $body .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) $slideshow['interval_sec'] . '"></label>';
-    $body .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
-    if ($slideshow['audio_file'] !== '') {
-        $body .= '<p><a href="' . efpic_client_esc(efpic_gallery_asset_url($config, $gt, $slideshow['audio_file'])) . '" target="_blank" rel="noopener">Pašreizējais MP3</a></p>';
-        $body .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
-    }
-    $body .= '<label>MP3 fails<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
-    $body .= '<button type="submit" class="btn primary">Saglabāt slideshow</button></form></section>';
-    $body .= efpic_portal_render_videos_panel($config, $meta, $gt);
+    $body .= efpic_portal_render_favorites_and_slideshow($config, $meta, $gt, $slideshow, $favCount);
+    $body .= efpic_portal_render_videos_fieldset($config, $meta, $gt);
     $body .= efpic_admin_tab_panel_close();
 
     $body .= efpic_admin_tab_panel_open('admin-tab-settings');
@@ -439,13 +426,48 @@ function efpic_portal_render_scenes_panel(array $meta): string
     return $html;
 }
 
-function efpic_portal_render_videos_panel(array $config, array $meta, string $galleryToken): string
+function efpic_portal_render_favorites_and_slideshow(
+    array $config,
+    array $meta,
+    string $galleryToken,
+    array $slideshow,
+    int $favCount,
+): string {
+    $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
+
+    $html .= '<div class="admin-fav-columns">';
+    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Tavi favorīti</h3>';
+    $html .= '<p class="muted">Atzīmē ★ pie bildēm cilnē Bildes vai noņem šeit.</p>';
+    $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', true);
+    $html .= '</div></div>';
+
+    $html .= '<div class="admin-slideshow-columns">';
+    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Tava slideshow</h3>';
+    $html .= '<p class="muted">Augšupielādē MP3. Kad slideshow ir gatava, tā kļūst par galveno publiskajā galerijā.</p>';
+    $html .= '<form method="post" enctype="multipart/form-data" class="admin-form-split portal-stack">';
+    $html .= '<input type="hidden" name="portal_action" value="save_slideshow">';
+    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . (!empty($slideshow['enabled']) ? ' checked' : '') . '> Ieslēgt slideshow</label>';
+    $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) ($slideshow['interval_sec'] ?? 5) . '"></label>';
+    $html .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
+    if (($slideshow['audio_file'] ?? '') !== '') {
+        $url = efpic_gallery_asset_url($config, $galleryToken, (string) $slideshow['audio_file']);
+        $html .= '<p class="admin-ok">MP3: <a href="' . efpic_client_esc($url) . '" target="_blank" rel="noopener">'
+            . efpic_client_esc((string) $slideshow['audio_file']) . '</a></p>';
+        $html .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
+    }
+    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '<button type="submit" class="btn primary">Saglabāt slideshow</button>';
+    $html .= '</form></div></div></fieldset>';
+
+    return $html;
+}
+
+function efpic_portal_render_videos_fieldset(array $config, array $meta, string $galleryToken): string
 {
     $scenes = efpic_gallery_scene_options($meta);
-    $html = '<section class="admin-fieldset-full" id="portal-videos-panel">';
-    $html .= '<h2 class="admin-share-block-title">Video galerijā</h2>';
+    $html = '<fieldset class="admin-fieldset-full" id="admin-videos-panel"><legend>Video</legend>';
     $html .= '<p class="muted">Video tiek rādīti publiskajā galerijā <strong>pirms</strong> izvēlētās sadaļas bildēm.</p>';
-    $html .= '<form method="post" enctype="multipart/form-data" class="portal-stack" id="portal-videos-form">';
+    $html .= '<form method="post" enctype="multipart/form-data" id="portal-videos-form">';
     $html .= '<input type="hidden" name="portal_action" value="save_videos">';
     $html .= '<div id="admin-videos-list" class="admin-videos-list">';
     $html .= efpic_admin_render_existing_videos_list($config, $meta, $galleryToken, false);
@@ -469,33 +491,49 @@ function efpic_portal_render_videos_panel(array $config, array $meta, string $ga
         $html .= '<option value="' . efpic_client_esc($scene['id']) . '">' . efpic_client_esc($scene['title']) . '</option>';
     }
     $html .= '</select></label>';
-    $html .= '<input type="hidden" name="add_video_embed" value="1">';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="portal-add-embed-video">Pievienot video</button>';
     $html .= '</div></div>';
     $html .= '<button type="submit" class="btn primary">Saglabāt video</button>';
-    $html .= '</form></section>';
+    $html .= '</form></fieldset>';
 
     return $html;
 }
 
-function efpic_portal_render_tabs_nav(): string
+function efpic_portal_render_sidebar(string $name, array $config, string $galleryToken): string
 {
-    $tabs = [
+    $nav = [
         ['id' => 'admin-tab-images', 'label' => 'Bildes'],
         ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas'],
         ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
         ['id' => 'admin-tab-media', 'label' => 'Slideshow & video'],
-        ['id' => 'admin-tab-settings', 'label' => 'Iestatījumi'],
     ];
-    $out = '<nav class="admin-edit-tabs" role="tablist" aria-label="Klienta panelis">';
-    foreach ($tabs as $i => $tab) {
-        $active = $i === 0 ? ' is-active' : '';
-        $selected = $i === 0 ? 'true' : 'false';
-        $out .= '<button type="button" class="admin-edit-tab' . $active . '" role="tab" id="'
-            . efpic_client_esc($tab['id']) . '-tab" aria-selected="' . $selected . '" aria-controls="'
-            . efpic_client_esc($tab['id']) . '" data-admin-tab="' . efpic_client_esc($tab['id']) . '">'
-            . efpic_client_esc($tab['label']) . '</button>';
-    }
-    $out .= '</nav>';
 
-    return $out;
+    $html = '<button type="button" class="admin-sidebar-reopen" id="adminSidebarReopen" hidden aria-label="Atvērt izvēlni">';
+    $html .= '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>';
+    $html .= '</button>';
+    $html .= '<aside class="admin-sidebar" id="adminSidebar" aria-label="Klienta panelis">';
+    $html .= '<div class="admin-sidebar-head">';
+    $html .= '<span class="admin-brand admin-brand--portal" title="' . efpic_client_esc($name) . '">' . efpic_client_esc($name) . '</span>';
+    $html .= '<button type="button" class="admin-sidebar-hide" id="adminSidebarHide" aria-label="Paslēpt izvēlni">';
+    $html .= '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>';
+    $html .= '</button></div>';
+    $html .= '<nav class="admin-nav admin-nav--portal" role="tablist" aria-label="Panelis">';
+    foreach ($nav as $i => $item) {
+        $active = $i === 0 ? ' active' : '';
+        $selected = $i === 0 ? 'true' : 'false';
+        $html .= '<button type="button" class="admin-nav-tab' . $active . '" role="tab" id="'
+            . efpic_client_esc($item['id']) . '-tab" aria-selected="' . $selected . '" aria-controls="'
+            . efpic_client_esc($item['id']) . '" data-admin-tab="' . efpic_client_esc($item['id']) . '">'
+            . efpic_client_esc($item['label']) . '</button>';
+    }
+    $html .= '</nav>';
+    $html .= '<div class="admin-sidebar-foot">';
+    $html .= '<button type="button" class="admin-sidebar-foot-link admin-sidebar-foot-tab" data-admin-tab="admin-tab-settings" role="tab" id="admin-tab-settings-tab" aria-controls="admin-tab-settings" aria-selected="false">';
+    $html .= efpic_admin_icon_settings() . '<span>Iestatījumi</span></button>';
+    $html .= '<a class="admin-sidebar-foot-link" href="' . efpic_client_esc(efpic_gallery_view_url($config, $galleryToken)) . '" target="_blank" rel="noopener">';
+    $html .= '<span>Publiskā galerija</span></a>';
+    $html .= '<span class="admin-app-version admin-app-version--portal" title="EFPIC Gallery">' . efpic_client_esc(efpic_app_version_label()) . '</span>';
+    $html .= '</div></aside>';
+
+    return $html;
 }
