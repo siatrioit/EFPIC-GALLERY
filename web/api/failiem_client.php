@@ -275,6 +275,11 @@ function efpic_failiem_file_hashes_from_images(array $images, string $size): arr
     return $hashes;
 }
 
+function efpic_failiem_selected_zip_batch_size(): int
+{
+    return 80;
+}
+
 function efpic_failiem_cookie_phpsessid(string $cookieFile): string
 {
     if ($cookieFile === '' || !is_readable($cookieFile)) {

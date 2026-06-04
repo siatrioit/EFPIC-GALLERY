@@ -812,6 +812,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_COLLECTION_TOGGLE_URL' => $galleryUrl . '/collection/toggle',
         'EFPIC_COLLECTION_CLEAR_URL' => $galleryUrl . '/collection/clear',
         'EFPIC_COLLECTION_COUNT' => $collectionCount,
+        'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+        'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
     ], $meta);
 }
 
@@ -1160,7 +1162,8 @@ function efpic_client_failiem_zip_prepare_payload(
     string $size,
     string $filename,
     string $hintZip,
-    string $hintSingle = 'Lejupielāde sākas no Failiem.lv…'
+    string $hintSingle = 'Lejupielāde sākas no Failiem.lv…',
+    int $batchIndex = 0
 ): ?array {
     if (($meta['type'] ?? '') !== 'delivery') {
         return null;
@@ -1186,17 +1189,31 @@ function efpic_client_failiem_zip_prepare_payload(
         return null;
     }
 
-    $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $hashes, $sizeKey === 'web');
+    $batchSize = efpic_failiem_selected_zip_batch_size();
+    $chunks = count($hashes) > $batchSize ? array_chunk($hashes, $batchSize) : [$hashes];
+    $batchTotal = count($chunks);
+    if ($batchIndex < 0 || $batchIndex >= $batchTotal) {
+        return null;
+    }
+
+    $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $chunks[$batchIndex], $sizeKey === 'web');
     if ($zipUrl === null) {
         return null;
     }
 
-    return [
+    $payload = [
         'mode' => 'failiem',
         'url' => $zipUrl,
         'filename' => $filename,
         'hint' => $hintZip,
+        'batch_index' => $batchIndex,
+        'batch_total' => $batchTotal,
     ];
+    if ($batchTotal > 1) {
+        $payload['hint'] = 'Lejupielādē ZIP daļu ' . ($batchIndex + 1) . ' no ' . $batchTotal . '…';
+    }
+
+    return $payload;
 }
 
 function efpic_client_redirect_failiem_image_zip(
@@ -1220,6 +1237,10 @@ function efpic_client_redirect_failiem_image_zip(
         exit;
     }
 
+    if (count($hashes) > efpic_failiem_selected_zip_batch_size()) {
+        return false;
+    }
+
     $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
     $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $hashes, $sizeKey === 'web');
     if ($zipUrl === null) {
@@ -1241,6 +1262,7 @@ function efpic_client_zip_prepare_response(
 ): void {
     $slug = (string) ($found['slug'] ?? 'galerija');
     $filename = efpic_client_zip_filename($slug, $size, $scope);
+    $batchIndex = isset($_GET['batch']) ? max(0, (int) $_GET['batch']) : 0;
 
     if ($scope === 'collection') {
         $images = efpic_client_collection_images($meta, $ctx, $galleryToken);
@@ -1253,12 +1275,14 @@ function efpic_client_zip_prepare_response(
             $images,
             $size,
             $filename,
-            'Sagatavo ZIP ar ' . count($images) . ' atlasītajām bildēm…'
+            'Sagatavo ZIP ar ' . count($images) . ' atlasītajām bildēm…',
+            'Lejupielāde sākas no Failiem.lv…',
+            $batchIndex
         );
         if ($payload !== null) {
             efpic_json_response(200, ['ok' => true] + $payload);
         }
-        if (count($images) >= 2) {
+        if (count($images) >= 2 && (!efpic_is_delivery_gallery($meta) || count($images) <= 25)) {
             efpic_json_response(200, [
                 'ok' => true,
                 'mode' => 'server',
@@ -1277,7 +1301,7 @@ function efpic_client_zip_prepare_response(
                 'mode' => 'failiem',
                 'url' => efpic_failiem_folder_zip_url($config, $folderHash),
                 'filename' => $filename,
-                'hint' => 'Lejupielāde sākas no Failiem.lv — lieliem arhīviem tas var aizņemt ilgi.',
+                'hint' => 'Lejupielāde sākas no Failiem.lv.',
             ]);
         }
     }
@@ -1293,12 +1317,14 @@ function efpic_client_zip_prepare_response(
             $images,
             $size,
             $filename,
-            'Sagatavo ZIP ar ' . count($images) . ' redzamajām bildēm…'
+            'Sagatavo ZIP ar ' . count($images) . ' redzamajām bildēm…',
+            'Lejupielāde sākas no Failiem.lv…',
+            $batchIndex
         );
         if ($payload !== null) {
             efpic_json_response(200, ['ok' => true] + $payload);
         }
-        if (count($images) >= 2) {
+        if (count($images) >= 2 && (!efpic_is_delivery_gallery($meta) || count($images) <= 25)) {
             efpic_json_response(200, [
                 'ok' => true,
                 'mode' => 'server',
@@ -1306,7 +1332,10 @@ function efpic_client_zip_prepare_response(
                 'hint' => 'Sagatavo ZIP ar ' . count($images) . ' bildēm…',
             ]);
         }
-        efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
+        efpic_json_response(500, [
+            'ok' => false,
+            'error' => 'Neizdevās sagatavot ZIP no Failiem. Mēģini vēlreiz vai izvēlies mazāku izlasi.',
+        ]);
     }
 
     efpic_json_response(500, [
