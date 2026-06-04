@@ -330,9 +330,37 @@ function efpic_gallery_view_url(array $config, string $galleryToken, ?string $gu
     return $url;
 }
 
-function efpic_image_view_url(array $config, string $imageToken): string
+function efpic_image_view_url(array $config, string $imageToken, ?string $guestToken = null): string
 {
-    return efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken);
+    $url = efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken);
+    if ($guestToken !== null && $guestToken !== '') {
+        $url .= '?g=' . rawurlencode($guestToken);
+    }
+
+    return $url;
+}
+
+function efpic_image_download_url(array $config, string $imageToken, ?string $guestToken = null): string
+{
+    $url = efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download';
+    if ($guestToken !== null && $guestToken !== '') {
+        $url .= '?g=' . rawurlencode($guestToken);
+    }
+
+    return $url;
+}
+
+function efpic_media_proxy_url(array $config, string $imageToken, string $size = 'web', ?string $guestToken = null, int $width = 0): string
+{
+    $url = efpic_base_url($config) . '/v/media/' . rawurlencode($imageToken) . '?size=' . rawurlencode($size);
+    if ($guestToken !== null && $guestToken !== '') {
+        $url .= '&g=' . rawurlencode($guestToken);
+    }
+    if ($width > 0) {
+        $url .= '&w=' . $width;
+    }
+
+    return $url;
 }
 
 function efpic_portal_url(array $config, string $portalToken): string
@@ -432,7 +460,7 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
     ];
 }
 
-/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string, share_include_videos: bool} */
+/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string, share_include_videos: bool, access_denied?: bool} */
 function efpic_viewer_context(array $config, array $meta): array
 {
     $guestToken = trim((string) ($_GET['g'] ?? ''));
@@ -440,7 +468,11 @@ function efpic_viewer_context(array $config, array $meta): array
 
     if ($guestToken !== '') {
         foreach ($meta['guests'] ?? [] as $g) {
-            if (!is_array($g) || ($g['guest_token'] ?? '') !== $guestToken) {
+            if (!is_array($g)) {
+                continue;
+            }
+            $stored = (string) ($g['guest_token'] ?? '');
+            if ($stored === '' || !hash_equals($stored, $guestToken)) {
                 continue;
             }
             $whitelist = null;
@@ -467,6 +499,16 @@ function efpic_viewer_context(array $config, array $meta): array
                 'share_include_videos' => !empty($g['include_videos']),
             ];
         }
+
+        return [
+            'role' => 'denied',
+            'guest_token' => $guestToken,
+            'hide_client_hidden' => true,
+            'share_image_tokens' => null,
+            'share_label' => '',
+            'share_include_videos' => false,
+            'access_denied' => true,
+        ];
     }
 
     $settings = efpic_gallery_settings($meta);
@@ -482,6 +524,95 @@ function efpic_viewer_context(array $config, array $meta): array
         'share_label' => '',
         'share_include_videos' => false,
     ];
+}
+
+function efpic_viewer_context_access_denied(array $ctx): bool
+{
+    return !empty($ctx['access_denied']) || (($ctx['role'] ?? '') === 'denied');
+}
+
+function efpic_viewer_is_restricted_share(array $ctx): bool
+{
+    return is_array($ctx['share_image_tokens'] ?? null);
+}
+
+function efpic_viewer_guest_token(array $ctx): string
+{
+    return (string) ($ctx['guest_token'] ?? '');
+}
+
+function efpic_viewer_zip_scope(array $ctx): string
+{
+    if (efpic_viewer_context_access_denied($ctx)) {
+        return 'denied';
+    }
+    $guest = efpic_viewer_guest_token($ctx);
+    if ($guest !== '') {
+        return 'guest:' . $guest;
+    }
+    $whitelist = $ctx['share_image_tokens'] ?? null;
+    if (is_array($whitelist)) {
+        $keys = array_keys($whitelist);
+        sort($keys);
+
+        return 'list:' . hash('sha256', implode(',', $keys));
+    }
+
+    return 'public';
+}
+
+function efpic_gallery_password_satisfied(array $meta, string $galleryToken, ?string $singleEntryToken = null): bool
+{
+    if (efpic_admin_session_active()) {
+        return true;
+    }
+    if (!efpic_gallery_has_password($meta)) {
+        return true;
+    }
+    if (efpic_gallery_session_unlocked($galleryToken)) {
+        return true;
+    }
+    efpic_client_session_start();
+    $single = (string) ($_SESSION['efpic_single_entry'] ?? '');
+    if ($single === '') {
+        return false;
+    }
+    if ($singleEntryToken !== null && $singleEntryToken !== '') {
+        return hash_equals($single, $singleEntryToken);
+    }
+
+    return true;
+}
+
+function efpic_find_image_row_by_token(array $meta, string $imageToken): ?array
+{
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && hash_equals((string) ($img['token'] ?? ''), $imageToken)) {
+            return $img;
+        }
+    }
+
+    return null;
+}
+
+function efpic_can_view_image_in_context(array $config, array $meta, string $imageToken, ?array $ctx = null): bool
+{
+    if ($ctx === null) {
+        $ctx = efpic_viewer_context($config, $meta);
+    }
+    if (efpic_viewer_context_access_denied($ctx)) {
+        return false;
+    }
+    $galleryToken = (string) ($meta['gallery_token'] ?? '');
+    if (!efpic_gallery_password_satisfied($meta, $galleryToken, $imageToken)) {
+        return false;
+    }
+    $img = efpic_find_image_row_by_token($meta, $imageToken);
+    if ($img === null) {
+        return false;
+    }
+
+    return efpic_image_visible_to_viewer($img, $meta, $ctx);
 }
 
 function efpic_scene_visible_to_viewer(array $scene, array $ctx): bool
@@ -736,9 +867,18 @@ function efpic_delivery_file_hash(array $img, string $size): string
     return (string) ($img['failiem_web']['file_hash'] ?? $img['failiem_full']['file_hash'] ?? '');
 }
 
-/** Publiskais attēla URL — tieši no Failiem API (api.files.fm), ne /v/media/. */
-function efpic_client_media_url(array $config, array $img, string $size = 'web', int $width = 720): string
+/**
+ * Publiskais attēla URL.
+ * Ierobežotām kopīgošanas izlasēm — caur /v/media/ ar ?g= (servera whitelist).
+ */
+function efpic_client_media_url(array $config, array $img, string $size = 'web', int $width = 720, ?array $ctx = null): string
 {
+    $token = (string) ($img['token'] ?? '');
+    $guest = efpic_viewer_guest_token($ctx ?? []);
+    if (efpic_viewer_is_restricted_share($ctx ?? [])) {
+        return efpic_media_proxy_url($config, $token, $size, $guest !== '' ? $guest : null, $width > 0 ? $width : 0);
+    }
+
     $hash = efpic_delivery_file_hash($img, $size === 'full' ? 'full' : 'web');
     if ($hash !== '') {
         if ($size === 'full') {
@@ -747,20 +887,25 @@ function efpic_client_media_url(array $config, array $img, string $size = 'web',
 
         return efpic_failiem_thumb_url($config, $hash, $width);
     }
-    $token = (string) ($img['token'] ?? '');
 
-    return efpic_base_url($config) . '/v/media/' . rawurlencode($token) . '?size=' . rawurlencode($size);
+    return efpic_media_proxy_url($config, $token, $size, $guest !== '' ? $guest : null, $width > 0 ? $width : 0);
 }
 
-function efpic_client_media_url_for_token(array $config, array $meta, string $token, string $size = 'web', int $width = 720): string
-{
-    foreach ($meta['images'] ?? [] as $img) {
-        if (is_array($img) && ($img['token'] ?? '') === $token) {
-            return efpic_client_media_url($config, $img, $size, $width);
-        }
+function efpic_client_media_url_for_token(
+    array $config,
+    array $meta,
+    string $token,
+    string $size = 'web',
+    int $width = 720,
+    ?array $ctx = null
+): string {
+    $img = efpic_find_image_row_by_token($meta, $token);
+    if ($img !== null) {
+        return efpic_client_media_url($config, $img, $size, $width, $ctx);
     }
+    $guest = efpic_viewer_guest_token($ctx ?? []);
 
-    return efpic_base_url($config) . '/v/media/' . rawurlencode($token) . '?size=' . rawurlencode($size);
+    return efpic_media_proxy_url($config, $token, $size, $guest !== '' ? $guest : null, $width > 0 ? $width : 0);
 }
 
 function efpic_can_download_size(array $meta, array $ctx, string $size): bool

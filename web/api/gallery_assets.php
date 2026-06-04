@@ -233,10 +233,15 @@ function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config):
     return null;
 }
 
-function efpic_gallery_asset_url(array $config, string $galleryToken, string $filename): string
+function efpic_gallery_asset_url(array $config, string $galleryToken, string $filename, ?string $guestToken = null): string
 {
-    return efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken) . '/asset/'
+    $url = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken) . '/asset/'
         . rawurlencode($filename);
+    if ($guestToken !== null && $guestToken !== '') {
+        $url .= '?g=' . rawurlencode($guestToken);
+    }
+
+    return $url;
 }
 
 function efpic_gallery_asset_registered(array $meta, string $filename): bool
@@ -601,7 +606,7 @@ function efpic_slideshow_favorite_images(array $meta, array $ctx, array $config,
             continue;
         }
         $tok = (string) ($img['token'] ?? '');
-        if ($tok === '' || !efpic_can_view_image_file($meta, $tok)) {
+        if ($tok === '' || !efpic_gallery_password_satisfied($meta, (string) ($meta['gallery_token'] ?? ''), $tok)) {
             continue;
         }
         $out[] = $img;
@@ -610,7 +615,66 @@ function efpic_slideshow_favorite_images(array $meta, array $ctx, array $config,
     return $out;
 }
 
-function efpic_can_view_gallery_asset(array $meta, string $galleryToken): bool
+function efpic_can_view_gallery_asset(array $config, array $meta, string $galleryToken, array $ctx, string $filename): bool
+{
+    if (efpic_admin_session_active()) {
+        return true;
+    }
+    if (efpic_viewer_context_access_denied($ctx)) {
+        return false;
+    }
+    if (!efpic_gallery_password_satisfied($meta, $galleryToken)) {
+        return false;
+    }
+
+    $whitelist = $ctx['share_image_tokens'] ?? null;
+    if (!is_array($whitelist)) {
+        return true;
+    }
+
+    $slots = efpic_gallery_slideshows_struct($meta);
+    foreach (['admin', 'client'] as $who) {
+        if ($slots[$who]['audio_file'] === $filename) {
+            return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+        }
+    }
+
+    if (empty($ctx['share_include_videos'])) {
+        return false;
+    }
+
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video) || ($video['kind'] ?? '') !== 'file') {
+            continue;
+        }
+        if ((string) ($video['file'] ?? '') !== $filename) {
+            continue;
+        }
+        $sceneId = (string) ($video['scene_id'] ?? 'main');
+
+        return efpic_share_scene_has_whitelisted_images($meta, $sceneId, $whitelist);
+    }
+
+    return false;
+}
+
+function efpic_share_scene_has_whitelisted_images(array $meta, string $sceneId, array $whitelist): bool
+{
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '' && isset($whitelist[$tok]) && (string) ($img['scene_id'] ?? 'main') === $sceneId) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/** @deprecated Izmanto efpic_can_view_gallery_asset ar viewer kontekstu */
+function efpic_can_view_gallery_asset_legacy(array $meta, string $galleryToken): bool
 {
     if (efpic_admin_session_active()) {
         return true;
@@ -630,7 +694,8 @@ function efpic_handle_gallery_asset(array $config, string $galleryToken, string 
         exit;
     }
     $meta = $found['meta'];
-    if (!efpic_can_view_gallery_asset($meta, $galleryToken)) {
+    $ctx = efpic_viewer_context($config, $meta);
+    if (!efpic_can_view_gallery_asset($config, $meta, $galleryToken, $ctx, $filename)) {
         http_response_code(403);
         exit;
     }

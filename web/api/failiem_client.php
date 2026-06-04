@@ -451,9 +451,9 @@ function efpic_failiem_register_selected_zip(
     return null;
 }
 
-function efpic_failiem_prepared_zip_session_key(string $galleryToken, string $scope, string $size): string
+function efpic_failiem_prepared_zip_session_key(string $galleryToken, string $scope, string $size, string $viewerScope = 'public'): string
 {
-    return 'efpic_failiem_zip_' . hash('sha256', $galleryToken . '|' . $scope . '|' . $size);
+    return 'efpic_failiem_zip_' . hash('sha256', $galleryToken . '|' . $scope . '|' . $size . '|' . $viewerScope);
 }
 
 /** @param array{stream_url: string, cookie_file: string} $reg */
@@ -462,7 +462,8 @@ function efpic_failiem_stash_prepared_zip(
     string $scope,
     string $size,
     array $reg,
-    string $filename
+    string $filename,
+    string $viewerScope = 'public'
 ): void {
     efpic_client_session_start();
     $cookiePath = sys_get_temp_dir() . '/efpic_zip_ck_' . bin2hex(random_bytes(8)) . '.txt';
@@ -471,7 +472,7 @@ function efpic_failiem_stash_prepared_zip(
         @copy($cookieSrc, $cookiePath);
         @unlink($cookieSrc);
     }
-    $_SESSION[efpic_failiem_prepared_zip_session_key($galleryToken, $scope, $size)] = [
+    $_SESSION[efpic_failiem_prepared_zip_session_key($galleryToken, $scope, $size, $viewerScope)] = [
         'stream_url' => $reg['stream_url'],
         'cookie_path' => $cookiePath,
         'filename' => $filename,
@@ -479,10 +480,10 @@ function efpic_failiem_stash_prepared_zip(
     ];
 }
 
-function efpic_failiem_take_prepared_zip(string $galleryToken, string $scope, string $size): ?array
+function efpic_failiem_take_prepared_zip(string $galleryToken, string $scope, string $size, string $viewerScope = 'public'): ?array
 {
     efpic_client_session_start();
-    $key = efpic_failiem_prepared_zip_session_key($galleryToken, $scope, $size);
+    $key = efpic_failiem_prepared_zip_session_key($galleryToken, $scope, $size, $viewerScope);
     $data = $_SESSION[$key] ?? null;
     unset($_SESSION[$key]);
     if (!is_array($data) || (int) ($data['expires'] ?? 0) < time()) {
