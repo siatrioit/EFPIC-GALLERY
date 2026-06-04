@@ -800,6 +800,67 @@ function efpic_share_sets_token_index(array $meta): array
     return $index;
 }
 
+function efpic_replace_share_set_images(array &$meta, string $guestToken, array $imageTokens): void
+{
+    $guestToken = trim($guestToken);
+    if ($guestToken === '') {
+        throw new InvalidArgumentException('Nav izvēlēta izlase.');
+    }
+    $index = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && ($img['token'] ?? '') !== '') {
+            $index[(string) $img['token']] = true;
+        }
+    }
+    $valid = [];
+    foreach ($imageTokens as $tok) {
+        $tok = trim((string) $tok);
+        if ($tok !== '' && isset($index[$tok])) {
+            $valid[$tok] = true;
+        }
+    }
+    $valid = array_keys($valid);
+    if ($valid === []) {
+        throw new InvalidArgumentException('Izvēlies vismaz vienu derīgu bildi izlasei.');
+    }
+
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        throw new InvalidArgumentException('Izlase nav atrasta.');
+    }
+    $found = false;
+    foreach ($guests as $gi => $guest) {
+        if (!is_array($guest) || (string) ($guest['guest_token'] ?? '') !== $guestToken) {
+            continue;
+        }
+        $guests[$gi]['image_tokens'] = $valid;
+        $found = true;
+        break;
+    }
+    if (!$found) {
+        throw new InvalidArgumentException('Izlase nav atrasta.');
+    }
+    $meta['guests'] = $guests;
+}
+
+function efpic_update_share_set_label(array &$meta, string $guestToken, string $label): void
+{
+    $guestToken = trim($guestToken);
+    $label = trim($label);
+    if ($label === '') {
+        throw new InvalidArgumentException('Ievadi izlases nosaukumu.');
+    }
+    foreach ($meta['guests'] ?? [] as $gi => $guest) {
+        if (!is_array($guest) || (string) ($guest['guest_token'] ?? '') !== $guestToken) {
+            continue;
+        }
+        $meta['guests'][$gi]['label'] = $label;
+
+        return;
+    }
+    throw new InvalidArgumentException('Izlase nav atrasta.');
+}
+
 function efpic_append_to_share_set(array &$meta, string $guestToken, array $imageTokens): void
 {
     $guestToken = trim($guestToken);
@@ -882,6 +943,18 @@ function efpic_admin_apply_share_actions_from_post(array &$meta): void
         $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
         $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
         efpic_append_to_share_set($meta, $guestToken, $tokens);
+
+        return;
+    }
+    if ($action === 'replace') {
+        $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
+        $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
+        $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
+        efpic_replace_share_set_images($meta, $guestToken, $tokens);
+        $label = trim((string) ($_POST['share_set_label'] ?? ''));
+        if ($label !== '') {
+            efpic_update_share_set_label($meta, $guestToken, $label);
+        }
 
         return;
     }

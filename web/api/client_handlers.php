@@ -431,9 +431,38 @@ function efpic_client_render_pic_feed_items(array $config, array $images, array 
     return $html;
 }
 
-function efpic_client_render_scene_jump_nav(array $meta, array $images): string
+function efpic_client_scenes_for_gallery_view(array $config, array $meta, array $images, array $ctx = []): array
 {
-    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    $byScene = [];
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $byScene[$sid] = true;
+    }
+
+    $out = [];
+    foreach (efpic_gallery_sorted_scenes($meta) as $scene) {
+        $sid = (string) ($scene['id'] ?? 'main');
+        $hasImages = isset($byScene[$sid]);
+        $hasVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx) !== '';
+        if (!$hasImages && !$hasVideos) {
+            continue;
+        }
+        $out[] = [
+            'id' => $sid,
+            'title' => (string) ($scene['title'] ?? 'Galerija'),
+            'sort' => (int) ($scene['sort'] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
+function efpic_client_render_scene_jump_nav(array $config, array $meta, array $images, array $ctx = []): string
+{
+    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
     if (count($visible) < 2) {
         return '';
     }
@@ -476,7 +505,7 @@ function efpic_client_scene_next_button_for_index(array $scenesWithImages, int $
 function efpic_client_render_pic_time_scenes(array $config, array $meta, array $images, array $gridCtx): string
 {
     $ctx = is_array($gridCtx['viewer_ctx'] ?? null) ? $gridCtx['viewer_ctx'] : [];
-    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
 
     $byScene = [];
     foreach ($images as $img) {
@@ -487,13 +516,15 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
         $byScene[$sid][] = $img;
     }
 
-    $videosByScene = efpic_videos_grouped_by_scene($meta);
     $scenesWithContent = [];
     foreach ($visible as $scene) {
         $sid = $scene['id'];
-        if (($byScene[$sid] ?? []) !== [] || ($videosByScene[$sid] ?? []) !== []) {
-            $scenesWithContent[] = $scene;
+        $sceneImages = $byScene[$sid] ?? [];
+        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
+        if ($sceneImages === [] && $sceneVideos === '') {
+            continue;
         }
+        $scenesWithContent[] = $scene;
     }
     $multiScene = count($scenesWithContent) > 1;
 
@@ -653,7 +684,8 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         return efpic_client_render_pic_time_scenes($config, $meta, $images, $gridCtx);
     }
 
-    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    $ctx = is_array($gridCtx['viewer_ctx'] ?? null) ? $gridCtx['viewer_ctx'] : [];
+    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
 
     $byScene = [];
     foreach ($images as $img) {
@@ -664,17 +696,18 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $byScene[$sid][] = $img;
     }
 
-    $videosByScene = efpic_videos_grouped_by_scene($meta);
     $scenesWithContent = [];
     foreach ($visible as $scene) {
         $sid = $scene['id'];
-        if (($byScene[$sid] ?? []) !== [] || ($videosByScene[$sid] ?? []) !== []) {
-            $scenesWithContent[] = $scene;
+        $sceneImages = $byScene[$sid] ?? [];
+        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
+        if ($sceneImages === [] && $sceneVideos === '') {
+            continue;
         }
+        $scenesWithContent[] = $scene;
     }
     $multiScene = count($scenesWithContent) > 1;
 
-    $ctx = is_array($gridCtx['viewer_ctx'] ?? null) ? $gridCtx['viewer_ctx'] : [];
     $guestQ = efpic_viewer_guest_token($ctx);
     $guestQ = $guestQ !== '' ? $guestQ : null;
     $html = '';
@@ -686,18 +719,20 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
             . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
-        $html .= '<div class="grid">';
-        foreach ($sceneImages as $img) {
-            $tok = (string) ($img['token'] ?? '');
-            $imgUrl = efpic_client_media_url($config, $img, 'web', 720, $ctx);
-            $pageUrl = efpic_image_view_url($config, $tok, $guestQ);
-            $html .= '<div class="grid-card" data-token="' . efpic_client_esc($tok) . '">';
-            $html .= '<a class="grid-card-link" href="' . efpic_client_esc($pageUrl) . '">';
-            $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
-            $html .= efpic_client_render_image_grid_actions($gridCtx, $img);
+        if ($sceneImages !== []) {
+            $html .= '<div class="grid">';
+            foreach ($sceneImages as $img) {
+                $tok = (string) ($img['token'] ?? '');
+                $imgUrl = efpic_client_media_url($config, $img, 'web', 720, $ctx);
+                $pageUrl = efpic_image_view_url($config, $tok, $guestQ);
+                $html .= '<div class="grid-card" data-token="' . efpic_client_esc($tok) . '">';
+                $html .= '<a class="grid-card-link" href="' . efpic_client_esc($pageUrl) . '">';
+                $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy"></a>';
+                $html .= efpic_client_render_image_grid_actions($gridCtx, $img);
+                $html .= '</div>';
+            }
             $html .= '</div>';
         }
-        $html .= '</div>';
         if ($multiScene) {
             $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
         }
@@ -779,16 +814,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_topbar($name, $right, 'topbar-floating');
     } else {
         $body .= efpic_client_topbar($name, $right);
-        $body .= efpic_client_render_cover($config, $meta, $images, $theme);
-    }
-
-    if (is_array($ctx['share_image_tokens'] ?? null)) {
-        $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
-        if ($shareLabel === '') {
-            $shareLabel = 'Izlase';
-        }
-        $body .= '<p class="gallery-share-banner">Izlase «' . efpic_client_esc($shareLabel) . '» — '
-            . count($images) . ' bildes</p>';
+        $body .= efpic_client_render_cover($config, $meta, $images, $theme, $ctx);
     }
 
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
@@ -803,7 +829,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     if (efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true)) {
-        $sceneNav = efpic_client_render_scene_jump_nav($meta, $images);
+        $sceneNav = efpic_client_render_scene_jump_nav($config, $meta, $images, $ctx);
         $body .= '<main class="gallery-main">';
         if ($sceneNav !== '') {
             $body .= $sceneNav;

@@ -183,9 +183,16 @@
   function applySceneTitleToCards(cards, title) {
     if (!cards.length) return;
     var scene = ensureSceneForTitle(title);
+    var changed = false;
     cards.forEach(function (card) {
+      var hidden = card.querySelector('.admin-scene-id');
+      var prev = hidden ? hidden.value : card.getAttribute('data-scene-id') || 'main';
+      if (prev !== scene.id) {
+        changed = true;
+      }
       setCardScene(card, scene.id, scene.title);
     });
+    if (!changed) return;
     if (typeof window.efpicRefreshSceneFilterCounts === 'function') {
       window.efpicRefreshSceneFilterCounts();
     }
@@ -555,16 +562,127 @@
     });
   }
 
+  var shareEditMode = null;
+
+  function updateShareEditBar() {
+    var bar = document.getElementById('admin-share-edit-bar');
+    var labelEl = document.getElementById('admin-share-edit-bar-label');
+    if (!bar || !labelEl) return;
+    if (!shareEditMode) {
+      bar.hidden = true;
+      if (imageGrid) {
+        imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
+          card.classList.remove('is-share-edit-pick');
+        });
+      }
+      return;
+    }
+    bar.hidden = false;
+    var name = shareEditMode.label || 'Izlase';
+    if (shareEditMode.isNew) {
+      labelEl.innerHTML = 'Jauna izlase: <strong>' + escapeHtml(name) + '</strong> — atzīmē bildes un spied Saglabāt.';
+    } else {
+      labelEl.innerHTML = 'Labot izlasi: <strong>' + escapeHtml(name) + '</strong> — pievieno vai noņem bildes, tad Saglabāt.';
+    }
+  }
+
+  function escapeHtml(s) {
+    return String(s || '')
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function selectShareEditTokens(tokens) {
+    if (!imageGrid) return;
+    var set = {};
+    (tokens || []).forEach(function (t) {
+      if (t) set[t] = true;
+    });
+    clearAllPicks();
+    imageGrid.querySelectorAll('.admin-media-card').forEach(function (card) {
+      var tok = card.getAttribute('data-token');
+      if (tok && set[tok]) {
+        setCardPicked(card, true);
+        card.classList.add('is-share-edit-pick');
+      } else {
+        card.classList.remove('is-share-edit-pick');
+      }
+    });
+    updatePickCount();
+  }
+
+  function enterShareEditMode(opts) {
+    shareEditMode = {
+      guestToken: opts.guestToken || null,
+      label: opts.label || '',
+      includeVideos: !!opts.includeVideos,
+      isNew: !opts.guestToken,
+    };
+    selectShareEditTokens(opts.tokens || []);
+    applySceneFilter('all');
+    updateShareEditBar();
+    if (typeof window.efpicActivateAdminTab === 'function') {
+      window.efpicActivateAdminTab('admin-tab-images', true);
+    }
+    var bar = document.getElementById('admin-image-bulk-bar');
+    if (bar) bar.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function exitShareEditMode() {
+    shareEditMode = null;
+    clearAllPicks();
+    updateShareEditBar();
+    updatePickCount();
+  }
+
+  function saveShareEditMode() {
+    if (!shareEditMode) return;
+    var tokens = getPickedImageTokens();
+    if (!tokens.length) {
+      window.alert('Izvēlies vismaz vienu bildi izlasei.');
+      return;
+    }
+    var extra;
+    if (shareEditMode.isNew) {
+      extra = {
+        share_action: 'create',
+        share_set_label: shareEditMode.label,
+        share_set_tokens: tokens.join(','),
+      };
+      if (shareEditMode.includeVideos) {
+        extra.share_include_videos = '1';
+      }
+    } else {
+      extra = {
+        share_action: 'replace',
+        share_guest_token: shareEditMode.guestToken,
+        share_set_label: shareEditMode.label,
+        share_set_tokens: tokens.join(','),
+      };
+    }
+    var saveBtn = document.getElementById('admin-share-edit-save');
+    if (saveBtn) saveBtn.disabled = true;
+    postAdminShareRequest(extra)
+      .then(function (data) {
+        showAdminAutoSaveToast(shareEditMode.isNew ? 'Izlase izveidota' : 'Izlase saglabāta', false);
+        applyAdminShareAutosavePayload(data);
+        exitShareEditMode();
+      })
+      .catch(function (err) {
+        showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+      })
+      .finally(function () {
+        if (saveBtn) saveBtn.disabled = false;
+      });
+  }
+
   function bindAdminShareSetEvents() {
-    var createBtn = document.getElementById('admin-share-create-new');
-    if (createBtn && createBtn.dataset.bound !== '1') {
-      createBtn.dataset.bound = '1';
-      createBtn.addEventListener('click', function () {
-        var tokens = getPickedImageTokens();
-        if (!tokens.length) {
-          window.alert('Cilnē Bildes atzīmē vismaz vienu bildi.');
-          return;
-        }
+    var startNewBtn = document.getElementById('admin-share-start-new');
+    if (startNewBtn && startNewBtn.dataset.bound !== '1') {
+      startNewBtn.dataset.bound = '1';
+      startNewBtn.addEventListener('click', function () {
         var labelEl = document.getElementById('admin-share-new-label');
         var label = labelEl ? labelEl.value.trim() : '';
         if (!label) {
@@ -573,67 +691,30 @@
           return;
         }
         var videosEl = document.getElementById('admin-share-new-videos');
-        var extra = {
-          share_action: 'create',
-          share_set_label: label,
-          share_set_tokens: tokens.join(','),
-        };
-        if (videosEl && videosEl.checked) {
-          extra.share_include_videos = '1';
-        }
-        createBtn.disabled = true;
-        postAdminShareRequest(extra)
-          .then(function (data) {
-            showAdminAutoSaveToast('Kopīgojamā izlase izveidota', false);
-            applyAdminShareAutosavePayload(data);
-            if (labelEl) labelEl.value = '';
-            if (videosEl) videosEl.checked = false;
-            clearAllPicks();
-            updatePickCount();
-          })
-          .catch(function (err) {
-            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
-          })
-          .finally(function () {
-            createBtn.disabled = false;
-          });
+        enterShareEditMode({
+          label: label,
+          includeVideos: !!(videosEl && videosEl.checked),
+          tokens: [],
+        });
       });
     }
 
-    var appendBtn = document.getElementById('admin-share-append-btn');
-    if (appendBtn && appendBtn.dataset.bound !== '1') {
-      appendBtn.dataset.bound = '1';
-      appendBtn.addEventListener('click', function () {
-        var tokens = getPickedImageTokens();
-        if (!tokens.length) {
-          window.alert('Cilnē Bildes atzīmē bildes, kuras pievienot izlasei.');
-          return;
-        }
-        var sel = document.getElementById('admin-share-append-target');
-        if (!sel || !sel.value) {
-          window.alert('Izvēlies izlasi.');
-          return;
-        }
-        appendBtn.disabled = true;
-        postAdminShareRequest({
-          share_action: 'append',
-          share_guest_token: sel.value,
-          share_set_tokens: tokens.join(','),
-        })
-          .then(function (data) {
-            showAdminAutoSaveToast('Bildes pievienotas izlasei', false);
-            applyAdminShareAutosavePayload(data);
-            clearAllPicks();
-            updatePickCount();
-          })
-          .catch(function (err) {
-            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
-          })
-          .finally(function () {
-            appendBtn.disabled = false;
-          });
+    document.querySelectorAll('.admin-share-edit').forEach(function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var item = btn.closest('.admin-share-set-item');
+        if (!item) return;
+        var raw = item.getAttribute('data-share-tokens') || '';
+        var tokens = raw ? raw.split(',').filter(Boolean) : [];
+        enterShareEditMode({
+          guestToken: item.getAttribute('data-guest-token') || null,
+          label: item.getAttribute('data-share-label') || '',
+          includeVideos: item.getAttribute('data-share-videos') === '1',
+          tokens: tokens,
+        });
       });
-    }
+    });
 
     document.querySelectorAll('.admin-share-delete').forEach(function (btn) {
       if (btn.dataset.bound === '1') return;
@@ -647,6 +728,9 @@
           .then(function (data) {
             showAdminAutoSaveToast('Izlase dzēsta', false);
             applyAdminShareAutosavePayload(data);
+            if (shareEditMode && shareEditMode.guestToken === gtok) {
+              exitShareEditMode();
+            }
           })
           .catch(function (err) {
             showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
@@ -685,6 +769,16 @@
 
   function initAdminShareSets() {
     bindAdminShareSetEvents();
+    var saveBtn = document.getElementById('admin-share-edit-save');
+    var cancelBtn = document.getElementById('admin-share-edit-cancel');
+    if (saveBtn && saveBtn.dataset.bound !== '1') {
+      saveBtn.dataset.bound = '1';
+      saveBtn.addEventListener('click', saveShareEditMode);
+    }
+    if (cancelBtn && cancelBtn.dataset.bound !== '1') {
+      cancelBtn.dataset.bound = '1';
+      cancelBtn.addEventListener('click', exitShareEditMode);
+    }
   }
 
   var scenePopover = null;
@@ -757,7 +851,7 @@
     pop.style.left = Math.max(8, left) + 'px';
     pop.style.top = rect.bottom + 4 + 'px';
     pop.style.minWidth = Math.max(rect.width + 28, 200) + 'px';
-    filterScenePopover(input.value);
+    filterScenePopover('');
   }
 
   function filterScenePopover(query) {
@@ -1575,6 +1669,10 @@
     if (saved && form.querySelector('#' + saved + '[data-admin-tab-panel]')) {
       activate(saved, false);
     }
+
+    window.efpicActivateAdminTab = function (tabId, persist) {
+      if (tabId) activate(tabId, persist !== false);
+    };
   })();
 
   document.querySelectorAll('.admin-color-input').forEach(function (input) {

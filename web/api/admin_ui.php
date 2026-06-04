@@ -284,38 +284,11 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
 
     $html = '<div class="admin-share-compose">';
     $html .= '<h3 class="admin-share-block-title">Jauna kopīgojamā izlase</h3>';
-    $html .= '<p class="muted">Cilnē <strong>Bildes</strong> atzīmē bildes, tad ievadi kam paredzēta izlase (piem. «Dekorators Anna»).</p>';
+    $html .= '<p class="muted">Ievadi nosaukumu un spied «Sākt» — pārlec uz <strong>Bildes</strong>, kur atzīmē bildes un saglabā izlasi.</p>';
     $html .= '<div class="admin-share-compose-row">';
     $html .= '<label>Kam / nosaukums<input type="text" id="admin-share-new-label" placeholder="piem. Dekorators Anna" autocomplete="off"></label>';
-    $html .= '<label class="admin-check admin-share-videos-check"><input type="checkbox" id="admin-share-new-videos" value="1"> Rādīt arī video šajā izlasē</label>';
-    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-share-create-new">Izveidot no atlasītajām bildēm</button>';
-    $html .= '</div></div>';
-
-    $html .= '<div class="admin-share-append">';
-    $html .= '<h3 class="admin-share-block-title">Pievienot atlasītajām bildēm esošai izlasei</h3>';
-    $html .= '<div class="admin-share-compose-row">';
-    if ($guests === []) {
-        $html .= '<p class="muted">Vēl nav izveidotu izlašu — vispirms izveido jaunu.</p>';
-    } else {
-        $html .= '<label>Izlase<select id="admin-share-append-target">';
-        foreach ($guests as $g) {
-            if (!is_array($g)) {
-                continue;
-            }
-            $gtok = (string) ($g['guest_token'] ?? '');
-            if ($gtok === '') {
-                continue;
-            }
-            $n = efpic_share_set_image_count($g);
-            if ($n === 0) {
-                continue;
-            }
-            $html .= '<option value="' . efpic_admin_esc($gtok) . '">' . efpic_admin_esc((string) ($g['label'] ?? 'Izlase'))
-                . ' (' . $n . ' bildes)</option>';
-        }
-        $html .= '</select></label>';
-        $html .= '<button type="button" class="btn admin-btn-inline" id="admin-share-append-btn">Pievienot atlasītajām</button>';
-    }
+    $html .= '<label class="admin-check admin-share-videos-check"><input type="checkbox" id="admin-share-new-videos" value="1"> Video izlasē</label>';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-share-start-new">Sākt jaunu izlasi</button>';
     $html .= '</div></div>';
 
     $html .= '<div class="admin-share-list-wrap"><h3 class="admin-share-block-title">Izveidotās izlases</h3>';
@@ -335,12 +308,23 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
             if ($n === 0) {
                 continue;
             }
+            $tokens = [];
+            foreach ($g['image_tokens'] ?? [] as $tok) {
+                $tok = (string) $tok;
+                if ($tok !== '') {
+                    $tokens[] = $tok;
+                }
+            }
             $url = efpic_gallery_view_url($config, $gt, $gtok);
             $created = substr((string) ($g['created_at'] ?? ''), 0, 10);
             $includeVideos = !empty($g['include_videos']);
-            $html .= '<li class="admin-share-set-item" data-guest-token="' . efpic_admin_esc($gtok) . '">';
+            $label = (string) ($g['label'] ?? 'Izlase');
+            $html .= '<li class="admin-share-set-item" data-guest-token="' . efpic_admin_esc($gtok) . '"'
+                . ' data-share-label="' . efpic_admin_esc($label) . '"'
+                . ' data-share-tokens="' . efpic_admin_esc(implode(',', $tokens)) . '"'
+                . ' data-share-videos="' . ($includeVideos ? '1' : '0') . '">';
             $html .= '<div class="admin-share-set-head">';
-            $html .= '<div><strong class="admin-share-set-name">' . efpic_admin_esc((string) ($g['label'] ?? 'Izlase')) . '</strong>';
+            $html .= '<div><strong class="admin-share-set-name">' . efpic_admin_esc($label) . '</strong>';
             $html .= '<span class="muted admin-share-set-meta">' . $n . ' bildes · ' . efpic_admin_esc(efpic_admin_share_created_by_label($g));
             if ($created !== '') {
                 $html .= ' · ' . efpic_admin_esc($created);
@@ -351,6 +335,8 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
             $html .= '</div>';
             $html .= efpic_admin_render_share_set_thumbs($config, $meta, $g);
             $html .= '<a class="admin-share-set-url" href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($url) . '</a>';
+            $html .= '<button type="button" class="btn primary admin-btn-inline admin-share-edit" data-guest-token="' . efpic_admin_esc($gtok)
+                . '">Labot bildes</button>';
             $html .= '<button type="button" class="btn admin-btn-inline admin-share-delete" data-guest-token="' . efpic_admin_esc($gtok)
                 . '">Dzēst</button>';
             $html .= '</li>';
@@ -365,7 +351,7 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
 function efpic_admin_render_share_sets(array $config, array $meta): string
 {
     $html = '<fieldset class="admin-fieldset-full admin-share-sets-panel" id="admin-share-sets-panel"><legend>Kopīgojamās izlases</legend>';
-    $html .= '<p class="muted">Atsevišķas saites ar izvēlētām bildēm — piem. dekoratoram, radiētājam u.c. Pēc noklusējuma <strong>bez video</strong>; ieslēdz vari katrā izlasē atsevišķi.</p>';
+    $html .= '<p class="muted">Atsevišķas saites ar izvēlētām bildēm. Spied <strong>Labot bildes</strong>, lai mainītu izlasi cilnē Bildes — vari pievienot vai noņemt bildes.</p>';
     $html .= '<div id="admin-share-sets-body">' . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
     $html .= '</fieldset>';
 
@@ -1127,6 +1113,11 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
         $body .= '<p class="muted">Velciet kartītes secībai. Klikšķis — atlase; <kbd>Shift</kbd> — diapazons. Sadaļu maini tieši pie bildes (var ierakstīt jaunu nosaukumu).</p>';
         $body .= efpic_admin_render_image_scene_toolbar($meta);
+        $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
+        $body .= '<span class="admin-share-edit-bar__label" id="admin-share-edit-bar-label"></span>';
+        $body .= '<button type="button" class="btn primary admin-btn-inline" id="admin-share-edit-save">Saglabāt izlasi</button>';
+        $body .= '<button type="button" class="btn admin-btn-inline" id="admin-share-edit-cancel">Atcelt</button>';
+        $body .= '</div>';
         $sceneOptions = efpic_gallery_scene_options($meta);
         $shareIndex = efpic_share_sets_token_index($meta);
         $body .= '<ul id="sortable" class="admin-media-grid">';
