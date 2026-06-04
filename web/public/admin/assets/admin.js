@@ -726,6 +726,52 @@
     });
   }
 
+  (function initAdminEditTabs() {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form || !form.classList.contains('admin-form--tabbed')) return;
+    var tabs = form.querySelectorAll('.admin-edit-tab[data-admin-tab]');
+    var panels = form.querySelectorAll('[data-admin-tab-panel]');
+    if (!tabs.length || !panels.length) return;
+
+    var slug = form.getAttribute('data-admin-edit-slug') || '';
+    var storageKey = 'efpic_admin_tab_' + slug;
+
+    function activate(tabId, persist) {
+      tabs.forEach(function (tab) {
+        var on = tab.getAttribute('data-admin-tab') === tabId;
+        tab.classList.toggle('is-active', on);
+        tab.setAttribute('aria-selected', on ? 'true' : 'false');
+      });
+      panels.forEach(function (panel) {
+        var on = panel.id === tabId;
+        if (on) {
+          panel.removeAttribute('hidden');
+        } else {
+          panel.setAttribute('hidden', '');
+        }
+      });
+      if (persist && tabId) {
+        try {
+          sessionStorage.setItem(storageKey, tabId);
+        } catch (e) {}
+      }
+    }
+
+    tabs.forEach(function (tab) {
+      tab.addEventListener('click', function () {
+        activate(tab.getAttribute('data-admin-tab'), true);
+      });
+    });
+
+    var saved = '';
+    try {
+      saved = sessionStorage.getItem(storageKey) || '';
+    } catch (e) {}
+    if (saved && form.querySelector('#' + saved + '[data-admin-tab-panel]')) {
+      activate(saved, false);
+    }
+  })();
+
   document.querySelectorAll('.admin-color-input').forEach(function (input) {
     var wrap = input.closest('.admin-color-control');
     if (!wrap) return;

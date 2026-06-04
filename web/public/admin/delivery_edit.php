@@ -32,7 +32,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $meta = efpic_load_gallery_meta($config, $slug);
         efpic_admin_delivery_form($config, $meta, $slug, $flash);
     } catch (Throwable $e) {
-        efpic_admin_delivery_form($config, $meta, $slug, $e->getMessage());
+        efpic_admin_delivery_form($config, $meta, $slug, $e->getMessage(), true);
     }
 }
 

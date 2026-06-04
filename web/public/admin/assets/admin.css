@@ -218,6 +218,52 @@
   border-color: var(--admin-accent-hover);
 }
 
+.admin-edit-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 16px;
+  padding: 0;
+  position: sticky;
+  top: calc(var(--admin-sticky-h) + 8px);
+  z-index: 40;
+  background: var(--admin-bg);
+  padding-bottom: 4px;
+}
+
+.admin-edit-tab {
+  margin: 0;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--admin-text-muted);
+  background: var(--admin-surface);
+  border: 1px solid var(--admin-border);
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-edit-tab:hover {
+  color: var(--admin-text);
+  border-color: var(--admin-border-strong);
+}
+
+.admin-edit-tab.is-active {
+  color: #fff;
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+}
+
+.admin-tab-panel[hidden] {
+  display: none !important;
+}
+
+.admin-form--tabbed .admin-tab-panel fieldset {
+  margin-top: 0;
+}
+
 .admin-form-layout {
   display: grid;
   gap: 16px;
@@ -1042,7 +1088,8 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  justify-content: space-between;
+  gap: 12px 20px;
   margin-bottom: 16px;
   padding: 12px 14px;
   background: var(--admin-surface);
@@ -1050,18 +1097,10 @@
   border-radius: var(--admin-radius);
 }
 
-.admin-view-tabs {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.admin-view-tabs .btn {
-  text-decoration: none;
-}
-
-.admin-view-tabs .btn.primary {
-  pointer-events: none;
+.admin-list-title {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 600;
 }
 
 .admin-sort-links a {
