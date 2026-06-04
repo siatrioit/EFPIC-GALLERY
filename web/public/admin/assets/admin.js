@@ -965,7 +965,7 @@
           evt.target &&
           evt.target.closest &&
           evt.target.closest(
-            '.admin-cover-pick, .admin-media-thumb, .admin-scene-pick, .admin-bulk-pick, .admin-fav-pick, .admin-image-pick'
+            '.admin-cover-pick, .admin-media-thumb, .admin-scene-pick, .admin-scene-open-btn, .admin-bulk-pick, .admin-fav-pick, .admin-image-pick'
           )
         ) {
           evt.preventDefault();
