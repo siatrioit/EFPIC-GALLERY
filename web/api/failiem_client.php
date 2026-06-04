@@ -275,6 +275,30 @@ function efpic_failiem_file_hashes_from_images(array $images, string $size): arr
     return $hashes;
 }
 
+function efpic_failiem_cookie_phpsessid(string $cookieFile): string
+{
+    if ($cookieFile === '' || !is_readable($cookieFile)) {
+        return '';
+    }
+
+    $lines = file($cookieFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    if ($lines === false) {
+        return '';
+    }
+
+    foreach ($lines as $line) {
+        if ($line === '' || $line[0] === '#') {
+            continue;
+        }
+        $parts = preg_split('/\s+/', trim($line));
+        if (count($parts) >= 7 && $parts[5] === 'PHPSESSID') {
+            return (string) $parts[6];
+        }
+    }
+
+    return '';
+}
+
 /**
  * Failiem atlasīto failu ZIP (download_selected_zip.php → upload_zip_streamer.php).
  *
@@ -317,6 +341,7 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
         $headers[] = 'Authorization: Bearer ' . $apiKey;
     }
 
+    $cookieFile = sys_get_temp_dir() . '/efpic_failiem_' . bin2hex(random_bytes(6)) . '.cookies';
     $ch = curl_init($url);
     if ($ch === false) {
         return null;
@@ -330,6 +355,7 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
         CURLOPT_TIMEOUT => 120,
         CURLOPT_CONNECTTIMEOUT => 30,
         CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_COOKIEJAR => $cookieFile,
     ];
     $user = (string) ($f['user'] ?? '');
     $pass = (string) ($f['pass'] ?? '');
@@ -341,6 +367,8 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
     $body = curl_exec($ch);
     $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
     curl_close($ch);
+    $phpSessId = efpic_failiem_cookie_phpsessid($cookieFile);
+    @unlink($cookieFile);
 
     if ($body === false || $code < 200 || $code >= 300) {
         return null;
@@ -358,7 +386,7 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
 
     $key = trim((string) ($data['selected_download_key'] ?? ''));
     $host = trim((string) ($data['file_host'] ?? ''));
-    if ($key === '' || $host === '') {
+    if ($key === '' || $host === '' || $phpSessId === '') {
         return null;
     }
 
@@ -368,6 +396,7 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
         . rawurlencode($folderHash)
         . '&selected_download_key='
         . rawurlencode($key);
+    $zipUrl .= '&PHPSESSID=' . rawurlencode($phpSessId);
     if ($webSize) {
         $zipUrl .= '&img_as_websize';
     }
