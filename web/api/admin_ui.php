@@ -507,9 +507,13 @@ function efpic_admin_render_video_preview(array $config, string $galleryToken, a
         . efpic_admin_esc($url) . '"></video></div>';
 }
 
-function efpic_admin_render_existing_videos_list(array $config, array $meta, string $galleryToken): string
+function efpic_admin_render_existing_videos_list(array $config, array $meta, string $galleryToken, bool $readOnly = false): string
 {
     $scenes = efpic_gallery_scene_options($meta);
+    $sceneTitles = [];
+    foreach ($scenes as $scene) {
+        $sceneTitles[$scene['id']] = $scene['title'];
+    }
     $html = '';
     foreach ($meta['videos'] ?? [] as $video) {
         if (!is_array($video)) {
@@ -523,20 +527,29 @@ function efpic_admin_render_existing_videos_list(array $config, array $meta, str
         $kind = (string) ($video['kind'] ?? 'file');
         $sceneId = (string) ($video['scene_id'] ?? 'main');
         $providerLabel = $kind === 'embed' ? strtoupper((string) ($video['provider'] ?? 'video')) : 'MP4';
-        $html .= '<div class="admin-video-card" data-video-id="' . efpic_admin_esc($vid) . '">';
+        $sceneTitle = (string) ($sceneTitles[$sceneId] ?? $sceneId);
+        $html .= '<div class="admin-video-card' . ($readOnly ? ' admin-video-card--readonly' : '') . '" data-video-id="' . efpic_admin_esc($vid) . '">';
         $html .= efpic_admin_render_video_preview($config, $galleryToken, $video);
         $html .= '<div class="admin-video-card__meta">';
-        $html .= '<label>Virsraksts<input type="text" name="video_title[' . efpic_admin_esc($vid) . ']" value="'
-            . efpic_admin_esc($title) . '" placeholder="Video virsraksts"></label>';
-        $html .= '<label>Sadaļa<select name="video_scene[' . efpic_admin_esc($vid) . ']" class="admin-video-scene-select">';
-        foreach ($scenes as $scene) {
-            $sel = $scene['id'] === $sceneId ? ' selected' : '';
-            $html .= '<option value="' . efpic_admin_esc($scene['id']) . '"' . $sel . '>' . efpic_admin_esc($scene['title']) . '</option>';
+        if ($readOnly) {
+            if ($title !== '') {
+                $html .= '<p class="admin-video-readonly-title"><strong>' . efpic_admin_esc($title) . '</strong></p>';
+            }
+            $html .= '<p class="muted admin-video-readonly-scene">' . efpic_admin_esc($sceneTitle) . '</p>';
+            $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
+        } else {
+            $html .= '<label>Virsraksts<input type="text" name="video_title[' . efpic_admin_esc($vid) . ']" value="'
+                . efpic_admin_esc($title) . '" placeholder="Video virsraksts"></label>';
+            $html .= '<label>Sadaļa<select name="video_scene[' . efpic_admin_esc($vid) . ']" class="admin-video-scene-select">';
+            foreach ($scenes as $scene) {
+                $sel = $scene['id'] === $sceneId ? ' selected' : '';
+                $html .= '<option value="' . efpic_admin_esc($scene['id']) . '"' . $sel . '>' . efpic_admin_esc($scene['title']) . '</option>';
+            }
+            $html .= '</select></label>';
+            $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
+            $html .= '<button type="button" class="btn admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
+            $html .= '<input type="hidden" name="delete_video[' . efpic_admin_esc($vid) . ']" value="0" class="admin-video-delete-flag">';
         }
-        $html .= '</select></label>';
-        $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
-        $html .= '<button type="button" class="btn admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
-        $html .= '<input type="hidden" name="delete_video[' . efpic_admin_esc($vid) . ']" value="0" class="admin-video-delete-flag">';
         $html .= '</div></div>';
     }
 
@@ -862,7 +875,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
 
         if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
-            efpic_admin_apply_share_actions_from_post($meta);
+            efpic_apply_share_actions_from_post($meta, 'admin');
         }
 
         if (!empty($_POST['delete_share_token'])) {
@@ -1203,7 +1216,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
                     . $shareCount . '</span>';
             }
             if ($clientFav) {
-                $body .= '<span class="admin-client-fav-badge" title="Klienta favorīts" aria-label="Klienta favorīts">♥</span>';
+                $body .= '<span class="admin-client-fav-badge" title="Klienta favorīts" aria-label="Klienta favorīts">★</span>';
             }
             if ($likes > 0) {
                 $body .= '<span class="admin-like-badge" title="Publiskās sirsniņas">♥ ' . $likes . '</span>';

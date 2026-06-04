@@ -536,6 +536,15 @@ function efpic_viewer_is_restricted_share(array $ctx): bool
     return is_array($ctx['share_image_tokens'] ?? null);
 }
 
+function efpic_viewer_include_videos_in_scenes(array $ctx): bool
+{
+    if (!efpic_viewer_is_restricted_share($ctx)) {
+        return true;
+    }
+
+    return !empty($ctx['share_include_videos']);
+}
+
 function efpic_viewer_guest_token(array $ctx): string
 {
     return (string) ($ctx['guest_token'] ?? '');

@@ -1384,11 +1384,16 @@
 }
 
 .admin-scene-popover-item--custom {
-  margin-top: 4px;
-  border-top: 1px solid var(--admin-border);
-  border-radius: 0 0 6px 6px;
-  color: var(--admin-text-muted);
-  font-size: 0.78rem;
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  margin-bottom: 4px;
+  border-bottom: 1px solid var(--admin-border);
+  border-radius: 6px 6px 0 0;
+  background: var(--admin-surface);
+  color: var(--admin-accent);
+  font-size: 0.8rem;
+  font-weight: 600;
 }
 
 .admin-scene-input:focus {

@@ -654,6 +654,7 @@
     } else {
       labelEl.innerHTML = 'Labot izlasi: <strong>' + escapeHtml(name) + '</strong> — pievieno vai noņem bildes, tad Saglabāt.';
     }
+    updatePickCount();
   }
 
   function escapeHtml(s) {
@@ -865,6 +866,40 @@
   var scenePopoverAnchor = null;
   var sceneBlurTimer = 0;
   var scenePopoverIgnoreBlur = false;
+  var scenePopoverScrollHandler = null;
+
+  function unbindScenePopoverScrollClose() {
+    if (scenePopoverScrollHandler) {
+      window.removeEventListener('scroll', scenePopoverScrollHandler, true);
+      scenePopoverScrollHandler = null;
+    }
+  }
+
+  function bindScenePopoverScrollClose() {
+    unbindScenePopoverScrollClose();
+    scenePopoverScrollHandler = function () {
+      closeScenePopover();
+    };
+    window.addEventListener('scroll', scenePopoverScrollHandler, true);
+  }
+
+  function positionScenePopover(pop, input) {
+    var rect = input.getBoundingClientRect();
+    var popRect = pop.getBoundingClientRect();
+    var left = rect.left;
+    if (left + popRect.width > window.innerWidth - 12) {
+      left = window.innerWidth - popRect.width - 12;
+    }
+    pop.style.left = Math.max(8, left) + 'px';
+    pop.style.minWidth = Math.max(rect.width + 28, 200) + 'px';
+    var belowTop = rect.bottom + 4;
+    var aboveTop = rect.top - popRect.height - 4;
+    if (belowTop + popRect.height > window.innerHeight - 12 && aboveTop > 8) {
+      pop.style.top = Math.max(8, aboveTop) + 'px';
+    } else {
+      pop.style.top = belowTop + 'px';
+    }
+  }
 
   function closeScenePopover() {
     if (scenePopover) {
@@ -872,6 +907,7 @@
       scenePopover = null;
       scenePopoverAnchor = null;
     }
+    unbindScenePopoverScrollClose();
   }
 
   function openScenePopover(input) {
@@ -884,6 +920,22 @@
     var pop = document.createElement('div');
     pop.className = 'admin-scene-popover';
     pop.setAttribute('role', 'listbox');
+    var custom = document.createElement('button');
+    custom.type = 'button';
+    custom.className = 'admin-scene-popover-item admin-scene-popover-item--custom';
+    custom.setAttribute('role', 'option');
+    custom.textContent = 'Jauns nosaukums…';
+    custom.addEventListener('mousedown', function (evt) {
+      evt.preventDefault();
+      scenePopoverIgnoreBlur = true;
+    });
+    custom.addEventListener('click', function () {
+      closeScenePopover();
+      scenePopoverIgnoreBlur = false;
+      input.focus();
+      input.select();
+    });
+    pop.appendChild(custom);
     scenes.forEach(function (scene) {
       var title = (scene.title || scene.id || '').trim();
       if (title === '') return;
@@ -904,33 +956,10 @@
       });
       pop.appendChild(btn);
     });
-    var custom = document.createElement('button');
-    custom.type = 'button';
-    custom.className = 'admin-scene-popover-item admin-scene-popover-item--custom';
-    custom.setAttribute('role', 'option');
-    custom.textContent = 'Jauns nosaukums…';
-    custom.addEventListener('mousedown', function (evt) {
-      evt.preventDefault();
-      scenePopoverIgnoreBlur = true;
-    });
-    custom.addEventListener('click', function () {
-      closeScenePopover();
-      scenePopoverIgnoreBlur = false;
-      input.focus();
-      input.select();
-    });
-    pop.appendChild(custom);
     document.body.appendChild(pop);
     scenePopover = pop;
-    var rect = input.getBoundingClientRect();
-    var popRect = pop.getBoundingClientRect();
-    var left = rect.left;
-    if (left + popRect.width > window.innerWidth - 12) {
-      left = window.innerWidth - popRect.width - 12;
-    }
-    pop.style.left = Math.max(8, left) + 'px';
-    pop.style.top = rect.bottom + 4 + 'px';
-    pop.style.minWidth = Math.max(rect.width + 28, 200) + 'px';
+    positionScenePopover(pop, input);
+    bindScenePopoverScrollClose();
     filterScenePopover('');
   }
 
@@ -1288,7 +1317,7 @@
     var floatBar = document.getElementById('admin-scene-float-bar');
     var floatCount = document.getElementById('admin-scene-float-count');
     if (floatBar) {
-      floatBar.hidden = n < 2;
+      floatBar.hidden = n < 2 || !!shareEditMode;
     }
     if (floatCount) {
       floatCount.textContent = n === 1 ? '1 bilde atlasīta' : n + ' atlasītas';

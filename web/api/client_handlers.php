@@ -332,6 +332,40 @@ function efpic_client_html(
     exit;
 }
 
+function efpic_portal_html(
+    string $title,
+    string $body,
+    array $config,
+    string $pageClass = '',
+    ?array $meta = null,
+): void {
+    $base = efpic_base_url($config);
+    $classes = trim('admin-body admin-body--portal ' . $pageClass);
+
+    http_response_code(200);
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">';
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<title>' . efpic_client_esc($title) . '</title>';
+    echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
+    echo '<link rel="stylesheet" href="' . efpic_client_esc($base . '/client/assets/client.css') . '">';
+    echo '<link rel="stylesheet" href="' . efpic_client_esc($base . '/admin/assets/admin.css') . '">';
+    if ($meta !== null) {
+        $accent = efpic_client_hero_accent_color($meta);
+        $heroText = efpic_client_hero_text_color($accent);
+        $pageBg = efpic_client_page_bg_color($config, $meta);
+        $pageText = efpic_client_hero_text_color($pageBg);
+        echo '<style>:root{--hero-accent:' . efpic_client_esc($accent) . ';--hero-text:' . efpic_client_esc($heroText)
+            . ';--page-bg:' . efpic_client_esc($pageBg) . ';--page-text:' . efpic_client_esc($pageText) . ';}</style>';
+    }
+    echo '</head><body class="' . efpic_client_esc($classes) . '">';
+    echo $body;
+    echo '<script src="' . efpic_client_esc($base . '/client/assets/portal.js') . '" defer></script>';
+    echo '</body></html>';
+    exit;
+}
+
 function efpic_client_render_cover(array $config, array $meta, array $images, string $theme = ''): string
 {
     $name = (string) ($meta['name'] ?? '');
@@ -461,9 +495,9 @@ function efpic_client_render_pic_feed_items(array $config, array $images, array 
     return $html;
 }
 
-function efpic_client_render_scene_jump_nav(array $meta, array $images): string
+function efpic_client_render_scene_jump_nav(array $meta, array $images, array $ctx = []): string
 {
-    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    $visible = efpic_gallery_scenes_with_content($meta, $images, efpic_viewer_include_videos_in_scenes($ctx));
     if (count($visible) < 2) {
         return '';
     }
@@ -503,9 +537,9 @@ function efpic_client_scene_next_button_for_index(array $scenesWithImages, int $
     );
 }
 
-function efpic_client_render_pic_time_scenes(array $config, array $meta, array $images, array $gridCtx): string
+function efpic_client_render_pic_time_scenes(array $config, array $meta, array $images, array $gridCtx, array $ctx = []): string
 {
-    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    $visible = efpic_gallery_scenes_with_content($meta, $images, efpic_viewer_include_videos_in_scenes($ctx));
 
     $byScene = [];
     foreach ($images as $img) {
@@ -554,10 +588,14 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
 
 function efpic_client_render_gallery_videos(array $config, array $meta, array $ctx): string
 {
+    if (!efpic_viewer_include_videos_in_scenes($ctx)) {
+        return '';
+    }
     $videos = $meta['videos'] ?? [];
     if (!is_array($videos) || $videos === []) {
         return '';
     }
+    $whitelist = $ctx['share_image_tokens'] ?? null;
     usort($videos, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
     $gt = (string) ($meta['gallery_token'] ?? '');
     $scenes = efpic_gallery_scene_options($meta);
@@ -580,6 +618,9 @@ function efpic_client_render_gallery_videos(array $config, array $meta, array $c
         $sid = $scene['id'];
         $list = $byScene[$sid] ?? [];
         if ($list === []) {
+            continue;
+        }
+        if (is_array($whitelist) && !efpic_share_scene_has_whitelisted_images($meta, $sid, $whitelist)) {
             continue;
         }
         $hasImages = false;
@@ -653,7 +694,7 @@ function efpic_client_render_slideshow_overlay(array $config, array $meta, array
     return $html;
 }
 
-function efpic_client_render_gallery_grid(array $config, array $meta, array $images, string $theme, array $gridCtx): string
+function efpic_client_render_gallery_grid(array $config, array $meta, array $images, string $theme, array $gridCtx, array $ctx = []): string
 {
     if ($images === []) {
         return '<p class="feed-empty">Vēl nav bilžu.</p>';
@@ -661,10 +702,10 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
 
     $theme = $theme !== '' ? $theme : efpic_client_effective_theme($meta);
     if ($theme === 'pic-time') {
-        return efpic_client_render_pic_time_scenes($config, $meta, $images, $gridCtx);
+        return efpic_client_render_pic_time_scenes($config, $meta, $images, $gridCtx, $ctx);
     }
 
-    $visible = efpic_gallery_scenes_with_content($meta, $images);
+    $visible = efpic_gallery_scenes_with_content($meta, $images, efpic_viewer_include_videos_in_scenes($ctx));
 
     $byScene = [];
     foreach ($images as $img) {
@@ -776,15 +817,6 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
     }
 
-    if (is_array($ctx['share_image_tokens'] ?? null)) {
-        $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
-        if ($shareLabel === '') {
-            $shareLabel = 'Izlase';
-        }
-        $body .= '<p class="gallery-share-banner">Izlase «' . efpic_client_esc($shareLabel) . '» — '
-            . count($images) . ' bildes</p>';
-    }
-
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
     $failiemHint = '';
     if ($failiemParent !== '' && efpic_is_delivery_gallery($meta)) {
@@ -797,13 +829,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     if (efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true)) {
-        $sceneNav = efpic_client_render_scene_jump_nav($meta, $images);
+        $sceneNav = efpic_client_render_scene_jump_nav($meta, $images, $ctx);
         $body .= '<main class="gallery-main">';
         if ($sceneNav !== '') {
             $body .= $sceneNav;
         }
         $body .= efpic_client_render_gallery_videos($config, $meta, $ctx);
-        $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx);
+        $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
         $body .= '</main>';
     } else {
         $body .= '<main class="feed">';

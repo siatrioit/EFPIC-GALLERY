@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/client_handlers.php';
 require_once __DIR__ . '/gallery_assets.php';
+require_once __DIR__ . '/admin_ui.php';
 
 function efpic_portal_find_by_token(array $config, string $portalToken): ?array
 {
@@ -111,6 +112,28 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         );
     }
 
+    if ($method === 'POST' && !empty($_POST['portal_share_api'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        try {
+            if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
+                efpic_apply_share_actions_from_post($meta, 'client');
+            }
+            if (!empty($_POST['delete_share_token'])) {
+                efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
+            }
+            efpic_save_gallery_meta($config, $slug, $meta);
+            $shareIndex = efpic_share_sets_token_index($meta);
+            efpic_json_response(200, [
+                'ok' => true,
+                'share_sets_html' => efpic_admin_render_share_sets_body($config, $meta),
+                'share_index' => array_keys($shareIndex),
+                'share_counts' => efpic_share_sets_count_index($meta),
+            ]);
+        } catch (Throwable $e) {
+            efpic_json_response(400, ['ok' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
     if ($method === 'POST' && isset($_POST['portal_action'])) {
         $action = (string) $_POST['portal_action'];
         $imageToken = (string) ($_POST['image_token'] ?? '');
@@ -204,38 +227,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     efpic_apply_videos_from_post($config, $slug, $meta);
                     efpic_save_gallery_meta($config, $slug, $meta);
                 })(),
-                'invite_guest' => (function () use ($config, $slug, &$meta) {
-                    $label = trim((string) ($_POST['guest_label'] ?? 'Viesis'));
-                    $guests = $meta['guests'] ?? [];
-                    if (!is_array($guests)) {
-                        $guests = [];
-                    }
-                    $guests[] = [
-                        'guest_token' => efpic_random_hex(16),
-                        'label' => $label !== '' ? $label : 'Viesis',
-                        'created_at' => gmdate('c'),
-                        'created_by' => 'client',
-                    ];
-                    $meta['guests'] = $guests;
-                    efpic_save_gallery_meta($config, $slug, $meta);
-                })(),
-                'create_share_set' => (function () use ($config, $slug, &$meta) {
-                    $label = trim((string) ($_POST['share_set_label'] ?? ''));
-                    $posted = $_POST['share_image_tokens'] ?? [];
-                    if (!is_array($posted)) {
-                        $posted = [];
-                    }
-                    $entry = efpic_create_share_set($meta, $label, $posted, 'client');
-                    efpic_save_gallery_meta($config, $slug, $meta);
-                    $gt = (string) ($meta['gallery_token'] ?? '');
-                    $url = efpic_gallery_view_url($config, $gt, $entry['guest_token']);
-                    $_SESSION['efpic_portal_flash'] = 'Izlase «' . $entry['label'] . '» izveidota: ' . $url;
-                })(),
-                'delete_share_set' => (function () use ($config, $slug, &$meta) {
-                    efpic_delete_share_set($meta, (string) ($_POST['share_token'] ?? ''));
-                    efpic_save_gallery_meta($config, $slug, $meta);
-                    $_SESSION['efpic_portal_flash'] = 'Izlase dzēsta.';
-                })(),
                 default => throw new InvalidArgumentException('Unknown action'),
             };
         } catch (Throwable $e) {
@@ -268,121 +259,48 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $name = (string) ($meta['name'] ?? '');
     $theme = efpic_gallery_effective_theme($meta);
 
-    $body = efpic_client_topbar($name, '<a class="btn" href="' . efpic_client_esc(efpic_gallery_view_url($config, $gt)) . '">Publiskā galerija</a>');
+    $body = '<div class="admin-shell admin-shell--portal">';
+    $body .= '<div class="admin-workspace">';
+    $body .= efpic_client_topbar($name, '<a class="btn" href="' . efpic_client_esc(efpic_gallery_view_url($config, $gt)) . '">Publiskā galerija</a>', 'admin-portal-topbar');
+    $body .= '<main class="admin-main">';
     if ($flash !== '') {
-        $body .= '<p class="feed-empty">' . efpic_client_esc($flash) . '</p>';
+        $body .= '<p class="admin-flash">' . efpic_client_esc($flash) . '</p>';
     }
 
-    $gt = (string) ($meta['gallery_token'] ?? '');
-    $slots = efpic_gallery_slideshows_struct($meta);
-    $slideshow = $slots['client'];
-    $favCount = efpic_count_favorites($meta, 'client');
-    $scenes = efpic_gallery_scene_options($meta);
-    $settings = efpic_gallery_settings($meta);
-    $disableAllWeb = !empty($settings['disable_public_download_all_web']);
-    $disableAllFull = !empty($settings['disable_public_download_all_full']);
-    $commentsEnabled = efpic_client_comments_enabled($meta);
-    $heroAccent = efpic_client_hero_accent_color($meta);
-    $pageBg = efpic_client_page_bg_color($config, $meta);
-
-    $body .= '<div class="portal-main">';
     $body .= efpic_portal_render_tabs_nav();
-    $body .= '<div class="portal-tab-panel" id="portal-tab-images" data-portal-tab-panel>';
-
-    $body .= '<div class="grid portal-grid">';
-    foreach ($images as $img) {
-        $tok = (string) ($img['token'] ?? '');
-        $hidden = !empty($img['client_hidden']);
-        $fav = efpic_image_favorited_client($img);
-        $body .= '<div class="portal-card' . ($hidden ? ' is-hidden' : '') . '">';
-        $body .= '<label class="portal-share-pick-label"><input type="checkbox" class="portal-share-pick" value="' . efpic_client_esc($tok) . '"> Izlasei</label>';
-        $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt="">';
-        $body .= '<div class="portal-card-actions">';
-        $body .= '<div class="portal-card-actions__row portal-card-actions__row--toggles">';
-        $body .= '<form method="post" class="portal-card-toggle-form"><input type="hidden" name="portal_action" value="toggle_favorite">';
-        $body .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
-        $body .= '<button type="submit" class="portal-media-toggle' . ($fav ? ' is-active' : '') . '">Favorīts</button></form>';
-        $body .= '<form method="post" class="portal-card-toggle-form"><input type="hidden" name="portal_action" value="toggle_hidden">';
-        $body .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
-        $body .= '<button type="submit" class="portal-media-toggle' . ($hidden ? ' is-active' : '') . '">'
-            . ($hidden ? 'Slēpts' : 'Slēpt') . '</button></form>';
-        $body .= '</div>';
-        if ($commentsEnabled) {
-            $body .= '<form method="post" class="comment-form portal-card-comment"><input type="hidden" name="portal_action" value="add_comment">';
-            $body .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
-            $body .= '<input name="comment" placeholder="Komentārs"><button type="submit" class="btn">+</button></form>';
-        }
-        $body .= '</div></div>';
-    }
+    $body .= efpic_admin_tab_panel_open('admin-tab-images', true);
+    $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
+    $body .= '<span class="admin-share-edit-bar__label" id="admin-share-edit-bar-label"></span>';
+    $body .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-edit-save">Saglabāt izlasi</button>';
+    $body .= '<button type="button" class="btn admin-btn-sm" id="admin-share-edit-cancel">Atcelt</button>';
     $body .= '</div>';
-    $body .= '</div>';
+    $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled);
+    $body .= efpic_admin_tab_panel_close();
 
-    $body .= '<div class="portal-tab-panel" id="portal-tab-share" data-portal-tab-panel hidden>';
-    $body .= '<section class="portal-panel portal-share-sets"><h2>Kopīgojamās izlases</h2>';
-    $body .= '<p class="muted">Atzīmē bildes cilnē <strong>Bildes</strong>, ievadi nosaukumu (piem. «Dekorators») un izveido saiti — saņēmējs redzēs <strong>tikai</strong> tās bildes.</p>';
-    $body .= '<form method="post" class="portal-share-set-form">';
-    $body .= '<input type="hidden" name="portal_action" value="create_share_set">';
-    $body .= '<label>Nosaukums<input name="share_set_label" placeholder="Dekorators Anna" required></label>';
-    $body .= '<button type="submit" class="btn primary" id="portal-create-share-set">Izveidot izlasi no atzīmētajām</button>';
-    $body .= '<p class="muted portal-pick-hint">Atzīmē bildes ar ☑ cilnē Bildes pirms izveides.</p></form>';
+    $body .= efpic_admin_tab_panel_open('admin-tab-share');
+    $body .= '<div id="admin-share-sets-body">' . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
+    $body .= efpic_admin_tab_panel_close();
 
-    if (($meta['guests'] ?? []) !== []) {
-        $body .= '<ul class="portal-share-set-list">';
-        foreach ($meta['guests'] as $g) {
-            if (!is_array($g)) {
-                continue;
-            }
-            $gtok = (string) ($g['guest_token'] ?? '');
-            $url = efpic_gallery_view_url($config, $gt, $gtok);
-            $n = efpic_share_set_image_count($g);
-            $body .= '<li class="portal-share-set-item">';
-            $body .= '<strong>' . efpic_client_esc((string) ($g['label'] ?? '')) . '</strong> ';
-            $body .= '<span class="muted">(' . ($n > 0 ? $n . ' bildes' : 'visa galerija') . ')</span>';
-            $body .= '<div class="portal-share-set-foot">' . efpic_client_render_link_row($url);
-            $body .= '<form method="post" class="inline-form" onsubmit="return confirm(\'Dzēst izlasi?\')">';
-            $body .= '<input type="hidden" name="portal_action" value="delete_share_set">';
-            $body .= '<input type="hidden" name="share_token" value="' . efpic_client_esc($gtok) . '">';
-            $body .= '<button type="submit" class="btn">Dzēst</button></form></div></li>';
-        }
-        $body .= '</ul>';
-    }
-    $body .= '</section>';
-    $body .= '<section class="portal-toolbar">';
-    $body .= '<form method="post" class="inline-form"><input type="hidden" name="portal_action" value="invite_guest">';
-    $body .= '<input name="guest_label" placeholder="Pilna saite (visa galerija)"><button type="submit" class="btn">Jauna pilna saite</button></form></section>';
-    $body .= '</div>';
-
-    $body .= '<div class="portal-tab-panel" id="portal-tab-media" data-portal-tab-panel hidden>';
-    $body .= '<section class="portal-panel"><h2>Tava slideshow (favorīti + mūzika)</h2>';
+    $body .= efpic_admin_tab_panel_open('admin-tab-media');
+    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Tava slideshow (favorīti + mūzika)</h2>';
     $body .= '<p class="muted">Atzīmē favorītus cilnē Bildes un augšupielādē MP3. Kad slideshow ir gatava, tā kļūst par galveno publiskajā galerijā.</p>';
-    $body .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
+    $body .= '<form method="post" enctype="multipart/form-data" class="admin-form-split portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_slideshow">';
-    $body .= '<label class="portal-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
+    $body .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . ($slideshow['enabled'] ? ' checked' : '') . '> Ieslēgt slideshow</label>';
     $body .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) $slideshow['interval_sec'] . '"></label>';
     $body .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
     if ($slideshow['audio_file'] !== '') {
         $body .= '<p><a href="' . efpic_client_esc(efpic_gallery_asset_url($config, $gt, $slideshow['audio_file'])) . '" target="_blank" rel="noopener">Pašreizējais MP3</a></p>';
-        $body .= '<label class="portal-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
+        $body .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
     }
     $body .= '<label>MP3 fails<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
     $body .= '<button type="submit" class="btn primary">Saglabāt slideshow</button></form></section>';
 
-    $body .= '<section class="portal-panel"><h2>Video galerijā</h2>';
-    if (($meta['videos'] ?? []) !== []) {
-        $body .= '<ul class="portal-video-list">';
-        foreach ($meta['videos'] as $video) {
-            if (!is_array($video)) {
-                continue;
-            }
-            $label = (string) ($video['title'] ?? '');
-            if ($label === '') {
-                $label = ($video['kind'] ?? '') === 'embed' ? (string) ($video['provider'] ?? 'video') : (string) ($video['file'] ?? '');
-            }
-            $body .= '<li>' . efpic_client_esc($label) . '</li>';
-        }
-        $body .= '</ul>';
-    }
-    $body .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
+    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Video galerijā</h2>';
+    $body .= '<div id="admin-videos-list" class="admin-videos-list">';
+    $body .= efpic_admin_render_existing_videos_list($config, $meta, $gt, true);
+    $body .= '</div>';
+    $body .= '<form method="post" enctype="multipart/form-data" class="admin-form-split portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="upload_video">';
     $body .= '<label>Video fails (MP4)<input type="file" name="gallery_video" accept="video/mp4,video/quicktime,video/webm"></label>';
     $body .= '<label>Virsraksts<input name="video_upload_title"></label>';
@@ -391,7 +309,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= '<option value="' . efpic_client_esc($scene['id']) . '">' . efpic_client_esc($scene['title']) . '</option>';
     }
     $body .= '</select></label><button type="submit" class="btn">Augšupielādēt video</button></form>';
-    $body .= '<form method="post" class="portal-stack">';
+    $body .= '<form method="post" class="admin-form-split portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="add_video_embed">';
     $body .= '<label>YouTube / Vimeo<input name="video_embed_url" placeholder="https://..."></label>';
     $body .= '<label>Virsraksts<input name="video_embed_title"></label>';
@@ -400,56 +318,94 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= '<option value="' . efpic_client_esc($scene['id']) . '">' . efpic_client_esc($scene['title']) . '</option>';
     }
     $body .= '</select></label><button type="submit" class="btn">Pievienot embed</button></form></section>';
-    $body .= '</div>';
+    $body .= efpic_admin_tab_panel_close();
 
-    $body .= '<div class="portal-tab-panel" id="portal-tab-settings" data-portal-tab-panel hidden>';
-    $body .= '<section class="portal-panel portal-appearance"><h2>Izskats</h2>';
-    $body .= '<form method="post" class="inline-form portal-theme-form">';
+    $body .= efpic_admin_tab_panel_open('admin-tab-settings');
+    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Izskats</h2>';
+    $body .= '<form method="post" class="admin-form-split portal-theme-form">';
     $body .= '<input type="hidden" name="portal_action" value="set_theme"><label>Tēma<select name="theme" onchange="this.form.submit()">';
     foreach (efpic_gallery_theme_options() as $themeKey => $themeLabel) {
         $sel = $themeKey === $theme ? ' selected' : '';
         $body .= '<option value="' . efpic_client_esc($themeKey) . '"' . $sel . '>' . efpic_client_esc($themeLabel) . '</option>';
     }
     $body .= '</select></label></form>';
-    $body .= '<form method="post" class="portal-color-form">';
+    $body .= '<form method="post" class="admin-color-form">';
     $body .= '<input type="hidden" name="portal_action" value="save_gallery_colors">';
     $body .= efpic_client_color_field('hero_accent_color', 'Vāka krāsa', $heroAccent);
     $body .= efpic_client_color_field('page_bg_color', 'Galerijas pamatkrāsa', $pageBg);
     $body .= '<button type="submit" class="btn primary">Saglabāt krāsas</button></form></section>';
 
-    $body .= '<section class="portal-panel"><h2>Lejupielādes publiskajā galerijā</h2>';
+    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Lejupielādes publiskajā galerijā</h2>';
     $body .= '<p class="muted">Atzīmē, lai apmeklētājiem vairs nerādītos «lejupielādēt visas bildes» attiecīgajā izmērā. Izvēlētās bildes (izlase) joprojām var lejupielādēt, ja izmērs ir atļauts.</p>';
     $body .= '<form method="post" class="portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_download_settings">';
-    $body .= '<label class="portal-check"><input type="checkbox" name="disable_public_download_all_web" value="1"'
+    $body .= '<label class="admin-check"><input type="checkbox" name="disable_public_download_all_web" value="1"'
         . ($disableAllWeb ? ' checked' : '') . '> Atslēgt «visas bildes» — WEB</label>';
-    $body .= '<label class="portal-check"><input type="checkbox" name="disable_public_download_all_full" value="1"'
+    $body .= '<label class="admin-check"><input type="checkbox" name="disable_public_download_all_full" value="1"'
         . ($disableAllFull ? ' checked' : '') . '> Atslēgt «visas bildes» — PRINT</label>';
     $body .= '<button type="submit" class="btn primary">Saglabāt</button></form></section>';
-    $body .= '</div></div>';
+    $body .= efpic_admin_tab_panel_close();
 
-    $body .= '<script>(function(){function bindColorInputs(root){root.querySelectorAll(".portal-color-input, .admin-color-input").forEach(function(input){var wrap=input.closest(".portal-color-control, .admin-color-control");if(!wrap)return;var swatch=wrap.querySelector(".portal-color-swatch, .admin-color-swatch");var code=wrap.querySelector(".portal-color-value, .admin-color-value");var sync=function(){if(swatch)swatch.style.backgroundColor=input.value;if(code)code.textContent=input.value;};input.addEventListener("input",sync);sync();});}bindColorInputs(document);})();</script>';
+    $body .= '</main></div></div>';
 
-    $body .= '<script>(function(){var form=document.querySelector(".portal-share-set-form");if(!form)return;form.addEventListener("submit",function(e){var picks=document.querySelectorAll(".portal-share-pick:checked");if(!picks.length){e.preventDefault();window.alert("Atzīmē vismaz vienu bildi izlasei.");return;}form.querySelectorAll("input[name=\\"share_image_tokens[]\\"]").forEach(function(n){n.remove();});picks.forEach(function(cb){var inp=document.createElement("input");inp.type="hidden";inp.name="share_image_tokens[]";inp.value=cb.value;form.appendChild(inp);});});})();</script>';
+    efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta);
+}
 
-    efpic_client_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme));
+function efpic_portal_render_image_grid(array $config, array $images, bool $commentsEnabled): string
+{
+    $html = '<ul id="portal-image-grid" class="admin-media-grid">';
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '') {
+            continue;
+        }
+        $hidden = !empty($img['client_hidden']);
+        $fav = efpic_image_favorited_client($img);
+        $thumb = efpic_admin_media_thumb_url($config, $img);
+        $html .= '<li class="admin-media-card' . ($hidden ? ' is-hidden' : '') . '" data-token="' . efpic_client_esc($tok) . '">';
+        $html .= '<label class="admin-bulk-pick portal-share-pick-label"><input type="checkbox" class="admin-image-pick portal-share-pick" value="'
+            . efpic_client_esc($tok) . '" aria-label="Izlasei"></label>';
+        $html .= '<div class="admin-media-thumb"><img src="' . efpic_client_esc($thumb) . '" alt="" width="320" height="240" loading="lazy" decoding="async"></div>';
+        $html .= '<div class="admin-media-card__actions">';
+        $html .= '<div class="admin-media-card__row admin-media-card__row--toggles">';
+        $html .= '<form method="post" class="portal-card-toggle-form"><input type="hidden" name="portal_action" value="toggle_favorite">';
+        $html .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
+        $html .= '<button type="submit" class="admin-media-toggle' . ($fav ? ' is-active' : '') . '"><span class="admin-media-toggle__label">Favorīts</span></button></form>';
+        $html .= '<form method="post" class="portal-card-toggle-form"><input type="hidden" name="portal_action" value="toggle_hidden">';
+        $html .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
+        $html .= '<button type="submit" class="admin-media-toggle' . ($hidden ? ' is-active' : '') . '"><span class="admin-media-toggle__label">'
+            . ($hidden ? 'Slēpts' : 'Slēpt') . '</span></button></form>';
+        $html .= '</div>';
+        if ($commentsEnabled) {
+            $html .= '<form method="post" class="comment-form portal-card-comment"><input type="hidden" name="portal_action" value="add_comment">';
+            $html .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
+            $html .= '<input name="comment" placeholder="Komentārs"><button type="submit" class="btn admin-btn-sm">+</button></form>';
+        }
+        $html .= '</div></li>';
+    }
+    $html .= '</ul>';
+
+    return $html;
 }
 
 function efpic_portal_render_tabs_nav(): string
 {
     $tabs = [
-        ['id' => 'portal-tab-images', 'label' => 'Bildes'],
-        ['id' => 'portal-tab-share', 'label' => 'Kopīgošana'],
-        ['id' => 'portal-tab-media', 'label' => 'Slideshow & video'],
-        ['id' => 'portal-tab-settings', 'label' => 'Iestatījumi'],
+        ['id' => 'admin-tab-images', 'label' => 'Bildes'],
+        ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
+        ['id' => 'admin-tab-media', 'label' => 'Slideshow & video'],
+        ['id' => 'admin-tab-settings', 'label' => 'Iestatījumi'],
     ];
-    $out = '<nav class="portal-edit-tabs" role="tablist" aria-label="Klienta panelis">';
+    $out = '<nav class="admin-edit-tabs" role="tablist" aria-label="Klienta panelis">';
     foreach ($tabs as $i => $tab) {
         $active = $i === 0 ? ' is-active' : '';
         $selected = $i === 0 ? 'true' : 'false';
-        $out .= '<button type="button" class="portal-edit-tab' . $active . '" role="tab" id="'
+        $out .= '<button type="button" class="admin-edit-tab' . $active . '" role="tab" id="'
             . efpic_client_esc($tab['id']) . '-tab" aria-selected="' . $selected . '" aria-controls="'
-            . efpic_client_esc($tab['id']) . '" data-portal-tab="' . efpic_client_esc($tab['id']) . '">'
+            . efpic_client_esc($tab['id']) . '" data-admin-tab="' . efpic_client_esc($tab['id']) . '">'
             . efpic_client_esc($tab['label']) . '</button>';
     }
     $out .= '</nav>';
