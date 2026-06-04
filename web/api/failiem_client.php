@@ -326,12 +326,17 @@ function efpic_failiem_selected_zip_prepare(
 }
 
 /**
- * Failiem atlasīto failu ZIP (download_selected_zip.php → upload_zip_streamer.php).
+ * Reģistrē atlasīto failu ZIP Failiem un atgriež straumes URL + sīkdatņu failu.
  *
  * @param list<string> $fileHashes
+ * @return array{stream_url: string, cookie_file: string}|null
  */
-function efpic_failiem_selected_zip_url(array $config, string $folderHash, array $fileHashes, bool $webSize = false): ?string
-{
+function efpic_failiem_register_selected_zip(
+    array $config,
+    string $folderHash,
+    array $fileHashes,
+    bool $webSize = false
+): ?array {
     @set_time_limit(0);
     @ignore_user_abort(true);
 
@@ -427,7 +432,6 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
             continue;
         }
 
-        @unlink($cookieFile);
         $host = preg_replace('#^https?://#i', '', rtrim($host, '/'));
         $zipUrl = 'https://' . $host
             . '/server_scripts/zip/zip_streamer/upload_zip_streamer.php?uhash='
@@ -439,12 +443,91 @@ function efpic_failiem_selected_zip_url(array $config, string $folderHash, array
             $zipUrl .= '&img_as_websize';
         }
 
-        return $zipUrl;
+        return ['stream_url' => $zipUrl, 'cookie_file' => $cookieFile];
     }
 
     @unlink($cookieFile);
 
     return null;
+}
+
+/**
+ * Straumē atlasīto failu ZIP no Failiem (ar reģistrācijas sesiju).
+ *
+ * @param list<string> $fileHashes
+ */
+function efpic_failiem_stream_selected_zip(
+    array $config,
+    string $folderHash,
+    array $fileHashes,
+    bool $webSize = false
+): bool {
+    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes, $webSize);
+    if ($reg === null) {
+        return false;
+    }
+
+    $streamUrl = $reg['stream_url'];
+    $cookieFile = $reg['cookie_file'];
+    $f = efpic_failiem_cfg($config);
+    $curlHeaders = ['Accept: application/zip'];
+    $apiKey = (string) ($f['api_key'] ?? '');
+    if ($apiKey !== '') {
+        $curlHeaders[] = 'Authorization: Bearer ' . $apiKey;
+    }
+
+    $ok = false;
+    if (function_exists('curl_init')) {
+        $ch = curl_init($streamUrl);
+        if ($ch !== false) {
+            $opts = [
+                CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_TIMEOUT => 0,
+                CURLOPT_HTTPHEADER => $curlHeaders,
+                CURLOPT_COOKIEJAR => $cookieFile,
+                CURLOPT_COOKIEFILE => $cookieFile,
+                CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk): int {
+                    echo $chunk;
+                    if (function_exists('ob_get_level') && ob_get_level() > 0) {
+                        @ob_flush();
+                    }
+                    flush();
+
+                    return strlen($chunk);
+                },
+            ];
+            $user = (string) ($f['user'] ?? '');
+            $pass = (string) ($f['pass'] ?? '');
+            if ($user !== '' && $pass !== '') {
+                $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+            }
+            curl_setopt_array($ch, $opts);
+            curl_exec($ch);
+            $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            curl_close($ch);
+            $ok = $code >= 200 && $code < 300;
+        }
+    }
+
+    @unlink($cookieFile);
+
+    return $ok;
+}
+
+/**
+ * Failiem atlasīto failu ZIP saite (pārlūkam). Ieteicams efpic_failiem_stream_selected_zip.
+ *
+ * @param list<string> $fileHashes
+ */
+function efpic_failiem_selected_zip_url(array $config, string $folderHash, array $fileHashes, bool $webSize = false): ?string
+{
+    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes, $webSize);
+    if ($reg === null) {
+        return null;
+    }
+    @unlink($reg['cookie_file']);
+
+    return $reg['stream_url'];
 }
 
 function efpic_failiem_delivery_folder_hash(array $meta, string $size): string

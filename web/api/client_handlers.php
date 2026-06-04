@@ -1183,22 +1183,51 @@ function efpic_client_failiem_zip_prepare_payload(
         ];
     }
 
+    if (($meta['type'] ?? '') !== 'delivery') {
+        return null;
+    }
+
     $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
     if ($folderHash === '') {
         return null;
     }
 
-    $result = efpic_failiem_selected_zip_prepare($config, $folderHash, $hashes, $sizeKey === 'web');
-    if (!$result['ok']) {
-        return null;
-    }
-
     return [
-        'mode' => 'failiem',
-        'url' => $result['url'],
+        'mode' => 'stream',
         'filename' => $filename,
         'hint' => $hintZip,
     ];
+}
+
+function efpic_client_stream_failiem_image_zip(
+    array $config,
+    array $meta,
+    array $images,
+    string $size,
+    string $filename
+): bool {
+    if (($meta['type'] ?? '') !== 'delivery' || $size === 'both') {
+        return false;
+    }
+
+    $sizeKey = $size === 'full' ? 'full' : 'web';
+    $hashes = efpic_failiem_file_hashes_from_images($images, $size);
+    if (count($hashes) < 2) {
+        return false;
+    }
+
+    $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
+    if ($folderHash === '') {
+        return false;
+    }
+
+    while (ob_get_level() > 0) {
+        ob_end_clean();
+    }
+    header('Content-Type: application/zip');
+    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
+
+    return efpic_failiem_stream_selected_zip($config, $folderHash, $hashes, $sizeKey === 'web');
 }
 
 function efpic_client_redirect_failiem_image_zip(
@@ -1397,7 +1426,9 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
         }
     }
 
-    efpic_client_redirect_failiem_image_zip($config, $meta, $images, $size);
+    if (efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
+        exit;
+    }
 
     efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }
@@ -1506,7 +1537,9 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'collection', $galleryToken);
     }
 
-    efpic_client_redirect_failiem_image_zip($config, $meta, $images, $size);
+    if (efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
+        exit;
+    }
 
     efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
 }

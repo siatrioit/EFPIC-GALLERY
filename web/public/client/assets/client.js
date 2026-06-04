@@ -326,63 +326,19 @@
       });
   }
 
-  function usesFailiemFolderZip(scope) {
-    return (
-      scope === 'all' &&
-      (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1')
-    );
-  }
-
-  function fetchFailiemZipPrepare(scope, size) {
-    var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
-    var prepareUrl =
-      gdlBase + path + '?prepare=1&size=' + encodeURIComponent(size);
-    return fetch(prepareUrl, {
-      credentials: 'same-origin',
-      headers: { Accept: 'application/json' },
-    }).then(function (res) {
-      return res.json().then(function (data) {
-        if (!res.ok || !data || !data.ok) {
-          throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
-        }
-        return data;
-      });
-    });
-  }
-
-  function startFailiemSelectedZip(scope, size) {
-    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
-    openZipProgressLoading(
-      loadingTitle,
-      'Failiem sagatavo ZIP no atlasītajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — lūdzu uzgaidiet.'
-    );
-    fetchFailiemZipPrepare(scope, size)
-      .then(function (data) {
-        if (data.mode !== 'failiem' || !data.url) {
-          throw new Error('Neatbalstīts lejupielādes režīms');
-        }
-        var doneTitle =
-          scope === 'collection' ? 'Izlases lejupielāde sākta' : 'Lejupielāde sākta';
-        downloadFailiemZip(data.url, data.hint, doneTitle);
-      })
-      .catch(function (err) {
-        showZipProgressError(humanZipError(err && err.message ? err.message : ''));
-      });
-  }
-
   function startZipDownload(scope, size) {
     if (!gdlBase) return;
     closeGalleryDlModal();
     closeCollectionDlModal();
-    if (usesFailiemFolderZip(scope)) {
-      var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
-      var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
-      openZipProgressLoading('Sagatavo lejupielādi…', 'Sagatavo Failiem ZIP…');
-      triggerBrowserDownload(downloadUrl);
-      showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
-      return;
-    }
-    startFailiemSelectedZip(scope, size);
+    var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
+    var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
+    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
+    var loadingHint =
+      window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1'
+        ? 'Sagatavo Failiem ZIP…'
+        : 'Failiem sagatavo ZIP no redzamajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — lūdzu uzgaidiet.';
+    openZipProgressLoading(loadingTitle, loadingHint);
+    triggerBrowserDownload(downloadUrl);
   }
 
   function zipFilenameFor(scope, size) {
