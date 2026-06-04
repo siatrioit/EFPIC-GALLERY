@@ -1963,3 +1963,92 @@
 .admin-bulk-pick input {
   margin: 0;
 }
+
+/* —— Client portal (admin-like, full width, no sidebar) —— */
+.admin-body--portal {
+  --admin-sidebar-w: 0px;
+}
+
+.admin-shell--portal {
+  display: block;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.admin-body--portal .admin-workspace {
+  margin-left: 0;
+  width: 100%;
+  max-width: none;
+}
+
+.admin-body--portal .admin-main {
+  max-width: none;
+  width: 100%;
+}
+
+.admin-body--portal .admin-portal-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 200;
+  background: var(--admin-surface);
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-body--portal.admin-share-edit-active #admin-tab-images {
+  padding-bottom: 88px;
+}
+
+.admin-body--portal .portal-card-toggle-form {
+  display: inline;
+  margin: 0;
+}
+
+.admin-body--portal .portal-card-comment {
+  display: flex;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.admin-body--portal .portal-card-comment input[type='text'],
+.admin-body--portal .portal-card-comment input:not([type='checkbox']):not([type='hidden']) {
+  flex: 1;
+  min-width: 0;
+}
+
+.admin-body--portal .admin-media-card.is-hidden {
+  opacity: 0.55;
+}
+
+.admin-body--portal button.admin-media-toggle.is-active {
+  color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+  border-color: var(--admin-accent);
+}
+
+.admin-body--portal .portal-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-width: 36rem;
+}
+
+.admin-body--portal .admin-flash {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  background: var(--admin-success-bg);
+  color: var(--admin-success);
+  border-radius: var(--admin-radius);
+  font-size: 0.92rem;
+}
+
+.admin-video-card--readonly .admin-video-card__meta {
+  gap: 4px;
+}
+
+.admin-video-readonly-title {
+  margin: 0;
+}
+
+.admin-video-readonly-scene {
+  margin: 0;
+}

@@ -988,6 +988,12 @@ function efpic_apply_share_actions_from_post(array &$meta, string $createdBy = '
     }
 }
 
+/** @deprecated Use efpic_apply_share_actions_from_post() */
+function efpic_admin_apply_share_actions_from_post(array &$meta): void
+{
+    efpic_apply_share_actions_from_post($meta, 'admin');
+}
+
 function efpic_share_set_image_count(array $guest): int
 {
     if (!is_array($guest)) {

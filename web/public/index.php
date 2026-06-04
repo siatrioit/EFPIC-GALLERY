@@ -124,6 +124,12 @@ try {
         exit;
     }
 
+    if ($uri === '/client/assets/portal.js') {
+        header('Content-Type: application/javascript; charset=utf-8');
+        readfile(__DIR__ . '/client/assets/portal.js');
+        exit;
+    }
+
     if ($uri === '/admin/assets/admin.css') {
         header('Content-Type: text/css; charset=utf-8');
         readfile(__DIR__ . '/admin/assets/admin.css');

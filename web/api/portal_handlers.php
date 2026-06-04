@@ -258,6 +258,16 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $gt = (string) ($meta['gallery_token'] ?? '');
     $name = (string) ($meta['name'] ?? '');
     $theme = efpic_gallery_effective_theme($meta);
+    $slots = efpic_gallery_slideshows_struct($meta);
+    $slideshow = $slots['client'];
+    $favCount = efpic_count_favorites($meta, 'client');
+    $scenes = efpic_gallery_scene_options($meta);
+    $settings = efpic_gallery_settings($meta);
+    $disableAllWeb = !empty($settings['disable_public_download_all_web']);
+    $disableAllFull = !empty($settings['disable_public_download_all_full']);
+    $commentsEnabled = efpic_client_comments_enabled($meta);
+    $heroAccent = efpic_client_hero_accent_color($meta);
+    $pageBg = efpic_client_page_bg_color($config, $meta);
 
     $body = '<div class="admin-shell admin-shell--portal">';
     $body .= '<div class="admin-workspace">';
