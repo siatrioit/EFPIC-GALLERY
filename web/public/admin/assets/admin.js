@@ -190,6 +190,100 @@
     updateSceneCountsInEditor();
   }
 
+  var scenePopover = null;
+  var scenePopoverAnchor = null;
+  var sceneBlurTimer = 0;
+  var scenePopoverIgnoreBlur = false;
+
+  function closeScenePopover() {
+    if (scenePopover) {
+      scenePopover.remove();
+      scenePopover = null;
+      scenePopoverAnchor = null;
+    }
+  }
+
+  function openScenePopover(input) {
+    if (!input) return;
+    var card = input.closest('.admin-media-card');
+    if (!card) return;
+    closeScenePopover();
+    scenePopoverAnchor = input;
+    var scenes = currentScenesList();
+    var pop = document.createElement('div');
+    pop.className = 'admin-scene-popover';
+    pop.setAttribute('role', 'listbox');
+    scenes.forEach(function (scene) {
+      var title = (scene.title || scene.id || '').trim();
+      if (title === '') return;
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'admin-scene-popover-item';
+      btn.setAttribute('role', 'option');
+      btn.textContent = title;
+      btn.addEventListener('mousedown', function (evt) {
+        evt.preventDefault();
+        scenePopoverIgnoreBlur = true;
+      });
+      btn.addEventListener('click', function () {
+        applySceneTitleToCards(sceneChangeTargets(card), title);
+        input.value = title;
+        closeScenePopover();
+        scenePopoverIgnoreBlur = false;
+      });
+      pop.appendChild(btn);
+    });
+    var custom = document.createElement('button');
+    custom.type = 'button';
+    custom.className = 'admin-scene-popover-item admin-scene-popover-item--custom';
+    custom.setAttribute('role', 'option');
+    custom.textContent = 'Jauns nosaukums…';
+    custom.addEventListener('mousedown', function (evt) {
+      evt.preventDefault();
+      scenePopoverIgnoreBlur = true;
+    });
+    custom.addEventListener('click', function () {
+      closeScenePopover();
+      scenePopoverIgnoreBlur = false;
+      input.focus();
+      input.select();
+    });
+    pop.appendChild(custom);
+    document.body.appendChild(pop);
+    scenePopover = pop;
+    var rect = input.getBoundingClientRect();
+    var popRect = pop.getBoundingClientRect();
+    var left = rect.left;
+    if (left + popRect.width > window.innerWidth - 12) {
+      left = window.innerWidth - popRect.width - 12;
+    }
+    pop.style.left = Math.max(8, left) + 'px';
+    pop.style.top = rect.bottom + 4 + 'px';
+    pop.style.minWidth = Math.max(rect.width + 28, 200) + 'px';
+    filterScenePopover(input.value);
+  }
+
+  function filterScenePopover(query) {
+    if (!scenePopover) return;
+    var q = (query || '').trim().toLowerCase();
+    scenePopover.querySelectorAll('.admin-scene-popover-item:not(.admin-scene-popover-item--custom)').forEach(function (btn) {
+      var text = (btn.textContent || '').toLowerCase();
+      btn.hidden = q !== '' && text.indexOf(q) === -1;
+    });
+  }
+
+  function scheduleSceneCommit(input) {
+    if (sceneBlurTimer) {
+      clearTimeout(sceneBlurTimer);
+    }
+    sceneBlurTimer = window.setTimeout(function () {
+      sceneBlurTimer = 0;
+      if (scenePopoverIgnoreBlur) return;
+      commitSceneInput(input);
+      closeScenePopover();
+    }, 120);
+  }
+
   function commitSceneInput(input) {
     var card = input.closest('.admin-media-card');
     if (!card) return;
@@ -517,7 +611,7 @@
     var floatBar = document.getElementById('admin-scene-float-bar');
     var floatCount = document.getElementById('admin-scene-float-count');
     if (floatBar) {
-      floatBar.hidden = n === 0;
+      floatBar.hidden = n < 2;
     }
     if (floatCount) {
       floatCount.textContent = n === 1 ? '1 bilde atlasīta' : n + ' atlasītas';
@@ -572,7 +666,7 @@
       'blur',
       function (evt) {
         if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input')) {
-          commitSceneInput(evt.target);
+          scheduleSceneCommit(evt.target);
         }
       },
       true
@@ -581,17 +675,63 @@
     imageGrid.addEventListener('keydown', function (evt) {
       if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') && evt.key === 'Enter') {
         evt.preventDefault();
+        if (sceneBlurTimer) clearTimeout(sceneBlurTimer);
+        commitSceneInput(evt.target);
+        closeScenePopover();
         evt.target.blur();
+      }
+      if (evt.key === 'Escape') {
+        closeScenePopover();
       }
     });
 
     imageGrid.addEventListener('focusin', function (evt) {
       if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input')) {
         evt.stopPropagation();
+        openScenePopover(evt.target);
       }
     });
 
+    imageGrid.addEventListener('input', function (evt) {
+      if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input')) {
+        filterScenePopover(evt.target.value);
+      }
+    });
+
+    imageGrid.addEventListener('change', function (evt) {
+      if (evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input')) {
+        if (sceneBlurTimer) clearTimeout(sceneBlurTimer);
+        commitSceneInput(evt.target);
+        closeScenePopover();
+      }
+    });
+
+    imageGrid.addEventListener(
+      'mousedown',
+      function (evt) {
+        if (evt.target.closest('.admin-scene-pick, .admin-scene-popover')) {
+          evt.stopPropagation();
+        }
+      },
+      true
+    );
+
     imageGrid.addEventListener('click', function (evt) {
+      var openBtn = evt.target.closest('.admin-scene-open-btn');
+      if (openBtn) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        var wrap = openBtn.closest('.admin-scene-pick');
+        var inp = wrap ? wrap.querySelector('.admin-scene-input') : null;
+        if (inp) {
+          inp.focus();
+          openScenePopover(inp);
+        }
+        return;
+      }
+      if (evt.target.closest('.admin-scene-open-btn, .admin-scene-input-wrap')) {
+        evt.stopPropagation();
+      }
       var shiftPick = evt.shiftKey;
       var thumb = evt.target.closest('.admin-media-thumb');
       if (thumb && !shiftPick) {
@@ -599,7 +739,7 @@
       }
       if (
         evt.target.closest(
-          '.admin-cover-pick, .admin-fav-pick, .admin-scene-pick, .admin-scene-input, .admin-bulk-pick'
+          '.admin-cover-pick, .admin-fav-pick, .admin-scene-pick, .admin-scene-input, .admin-scene-open-btn, .admin-bulk-pick'
         )
       ) {
         return;
@@ -640,6 +780,14 @@
 
     updatePickCount();
   }
+
+  document.addEventListener('click', function (evt) {
+    if (!scenePopover) return;
+    if (evt.target.closest('.admin-scene-popover, .admin-scene-input, .admin-scene-open-btn')) {
+      return;
+    }
+    closeScenePopover();
+  });
 
   var sceneFilter = document.getElementById('admin-scene-filter');
   if (sceneFilter) {

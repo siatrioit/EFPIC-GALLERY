@@ -189,7 +189,7 @@ function efpic_admin_render_image_scene_toolbar(array $meta): string
     $html .= '</datalist>';
     $html .= '<p class="admin-image-bulk-lead"><strong>Bilžu sadaļas:</strong> klikšķini uz bildes, lai atlasītu; '
         . 'turiet <kbd>Shift</kbd> diapazonam. Pie bildes ieraksti vai izvēlies sadaļu — ja vairākas atlasītas, '
-        . 'mainot vienu, mainās visām atlasītajām. Sirsniņas: <strong id="admin-likes-total">' . $likesTotal . '</strong>.</p>';
+        . 'mainot vienu, mainās visām atlasītajām. Vienai bildei — ▾ vai klikšķis laukā «Sadaļa». Sirsniņas: <strong id="admin-likes-total">' . $likesTotal . '</strong>.</p>';
     $html .= '<div class="admin-image-bulk-row">';
     $html .= '<span class="admin-pick-count" id="admin-pick-count" aria-live="polite">0 atlasītas</span>';
     $html .= '<label class="admin-bulk-label">Sadaļa atlasītajām<input type="text" id="admin-bulk-scene-input" list="admin-scene-datalist" placeholder="Ieraksti vai izvēlies…" autocomplete="off"></label>';
@@ -997,9 +997,11 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= '<div class="admin-scene-pick"><span class="admin-scene-pick-label">Sadaļa</span>';
             $body .= '<input type="hidden" class="admin-scene-id" name="image_scene[' . efpic_admin_esc($tok) . ']" value="'
                 . efpic_admin_esc($imgScene) . '">';
+            $body .= '<span class="admin-scene-input-wrap">';
             $body .= '<input type="text" class="admin-scene-input" value="' . efpic_admin_esc($imgSceneTitle)
                 . '" list="admin-scene-datalist" placeholder="Sadaļa…" autocomplete="off" aria-label="Galerijas sadaļa">';
-            $body .= '</div>';
+            $body .= '<button type="button" class="admin-scene-open-btn" aria-label="Izvēlēties sadaļu" title="Esošās sadaļas">▾</button>';
+            $body .= '</span></div>';
             $body .= '<span class="admin-sort-name">' . efpic_admin_esc((string) ($img['basename'] ?? $tok)) . '</span></li>';
         }
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';
