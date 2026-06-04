@@ -476,8 +476,14 @@
     return Math.max(0, container.clientWidth - pl - pr);
   }
 
+  var LAYOUT_ASPECT_MIN = 0.62;
+  var LAYOUT_ASPECT_MAX = 2.45;
+  var LAYOUT_ASPECT_DEFAULT = 1.5;
+
   function collectFeedItems(container) {
-    return Array.prototype.slice.call(container.querySelectorAll(':scope > .pic-feed-item'));
+    return Array.prototype.slice.call(
+      container.querySelectorAll(':scope > .pic-feed-item:not(.pic-feed-item--broken)')
+    );
   }
 
   function unwrapFeedRows(container) {
@@ -489,13 +495,44 @@
     });
   }
 
+  function clampLayoutAspect(aspect) {
+    return Math.min(LAYOUT_ASPECT_MAX, Math.max(LAYOUT_ASPECT_MIN, aspect));
+  }
+
+  function isBrokenFeedImage(img) {
+    return !!(img && img.complete && img.naturalWidth === 0);
+  }
+
+  function markBrokenFeedItem(item) {
+    if (!item) {
+      return;
+    }
+    item.classList.add('pic-feed-item--broken');
+    item.style.display = 'none';
+  }
+
   function readAspectRatio(img) {
     var w = img && img.naturalWidth ? img.naturalWidth : 0;
     var h = img && img.naturalHeight ? img.naturalHeight : 0;
     if (w > 0 && h > 0) {
-      return w / h;
+      return clampLayoutAspect(w / h);
     }
-    return 1.5;
+    return LAYOUT_ASPECT_DEFAULT;
+  }
+
+  function measureFeedItemHeight(item, img, itemWidth, aspect) {
+    var estimated = itemWidth / aspect;
+    var minHeight = itemWidth / LAYOUT_ASPECT_MAX;
+    if (img && img.complete && img.naturalWidth > 0) {
+      var measured = item.offsetHeight;
+      if (measured > 0) {
+        if (measured < minHeight * 0.55) {
+          return minHeight;
+        }
+        return measured;
+      }
+    }
+    return estimated;
   }
 
   /** Cik kolonnu platuma bilde aizņem (1–3), kā Pic-Time “enlarge”. */
@@ -552,10 +589,14 @@
 
     items.forEach(function (item, index) {
       var img = item.querySelector('img');
+      if (isBrokenFeedImage(img)) {
+        markBrokenFeedItem(item);
+        return;
+      }
+
       var aspect = readAspectRatio(img);
       var span = pickColumnSpan(aspect, index, columns);
       var itemWidth = span * colWidth + gap * (span - 1);
-      var itemHeight = itemWidth / aspect;
 
       var bestCol = 0;
       var bestTop = Infinity;
@@ -575,6 +616,7 @@
       }
 
       var left = padLeft + bestCol * (colWidth + gap);
+      item.style.display = '';
       item.style.position = 'absolute';
       item.style.left = Math.round(left) + 'px';
       item.style.top = Math.round(padTop + bestTop) + 'px';
@@ -594,6 +636,7 @@
         img.style.display = 'block';
       }
 
+      var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
       var newBottom = bestTop + itemHeight + gap;
       for (s = 0; s < span; s++) {
         colHeights[bestCol + s] = newBottom;
@@ -633,11 +676,19 @@
 
     containers.forEach(function (container) {
       container.querySelectorAll('.pic-feed-item img').forEach(function (img) {
+        var item = img.closest('.pic-feed-item');
+        if (isBrokenFeedImage(img)) {
+          markBrokenFeedItem(item);
+          return;
+        }
         if (img.complete && img.naturalWidth > 0) {
           return;
         }
         pending++;
         function doneImg() {
+          if (isBrokenFeedImage(img)) {
+            markBrokenFeedItem(item);
+          }
           pending--;
           relayout();
           if (pending <= 0) {
@@ -986,50 +1037,4 @@
         });
     }
   });
-
-  (function initPortalEditTabs() {
-    if (!document.body.classList.contains('page-portal')) return;
-    var main = document.querySelector('.portal-main');
-    if (!main) return;
-    var tabs = main.querySelectorAll('.portal-edit-tab[data-portal-tab]');
-    var panels = main.querySelectorAll('[data-portal-tab-panel]');
-    if (!tabs.length || !panels.length) return;
-
-    var storageKey = 'efpic_portal_tab';
-
-    function activate(tabId, persist) {
-      tabs.forEach(function (tab) {
-        var on = tab.getAttribute('data-portal-tab') === tabId;
-        tab.classList.toggle('is-active', on);
-        tab.setAttribute('aria-selected', on ? 'true' : 'false');
-      });
-      panels.forEach(function (panel) {
-        var on = panel.id === tabId;
-        if (on) {
-          panel.removeAttribute('hidden');
-        } else {
-          panel.setAttribute('hidden', '');
-        }
-      });
-      if (persist && tabId) {
-        try {
-          sessionStorage.setItem(storageKey, tabId);
-        } catch (e) {}
-      }
-    }
-
-    tabs.forEach(function (tab) {
-      tab.addEventListener('click', function () {
-        activate(tab.getAttribute('data-portal-tab'), true);
-      });
-    });
-
-    var saved = '';
-    try {
-      saved = sessionStorage.getItem(storageKey) || '';
-    } catch (e) {}
-    if (saved && main.querySelector('#' + saved + '[data-portal-tab-panel]')) {
-      activate(saved, false);
-    }
-  })();
 })();
