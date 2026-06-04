@@ -1384,4 +1384,46 @@
   });
 
   initAdminFormAutoSave();
+
+  function initAdminSidebar() {
+    var hideBtn = document.getElementById('adminSidebarHide');
+    var reopenBtn = document.getElementById('adminSidebarReopen');
+    if (!hideBtn || !reopenBtn) return;
+
+    var storageKey = 'efpic_admin_sidebar_hidden';
+
+    function setSidebarHidden(hidden, persist) {
+      document.body.classList.toggle('admin-sidebar-hidden', hidden);
+      reopenBtn.hidden = !hidden;
+      if (persist) {
+        try {
+          sessionStorage.setItem(storageKey, hidden ? '1' : '0');
+        } catch (e) {
+          /* ignore */
+        }
+      }
+    }
+
+    hideBtn.addEventListener('click', function () {
+      setSidebarHidden(true, true);
+    });
+
+    reopenBtn.addEventListener('click', function () {
+      setSidebarHidden(false, true);
+    });
+
+    var saved = '';
+    try {
+      saved = sessionStorage.getItem(storageKey) || '';
+    } catch (e) {
+      /* ignore */
+    }
+    if (saved === '1') {
+      setSidebarHidden(true, false);
+    } else {
+      setSidebarHidden(false, false);
+    }
+  }
+
+  initAdminSidebar();
 })();

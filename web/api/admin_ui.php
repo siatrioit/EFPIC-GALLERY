@@ -70,6 +70,13 @@ function efpic_admin_esc(string $s): string
     return htmlspecialchars($s, ENT_QUOTES, 'UTF-8');
 }
 
+function efpic_admin_icon_settings(): string
+{
+    return '<svg class="admin-nav-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">'
+        . '<path fill="currentColor" d="M19.14 12.94c.04-.31.06-.63.06-.94s-.02-.63-.06-.94l2.03-1.58a.49.49 0 0 0 .12-.61l-1.92-3.32a.488.488 0 0 0-.59-.22l-2.39.96a7.17 7.17 0 0 0-1.63-.94l-.36-2.54a.484.484 0 0 0-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.56-1.63.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87a.489.489 0 0 0 .12.61l2.03 1.58c-.04.31-.06.63-.06.94s.02.63.06.94l-2.03 1.58a.49.49 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.04.7 1.63.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.63-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.49.49 0 0 0-.12-.61l-2.01-1.58zM12 15.6A3.6 3.6 0 1 1 12 8.4a3.6 3.6 0 0 1 0 7.2z"/>'
+        . '</svg>';
+}
+
 function efpic_admin_layout(string $title, string $body, string $active = '', ?string $pageHeading = null, ?string $pageLead = null, array $config = []): void
 {
     header('Content-Type: text/html; charset=utf-8');
@@ -81,8 +88,15 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     echo '<link rel="stylesheet" href="/client/assets/client.css">';
     echo '<link rel="stylesheet" href="/admin/assets/admin.css"></head><body class="admin-body">';
     echo '<div class="admin-shell">';
-    echo '<aside class="admin-sidebar" aria-label="Galvenā izvēlne">';
+    echo '<button type="button" class="admin-sidebar-reopen" id="adminSidebarReopen" hidden aria-label="Atvērt izvēlni">';
+    echo '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>';
+    echo '</button>';
+    echo '<aside class="admin-sidebar" id="adminSidebar" aria-label="Galvenā izvēlne">';
+    echo '<div class="admin-sidebar-head">';
     echo '<a class="admin-brand" href="index.php">EdgarsFoto</a>';
+    echo '<button type="button" class="admin-sidebar-hide" id="adminSidebarHide" aria-label="Paslēpt izvēlni">';
+    echo '<svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true"><path fill="currentColor" d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>';
+    echo '</button></div>';
     echo '<nav class="admin-nav">';
     $deletedCount = 0;
     if ($config !== []) {
@@ -94,23 +108,26 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
         }
     }
     echo '<a href="index.php"' . ($active === 'list' ? ' class="active"' : '') . '>Galerijas</a>';
+    echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna Galerija</a>';
     echo '<a href="index.php?view=deleted"' . ($active === 'deleted' ? ' class="active"' : '') . '>Dzēstās galerijas';
     if ($deletedCount > 0) {
         echo ' <span class="admin-nav-badge">' . $deletedCount . '</span>';
     }
     echo '</a>';
-    echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna galerija</a>';
-    echo '<a href="settings.php"' . ($active === 'settings' ? ' class="active"' : '') . '>Iestatījumi</a>';
     echo '</nav>';
-    echo '<div class="admin-sidebar-foot"><a class="admin-logout" href="index.php?logout=1">Iziet</a></div>';
-    echo '</aside>';
+    echo '<div class="admin-sidebar-foot">';
+    echo '<a href="settings.php" class="admin-sidebar-foot-link' . ($active === 'settings' ? ' active' : '') . '">';
+    echo efpic_admin_icon_settings() . '<span>Iestatījumi</span></a>';
+    echo '<a class="admin-sidebar-foot-link admin-logout" href="index.php?logout=1"><span>Iziet</span></a>';
+    echo '</div></aside>';
     echo '<div class="admin-workspace">';
     echo '<header class="admin-page-head"><h1>' . efpic_admin_esc($heading) . '</h1>';
     if ($pageLead !== null && $pageLead !== '') {
         echo '<p class="admin-lead">' . $pageLead . '</p>';
     }
     echo '</header>';
-    echo '<main class="admin-main">' . $body . '</main></div></div></body></html>';
+    echo '<main class="admin-main">' . $body . '</main></div></div>';
+    echo '<script src="/admin/assets/admin.js" defer></script></body></html>';
     exit;
 }
 
@@ -682,8 +699,6 @@ function efpic_admin_list_delivery_galleries(array $config): void
     $body .= '<th></th><th>Nosaukums</th><th>Datums</th><th>Bildes</th><th>Sync</th><th></th>';
     $body .= '</tr></thead><tbody>' . $rows . '</tbody></table></div></form>';
 
-    $body .= '<script src="/admin/assets/admin.js" defer></script>';
-
     efpic_admin_layout(
         'Galerijas',
         $body,
@@ -1095,10 +1110,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     }
 
     $body .= '</form>';
-
-    if ($isEdit || !$isEdit) {
-        $body .= '<script src="/admin/assets/admin.js" defer></script>';
-    }
 
     efpic_admin_layout(
         $isEdit ? 'Rediģēt' : 'Jauna',
