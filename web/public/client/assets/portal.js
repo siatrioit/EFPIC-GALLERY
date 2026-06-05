@@ -215,11 +215,12 @@
   }
 
   function enterShareEditMode(opts) {
+    var guestToken = normalizeShareGuestToken(opts.guestToken);
     shareEditMode = {
-      guestToken: opts.guestToken || null,
+      guestToken: guestToken || null,
       label: opts.label || '',
       includeVideos: !!opts.includeVideos,
-      isNew: !opts.guestToken,
+      isNew: !guestToken,
     };
     selectShareEditTokens(opts.tokens || []);
     updateShareEditBar();
