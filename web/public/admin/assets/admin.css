@@ -1331,8 +1331,10 @@
 }
 
 .admin-check {
+  display: inline-flex;
   flex-direction: row;
   align-items: center;
+  justify-content: flex-start;
   gap: 8px;
 }
 
@@ -1703,6 +1705,13 @@
   margin: 0 0 8px;
   font-size: 0.95rem;
   font-weight: 600;
+}
+
+.admin-fav-col {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
 }
 
 .admin-fav-grid {

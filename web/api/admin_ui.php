@@ -467,7 +467,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '</div></div>';
 
     $html .= '<div class="admin-slideshow-columns">';
-    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mana slideshow</h3>';
+    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mans slideshow</h3>';
     if ($clientActive) {
         $html .= '<p class="admin-warn">Klienta slideshow ir aktīva publiskajā galerijā — tava slideshow netiek rādīta.</p>';
     }
