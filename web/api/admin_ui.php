@@ -604,7 +604,8 @@ function efpic_admin_render_videos_fieldset(array $config, array $meta, string $
     foreach ($scenes as $scene) {
         $html .= '<option value="' . efpic_admin_esc($scene['id']) . '">' . efpic_admin_esc($scene['title']) . '</option>';
     }
-    $html .= '</select></label>';
+    $html .= '</select></label></div>';
+    $html .= '<div class="admin-video-submit-row">';
     $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-add-embed-video">Pievienot video</button>';
     $html .= '</div></div></fieldset>';
 

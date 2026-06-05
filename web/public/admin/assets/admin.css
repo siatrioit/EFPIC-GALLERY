@@ -471,14 +471,16 @@
 }
 
 .admin-body .btn.primary,
-.admin-body .btn:only-child {
+.admin-body .btn:only-child,
+.admin-body .btn:only-of-type {
   background: var(--admin-accent);
   border-color: var(--admin-accent);
   color: #fff;
 }
 
 .admin-body .btn.primary:hover,
-.admin-body .btn:only-child:hover {
+.admin-body .btn:only-child:hover,
+.admin-body .btn:only-of-type:hover {
   background: var(--admin-accent-hover);
   border-color: var(--admin-accent-hover);
 }
@@ -1447,6 +1449,26 @@
   padding-top: 4px;
 }
 
+/* Slideshow & video: vienāds .btn izmērs (kā «Dzēst») */
+#admin-tab-media .btn,
+#admin-videos-panel .btn {
+  min-height: var(--admin-control-h);
+  padding: 10px 18px;
+  font-size: 0.9rem;
+}
+
+.admin-body .admin-video-submit-row .btn {
+  width: 100%;
+  max-width: 100%;
+}
+
+@media (min-width: 768px) {
+  .admin-body .admin-video-submit-row .btn {
+    width: auto;
+    max-width: none;
+  }
+}
+
 .admin-video-add {
   padding-top: 8px;
   border-top: 1px solid var(--admin-border);
@@ -2346,7 +2368,9 @@
   .admin-body .admin-share-compose-row > .btn,
   .admin-body .admin-scenes-panel form > .btn,
   .admin-body .admin-fieldset-full > form > .btn,
-  .admin-body .admin-video-card__meta > .btn {
+  .admin-body .admin-video-card__meta > .btn,
+  #admin-tab-media .btn,
+  #admin-videos-panel .btn {
     width: 100%;
   }
 
