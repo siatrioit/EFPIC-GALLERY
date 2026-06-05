@@ -316,7 +316,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_tab_panel_close();
 
     $body .= efpic_admin_tab_panel_open('admin-tab-share');
-    $body .= '<div id="admin-share-sets-body">' . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
+    $body .= efpic_admin_render_share_sets($config, $meta);
     $body .= efpic_admin_tab_panel_close();
 
     $body .= efpic_admin_tab_panel_open('admin-tab-media');

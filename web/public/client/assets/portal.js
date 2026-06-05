@@ -299,7 +299,7 @@
         var labelEl = document.getElementById('admin-share-new-label');
         var label = labelEl ? labelEl.value.trim() : '';
         if (!label) {
-          window.alert('Ievadi kam paredzēta izlase (piem. Dekorators Anna).');
+          window.alert('Ievadi kam paredzēta izlase (piem. Dekoratore Anna).');
           if (labelEl) labelEl.focus();
           return;
         }

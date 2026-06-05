@@ -704,11 +704,12 @@
   }
 
   function enterShareEditMode(opts) {
+    var guestToken = normalizeShareGuestToken(opts.guestToken);
     shareEditMode = {
-      guestToken: opts.guestToken || null,
+      guestToken: guestToken || null,
       label: opts.label || '',
       includeVideos: !!opts.includeVideos,
-      isNew: !opts.guestToken,
+      isNew: !guestToken,
     };
     selectShareEditTokens(opts.tokens || []);
     applySceneFilter('all');
@@ -791,7 +792,7 @@
         var labelEl = document.getElementById('admin-share-new-label');
         var label = labelEl ? labelEl.value.trim() : '';
         if (!label) {
-          window.alert('Ievadi kam paredzēta izlase (piem. Dekorators Anna).');
+          window.alert('Ievadi kam paredzēta izlase (piem. Dekoratore Anna).');
           if (labelEl) labelEl.focus();
           return;
         }

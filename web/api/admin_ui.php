@@ -330,7 +330,7 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
     $html .= '<h3 class="admin-share-block-title">Jauna kopīgojamā izlase</h3>';
     $html .= '<p class="muted">Ievadi nosaukumu un spied «Sākt» — pārlec uz <strong>Bildes</strong>, kur atzīmē bildes un saglabā izlasi.</p>';
     $html .= '<div class="admin-share-compose-row">';
-    $html .= '<label>Kam / nosaukums<input type="text" id="admin-share-new-label" placeholder="piem. Dekorators Anna" autocomplete="off"></label>';
+    $html .= '<label>Kam / nosaukums<input type="text" id="admin-share-new-label" placeholder="piem. Dekoratore Anna" autocomplete="off"></label>';
     $html .= '<label class="admin-check admin-share-videos-check"><input type="checkbox" id="admin-share-new-videos" value="1"> Video izlasē</label>';
     $html .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-start-new">Sākt jaunu izlasi</button>';
     $html .= '</div></div>';

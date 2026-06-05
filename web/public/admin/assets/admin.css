@@ -1988,7 +1988,7 @@
   align-items: flex-end;
 }
 
-.admin-share-compose-row label {
+.admin-share-compose-row label:not(.admin-check) {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -1998,7 +1998,12 @@
   flex: 1 1 220px;
 }
 
-.admin-share-videos-check,
+.admin-share-compose-row .admin-share-videos-check {
+  flex: 0 0 auto;
+  min-width: auto;
+  align-self: flex-end;
+}
+
 .admin-share-videos-toggle {
   flex: 0 0 auto;
   min-width: auto;
