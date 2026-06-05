@@ -409,10 +409,14 @@
 }
 
 .admin-body input[type='checkbox'],
-.admin-body input[type='radio'] {
+.admin-body input[type='radio'],
+.admin-body input[type='hidden'] {
   width: auto;
   min-height: 0;
   padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
 }
 
 .admin-body select {
@@ -437,7 +441,7 @@
   color: var(--admin-text-muted);
 }
 
-/* —— Vienotas pogas: balta (sekundāra) vai zila (primary) —— */
+/* —— Vienotas pogas: viena = zila; divas blakus = zila + balta —— */
 .admin-body .btn {
   display: inline-flex;
   align-items: center;
@@ -465,20 +469,41 @@
   border-color: var(--admin-border);
 }
 
-.admin-body .btn.primary {
+.admin-body .btn.primary,
+.admin-body .btn:only-child {
   background: var(--admin-accent);
   border-color: var(--admin-accent);
   color: #fff;
 }
 
-.admin-body .btn.primary:hover {
+.admin-body .btn.primary:hover,
+.admin-body .btn:only-child:hover {
   background: var(--admin-accent-hover);
   border-color: var(--admin-accent-hover);
 }
 
+.admin-body .btn-group .btn:not(.primary),
+.admin-body .admin-sticky-bar .btn:not(.primary),
+.admin-body .admin-share-edit-bar .btn:not(.primary),
+.admin-body .admin-share-set-actions .btn:not(.primary),
+.admin-body .admin-scene-float-bar .btn:not(.primary) {
+  background: var(--admin-surface);
+  border-color: var(--admin-border-strong);
+  color: var(--admin-text);
+}
+
+.admin-body .btn-group .btn:not(.primary):hover,
+.admin-body .admin-sticky-bar .btn:not(.primary):hover,
+.admin-body .admin-share-edit-bar .btn:not(.primary):hover,
+.admin-body .admin-share-set-actions .btn:not(.primary):hover,
+.admin-body .admin-scene-float-bar .btn:not(.primary):hover {
+  background: var(--admin-surface-2);
+  border-color: var(--admin-border);
+}
+
 .admin-body .portal-stack .btn,
 .admin-body .admin-video-submit-row .btn,
-.admin-body .admin-regenerate-link-form .btn {
+.admin-body .admin-regenerate-link-row .btn {
   align-self: flex-start;
 }
 
@@ -1247,7 +1272,7 @@
   margin: 0 0 8px;
 }
 
-.admin-regenerate-link-form {
+.admin-regenerate-link-row {
   margin: 0 0 12px;
 }
 

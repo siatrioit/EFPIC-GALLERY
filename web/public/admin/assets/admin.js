@@ -1914,6 +1914,30 @@
   }
 
   initAdminConfirmForms();
+  initAdminRegeneratePublicLink();
   initAdminGalleryLinksPoll();
   initAdminSidebar();
+
+  function initAdminRegeneratePublicLink() {
+    var btn = document.getElementById('admin-regenerate-public-link');
+    var form = document.getElementById('admin-delivery-form');
+    if (!btn || !form || btn.dataset.bound === '1') return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      var msg = btn.getAttribute('data-confirm') || '';
+      if (msg && !window.confirm(msg)) return;
+      form.querySelectorAll('input[data-regen-temp]').forEach(function (el) {
+        el.remove();
+      });
+      ['regenerate_public_link', 'confirm_regenerate'].forEach(function (name) {
+        var input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = name;
+        input.value = '1';
+        input.setAttribute('data-regen-temp', '1');
+        form.appendChild(input);
+      });
+      form.submit();
+    });
+  }
 })();
