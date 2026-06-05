@@ -2082,24 +2082,34 @@
 }
 
 .admin-body--portal .portal-card-toggle-form {
-  display: flex;
-  flex: 1 1 50%;
+  display: block;
   margin: 0;
   min-width: 0;
+  width: 100%;
 }
 
 .admin-body--portal .admin-media-card__row--toggles {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   width: 100%;
+  flex-wrap: unset;
 }
 
 .admin-body--portal .admin-media-card__row--toggles .admin-media-toggle {
-  flex: 1 1 50%;
-  min-height: 2.35rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
   width: 100%;
-  padding: 8px 10px;
+  min-height: 2.35rem;
+  padding: 8px 6px;
   font-size: 0.78rem;
+}
+
+.admin-body--portal .admin-media-card__row--toggles .admin-media-toggle__label {
+  text-align: center;
+  line-height: 1.2;
 }
 
 .admin-body--portal .portal-scenes-panel .admin-scenes-editor {
