@@ -21,8 +21,36 @@ if ($meta === null || !efpic_is_delivery_gallery($meta)) {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(array_merge(['ok' => true], efpic_admin_gallery_links_payload($config, $meta)), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        if (!empty($_POST['regenerate_public_link'])) {
+            if (empty($_POST['confirm_regenerate'])) {
+                throw new InvalidArgumentException('Apstiprini jaunas saites izveidi.');
+            }
+            $meta = efpic_load_gallery_meta($config, $slug);
+            if ($meta === null) {
+                throw new RuntimeException('Nav atrasts');
+            }
+            efpic_regenerate_gallery_public_token($meta);
+            efpic_save_gallery_meta($config, $slug, $meta);
+            if (!empty($_POST['autosave'])) {
+                header('Content-Type: application/json; charset=utf-8');
+                echo json_encode(array_merge(
+                    ['ok' => true, 'message' => 'Jauna publiskā saite izveidota.'],
+                    efpic_admin_gallery_links_payload($config, $meta)
+                ), JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+            header('Location: delivery_edit.php?slug=' . rawurlencode($slug) . '&link_regenerated=1');
+            exit;
+        }
+
         efpic_admin_save_delivery_from_post($config, $slug);
         if (!empty($_POST['autosave'])) {
             $meta = efpic_load_gallery_meta($config, $slug);
@@ -33,10 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($meta !== null) {
                 $gt = (string) ($meta['gallery_token'] ?? '');
                 $payload['videos_html'] = efpic_admin_render_existing_videos_list($config, $meta, $gt);
-                $shareIndex = efpic_share_sets_token_index($meta);
-                $payload['share_sets_html'] = efpic_admin_render_share_sets_body($config, $meta);
-                $payload['share_index'] = array_keys($shareIndex);
-                $payload['share_counts'] = efpic_share_sets_count_index($meta);
+                $payload = array_merge($payload, efpic_admin_gallery_links_payload($config, $meta));
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);
@@ -61,4 +86,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $flash = isset($_GET['saved']) ? 'Galerija izveidota.' : null;
+if (isset($_GET['link_regenerated'])) {
+    $flash = 'Jauna publiskā saite izveidota. Vecā saite vairs nedarbojas.';
+}
 efpic_admin_delivery_form($config, $meta, $slug, $flash);

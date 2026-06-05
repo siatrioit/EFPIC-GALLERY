@@ -1127,19 +1127,24 @@
   border-color: var(--admin-accent-hover);
 }
 
+.admin-links-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin: 0 0 8px;
+}
+
+.admin-regenerate-link-form {
+  margin: 0 0 12px;
+}
+
 .admin-link-row {
   display: inline-flex;
   align-items: center;
   gap: 6px;
   max-width: 100%;
   min-width: 0;
-}
-
-.admin-links-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px 10px;
 }
 
 .admin-link-row__url {

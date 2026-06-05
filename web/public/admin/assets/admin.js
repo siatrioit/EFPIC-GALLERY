@@ -459,6 +459,7 @@
             bindAdminVideoRowEvents();
           }
         }
+        applyAdminGalleryLinksPayload(data);
         applyAdminShareAutosavePayload(data);
       })
       .catch(function (err) {
@@ -471,6 +472,26 @@
           scheduleAdminAutoSave();
         }
       });
+  }
+
+  function applyAdminGalleryLinksPayload(data) {
+    if (!data || !data.public_link_html || !data.gallery_token) return;
+    var row = document.getElementById('admin-public-link-row');
+    if (!row) return;
+    var current = row.getAttribute('data-gallery-token') || '';
+    if (data.gallery_token === current && row.querySelector('.admin-link-row')) {
+      return;
+    }
+    row.setAttribute('data-gallery-token', data.gallery_token);
+    var strong = document.createElement('strong');
+    strong.textContent = 'Publiska saite:';
+    row.replaceChildren(strong);
+    var tmp = document.createElement('span');
+    tmp.innerHTML = data.public_link_html;
+    while (tmp.firstChild) {
+      row.appendChild(tmp.firstChild);
+    }
+    bindAdminLinkActions(row);
   }
 
   function applyAdminShareAutosavePayload(data) {
@@ -1800,6 +1821,49 @@
 
   initAdminFormAutoSave();
 
+  function initAdminConfirmForms() {
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+      if (form.dataset.confirmBound === '1') return;
+      form.dataset.confirmBound = '1';
+      form.addEventListener('submit', function (evt) {
+        var msg = form.getAttribute('data-confirm') || '';
+        if (msg && !window.confirm(msg)) {
+          evt.preventDefault();
+        }
+      });
+    });
+  }
+
+  function initAdminGalleryLinksPoll() {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form || !adminFormIsEditDelivery()) return;
+    var slug = form.getAttribute('data-admin-edit-slug');
+    var row = document.getElementById('admin-public-link-row');
+    if (!slug || !row) return;
+
+    function poll() {
+      fetch('delivery_edit.php?slug=' + encodeURIComponent(slug) + '&poll=links', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          applyAdminGalleryLinksPayload(data);
+          applyAdminShareAutosavePayload(data);
+        })
+        .catch(function () {});
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) poll();
+    });
+    window.setInterval(poll, 15000);
+  }
+
   function initAdminSidebar() {
     var hideBtn = document.getElementById('adminSidebarHide');
     var reopenBtn = document.getElementById('adminSidebarReopen');
@@ -1840,5 +1904,7 @@
     }
   }
 
+  initAdminConfirmForms();
+  initAdminGalleryLinksPoll();
   initAdminSidebar();
 })();

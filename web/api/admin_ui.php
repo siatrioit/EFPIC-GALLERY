@@ -277,6 +277,21 @@ function efpic_admin_render_link_row(string $url): string
     return $html;
 }
 
+/** @return array{gallery_token: string, public_link_html: string, share_sets_html: string, share_index: list<string>, share_counts: array<string, int>} */
+function efpic_admin_gallery_links_payload(array $config, array $meta): array
+{
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $shareIndex = efpic_share_sets_token_index($meta);
+
+    return [
+        'gallery_token' => $gt,
+        'public_link_html' => efpic_admin_render_link_row(efpic_gallery_view_url($config, $gt)),
+        'share_sets_html' => efpic_admin_render_share_sets_body($config, $meta),
+        'share_index' => array_keys($shareIndex),
+        'share_counts' => efpic_share_sets_count_index($meta),
+    ];
+}
+
 function efpic_admin_render_share_set_thumbs(array $config, array $meta, array $guest): string
 {
     $tokens = $guest['image_tokens'] ?? [];
@@ -1071,8 +1086,14 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $gt = (string) ($meta['gallery_token'] ?? '');
         $portal = (string) ($meta['client_access']['portal_token'] ?? '');
         $body .= '<div class="admin-links">';
-        $body .= '<p class="admin-links-row"><strong>Publiska saite:</strong> '
+        $body .= '<p class="admin-links-row" id="admin-public-link-row" data-gallery-token="' . efpic_admin_esc($gt) . '"><strong>Publiska saite:</strong> '
             . efpic_admin_render_link_row(efpic_gallery_view_url($config, $gt)) . '</p>';
+        $body .= '<form method="post" class="admin-regenerate-link-form" data-confirm="'
+            . efpic_admin_esc('Izveidot jaunu publisko saiti? Vecā saite un ar to saistītās kopīgošanas saites pārtraks darboties.')
+            . '">';
+        $body .= '<input type="hidden" name="regenerate_public_link" value="1">';
+        $body .= '<input type="hidden" name="confirm_regenerate" value="1">';
+        $body .= '<button type="submit" class="btn admin-btn-sm">Ģenerēt jaunu publisko saiti</button></form>';
         $body .= '<p class="admin-links-row"><strong>Klienta panelis:</strong> '
             . efpic_admin_render_link_row(efpic_portal_url($config, $portal)) . '</p>';
         if (efpic_gallery_has_password($meta)) {
