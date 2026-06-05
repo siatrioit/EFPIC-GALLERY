@@ -172,6 +172,11 @@
     });
   }
 
+  function normalizeShareGuestToken(token) {
+    var t = String(token || '').trim();
+    return t && t !== 'null' ? t : '';
+  }
+
   function postPortalShareRequest(extra) {
     var fd = new FormData();
     fd.set('portal_share_api', '1');
@@ -254,12 +259,20 @@
         extra.share_include_videos = '1';
       }
     } else {
+      var guestToken = normalizeShareGuestToken(shareEditMode.guestToken);
+      if (!guestToken) {
+        window.alert('Nav atrasts izlases žetons — aizver un atver «Labot izlasi» vēlreiz.');
+        return;
+      }
       extra = {
         share_action: 'replace',
-        share_guest_token: shareEditMode.guestToken,
+        share_guest_token: guestToken,
         share_set_label: shareEditMode.label,
         share_set_tokens: tokens.join(','),
       };
+      if (shareEditMode.includeVideos) {
+        extra.share_include_videos = '1';
+      }
     }
     var saveBtn = document.getElementById('admin-share-edit-save');
     if (saveBtn) saveBtn.disabled = true;
@@ -306,8 +319,11 @@
         if (!item) return;
         var raw = item.getAttribute('data-share-tokens') || '';
         var tokens = raw ? raw.split(',').filter(Boolean) : [];
+        var guestToken = normalizeShareGuestToken(
+          item.getAttribute('data-guest-token') || btn.getAttribute('data-guest-token')
+        );
         enterShareEditMode({
-          guestToken: item.getAttribute('data-guest-token') || null,
+          guestToken: guestToken || null,
           label: item.getAttribute('data-share-label') || '',
           includeVideos: item.getAttribute('data-share-videos') === '1',
           tokens: tokens,

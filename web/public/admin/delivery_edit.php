@@ -27,6 +27,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta === null) {
+            throw new RuntimeException('Nav atrasts');
+        }
+        if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
+            efpic_apply_share_actions_from_post($meta, 'admin');
+        }
+        if (!empty($_POST['delete_share_token'])) {
+            efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
+        }
+        efpic_save_gallery_meta($config, $slug, $meta);
+        echo json_encode(array_merge(
+            ['ok' => true],
+            efpic_admin_gallery_links_payload($config, $meta)
+        ), JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (!empty($_POST['regenerate_public_link'])) {
