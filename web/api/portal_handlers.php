@@ -464,7 +464,7 @@ function efpic_portal_render_favorites_and_slideshow(
     $html .= '<div class="admin-slideshow-columns">';
     $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Tava slideshow</h3>';
     $html .= '<p class="muted">Augšupielādē MP3. Kad slideshow ir gatava, tā kļūst par galveno publiskajā galerijā.</p>';
-    $html .= '<form method="post" enctype="multipart/form-data" class="admin-form-split portal-stack">';
+    $html .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
     $html .= '<input type="hidden" name="portal_action" value="save_slideshow">';
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . (!empty($slideshow['enabled']) ? ' checked' : '') . '> Ieslēgt slideshow</label>';
     $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) ($slideshow['interval_sec'] ?? 5) . '"></label>';
@@ -476,7 +476,9 @@ function efpic_portal_render_favorites_and_slideshow(
         $html .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
     }
     $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '<div class="admin-media-action-row">';
     $html .= '<button type="submit" class="btn primary">Saglabāt slideshow</button>';
+    $html .= '</div>';
     $html .= '</form></div></div></fieldset>';
 
     return $html;

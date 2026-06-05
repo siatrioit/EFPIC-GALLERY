@@ -480,6 +480,9 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
         $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_remove_audio" value="1"> Dzēst MP3</label>';
     }
     $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_admin_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '<div class="admin-media-action-row">';
+    $html .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt slideshow</button>';
+    $html .= '</div>';
     $html .= '</div>';
 
     $html .= '<div class="admin-fav-col admin-fav-col--readonly"><h3 class="admin-fav-heading">Klienta slideshow</h3>';

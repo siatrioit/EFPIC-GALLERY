@@ -1468,28 +1468,39 @@
   justify-self: stretch;
 }
 
+.admin-media-action-row,
 .admin-video-submit-row {
-  margin-top: 16px;
-  padding-top: 4px;
+  margin-top: 12px;
+  padding-top: 0;
 }
 
-/* Slideshow & video: vienāds .btn izmērs (kā «Dzēst») */
+/* Slideshow & video: vienāds pogu augstums un tipogrāfija */
 #admin-tab-media .btn,
 #admin-videos-panel .btn {
   min-height: var(--admin-control-h);
   padding: 10px 18px;
   font-size: 0.9rem;
+  box-sizing: border-box;
 }
 
-.admin-body .admin-video-submit-row .btn {
-  width: 100%;
-  max-width: 100%;
+@media (max-width: 767px) {
+  #admin-tab-media .admin-media-action-row .btn,
+  #admin-tab-media .portal-stack > .btn,
+  #admin-videos-panel .admin-video-submit-row .btn,
+  #admin-videos-panel .admin-video-card__meta > .btn {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+  }
 }
 
 @media (min-width: 768px) {
-  .admin-body .admin-video-submit-row .btn {
+  #admin-tab-media .admin-media-action-row .btn,
+  #admin-tab-media .portal-stack > .btn,
+  #admin-videos-panel .admin-video-submit-row .btn,
+  #admin-videos-panel .admin-video-card__meta > .btn {
     width: auto;
-    max-width: none;
+    display: inline-flex;
   }
 }
 
@@ -2389,7 +2400,9 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
+  width: 100%;
   max-width: 36rem;
+  min-width: 0;
 }
 
 .admin-body--portal .admin-flash {
@@ -2408,14 +2421,10 @@
 /* Telefons: darbību pogas pilnā platumā kā «Dzēst»; pāros — vienāds augstums, dalīts platums */
 @media (max-width: 767px) {
   .admin-body .portal-stack > .btn,
-  .admin-body .admin-video-submit-row .btn,
   .admin-body .admin-regenerate-link-row .btn,
   .admin-body .admin-share-compose-row > .btn,
   .admin-body .admin-scenes-panel form > .btn,
-  .admin-body .admin-fieldset-full > form > .btn,
-  .admin-body .admin-video-card__meta > .btn,
-  #admin-tab-media .btn,
-  #admin-videos-panel .btn {
+  .admin-body .admin-fieldset-full > form > .btn {
     width: 100%;
   }
 
