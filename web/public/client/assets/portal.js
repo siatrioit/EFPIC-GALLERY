@@ -769,24 +769,5 @@
       });
     });
 
-    var addEmbedBtn = document.getElementById('portal-add-embed-video');
-    var videosForm = document.getElementById('portal-videos-form');
-    if (addEmbedBtn && videosForm && addEmbedBtn.dataset.bound !== '1') {
-      addEmbedBtn.dataset.bound = '1';
-      addEmbedBtn.addEventListener('click', function () {
-        var urlInput = videosForm.querySelector('input[name="video_embed_url"]');
-        if (!urlInput || !String(urlInput.value || '').trim()) {
-          window.alert('Ievadi YouTube vai Vimeo saiti.');
-          urlInput && urlInput.focus();
-          return;
-        }
-        var hidden = document.createElement('input');
-        hidden.type = 'hidden';
-        hidden.name = 'add_video_embed';
-        hidden.value = '1';
-        videosForm.appendChild(hidden);
-        videosForm.submit();
-      });
-    }
   }
 })();

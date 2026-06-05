@@ -510,11 +510,10 @@ function efpic_portal_render_videos_fieldset(array $config, array $meta, string 
     foreach ($scenes as $scene) {
         $html .= '<option value="' . efpic_client_esc($scene['id']) . '">' . efpic_client_esc($scene['title']) . '</option>';
     }
-    $html .= '</select></label>';
-    $html .= '<button type="button" class="btn primary admin-btn-inline" id="portal-add-embed-video">Pievienot video</button>';
-    $html .= '</div></div>';
-    $html .= '<button type="submit" class="btn primary">Saglabāt video</button>';
-    $html .= '</form></fieldset>';
+    $html .= '</select></label></div></div>';
+    $html .= '<div class="admin-video-submit-row">';
+    $html .= '<button type="submit" class="btn primary admin-btn-inline">Pievienot video</button>';
+    $html .= '</div></form></fieldset>';
 
     return $html;
 }

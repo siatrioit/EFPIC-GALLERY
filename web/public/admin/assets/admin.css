@@ -23,6 +23,8 @@
   --admin-warn-text: #8a6d1a;
   --admin-radius: 10px;
   --admin-radius-lg: 14px;
+  --admin-control-h: 42px;
+  --admin-control-radius: 10px;
   --admin-shadow: 0 1px 2px rgba(20, 20, 20, 0.04), 0 4px 16px rgba(20, 20, 20, 0.06);
   --admin-font: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
 
@@ -356,6 +358,128 @@
   color: #fff;
   background: var(--admin-accent);
   border-color: var(--admin-accent);
+}
+
+/* —— Vienoti ievades lauki (admin + klientu panelis) —— */
+.admin-body input[type='text'],
+.admin-body input[type='email'],
+.admin-body input[type='url'],
+.admin-body input[type='password'],
+.admin-body input[type='search'],
+.admin-body input[type='number'],
+.admin-body input[type='date'],
+.admin-body input:not([type]),
+.admin-body select,
+.admin-body textarea {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--admin-control-h);
+  padding: 10px 12px;
+  border: 1px solid var(--admin-border-strong);
+  border-radius: var(--admin-control-radius);
+  font: inherit;
+  font-size: 0.95rem;
+  line-height: 1.35;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.admin-body input[type='file'] {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--admin-control-h);
+  padding: 8px 10px;
+  border: 1px solid var(--admin-border-strong);
+  border-radius: var(--admin-control-radius);
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--admin-text);
+  background: var(--admin-surface);
+}
+
+.admin-body input[type='color'],
+.admin-body .admin-color-input {
+  width: 48px;
+  min-height: 36px;
+  height: 36px;
+  padding: 0;
+  border: none;
+  background: transparent;
+}
+
+.admin-body input[type='checkbox'],
+.admin-body input[type='radio'] {
+  width: auto;
+  min-height: 0;
+  padding: 0;
+}
+
+.admin-body select {
+  appearance: auto;
+  cursor: pointer;
+}
+
+.admin-body input:focus,
+.admin-body select:focus,
+.admin-body textarea:focus {
+  outline: none;
+  border-color: var(--admin-accent);
+  box-shadow: 0 0 0 3px var(--admin-accent-soft);
+}
+
+.admin-body label:not(.admin-check):not(.admin-bulk-pick):not(.portal-share-pick-label):not(.admin-cover-pick):not(.admin-fav-pick):not(.admin-media-toggle) {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--admin-text-muted);
+}
+
+/* —— Vienotas pogas: balta (sekundāra) vai zila (primary) —— */
+.admin-body .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: auto;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 18px;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.25;
+  border-radius: var(--admin-control-radius);
+  border: 1px solid var(--admin-border-strong);
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.admin-body .btn:hover {
+  background: var(--admin-surface-2);
+  border-color: var(--admin-border);
+}
+
+.admin-body .btn.primary {
+  background: var(--admin-accent);
+  border-color: var(--admin-accent);
+  color: #fff;
+}
+
+.admin-body .btn.primary:hover {
+  background: var(--admin-accent-hover);
+  border-color: var(--admin-accent-hover);
+}
+
+.admin-body .portal-stack .btn,
+.admin-body .admin-video-submit-row .btn,
+.admin-body .admin-regenerate-link-form .btn {
+  align-self: flex-start;
 }
 
 .admin-tab-panel[hidden] {
@@ -1081,9 +1205,10 @@
 .admin-scene-title-input {
   flex: 1;
   min-width: 160px;
-  padding: 8px 10px;
+  min-height: var(--admin-control-h);
+  padding: 10px 12px;
   border: 1px solid var(--admin-border-strong);
-  border-radius: 8px;
+  border-radius: var(--admin-control-radius);
   font-size: 0.95rem;
 }
 
@@ -1097,32 +1222,19 @@
   margin: 0;
 }
 
-.admin-main .btn.primary {
-  width: auto;
-}
-
-.admin-btn-sm {
+.admin-body .btn.admin-btn-sm {
   padding: 7px 13px;
   font-size: 0.8rem;
-  font-weight: 600;
-  border-radius: 7px;
-  width: auto;
-  min-width: 0;
-  border: 1px solid var(--admin-border-strong);
-  background: var(--admin-surface);
+  border-radius: var(--admin-control-radius);
 }
 
-.admin-btn-sm.primary {
+.admin-body .btn.admin-btn-sm.primary {
   background: var(--admin-accent);
   border-color: var(--admin-accent);
   color: #fff;
 }
 
-.admin-btn-sm:hover {
-  background: var(--admin-surface-2);
-}
-
-.admin-btn-sm.primary:hover {
+.admin-body .btn.admin-btn-sm.primary:hover {
   background: var(--admin-accent-hover);
   border-color: var(--admin-accent-hover);
 }
@@ -1298,12 +1410,11 @@
 
 .admin-video-delete {
   align-self: center;
-  color: #b42318;
-  border-color: #e8b4b0;
 }
 
-.admin-video-delete:hover {
-  background: #fef2f2;
+.admin-video-submit-row {
+  margin-top: 16px;
+  padding-top: 4px;
 }
 
 .admin-video-add {
