@@ -194,6 +194,14 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     efpic_save_gallery_meta($config, $slug, $meta);
                     $_SESSION['efpic_portal_flash'] = 'Lejupielādes iestatījumi saglabāti.';
                 })(),
+                'regenerate_public_link' => (function () use ($config, $slug, &$meta) {
+                    if (empty($_POST['confirm_regenerate'])) {
+                        throw new InvalidArgumentException('Apstiprini jaunas saites izveidi.');
+                    }
+                    efpic_regenerate_gallery_public_token($meta);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                    $_SESSION['efpic_portal_flash'] = 'Jauna publiskā saite ir gatava. Vecā saite un ar to saistītās kopīgošanas saites vairs nedarbojas.';
+                })(),
                 'add_comment' => (function () use ($config, $slug, &$meta, $imageToken) {
                     if (!efpic_client_comments_enabled($meta)) {
                         throw new InvalidArgumentException('Komentāri ir atslēgti.');
@@ -317,6 +325,18 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_tab_panel_close();
 
     $body .= efpic_admin_tab_panel_open('admin-tab-settings');
+    $publicUrl = efpic_gallery_view_url($config, $gt);
+    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Publiskā galerijas saite</h2>';
+    $body .= '<p class="muted">Šo saiti vari kopīgot ar viesiem. Ja tā nonāk pie nepareiziem cilvēkiem, vari izveidot jaunu — '
+        . 'vecā saite vairs nedarbosies (tostarp kopīgošanas izlases, kas izmantoja veco saiti).</p>';
+    $body .= '<p class="admin-links-row">' . efpic_admin_render_link_row($publicUrl) . '</p>';
+    $body .= '<form method="post" class="portal-stack portal-regenerate-link-form" data-confirm="'
+        . efpic_client_esc('Izveidot jaunu publisko saiti? Vecā saite un visas ar to saistītās kopīgošanas saites pārtraks darboties.')
+        . '">';
+    $body .= '<input type="hidden" name="portal_action" value="regenerate_public_link">';
+    $body .= '<input type="hidden" name="confirm_regenerate" value="1">';
+    $body .= '<button type="submit" class="btn">Ģenerēt jaunu publisko saiti</button></form></section>';
+
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Izskats</h2>';
     $body .= '<form method="post" class="admin-form-split portal-theme-form">';
     $body .= '<input type="hidden" name="portal_action" value="set_theme"><label>Tēma<select name="theme" onchange="this.form.submit()">';

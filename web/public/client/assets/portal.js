@@ -505,6 +505,20 @@
   initPortalLightbox();
   initPortalScenesEditor();
   bindPortalVideoRowEvents();
+  initPortalConfirmForms();
+
+  function initPortalConfirmForms() {
+    document.querySelectorAll('form[data-confirm]').forEach(function (form) {
+      if (form.dataset.confirmBound === '1') return;
+      form.dataset.confirmBound = '1';
+      form.addEventListener('submit', function (evt) {
+        var msg = form.getAttribute('data-confirm') || '';
+        if (msg && !window.confirm(msg)) {
+          evt.preventDefault();
+        }
+      });
+    });
+  }
 
   function initPortalLightbox() {
     var lightbox = document.getElementById('portal-lightbox') || document.getElementById('admin-lightbox');

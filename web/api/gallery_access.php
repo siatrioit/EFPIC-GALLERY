@@ -320,6 +320,14 @@ function efpic_set_gallery_session_unlocked(string $galleryToken): void
     $_SESSION['efpic_gallery_unlocked'][$galleryToken] = true;
 }
 
+/** Jauna publiskā galerijas saite — vecā pārtrauc darboties pēc saglabāšanas. */
+function efpic_regenerate_gallery_public_token(array &$meta): string
+{
+    $meta['gallery_token'] = efpic_random_hex(24);
+
+    return (string) $meta['gallery_token'];
+}
+
 function efpic_gallery_view_url(array $config, string $galleryToken, ?string $guestToken = null): string
 {
     $url = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken);
@@ -534,6 +542,15 @@ function efpic_viewer_context_access_denied(array $ctx): bool
 function efpic_viewer_is_restricted_share(array $ctx): bool
 {
     return is_array($ctx['share_image_tokens'] ?? null);
+}
+
+function efpic_viewer_include_videos_in_scenes(array $ctx): bool
+{
+    if (!efpic_viewer_is_restricted_share($ctx)) {
+        return true;
+    }
+
+    return !empty($ctx['share_include_videos']);
 }
 
 function efpic_viewer_guest_token(array $ctx): string
