@@ -565,7 +565,7 @@ function efpic_admin_render_existing_videos_list(array $config, array $meta, str
             }
             $html .= '</select></label>';
             $html .= '<span class="muted admin-video-kind">' . efpic_admin_esc($providerLabel) . '</span>';
-            $html .= '<button type="button" class="btn admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
+            $html .= '<button type="button" class="btn primary admin-video-delete" data-video-id="' . efpic_admin_esc($vid) . '">Dzēst</button>';
             $html .= '<input type="hidden" name="delete_video[' . efpic_admin_esc($vid) . ']" value="0" class="admin-video-delete-flag">';
         }
         $html .= '</div></div>';

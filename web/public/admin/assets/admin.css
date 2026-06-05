@@ -1158,8 +1158,20 @@
     flex-direction: row;
   }
 
-  .admin-workspace {
+  .admin-workspace,
+  .admin-body--portal .admin-workspace {
     margin-left: 0;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .admin-body--portal .admin-main,
+  .admin-body--portal .admin-tab-panel,
+  #admin-tab-media,
+  #admin-videos-panel {
+    min-width: 0;
+    max-width: 100%;
+    overflow-x: clip;
   }
 }
 
@@ -1367,6 +1379,8 @@
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-lg);
   align-items: start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .admin-video-card.is-deleted {
@@ -1432,6 +1446,15 @@
   gap: 4px;
   font-size: 0.78rem;
   margin: 0;
+  min-width: 0;
+}
+
+.admin-video-card__meta input,
+.admin-video-card__meta select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }
 
 .admin-video-kind {
@@ -1441,7 +1464,8 @@
 }
 
 .admin-video-delete {
-  align-self: center;
+  align-self: stretch;
+  justify-self: stretch;
 }
 
 .admin-video-submit-row {
@@ -2074,6 +2098,27 @@
 
 .admin-share-compose-row .btn {
   flex-shrink: 0;
+}
+
+@media (max-width: 767px) {
+  .admin-share-compose-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .admin-share-compose-row label:not(.admin-check) {
+    min-width: 0;
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .admin-share-compose-row .admin-share-videos-check {
+    align-self: flex-start;
+  }
+
+  .admin-share-compose-row .btn {
+    width: 100%;
+  }
 }
 
 .admin-share-edit-bar {
