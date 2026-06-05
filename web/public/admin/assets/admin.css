@@ -2457,3 +2457,25 @@
 .admin-video-readonly-scene {
   margin: 0;
 }
+
+.admin-server-check-table code.admin-server-check-value {
+  display: block;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 0.82rem;
+}
+
+.admin-server-check-row--ok td:nth-child(3) {
+  color: var(--admin-success);
+  font-weight: 600;
+}
+
+.admin-server-check-row--warn td:nth-child(3) {
+  color: var(--admin-warn-text);
+  font-weight: 600;
+}
+
+.admin-server-check-row--fail td:nth-child(3) {
+  color: #b42318;
+  font-weight: 600;
+}
