@@ -41,6 +41,26 @@ run_ffmpeg() {
   fi
 }
 
+try_ffmpeg() {
+  local err_file="${job_dir}/ffmpeg.err"
+  if "$@" 2>"$err_file"; then
+    return 0
+  fi
+  return 1
+}
+
+normalize_image() {
+  local path="$1"
+  local tmp="${path}.norm.jpg"
+  if ffmpeg -y -hide_banner -loglevel error -i "$path" \
+    -vf "scale='min(4096,iw)':'min(4096,ih)':force_original_aspect_ratio=decrease,format=yuv420p" \
+    -q:v 2 "$tmp" 2>/dev/null && [ -s "$tmp" ]; then
+    mv -f "$tmp" "$path"
+  else
+    rm -f "$tmp"
+  fi
+}
+
 auth_header="Authorization: Bearer ${EFPIC_API_TOKEN:?}"
 
 resolve_bg_color() {
@@ -73,6 +93,7 @@ for url in "${image_urls[@]}"; do
   if ! ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "${job_dir}/img_${num}.jpg" >/dev/null 2>&1; then
     die "Bilde ${idx} nav derīgs attēls"
   fi
+  normalize_image "${job_dir}/img_${num}.jpg"
   idx=$((idx + 1))
 done
 
@@ -268,6 +289,26 @@ if [ "$(echo "$slide_dur > $slide_max" | bc -l)" -eq 1 ]; then
   slide_dur="$slide_max"
 fi
 
+render_slide_simple() {
+  local seg_num="$1"
+  local img="$2"
+  local out="$3"
+  local max_w="$4"
+  local max_h="$5"
+  local vf="scale=${max_w}:${max_h}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${CANVAS_COLOR},format=yuv420p"
+  run_ffmpeg "Slide ${seg_num}" ffmpeg -y -loop 1 -framerate "$fps" -t "$slide_dur" -i "$img" \
+    -vf "$vf" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
+}
+
+prep_cell_filter() {
+  local label="$1"
+  local box_w="$2"
+  local box_h="$3"
+  local out_label="$4"
+  printf '[%s:v]scale=%s:%s:force_original_aspect_ratio=decrease,pad=%s:%s:(ow-iw)/2:(oh-ih)/2:color=%s,setsar=1,fps=%s,format=yuv420p[%s]' \
+    "$label" "$box_w" "$box_h" "$box_w" "$box_h" "$MAT_COLOR" "$fps" "$out_label"
+}
+
 render_slide_segment() {
   local seg_num="$1"
   local layout="$2"
@@ -286,6 +327,7 @@ render_slide_segment() {
   if [ "$max_w" -lt 420 ]; then max_w=420; fi
   if [ "$max_h" -lt 320 ]; then max_h=320; fi
 
+  local ok=0
   case "$layout" in
     1)
       local img="${files[0]}"
@@ -309,7 +351,9 @@ render_slide_segment() {
           ;;
       esac
       local vf="scale=${max_w}:${max_h}:force_original_aspect_ratio=decrease,pad=${width}:${height}:${x_expr}:${y_expr}:color=${CANVAS_COLOR},format=yuv420p"
-      run_ffmpeg "Slide ${seg_num}" ffmpeg -y -loop 1 -t "$slide_dur" -i "$img" -vf "$vf" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
+      if try_ffmpeg ffmpeg -y -loop 1 -framerate "$fps" -t "$slide_dur" -i "$img" -vf "$vf" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"; then
+        ok=1
+      fi
       ;;
     2)
       local cell_h=$(( height * scale_pct / 100 ))
@@ -334,12 +378,16 @@ render_slide_segment() {
       esac
       if [ "$w1" -lt 240 ]; then w1=240; fi
       if [ "$w2" -lt 240 ]; then w2=240; fi
-      local fc="[0:v]scale=${w1}:${cell_h}:force_original_aspect_ratio=decrease,pad=${w1}:${cell_h}:(ow-iw)/2:(oh-ih)/2:color=${MAT_COLOR}[a0];"
-      fc+="[1:v]scale=${w2}:${cell_h}:force_original_aspect_ratio=decrease,pad=${w2}:${cell_h}:(ow-iw)/2:(oh-ih)/2:color=${MAT_COLOR}[a1];"
-      fc+="[a0][a1]hstack=inputs=2[hs];"
+      local fc
+      fc="$(prep_cell_filter 0 "$w1" "$cell_h" a0);"
+      fc+="$(prep_cell_filter 1 "$w2" "$cell_h" a1);"
+      fc+="[a0][a1]hstack=inputs=2:shortest=1[hs];"
       fc+="[hs]pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${CANVAS_COLOR},format=yuv420p[vout]"
-      run_ffmpeg "Slide ${seg_num}" ffmpeg -y -loop 1 -t "$slide_dur" -i "${files[0]}" -loop 1 -t "$slide_dur" -i "${files[1]}" \
-        -filter_complex "$fc" -map "[vout]" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
+      if try_ffmpeg ffmpeg -y -loop 1 -framerate "$fps" -t "$slide_dur" -i "${files[0]}" \
+        -loop 1 -framerate "$fps" -t "$slide_dur" -i "${files[1]}" \
+        -filter_complex "$fc" -map "[vout]" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"; then
+        ok=1
+      fi
       ;;
     3)
       local cell_w=$(( (width - gap * 4) / 3 ))
@@ -349,18 +397,29 @@ render_slide_segment() {
       cell_h=$(( cell_h * s3 / 100 ))
       if [ "$cell_h" -lt 320 ]; then cell_h=320; fi
       if [ "$cell_w" -lt 240 ]; then cell_w=240; fi
-      local fc="[0:v]scale=${cell_w}:${cell_h}:force_original_aspect_ratio=decrease,pad=${cell_w}:${cell_h}:(ow-iw)/2:(oh-ih)/2:color=${MAT_COLOR}[a0];"
-      fc+="[1:v]scale=${cell_w}:${cell_h}:force_original_aspect_ratio=decrease,pad=${cell_w}:${cell_h}:(ow-iw)/2:(oh-ih)/2:color=${MAT_COLOR}[a1];"
-      fc+="[2:v]scale=${cell_w}:${cell_h}:force_original_aspect_ratio=decrease,pad=${cell_w}:${cell_h}:(ow-iw)/2:(oh-ih)/2:color=${MAT_COLOR}[a2];"
-      fc+="[a0][a1][a2]hstack=inputs=3[hs];"
-      fc+="[hs]pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${CANVAS_COLOR},format=yuv420p[vout]"
-      run_ffmpeg "Slide ${seg_num}" ffmpeg -y -loop 1 -t "$slide_dur" -i "${files[0]}" -loop 1 -t "$slide_dur" -i "${files[1]}" -loop 1 -t "$slide_dur" -i "${files[2]}" \
-        -filter_complex "$fc" -map "[vout]" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
+      local fc3
+      fc3="$(prep_cell_filter 0 "$cell_w" "$cell_h" a0);"
+      fc3+="$(prep_cell_filter 1 "$cell_w" "$cell_h" a1);"
+      fc3+="$(prep_cell_filter 2 "$cell_w" "$cell_h" a2);"
+      fc3+="[a0][a1][a2]hstack=inputs=3:shortest=1[hs];"
+      fc3+="[hs]pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=${CANVAS_COLOR},format=yuv420p[vout]"
+      if try_ffmpeg ffmpeg -y -loop 1 -framerate "$fps" -t "$slide_dur" -i "${files[0]}" \
+        -loop 1 -framerate "$fps" -t "$slide_dur" -i "${files[1]}" \
+        -loop 1 -framerate "$fps" -t "$slide_dur" -i "${files[2]}" \
+        -filter_complex "$fc3" -map "[vout]" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"; then
+        ok=1
+      fi
       ;;
     *)
       die "Nezināms layout ${layout}"
       ;;
   esac
+
+  if [ "$ok" -eq 1 ]; then
+    return 0
+  fi
+
+  render_slide_simple "$seg_num" "${files[0]}" "$out" "$max_w" "$max_h"
 }
 
 intro_font="/usr/share/fonts/dejavu/DejaVuSans.ttf"
