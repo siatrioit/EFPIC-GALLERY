@@ -221,6 +221,11 @@
     input.value = tokens.join(',');
   }
 
+  function markFavoritesDirty() {
+    var el = document.getElementById('favorites_dirty');
+    if (el) el.value = '1';
+  }
+
   function persistScenesBeforeSave() {
     if (!scenesEditor) return;
     var scenes = readScenesFromDom();
@@ -312,7 +317,11 @@
     bindAdminVideoRowEvents();
 
     form.addEventListener('change', function (evt) {
-      if (shouldAutoSaveTarget(evt.target)) {
+      var t = evt.target;
+      if (t && t.name && t.name.indexOf('image_fav_admin[') === 0) {
+        markFavoritesDirty();
+      }
+      if (shouldAutoSaveTarget(t)) {
         scheduleAdminAutoSave();
       }
     });
@@ -452,6 +461,8 @@
       .then(function (data) {
         showAdminAutoSaveToast(data.message || 'Saglabāts', false);
         clearTransientVideoFields();
+        var favDirty = document.getElementById('favorites_dirty');
+        if (favDirty) favDirty.value = '0';
         if (data.videos_html) {
           var videosList = document.getElementById('admin-videos-list');
           if (videosList) {

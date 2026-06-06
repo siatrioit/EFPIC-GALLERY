@@ -1284,6 +1284,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         }
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';
         $body .= '<input type="hidden" name="image_order_dirty" id="image_order_dirty" value="0">';
+        $body .= '<input type="hidden" name="favorites_dirty" id="favorites_dirty" value="0">';
         $body .= '</fieldset>';
         $body .= '<div id="admin-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
         $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';

@@ -241,6 +241,9 @@ function efpic_gallery_normalize_slideshow(array $meta): array
 
 function efpic_apply_admin_favorites_from_post(array &$meta): void
 {
+    if (empty($_POST['favorites_dirty'])) {
+        return;
+    }
     $posted = $_POST['image_fav_admin'] ?? [];
     if (!is_array($posted)) {
         $posted = [];
