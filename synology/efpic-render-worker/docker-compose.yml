@@ -1,0 +1,14 @@
+services:
+  efpic-render-worker:
+    build: .
+    container_name: efpic-render-worker
+    restart: unless-stopped
+    environment:
+      EFPIC_API_BASE: https://klientiem.edgarsfoto.lv
+      EFPIC_API_TOKEN: ${EFPIC_API_TOKEN}
+      EFPIC_POLL_SEC: 20
+    volumes:
+      - render-work:/tmp/efpic-render
+
+volumes:
+  render-work:

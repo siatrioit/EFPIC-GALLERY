@@ -93,7 +93,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);
             exit;
         }
-        if (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
+        if (!empty($_POST['slideshow_admin_generate_video'])) {
+            $flash = 'Saglabāts. Slideshow video ģenerēšana ievietota rindā — gaidi, kamēr NAS pabeidz render.';
+        } elseif (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
             $flash = 'Kopīgojamā izlase izveidota — saite sadaļā «Kopīgojamās izlases».';
         } else {
             $flash = !empty($_POST['sync_now']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';

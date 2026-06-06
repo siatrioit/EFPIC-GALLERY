@@ -8,6 +8,7 @@ require_once dirname(__DIR__) . '/api/client_handlers.php';
 require_once dirname(__DIR__) . '/api/guest_delivery_handlers.php';
 require_once dirname(__DIR__) . '/api/portal_handlers.php';
 require_once dirname(__DIR__) . '/api/gallery_assets.php';
+require_once dirname(__DIR__) . '/api/render_handlers.php';
 
 $config = efpic_load_config();
 
@@ -140,6 +141,34 @@ try {
         header('Content-Type: application/javascript; charset=utf-8');
         readfile(__DIR__ . '/admin/assets/admin.js');
         exit;
+    }
+
+    if ($uri === '/api/render/ping' && $method === 'GET') {
+        efpic_handle_render_ping($config);
+    }
+
+    if ($uri === '/api/render/claim' && $method === 'POST') {
+        efpic_handle_render_claim_job($config);
+    }
+
+    if (preg_match('#^/api/render/jobs/([a-f0-9]{32})$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_render_get_job($config, $m[1]);
+    }
+
+    if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/audio$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_render_job_audio($config, $m[1]);
+    }
+
+    if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/image/([a-f0-9]{48})$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_render_job_image($config, $m[1], $m[2]);
+    }
+
+    if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/complete$#', $uri, $m) && $method === 'POST') {
+        efpic_handle_render_job_complete($config, $m[1]);
+    }
+
+    if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/fail$#', $uri, $m) && $method === 'POST') {
+        efpic_handle_render_job_fail($config, $m[1]);
     }
 
     efpic_json_response(404, ['ok' => false, 'error' => 'not_found', 'path' => $uri]);

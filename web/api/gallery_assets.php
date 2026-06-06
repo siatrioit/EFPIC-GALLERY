@@ -68,7 +68,7 @@ function efpic_videos_grouped_by_scene(array $meta): array
  *
  * @return list<array{id: string, title: string, sort: int}>
  */
-function efpic_gallery_scenes_with_content(array $meta, array $images): array
+function efpic_gallery_scenes_with_content(array $meta, array $images, bool $countVideos = true): array
 {
     $bySceneImages = [];
     foreach ($images as $img) {
@@ -79,12 +79,14 @@ function efpic_gallery_scenes_with_content(array $meta, array $images): array
         $bySceneImages[$sid] = true;
     }
     $bySceneVideos = [];
-    foreach ($meta['videos'] ?? [] as $video) {
-        if (!is_array($video)) {
-            continue;
+    if ($countVideos) {
+        foreach ($meta['videos'] ?? [] as $video) {
+            if (!is_array($video)) {
+                continue;
+            }
+            $sid = (string) ($video['scene_id'] ?? 'main');
+            $bySceneVideos[$sid] = true;
         }
-        $sid = (string) ($video['scene_id'] ?? 'main');
-        $bySceneVideos[$sid] = true;
     }
 
     $out = [];
@@ -131,6 +133,15 @@ function efpic_gallery_slideshow_defaults(): array
         'enabled' => false,
         'audio_file' => '',
         'interval_sec' => 5,
+        'intro_title' => '',
+        'bg_mode' => 'white',
+        'image_source' => 'favorites',
+        'image_order_tokens' => [],
+        'video_file' => '',
+        'render_status' => 'none',
+        'render_job_id' => '',
+        'render_error' => '',
+        'render_updated_at' => '',
     ];
 }
 
@@ -146,12 +157,56 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
     if ($interval > 60) {
         $interval = 60;
     }
+    $intro = trim((string) ($raw['intro_title'] ?? ''));
+    if (function_exists('mb_substr') && $intro !== '') {
+        $intro = mb_substr($intro, 0, 120);
+    } elseif (strlen($intro) > 120) {
+        $intro = substr($intro, 0, 120);
+    }
+    $bg = (string) ($raw['bg_mode'] ?? 'white');
+    if (!in_array($bg, ['white', 'gallery'], true)) {
+        $bg = 'white';
+    }
+    $source = (string) ($raw['image_source'] ?? 'favorites');
+    if (!in_array($source, ['favorites', 'all'], true)) {
+        $source = 'favorites';
+    }
+    $order = [];
+    if (is_array($raw['image_order_tokens'] ?? null)) {
+        foreach ($raw['image_order_tokens'] as $tok) {
+            $tok = (string) $tok;
+            if (preg_match('/^[a-f0-9]{48}$/', $tok) === 1) {
+                $order[] = $tok;
+            }
+        }
+    }
+    $video = (string) ($raw['video_file'] ?? '');
+    if (preg_match('/^[a-zA-Z0-9._-]+$/', $video) !== 1) {
+        $video = '';
+    }
+    $renderStatus = (string) ($raw['render_status'] ?? 'none');
+    if (!in_array($renderStatus, ['none', 'queued', 'processing', 'ready', 'failed'], true)) {
+        $renderStatus = 'none';
+    }
+    $jobId = (string) ($raw['render_job_id'] ?? '');
+    if (preg_match('/^[a-f0-9]{32}$/', $jobId) !== 1) {
+        $jobId = '';
+    }
 
     return [
         'enabled' => !empty($raw['enabled']),
         'audio_file' => preg_match('/^[a-zA-Z0-9._-]+$/', (string) ($raw['audio_file'] ?? '')) === 1
             ? (string) $raw['audio_file'] : '',
         'interval_sec' => $interval,
+        'intro_title' => $intro,
+        'bg_mode' => $bg,
+        'image_source' => $source,
+        'image_order_tokens' => $order,
+        'video_file' => $video,
+        'render_status' => $renderStatus,
+        'render_job_id' => $jobId,
+        'render_error' => trim((string) ($raw['render_error'] ?? '')),
+        'render_updated_at' => (string) ($raw['render_updated_at'] ?? ''),
     ];
 }
 
@@ -381,6 +436,84 @@ function efpic_parse_scenes_from_post(): array
     return efpic_sanitize_gallery_scenes($decoded);
 }
 
+/** Portal: update titles, sort and hidden_from_guests only; preserve ids and count. */
+function efpic_parse_portal_scenes_from_post(array $meta): array
+{
+    $existingById = [];
+    foreach ($meta['scenes'] ?? [] as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $id = trim((string) ($scene['id'] ?? ''));
+        if ($id === '') {
+            continue;
+        }
+        $existingById[$id] = $scene;
+    }
+    if ($existingById === []) {
+        $existingById['main'] = ['id' => 'main', 'title' => 'Galerija', 'sort' => 1, 'hidden_from_guests' => false];
+    }
+
+    $raw = trim((string) ($_POST['scenes_json'] ?? ''));
+    if ($raw === '') {
+        throw new InvalidArgumentException('Nav sadaļu datu');
+    }
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        throw new InvalidArgumentException('Nederīgas sadaļas');
+    }
+
+    $out = [];
+    $sort = 0;
+    foreach ($decoded as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $id = trim((string) ($row['id'] ?? ''));
+        if ($id === '' || !isset($existingById[$id])) {
+            continue;
+        }
+        $existing = $existingById[$id];
+        $title = trim((string) ($row['title'] ?? ''));
+        if ($title === '') {
+            $title = trim((string) ($existing['title'] ?? ''));
+        }
+        if ($title === '') {
+            $title = $id === 'main' ? 'Galerija' : $id;
+        }
+        $sort++;
+        $out[] = [
+            'id' => $id,
+            'title' => $title,
+            'sort' => $sort,
+            'header_image_token' => $existing['header_image_token'] ?? null,
+            'hidden_from_guests' => !empty($row['hidden_from_guests']),
+        ];
+    }
+
+    foreach ($existingById as $id => $existing) {
+        $found = false;
+        foreach ($out as $scene) {
+            if (($scene['id'] ?? '') === $id) {
+                $found = true;
+                break;
+            }
+        }
+        if (!$found) {
+            $sort++;
+            $out[] = [
+                'id' => $id,
+                'title' => trim((string) ($existing['title'] ?? ($id === 'main' ? 'Galerija' : $id))),
+                'sort' => $sort,
+                'header_image_token' => $existing['header_image_token'] ?? null,
+                'hidden_from_guests' => !empty($existing['hidden_from_guests']),
+            ];
+        }
+    }
+
+    return efpic_sanitize_gallery_scenes($out);
+}
+
 function efpic_reassign_orphan_scene_images(array &$meta): void
 {
     $ids = [];
@@ -488,6 +621,27 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
             efpic_delete_gallery_asset_file($config, $slug, $slideshow['audio_file']);
         }
         $slideshow['audio_file'] = $newFile;
+    }
+
+    $introKey = $prefix . '_intro_title';
+    if (array_key_exists($introKey, $_POST)) {
+        $intro = trim((string) $_POST[$introKey]);
+        if (function_exists('mb_substr')) {
+            $intro = mb_substr($intro, 0, 120);
+        } else {
+            $intro = substr($intro, 0, 120);
+        }
+        $slideshow['intro_title'] = $intro;
+    }
+
+    $bgKey = $prefix . '_bg_mode';
+    if (isset($_POST[$bgKey])) {
+        $bg = (string) $_POST[$bgKey];
+        $slideshow['bg_mode'] = in_array($bg, ['white', 'gallery'], true) ? $bg : 'white';
+    }
+
+    if ($owner === 'admin') {
+        $slideshow['image_source'] = !empty($_POST[$prefix . '_image_source_all']) ? 'all' : 'favorites';
     }
 
     $slots[$owner] = $slideshow;

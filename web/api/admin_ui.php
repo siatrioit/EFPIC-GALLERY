@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/handlers.php';
 require_once __DIR__ . '/gallery_assets.php';
+require_once __DIR__ . '/slideshow_render.php';
 
 function efpic_admin_session_start(): void
 {
@@ -447,8 +448,8 @@ function efpic_admin_render_favorite_thumb_grid(array $config, array $meta, stri
 function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, string $galleryToken): string
 {
     $slots = efpic_gallery_slideshows_struct($meta);
-    $adminSlot = $slots['admin'];
-    $clientSlot = $slots['client'];
+    $adminSlot = efpic_slideshow_slot_with_render($slots['admin']);
+    $clientSlot = efpic_slideshow_slot_with_render($slots['client']);
     $adminFavCount = efpic_count_favorites($meta, 'admin');
     $clientFavCount = efpic_count_favorites($meta, 'client');
     $clientActive = efpic_slideshow_slot_ready($clientSlot, $clientFavCount);
@@ -480,8 +481,29 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
         $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_remove_audio" value="1"> Dzēst MP3</label>';
     }
     $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_admin_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '<label>Intro virsraksts<input type="text" name="slideshow_admin_intro_title" maxlength="120" value="'
+        . efpic_admin_esc($adminSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
+    $html .= '<p class="muted">Garāki vārdi intro ekrānā tiek sakārtoti vairākās rindās. «+» starp vārdiem — vienā rindā ar plusu.</p>';
+    $html .= '<label>Fona krāsa<select name="slideshow_admin_bg_mode">';
+    $html .= '<option value="white"' . ($adminSlot['bg_mode'] === 'white' ? ' selected' : '') . '>Balts</option>';
+    $html .= '<option value="gallery"' . ($adminSlot['bg_mode'] === 'gallery' ? ' selected' : '') . '>Galerijas fons</option>';
+    $html .= '</select></label>';
+    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_image_source_all" value="1"'
+        . ($adminSlot['image_source'] === 'all' ? ' checked' : '') . '> Izmantot visas redzamās bildes (ne tikai favorītus)</label>';
+    $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
+    $html .= '<p class="muted">Video statuss: <strong>' . efpic_admin_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
+    if ($renderStatus === 'failed' && ($adminSlot['render_error'] ?? '') !== '') {
+        $html .= '<p class="admin-warn">' . efpic_admin_esc((string) $adminSlot['render_error']) . '</p>';
+    }
+    if (($adminSlot['video_file'] ?? '') !== '') {
+        $videoUrl = efpic_gallery_asset_url($config, $galleryToken, (string) $adminSlot['video_file']);
+        $html .= '<p class="admin-ok">MP4: <a href="' . efpic_admin_esc($videoUrl) . '" target="_blank" rel="noopener">'
+            . efpic_admin_esc((string) $adminSlot['video_file']) . '</a></p>';
+    }
     $html .= '<div class="admin-media-action-row">';
     $html .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt slideshow</button>';
+    $html .= '<button type="submit" class="btn" name="slideshow_admin_generate_video" value="1"'
+        . ' onclick="return confirm(\'Ģenerēt jaunu slideshow video? Esošais MP4 tiks aizstāts, kad render pabeigts.\');">Ģenerēt video</button>';
     $html .= '</div>';
     $html .= '</div>';
 
@@ -959,6 +981,9 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
         efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
+        if (!empty($_POST['slideshow_admin_generate_video'])) {
+            efpic_slideshow_enqueue_render($config, $slug, $meta, 'admin');
+        }
         efpic_apply_videos_from_post($config, $slug, $meta);
         efpic_normalize_gallery_image_sorts($meta);
         if (!empty($_POST['rebaseline_scene_sort'])) {
