@@ -940,10 +940,8 @@ function efpic_handle_gallery_asset(array $config, string $galleryToken, string 
         'mov' => 'video/quicktime',
         'webm' => 'video/webm',
     ];
-    header('Content-Type: ' . ($types[$ext] ?? 'application/octet-stream'));
-    header('Cache-Control: private, max-age=86400');
-    readfile($path);
-    exit;
+    $contentType = $types[$ext] ?? 'application/octet-stream';
+    efpic_stream_local_file($path, $contentType);
 }
 
 /** @return array{guest_token: string, label: string, image_tokens: list<string>} */

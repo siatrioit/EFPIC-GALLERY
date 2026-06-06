@@ -64,9 +64,10 @@ fi
 
 escape_drawtext() {
   local s="$1"
+  local sq="'"
   s="${s//\\/\\\\}"
   s="${s//:/\\:}"
-  s="${s//\'/\\'}"
+  s="${s//${sq}/\\${sq}}"
   s="${s//%/\\%}"
   printf '%s' "$s"
 }
@@ -78,12 +79,9 @@ fi
 
 intro_file="${job_dir}/segments/intro.mp4"
 if [ -n "$title_line" ]; then
-  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" \
-    -vf "drawtext=fontfile=/usr/share/fonts/dejavu/DejaVuSans.ttf:text='${title_line}':fontsize=64:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='gte(t,1)'" \
-    -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
+  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -vf "drawtext=fontfile=/usr/share/fonts/dejavu/DejaVuSans.ttf:text='${title_line}':fontsize=64:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='gte(t,1)'" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 else
-  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" \
-    -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
+  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 fi
 
 seg_list="${job_dir}/segments/concat.txt"
@@ -95,9 +93,7 @@ for _ in "${image_urls[@]}"; do
   num="$(printf '%04d' "$idx")"
   src="${job_dir}/img_${num}.jpg"
   seg="${job_dir}/segments/slide_${num}.mp4"
-  ffmpeg -y -loop 1 -t "$slide_dur" -i "$src" \
-    -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p" \
-    -r "$fps" -c:v libx264 -pix_fmt yuv420p "$seg"
+  ffmpeg -y -loop 1 -t "$slide_dur" -i "$src" -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$seg"
   printf "file '%s'\n" "$seg" >>"$seg_list"
   idx=$((idx + 1))
 done
@@ -112,11 +108,8 @@ fi
 
 delay_ms="$(echo "$music_start * 1000" | bc | awk '{printf "%d", $1}')"
 out_mp4="${job_dir}/slideshow.mp4"
-ffmpeg -y -i "$video_noaudio" -i "${job_dir}/audio.mp3" \
-  -filter_complex "[1:a]adelay=${delay_ms}|${delay_ms},afade=t=in:st=${music_start}:d=${fade_in},afade=t=out:st=${fade_out_start}:d=${fade_out}[a]" \
-  -map 0:v:0 -map "[a]" -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -t "$total_dur" "$out_mp4"
+ffmpeg -y -i "$video_noaudio" -i "${job_dir}/audio.mp3" -filter_complex "[1:a]adelay=${delay_ms}|${delay_ms},afade=t=in:st=${music_start}:d=${fade_in},afade=t=out:st=${fade_out_start}:d=${fade_out}[a]" -map 0:v:0 -map "[a]" -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart -t "$total_dur" "$out_mp4"
 
-curl -sf -X POST -H "$auth_header" -F "video=@${out_mp4};type=video/mp4" "$complete_url" >/dev/null \
-  || die "Neizdevās augšupielādēt MP4"
+curl -sf -X POST -H "$auth_header" -F "video=@${out_mp4};type=video/mp4" "$complete_url" >/dev/null || die "Neizdevās augšupielādēt MP4"
 
 exit 0

@@ -33,6 +33,75 @@ function efpic_app_version_label(): string
     return 'v' . efpic_app_version();
 }
 
+/** Stream a local file with HTTP Range support (required for HTML5 video/audio). */
+function efpic_stream_local_file(string $path, string $contentType): void
+{
+    if (!is_file($path)) {
+        http_response_code(404);
+        exit;
+    }
+
+    $size = filesize($path);
+    if ($size === false) {
+        http_response_code(500);
+        exit;
+    }
+
+    header('Content-Type: ' . $contentType);
+    header('Accept-Ranges: bytes');
+    header('Cache-Control: private, max-age=86400');
+
+    $start = 0;
+    $end = $size - 1;
+    $httpStatus = 200;
+
+    $range = (string) ($_SERVER['HTTP_RANGE'] ?? '');
+    if ($range !== '' && preg_match('/bytes=(\d*)-(\d*)/', $range, $m) === 1) {
+        if ($m[1] === '' && $m[2] !== '') {
+            $suffix = (int) $m[2];
+            $start = max(0, $size - $suffix);
+            $end = $size - 1;
+        } elseif ($m[1] !== '') {
+            $start = (int) $m[1];
+            $end = $m[2] !== '' ? (int) $m[2] : $size - 1;
+        }
+        if ($start > $end || $start >= $size) {
+            http_response_code(416);
+            header('Content-Range: bytes */' . (string) $size);
+            exit;
+        }
+        if ($end >= $size) {
+            $end = $size - 1;
+        }
+        $httpStatus = 206;
+    }
+
+    $length = $end - $start + 1;
+    http_response_code($httpStatus);
+    if ($httpStatus === 206) {
+        header('Content-Range: bytes ' . $start . '-' . $end . '/' . (string) $size);
+    }
+    header('Content-Length: ' . (string) $length);
+
+    $fp = fopen($path, 'rb');
+    if ($fp === false) {
+        http_response_code(500);
+        exit;
+    }
+    fseek($fp, $start);
+    $remaining = $length;
+    while ($remaining > 0 && !feof($fp)) {
+        $chunk = fread($fp, min(8192, $remaining));
+        if ($chunk === false || $chunk === '') {
+            break;
+        }
+        echo $chunk;
+        $remaining -= strlen($chunk);
+    }
+    fclose($fp);
+    exit;
+}
+
 function efpic_load_config(): array
 {
     $path = dirname(__DIR__) . '/config/config.php';
