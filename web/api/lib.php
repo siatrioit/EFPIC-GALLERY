@@ -331,6 +331,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'deleted_at' => null,
         'event_date' => null,
         'cover_image_token' => null,
+        'cover_from_favorites' => false,
         'hero_accent_color' => '#9a9578',
         'page_bg_color' => null,
         'images' => [],

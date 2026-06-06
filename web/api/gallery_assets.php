@@ -260,35 +260,101 @@ function efpic_apply_admin_favorites_from_post(array &$meta): void
     }
 }
 
-function efpic_slideshow_slot_ready(array $slot, int $favoriteCount): bool
+function efpic_slideshow_slot_interactive_ready(array $slot, int $favoriteCount): bool
 {
     return $slot['enabled'] && $slot['audio_file'] !== '' && $favoriteCount > 0;
 }
 
+function efpic_slideshow_slot_video_ready(array $slot): bool
+{
+    if (empty($slot['enabled'])) {
+        return false;
+    }
+    $video = trim((string) ($slot['video_file'] ?? ''));
+    if ($video === '') {
+        return false;
+    }
+
+    return (string) ($slot['render_status'] ?? '') === 'ready';
+}
+
+function efpic_slideshow_slot_public_ready(array $slot, int $favoriteCount): bool
+{
+    return efpic_slideshow_slot_video_ready($slot) || efpic_slideshow_slot_interactive_ready($slot, $favoriteCount);
+}
+
+/** @deprecated Alias for interactive slideshow (MP3 + favorīti). */
+function efpic_slideshow_slot_ready(array $slot, int $favoriteCount): bool
+{
+    return efpic_slideshow_slot_interactive_ready($slot, $favoriteCount);
+}
+
 /**
- * Public gallery slideshow: client wins when their slideshow is ready.
+ * @return array{owner: string, mode: string, slideshow: array, images: list<array>}|null
+ */
+function efpic_try_resolve_public_slideshow_owner(
+    array $meta,
+    array $ctx,
+    array $config,
+    string $owner,
+    array $slot,
+    int $favoriteCount,
+): ?array {
+    if (empty($slot['enabled'])) {
+        return null;
+    }
+    if (efpic_slideshow_slot_video_ready($slot)) {
+        return [
+            'owner' => $owner,
+            'mode' => 'video',
+            'slideshow' => $slot,
+            'images' => [],
+        ];
+    }
+    if (!efpic_slideshow_slot_interactive_ready($slot, $favoriteCount)) {
+        return null;
+    }
+    $images = efpic_slideshow_favorite_images($meta, $ctx, $config, $owner);
+    if ($images === []) {
+        return null;
+    }
+
+    return [
+        'owner' => $owner,
+        'mode' => 'interactive',
+        'slideshow' => $slot,
+        'images' => $images,
+    ];
+}
+
+/**
+ * Public gallery slideshow: client wins when ready (video > interactive).
  *
- * @return array{owner: string, slideshow: array, images: list<array>}|null
+ * @return array{owner: string, mode: string, slideshow: array, images: list<array>}|null
  */
 function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config): ?array
 {
     $slots = efpic_gallery_slideshows_struct($meta);
-    $clientCount = efpic_count_favorites($meta, 'client');
-    $adminCount = efpic_count_favorites($meta, 'admin');
-
-    if (efpic_slideshow_slot_ready($slots['client'], $clientCount)) {
-        $images = efpic_slideshow_favorite_images($meta, $ctx, $config, 'client');
-
-        return ['owner' => 'client', 'slideshow' => $slots['client'], 'images' => $images];
+    $client = efpic_try_resolve_public_slideshow_owner(
+        $meta,
+        $ctx,
+        $config,
+        'client',
+        $slots['client'],
+        efpic_count_favorites($meta, 'client'),
+    );
+    if ($client !== null) {
+        return $client;
     }
 
-    if (efpic_slideshow_slot_ready($slots['admin'], $adminCount)) {
-        $images = efpic_slideshow_favorite_images($meta, $ctx, $config, 'admin');
-
-        return ['owner' => 'admin', 'slideshow' => $slots['admin'], 'images' => $images];
-    }
-
-    return null;
+    return efpic_try_resolve_public_slideshow_owner(
+        $meta,
+        $ctx,
+        $config,
+        'admin',
+        $slots['admin'],
+        efpic_count_favorites($meta, 'admin'),
+    );
 }
 
 function efpic_gallery_asset_url(array $config, string $galleryToken, string $filename, ?string $guestToken = null): string
@@ -306,7 +372,7 @@ function efpic_gallery_asset_registered(array $meta, string $filename): bool
 {
     $slots = efpic_gallery_slideshows_struct($meta);
     foreach (['admin', 'client'] as $who) {
-        if ($slots[$who]['audio_file'] === $filename) {
+        if ($slots[$who]['audio_file'] === $filename || $slots[$who]['video_file'] === $filename) {
             return true;
         }
     }
@@ -791,7 +857,7 @@ function efpic_can_view_gallery_asset(array $config, array $meta, string $galler
 
     $slots = efpic_gallery_slideshows_struct($meta);
     foreach (['admin', 'client'] as $who) {
-        if ($slots[$who]['audio_file'] === $filename) {
+        if ($slots[$who]['audio_file'] === $filename || $slots[$who]['video_file'] === $filename) {
             return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
         }
     }

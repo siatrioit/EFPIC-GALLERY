@@ -798,27 +798,15 @@ function efpic_client_format_event_date(string $date): string
     return (int) date('j', $ts) . '. ' . ($months[$m] ?? date('F', $ts)) . ' ' . date('Y', $ts);
 }
 
-/** Izvēlas vāka bildes tokenu: favorīti (nejauši) > admin vāks > nākamā redzamā. */
-function efpic_resolve_gallery_cover_token(array $meta, array $visibleImages): string
+/** Vāka avots no favorītiem (admin iestatījums). */
+function efpic_gallery_cover_from_favorites(array $meta): bool
 {
-    if ($visibleImages === []) {
-        return '';
-    }
+    return !empty($meta['cover_from_favorites']);
+}
 
-    $visibleTokens = [];
-    foreach ($visibleImages as $img) {
-        if (!is_array($img)) {
-            continue;
-        }
-        $tok = (string) ($img['token'] ?? '');
-        if ($tok !== '') {
-            $visibleTokens[] = $tok;
-        }
-    }
-    if ($visibleTokens === []) {
-        return '';
-    }
-
+/** @return list<string> */
+function efpic_resolve_gallery_cover_favorite_tokens(array $visibleImages): array
+{
     $favorites = [];
     foreach ($visibleImages as $img) {
         if (!is_array($img)) {
@@ -844,8 +832,15 @@ function efpic_resolve_gallery_cover_token(array $meta, array $visibleImages): s
             }
         }
     }
-    if ($favorites !== []) {
-        return $favorites[array_rand($favorites)];
+
+    return $favorites;
+}
+
+/** @param list<string> $visibleTokens */
+function efpic_resolve_gallery_cover_admin_token(array $meta, array $visibleTokens): string
+{
+    if ($visibleTokens === []) {
+        return '';
     }
 
     $adminCover = trim((string) ($meta['cover_image_token'] ?? ''));
@@ -873,6 +868,37 @@ function efpic_resolve_gallery_cover_token(array $meta, array $visibleImages): s
     }
 
     return $visibleTokens[0];
+}
+
+/** Izvēlas vāka bildes tokenu: favorīti (ja ieslēgts) > admin vāks > pirmā redzamā. */
+function efpic_resolve_gallery_cover_token(array $meta, array $visibleImages): string
+{
+    if ($visibleImages === []) {
+        return '';
+    }
+
+    $visibleTokens = [];
+    foreach ($visibleImages as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $visibleTokens[] = $tok;
+        }
+    }
+    if ($visibleTokens === []) {
+        return '';
+    }
+
+    if (efpic_gallery_cover_from_favorites($meta)) {
+        $favorites = efpic_resolve_gallery_cover_favorite_tokens($visibleImages);
+        if ($favorites !== []) {
+            return $favorites[array_rand($favorites)];
+        }
+    }
+
+    return efpic_resolve_gallery_cover_admin_token($meta, $visibleTokens);
 }
 
 function efpic_delivery_file_hash(array $img, string $size): string

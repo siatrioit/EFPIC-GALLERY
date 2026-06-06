@@ -452,7 +452,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $clientSlot = efpic_slideshow_slot_with_render($slots['client']);
     $adminFavCount = efpic_count_favorites($meta, 'admin');
     $clientFavCount = efpic_count_favorites($meta, 'client');
-    $clientActive = efpic_slideshow_slot_ready($clientSlot, $clientFavCount);
+    $clientActive = efpic_slideshow_slot_public_ready($clientSlot, $clientFavCount);
 
     $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
 
@@ -473,6 +473,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
         $html .= '<p class="admin-warn">Klienta slideshow ir aktīva publiskajā galerijā — tava slideshow netiek rādīta.</p>';
     }
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_enabled" value="1"' . ($adminSlot['enabled'] ? ' checked' : '') . '> Ieslēgt manu slideshow</label>';
+    $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā virs bildēm un pogā «Video». Bez MP4 — interaktīvs slideshow (bildes + MP3).</p>';
     $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_admin_interval" min="2" max="60" value="' . (int) $adminSlot['interval_sec'] . '"></label>';
     $html .= '<p class="muted">Manas favorītbildes: <strong>' . $adminFavCount . '</strong></p>';
     if ($adminSlot['audio_file'] !== '') {
@@ -514,6 +515,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<li>Favorīti: <strong>' . $clientFavCount . '</strong></li>';
     $html .= '<li>MP3: <strong>' . ($clientSlot['audio_file'] !== '' ? 'Jā' : 'Nē') . '</strong></li>';
     $html .= '<li>Publiski aktīva: <strong>' . ($clientActive ? 'Jā (galvenā)' : 'Nē') . '</strong></li>';
+    $html .= '<li>MP4 gatavs: <strong>' . (efpic_slideshow_slot_video_ready($clientSlot) ? 'Jā' : 'Nē') . '</strong></li>';
     $html .= '</ul>';
     if ($clientSlot['audio_file'] !== '') {
         $html .= '<p><a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, $clientSlot['audio_file'])) . '" target="_blank" rel="noopener">Klausīties klienta MP3</a></p>';
@@ -959,6 +961,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
                 }
             }
         }
+        $meta['cover_from_favorites'] = !empty($_POST['cover_from_favorites']);
 
         $gp = (string) ($_POST['gallery_password'] ?? '');
         if ($gp !== '') {
@@ -1215,6 +1218,10 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
         $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
+        $coverFromFav = efpic_gallery_cover_from_favorites($meta);
+        $body .= '<label class="admin-check admin-fieldset-full"><input type="checkbox" name="cover_from_favorites" value="1"'
+            . ($coverFromFav ? ' checked' : '') . '> Vāka vietā rādīt nejaušu favorītu bildi</label>';
+        $body .= '<p class="muted admin-fieldset-full">Izslēgts — tiek rādīta ar «Vāks» atzīmētā bilde. Ieslēgts — ja ir favorīti, vāks tiek ņemts no tiem (admin favorīti, pēc tam klienta); ja nav favorītu, tiek rādīta izvēlētā vāka bilde.</p>';
         $body .= '<p class="muted">Velciet kartītes secībai. Klikšķis — atlase; <kbd>Shift</kbd> — diapazons. Sadaļu maini tieši pie bildes (var ierakstīt jaunu nosaukumu).</p>';
         $body .= efpic_admin_render_image_scene_toolbar($meta);
         $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
