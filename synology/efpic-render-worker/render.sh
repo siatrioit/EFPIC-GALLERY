@@ -57,6 +57,11 @@ resolve_bg_color() {
 
 BG_COLOR="$(resolve_bg_color)"
 
+PAD_COLOR="$BG_COLOR"
+if [[ "$BG_COLOR" == 0x* ]]; then
+  PAD_COLOR="white"
+fi
+
 curl -sf -H "$auth_header" -o "${job_dir}/audio.mp3" "$audio_url" || die "Neizdevās lejupielādēt audio"
 
 mapfile -t image_urls < <(echo "$payload" | jq -r '.job.assets.images[].url')
@@ -68,6 +73,9 @@ idx=1
 for url in "${image_urls[@]}"; do
   num="$(printf '%04d' "$idx")"
   curl -sf -H "$auth_header" -L -o "${job_dir}/img_${num}.jpg" "$url" || die "Neizdevās lejupielādēt bildi ${idx}"
+  if ! ffprobe -v error -select_streams v:0 -show_entries stream=width -of csv=p=0 "${job_dir}/img_${num}.jpg" >/dev/null 2>&1; then
+    die "Bilde ${idx} nav derīgs attēls"
+  fi
   idx=$((idx + 1))
 done
 
@@ -269,7 +277,7 @@ scale_pad_box() {
   local label="$3"
   local out_label="$4"
   printf '[%s:v]scale=%s:%s:force_original_aspect_ratio=decrease,pad=%s:%s:(ow-iw)/2:(oh-ih)/2:color=%s[%s]' \
-    "$label" "$box_w" "$box_h" "$box_w" "$box_h" "$BG_COLOR" "$out_label"
+    "$label" "$box_w" "$box_h" "$box_w" "$box_h" "$PAD_COLOR" "$out_label"
 }
 
 render_slide_segment() {
@@ -285,34 +293,42 @@ render_slide_segment() {
     files+=("${job_dir}/img_${f}.jpg")
   done
 
+  local frame_count
+  frame_count="$(echo "($slide_dur * $fps) / 1" | bc | awk '{n=int($1+0.999); if (n<1) n=1; print n}')"
+
   local filter=""
-  local inputs=(-f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${slide_dur}:r=${fps}")
+  local inputs=(-f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:r=${fps}:d=${slide_dur}")
   for f in "${files[@]}"; do
-    inputs+=(-loop 1 -t "$slide_dur" -i "$f")
+    inputs+=(-loop 1 -framerate "$fps" -i "$f")
   done
 
   local max_w=$((1680 * scale_pct / 100))
   local max_h=$((960 * scale_pct / 100))
   if [ "$max_w" -lt 420 ]; then max_w=420; fi
   if [ "$max_h" -lt 320 ]; then max_h=320; fi
-  local y_jitter=$(( (RANDOM % 61) - 30 ))
 
   case "$layout" in
     1)
       local ox="(W-w)/2"
+      local oy="(H-h)/2"
       case "$variant" in
         left)
           ox="${gap}"
+          oy="(H-h)/2+30"
           ;;
         right)
-          ox="(W-w-${gap})"
+          ox="W-w-${gap}"
+          oy="(H-h)/2-30"
+          ;;
+        center)
+          case $((RANDOM % 3)) in
+            0) oy="(H-h)/2" ;;
+            1) oy="(H-h)/2+40" ;;
+            2) oy="(H-h)/2-40" ;;
+          esac
           ;;
       esac
-      if [ "$y_jitter" -lt 0 ]; then
-        filter="$(scale_pad_box "$max_w" "$max_h" 1 img1),[0:v][img1]overlay=${ox}:max(0\\,(H-h)/2${y_jitter}),format=yuv420p"
-      else
-        filter="$(scale_pad_box "$max_w" "$max_h" 1 img1),[0:v][img1]overlay=${ox}:(H-h)/2+${y_jitter},format=yuv420p"
-      fi
+      filter="$(scale_pad_box "$max_w" "$max_h" 1 img1),[0:v][img1]overlay=${ox}:${oy},format=yuv420p"
       ;;
     2)
       local cell_h=$(( height * scale_pct / 100 ))
@@ -335,6 +351,8 @@ render_slide_segment() {
           w2="$w1"
           ;;
       esac
+      if [ "$w1" -lt 240 ]; then w1=240; fi
+      if [ "$w2" -lt 240 ]; then w2=240; fi
       x2=$((gap * 2 + w1))
       filter="$(scale_pad_box "$w1" "$cell_h" 1 img1),$(scale_pad_box "$w2" "$cell_h" 2 img2),"
       filter+="[0:v][img1]overlay=${gap}:(H-h)/2[tmp1];"
@@ -347,6 +365,7 @@ render_slide_segment() {
       s3="$(rand_scale_pct)"
       cell_h=$(( cell_h * s3 / 100 ))
       if [ "$cell_h" -lt 320 ]; then cell_h=320; fi
+      if [ "$cell_w" -lt 240 ]; then cell_w=240; fi
       filter="$(scale_pad_box "$cell_w" "$cell_h" 1 img1),$(scale_pad_box "$cell_w" "$cell_h" 2 img2),$(scale_pad_box "$cell_w" "$cell_h" 3 img3),"
       filter+="[0:v][img1]overlay=${gap}:(H-h)/2[tmp1];"
       filter+="[tmp1][img2]overlay=$((gap * 2 + cell_w)):(H-h)/2[tmp2];"
@@ -357,7 +376,7 @@ render_slide_segment() {
       ;;
   esac
 
-  run_ffmpeg "Slide ${seg_num}" ffmpeg -y "${inputs[@]}" -filter_complex "$filter" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
+  run_ffmpeg "Slide ${seg_num}" ffmpeg -y "${inputs[@]}" -filter_complex "$filter" -frames:v "$frame_count" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
 }
 
 intro_font="/usr/share/fonts/dejavu/DejaVuSans.ttf"
