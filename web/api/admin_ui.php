@@ -445,6 +445,48 @@ function efpic_admin_render_favorite_thumb_grid(array $config, array $meta, stri
     return $html;
 }
 
+function efpic_admin_render_slideshow_image_order_list(array $config, array $meta, array $adminSlot): string
+{
+    $source = (string) ($adminSlot['image_source'] ?? 'favorites');
+    if (!in_array($source, ['favorites', 'all'], true)) {
+        $source = 'favorites';
+    }
+    $images = efpic_slideshow_sort_images_for_render(
+        efpic_slideshow_collect_images_for_render($config, $meta, 'admin', $source),
+        is_array($adminSlot['image_order_tokens'] ?? null) ? $adminSlot['image_order_tokens'] : [],
+    );
+    if ($images === []) {
+        return '<p class="muted admin-slideshow-order-empty">Nav bilžu secības — izvēlies favorītus vai ieslēdz «visas bildes».</p>';
+    }
+
+    $tokens = [];
+    $html = '<div class="admin-slideshow-order">';
+    $html .= '<h4 class="admin-slideshow-order__title">Slideshow bildju secība</h4>';
+    $html .= '<p class="muted">Vilc, lai mainītu kārtību video ģenerēšanai. Saglabā pirms «Ģenerēt video».</p>';
+    $html .= '<ul class="admin-slideshow-order-list" id="admin-slideshow-order-list">';
+    foreach ($images as $img) {
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '') {
+            continue;
+        }
+        $tokens[] = $tok;
+        $thumb = efpic_admin_media_thumb_url($config, $img);
+        $label = (string) ($img['basename'] ?? $img['filename'] ?? $tok);
+        $html .= '<li class="admin-slideshow-order-item" data-token="' . efpic_admin_esc($tok) . '" draggable="true">';
+        $html .= '<span class="admin-slideshow-order-grip" aria-hidden="true">⋮⋮</span>';
+        $html .= '<img src="' . efpic_admin_esc($thumb) . '" alt="" loading="lazy" decoding="async">';
+        $html .= '<span class="admin-slideshow-order-name">' . efpic_admin_esc($label) . '</span>';
+        $html .= '</li>';
+    }
+    $html .= '</ul>';
+    $html .= '<input type="hidden" name="slideshow_admin_image_order" id="slideshow-admin-image-order" value="'
+        . efpic_admin_esc(implode(',', $tokens)) . '">';
+    $html .= '<input type="hidden" name="slideshow_admin_image_order_dirty" id="slideshow-admin-image-order-dirty" value="0">';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, string $galleryToken, string $slug = ''): string
 {
     $slots = efpic_gallery_slideshows_struct($meta);
@@ -453,6 +495,8 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $adminFavCount = efpic_count_favorites($meta, 'admin');
     $clientFavCount = efpic_count_favorites($meta, 'client');
     $clientActive = efpic_slideshow_slot_public_ready($clientSlot, $clientFavCount);
+    $adminVideoReady = efpic_slideshow_slot_video_ready($adminSlot);
+    $clientVideoReady = efpic_slideshow_slot_video_ready($clientSlot);
 
     $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
 
@@ -469,8 +513,10 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
 
     $html .= '<div class="admin-slideshow-columns">';
     $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mans slideshow</h3>';
-    if ($clientActive) {
-        $html .= '<p class="admin-warn">Klienta slideshow ir aktīva publiskajā galerijā — tava slideshow netiek rādīta.</p>';
+    if ($adminSlot['enabled'] && $adminVideoReady && $clientSlot['enabled'] && $clientVideoReady) {
+        $html .= '<p class="muted">Publiski redzamas abas MP4 sadaļas (fotogrāfs, tad klients).</p>';
+    } elseif ($clientActive && !$adminVideoReady) {
+        $html .= '<p class="admin-warn">Bez MP4 pic-time motivā aktīvs klienta interaktīvais slideshow (ja ir MP3 + favorīti).</p>';
     }
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_enabled" value="1"' . ($adminSlot['enabled'] ? ' checked' : '') . '> Ieslēgt manu slideshow</label>';
     $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā kā «Slideshow» sadaļa (visos motīvos). Bez MP4 — interaktīvs slideshow (bildes + MP3) pic-time motīvā.</p>';
@@ -491,6 +537,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '</select></label>';
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_image_source_all" value="1"'
         . ($adminSlot['image_source'] === 'all' ? ' checked' : '') . '> Izmantot visas redzamās bildes (ne tikai favorītus)</label>';
+    $html .= efpic_admin_render_slideshow_image_order_list($config, $meta, $adminSlot);
     $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
     $html .= '<p class="muted" id="slideshow-admin-render-status">Video statuss: <strong data-render-status="' . efpic_admin_esc($renderStatus) . '">'
         . efpic_admin_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
@@ -508,6 +555,8 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
             $html .= '<p class="muted">Serverī: <code>storage/galleries/' . efpic_admin_esc($slug) . '/assets/'
                 . efpic_admin_esc($videoFile) . '</code> (' . efpic_admin_esc($sizeLabel) . ')</p>';
         }
+        $html .= '<button type="submit" class="btn admin-btn-danger" name="slideshow_admin_remove_video" value="1"'
+            . ' onclick="return confirm(\'Dzēst slideshow MP4? Failu nevar atjaunot.\');">Dzēst MP4</button>';
     }
     $html .= '<div class="admin-media-action-row">';
     $html .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt slideshow</button>';

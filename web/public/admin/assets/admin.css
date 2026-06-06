@@ -1859,6 +1859,75 @@
   opacity: 0.95;
 }
 
+.admin-slideshow-order {
+  width: 100%;
+  margin: 12px 0 16px;
+}
+
+.admin-slideshow-order__title {
+  margin: 0 0 6px;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.admin-slideshow-order-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow: auto;
+}
+
+.admin-slideshow-order-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--admin-border);
+  border-radius: 8px;
+  background: var(--admin-surface-2);
+  cursor: grab;
+}
+
+.admin-slideshow-order-item.dragging {
+  opacity: 0.55;
+}
+
+.admin-slideshow-order-grip {
+  color: var(--admin-muted);
+  font-size: 14px;
+  line-height: 1;
+  user-select: none;
+}
+
+.admin-slideshow-order-item img {
+  width: 48px;
+  height: 48px;
+  object-fit: cover;
+  border-radius: 6px;
+  flex-shrink: 0;
+}
+
+.admin-slideshow-order-name {
+  font-size: 0.82rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.admin-btn-danger {
+  margin-top: 8px;
+  border-color: #c0392b;
+  color: #c0392b;
+}
+
+.admin-btn-danger:hover {
+  background: rgba(192, 57, 43, 0.08);
+}
+
 .admin-list-toolbar {
   display: flex;
   flex-wrap: wrap;

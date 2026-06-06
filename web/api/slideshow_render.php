@@ -280,6 +280,21 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
     ];
 }
 
+/** Notīra saglabāto MP4 un atceļ gaidošos render darbus. */
+function efpic_slideshow_clear_slot_video(array $config, string $slug, array &$slot, string $owner): void
+{
+    $video = (string) ($slot['video_file'] ?? '');
+    if ($video !== '') {
+        efpic_delete_gallery_asset_file($config, $slug, $video);
+    }
+    $slot['video_file'] = '';
+    $slot['render_status'] = 'none';
+    $slot['render_error'] = '';
+    $slot['render_job_id'] = '';
+    $slot['render_updated_at'] = gmdate('c');
+    efpic_render_cancel_pending_jobs($config, $slug, $owner);
+}
+
 function efpic_render_cancel_pending_jobs(array $config, string $slug, string $owner): void
 {
     if ($slug === '' || !in_array($owner, ['admin', 'client'], true)) {

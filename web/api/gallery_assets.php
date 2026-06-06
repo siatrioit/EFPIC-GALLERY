@@ -748,6 +748,22 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
 
     if ($owner === 'admin') {
         $slideshow['image_source'] = !empty($_POST[$prefix . '_image_source_all']) ? 'all' : 'favorites';
+
+        if (!empty($_POST[$prefix . '_remove_video'])) {
+            efpic_slideshow_clear_slot_video($config, $slug, $slideshow, $owner);
+        }
+
+        if (array_key_exists($prefix . '_image_order', $_POST)) {
+            $orderRaw = trim((string) $_POST[$prefix . '_image_order']);
+            $tokens = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
+            $valid = [];
+            foreach ($tokens as $tok) {
+                if (preg_match('/^[a-f0-9]{48}$/', $tok) === 1) {
+                    $valid[] = $tok;
+                }
+            }
+            $slideshow['image_order_tokens'] = $valid;
+        }
     }
 
     $slots[$owner] = $slideshow;

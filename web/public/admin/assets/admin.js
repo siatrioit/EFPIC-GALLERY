@@ -221,6 +221,23 @@
     input.value = tokens.join(',');
   }
 
+  function syncSlideshowOrderField() {
+    var list = document.getElementById('admin-slideshow-order-list');
+    var input = document.getElementById('slideshow-admin-image-order');
+    if (!list || !input) return;
+    var tokens = [];
+    list.querySelectorAll('li[data-token]').forEach(function (li) {
+      var tok = li.getAttribute('data-token');
+      if (tok) tokens.push(tok);
+    });
+    input.value = tokens.join(',');
+  }
+
+  function markSlideshowOrderDirty() {
+    var el = document.getElementById('slideshow-admin-image-order-dirty');
+    if (el) el.value = '1';
+  }
+
   function markFavoritesDirty() {
     var el = document.getElementById('favorites_dirty');
     if (el) el.value = '1';
@@ -425,6 +442,7 @@
 
     persistScenesBeforeSave();
     syncImageOrderField();
+    syncSlideshowOrderField();
 
     var toast = document.getElementById('admin-autosave-toast');
     if (toast) {
@@ -439,6 +457,7 @@
     fd.delete('create_share_set');
     fd.delete('share_set_tokens');
     fd.delete('slideshow_admin_generate_video');
+    fd.delete('slideshow_admin_remove_video');
 
     adminAutoSaveInFlight = true;
     fetch(window.location.pathname + window.location.search, {
@@ -1986,7 +2005,51 @@
   initAdminRegeneratePublicLink();
   initAdminGalleryLinksPoll();
   initAdminSlideshowRenderPoll();
+  initAdminSlideshowOrderDrag();
   initAdminSidebar();
+
+  function initAdminSlideshowOrderDrag() {
+    var list = document.getElementById('admin-slideshow-order-list');
+    if (!list || list.dataset.bound === '1') {
+      return;
+    }
+    list.dataset.bound = '1';
+    var dragEl = null;
+
+    function syncOrder() {
+      syncSlideshowOrderField();
+    }
+
+    list.querySelectorAll('.admin-slideshow-order-item').forEach(function (li) {
+      li.addEventListener('dragstart', function (evt) {
+        if (evt.target && evt.target.closest && evt.target.closest('.admin-slideshow-order-grip') === null) {
+          /* allow drag from whole row */
+        }
+        dragEl = li;
+        li.classList.add('dragging');
+      });
+      li.addEventListener('dragend', function () {
+        li.classList.remove('dragging');
+        dragEl = null;
+        syncOrder();
+        markSlideshowOrderDirty();
+        scheduleAdminAutoSave();
+      });
+      li.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        if (!dragEl || dragEl === li) {
+          return;
+        }
+        var rect = li.getBoundingClientRect();
+        var after = e.clientY > rect.top + rect.height / 2;
+        if (after) {
+          list.insertBefore(dragEl, li.nextSibling);
+        } else {
+          list.insertBefore(dragEl, li);
+        }
+      });
+    });
+  }
 
   function initAdminRegeneratePublicLink() {
     var btn = document.getElementById('admin-regenerate-public-link');
