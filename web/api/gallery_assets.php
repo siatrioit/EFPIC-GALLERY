@@ -326,6 +326,9 @@ function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config):
     $slots = efpic_gallery_slideshows_struct($meta);
     foreach (['client', 'admin'] as $owner) {
         $slot = $slots[$owner];
+        if (!$slot['enabled']) {
+            continue;
+        }
         if (efpic_slideshow_slot_video_ready($slot)) {
             return [
                 'owner' => $owner,
@@ -364,6 +367,9 @@ function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, 
     $out = [];
     foreach (['admin', 'client'] as $owner) {
         $slot = $slots[$owner];
+        if (!$slot['enabled']) {
+            continue;
+        }
         if (!efpic_slideshow_slot_video_ready($slot)) {
             continue;
         }
@@ -688,7 +694,8 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
         if (array_key_exists($enabledKey, $_POST) || array_key_exists('slideshow_enabled', $_POST)) {
             $slideshow['enabled'] = !empty($_POST[$enabledKey]) || !empty($_POST['slideshow_enabled']);
         }
-    } elseif (array_key_exists($enabledKey, $_POST)) {
+    } else {
+        // Admin forma: neatzīmēts checkbox POSTā neparādās — traktējam kā izslēgtu.
         $slideshow['enabled'] = !empty($_POST[$enabledKey]);
     }
     $interval = (int) ($_POST[$prefix . '_interval'] ?? $_POST['slideshow_interval'] ?? $slideshow['interval_sec']);

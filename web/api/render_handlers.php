@@ -53,6 +53,9 @@ function efpic_handle_render_job_complete(array $config, string $jobId): void
     if (!is_array($job)) {
         efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
     }
+    if ((string) ($job['status'] ?? '') === 'cancelled') {
+        efpic_json_response(409, ['ok' => false, 'error' => 'job_cancelled']);
+    }
     if (!isset($_FILES['video']) || !is_array($_FILES['video'])) {
         efpic_json_response(400, ['ok' => false, 'error' => 'missing_video']);
     }

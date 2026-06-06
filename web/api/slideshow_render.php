@@ -280,6 +280,34 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
     ];
 }
 
+function efpic_render_cancel_pending_jobs(array $config, string $slug, string $owner): void
+{
+    if ($slug === '' || !in_array($owner, ['admin', 'client'], true)) {
+        return;
+    }
+    $dir = efpic_render_queue_dir($config);
+    if (!is_dir($dir)) {
+        return;
+    }
+    foreach (glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $path) {
+        $job = efpic_read_json_file($path);
+        if (!is_array($job)) {
+            continue;
+        }
+        if ((string) ($job['slug'] ?? '') !== $slug || (string) ($job['owner'] ?? '') !== $owner) {
+            continue;
+        }
+        $status = (string) ($job['status'] ?? '');
+        if (!in_array($status, ['queued', 'processing'], true)) {
+            continue;
+        }
+        $job['status'] = 'cancelled';
+        $job['error'] = 'Aizstāts ar jaunu render job';
+        $job['updated_at'] = gmdate('c');
+        efpic_render_save_job($config, $job);
+    }
+}
+
 function efpic_slideshow_enqueue_render(array $config, string $slug, array &$meta, string $owner): void
 {
     if (!in_array($owner, ['admin', 'client'], true)) {
@@ -290,6 +318,8 @@ function efpic_slideshow_enqueue_render(array $config, string $slug, array &$met
     if (empty($validation['ok'])) {
         throw new InvalidArgumentException((string) ($validation['error'] ?? 'Nevar izveidot render job'));
     }
+
+    efpic_render_cancel_pending_jobs($config, $slug, $owner);
 
     $slots = efpic_gallery_slideshows_struct($meta);
     $slot = efpic_slideshow_slot_with_render($slots[$owner]);
@@ -320,6 +350,9 @@ function efpic_render_claim_next_job(array $config): ?array
             continue;
         }
         $status = (string) ($job['status'] ?? '');
+        if (in_array($status, ['cancelled', 'ready', 'failed'], true)) {
+            continue;
+        }
         if ($status === 'queued') {
             $job['status'] = 'processing';
             $job['claimed_at'] = gmdate('c');
@@ -335,9 +368,11 @@ function efpic_render_claim_next_job(array $config): ?array
                 $job['claimed_at'] = gmdate('c');
                 $job['error'] = '';
                 efpic_render_save_job($config, $job);
+                efpic_render_sync_slot_from_job($config, $job);
 
                 return efpic_render_job_api_payload($config, $job);
             }
+            continue;
         }
     }
 
@@ -439,7 +474,6 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
 
     $slot['video_file'] = $newVideo;
     $slot['render_status'] = 'ready';
-    $slot['enabled'] = true;
     $slot['render_job_id'] = (string) ($job['id'] ?? '');
     $slot['render_error'] = '';
     $slot['render_updated_at'] = gmdate('c');
