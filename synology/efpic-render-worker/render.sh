@@ -72,45 +72,53 @@ if [ "$(echo "$slides_budget < 0" | bc -l)" -eq 1 ]; then
 fi
 img_count="${#image_urls[@]}"
 
-escape_drawtext() {
-  local s="$1"
-  local sq="'"
-  s="${s//\\/\\\\}"
-  s="${s//:/\\:}"
-  s="${s//${sq}/\\${sq}}"
-  s="${s//%/\\%}"
-  printf '%s' "$s"
+rand_scale_pct() {
+  printf '%d' $((52 + RANDOM % 37))
 }
 
-prepare_intro_drawtext() {
+pick_single_variant() {
+  case $((RANDOM % 3)) in
+    0) printf 'left' ;;
+    1) printf 'center' ;;
+    2) printf 'right' ;;
+  esac
+}
+
+pick_double_variant() {
+  case $((RANDOM % 3)) in
+    0) printf 'equal' ;;
+    1) printf 'big_left' ;;
+    2) printf 'big_right' ;;
+  esac
+}
+
+write_intro_textfile() {
   local raw="$1"
+  local out="$2"
   raw="$(printf '%s' "$raw" | tr '[:lower:]' '[:upper:]')"
-  local -a lines=()
+  : >"$out"
+  if [ -z "$raw" ]; then
+    return
+  fi
   if [[ "$raw" == *"+"* ]]; then
     local part
     local IFS='+'
     read -ra parts <<< "$raw"
+    local wrote=0
     for part in "${parts[@]}"; do
       part="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
-      if [ -n "$part" ]; then
-        lines+=("$part")
+      if [ -z "$part" ]; then
+        continue
       fi
+      if [ "$wrote" -gt 0 ]; then
+        printf '+\n' >>"$out"
+      fi
+      printf '%s\n' "$part" >>"$out"
+      wrote=$((wrote + 1))
     done
+  else
+    printf '%s\n' "$raw" >>"$out"
   fi
-  if [ "${#lines[@]}" -eq 0 ] && [ -n "$raw" ]; then
-    lines=("$raw")
-  fi
-  local out="" line="" esc="" i=0
-  for line in "${lines[@]}"; do
-    esc="$(escape_drawtext "$line")"
-    if [ "$i" -gt 0 ]; then
-      out="${out}\n${esc}"
-    else
-      out="$esc"
-    fi
-    i=$((i + 1))
-  done
-  printf '%s' "$out"
 }
 
 plan_segments() {
@@ -129,6 +137,8 @@ plan_segments() {
 
   SEG_LAYOUTS=()
   SEG_IMAGES=()
+  SEG_VARIANTS=()
+  SEG_SCALES=()
 
   while [ "$remaining" -gt 0 ]; do
     local segs_left=$((target_segs - seg))
@@ -172,8 +182,21 @@ plan_segments() {
     if [ "$layout" -eq 3 ]; then
       triple_count=$((triple_count + 1))
     fi
+
+    local variant="equal"
+    local scale
+    scale="$(rand_scale_pct)"
+    if [ "$layout" -eq 1 ]; then
+      variant="$(pick_single_variant)"
+    elif [ "$layout" -eq 2 ]; then
+      variant="$(pick_double_variant)"
+      scale="$(rand_scale_pct)"
+    fi
+
     SEG_LAYOUTS+=("$layout")
     SEG_IMAGES+=("${imgs# }")
+    SEG_VARIANTS+=("$variant")
+    SEG_SCALES+=("$scale")
     seg=$((seg + 1))
   done
 
@@ -198,15 +221,17 @@ scale_pad_box() {
   local box_w="$1"
   local box_h="$2"
   local label="$3"
+  local out_label="$4"
   printf '[%s:v]scale=%s:%s:force_original_aspect_ratio=decrease,pad=%s:%s:(ow-iw)/2:(oh-ih)/2:color=%s[%s]' \
-    "$label" "$box_w" "$box_h" "$box_w" "$box_h" "$BG_COLOR" "$label"
+    "$label" "$box_w" "$box_h" "$box_w" "$box_h" "$BG_COLOR" "$out_label"
 }
 
 render_slide_segment() {
-  local seg_idx="$1"
-  local layout="$2"
-  local imgs="$3"
-  local out="$4"
+  local layout="$1"
+  local imgs="$2"
+  local variant="$3"
+  local scale_pct="$4"
+  local out="$5"
   local -a files=()
   local f
   for f in $imgs; do
@@ -215,31 +240,75 @@ render_slide_segment() {
 
   local filter=""
   local inputs=(-f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${slide_dur}:r=${fps}")
-
-  local i=1
   for f in "${files[@]}"; do
     inputs+=(-loop 1 -t "$slide_dur" -i "$f")
-    i=$((i + 1))
   done
+
+  local max_w=$((1680 * scale_pct / 100))
+  local max_h=$((960 * scale_pct / 100))
+  if [ "$max_w" -lt 420 ]; then max_w=420; fi
+  if [ "$max_h" -lt 320 ]; then max_h=320; fi
+  local y_jitter=$(( (RANDOM % 81) - 40 ))
+  local oy_expr oy2_expr
+  if [ "$y_jitter" -lt 0 ]; then
+    oy_expr="(H-h)/2${y_jitter}"
+    oy2_expr="(H-h)/2+${y_jitter#-}"
+  else
+    oy_expr="(H-h)/2+${y_jitter}"
+    oy2_expr="(H-h)/2-${y_jitter}"
+  fi
 
   case "$layout" in
     1)
-      filter="$(scale_pad_box 1680 960 1),[0:v][1]overlay=(W-w)/2:(H-h)/2,format=yuv420p"
+      local ox="(W-w)/2"
+      case "$variant" in
+        left)
+          ox="${gap}"
+          ;;
+        right)
+          ox="W-w-${gap}"
+          ;;
+      esac
+      filter="$(scale_pad_box "$max_w" "$max_h" 1 img1),"
+      filter+="[0:v][img1]overlay=${ox}:${oy_expr},format=yuv420p"
       ;;
     2)
-      local cell_w=$(( (width - gap * 3) / 2 ))
-      local cell_h=$(( height - gap * 2 ))
-      filter="$(scale_pad_box "$cell_w" "$cell_h" 1),$(scale_pad_box "$cell_w" "$cell_h" 2),"
-      filter+="[0:v][1]overlay=${gap}:((H-h)/2)[tmp1];"
-      filter+="[tmp1][2]overlay=$((gap * 2 + cell_w)):((H-h)/2),format=yuv420p"
+      local cell_h=$(( height * scale_pct / 100 ))
+      if [ "$cell_h" -gt $((height - gap * 2)) ]; then
+        cell_h=$((height - gap * 2))
+      fi
+      if [ "$cell_h" -lt 360 ]; then cell_h=360; fi
+      local w1 w2 x2
+      case "$variant" in
+        big_left)
+          w1=$(( (width - gap * 3) * 58 / 100 ))
+          w2=$(( width - gap * 3 - w1 ))
+          ;;
+        big_right)
+          w2=$(( (width - gap * 3) * 58 / 100 ))
+          w1=$(( width - gap * 3 - w2 ))
+          ;;
+        *)
+          w1=$(( (width - gap * 3) / 2 ))
+          w2="$w1"
+          ;;
+      esac
+      x2=$((gap * 2 + w1))
+      filter="$(scale_pad_box "$w1" "$cell_h" 1 img1),$(scale_pad_box "$w2" "$cell_h" 2 img2),"
+      filter+="[0:v][img1]overlay=${gap}:${oy_expr}[tmp1];"
+      filter+="[tmp1][img2]overlay=${x2}:${oy2_expr},format=yuv420p"
       ;;
     3)
       local cell_w=$(( (width - gap * 4) / 3 ))
       local cell_h=$(( height - gap * 2 ))
-      filter="$(scale_pad_box "$cell_w" "$cell_h" 1),$(scale_pad_box "$cell_w" "$cell_h" 2),$(scale_pad_box "$cell_w" "$cell_h" 3),"
-      filter+="[0:v][1]overlay=${gap}:((H-h)/2)[tmp1];"
-      filter+="[tmp1][2]overlay=$((gap * 2 + cell_w)):((H-h)/2)[tmp2];"
-      filter+="[tmp2][3]overlay=$((gap * 3 + cell_w * 2)):((H-h)/2),format=yuv420p"
+      local s3
+      s3="$(rand_scale_pct)"
+      cell_h=$(( cell_h * s3 / 100 ))
+      if [ "$cell_h" -lt 320 ]; then cell_h=320; fi
+      filter="$(scale_pad_box "$cell_w" "$cell_h" 1 img1),$(scale_pad_box "$cell_w" "$cell_h" 2 img2),$(scale_pad_box "$cell_w" "$cell_h" 3 img3),"
+      filter+="[0:v][img1]overlay=${gap}:((H-h)/2)[tmp1];"
+      filter+="[tmp1][img2]overlay=$((gap * 2 + cell_w)):((H-h)/2)[tmp2];"
+      filter+="[tmp2][img3]overlay=$((gap * 3 + cell_w * 2)):((H-h)/2),format=yuv420p"
       ;;
     *)
       die "Nezināms layout ${layout}"
@@ -249,14 +318,15 @@ render_slide_segment() {
   ffmpeg -y "${inputs[@]}" -filter_complex "$filter" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
 }
 
-intro_font="/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"
-intro_fontsize=68
-title_line="$(prepare_intro_drawtext "$intro_title")"
+intro_font="/usr/share/fonts/dejavu/DejaVuSans.ttf"
+intro_fontsize=74
+intro_textfile="${job_dir}/intro.txt"
+write_intro_textfile "$intro_title" "$intro_textfile"
 
 intro_file="${job_dir}/segments/intro.mp4"
-if [ -n "$title_line" ]; then
+if [ -s "$intro_textfile" ]; then
   ffmpeg -y -f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${intro_sec}:r=${fps}" \
-    -vf "drawtext=fontfile=${intro_font}:text='${title_line}':fontsize=${intro_fontsize}:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=14:enable='gte(t,1)'" \
+    -vf "drawtext=fontfile=${intro_font}:textfile=${intro_textfile}:fontsize=${intro_fontsize}:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=22:enable='gte(t,1)'" \
     -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 else
   ffmpeg -y -f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${intro_sec}:r=${fps}" \
@@ -271,8 +341,10 @@ seg_idx=0
 while [ "$seg_idx" -lt "$SEG_COUNT" ]; do
   layout="${SEG_LAYOUTS[$seg_idx]}"
   imgs="${SEG_IMAGES[$seg_idx]}"
+  variant="${SEG_VARIANTS[$seg_idx]}"
+  scale="${SEG_SCALES[$seg_idx]}"
   seg="${job_dir}/segments/slide_$(printf '%04d' "$((seg_idx + 1))").mp4"
-  render_slide_segment "$seg_idx" "$layout" "$imgs" "$seg"
+  render_slide_segment "$layout" "$imgs" "$variant" "$scale" "$seg"
   printf "file '%s'\n" "$seg" >>"$seg_list"
   seg_idx=$((seg_idx + 1))
 done
