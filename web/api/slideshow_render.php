@@ -308,7 +308,7 @@ function efpic_render_cancel_pending_jobs(array $config, string $slug, string $o
     }
 }
 
-function efpic_slideshow_enqueue_render(array $config, string $slug, array &$meta, string $owner): void
+function efpic_slideshow_enqueue_render(array $config, string $slug, array &$meta, string $owner): bool
 {
     if (!in_array($owner, ['admin', 'client'], true)) {
         throw new InvalidArgumentException('Nederīgs slideshow īpašnieks');
@@ -319,10 +319,15 @@ function efpic_slideshow_enqueue_render(array $config, string $slug, array &$met
         throw new InvalidArgumentException((string) ($validation['error'] ?? 'Nevar izveidot render job'));
     }
 
-    efpic_render_cancel_pending_jobs($config, $slug, $owner);
-
     $slots = efpic_gallery_slideshows_struct($meta);
     $slot = efpic_slideshow_slot_with_render($slots[$owner]);
+    $status = (string) ($slot['render_status'] ?? 'none');
+    if (in_array($status, ['queued', 'processing'], true)) {
+        return false;
+    }
+
+    efpic_render_cancel_pending_jobs($config, $slug, $owner);
+
     $job = efpic_slideshow_build_job($config, $slug, $meta, $owner);
     efpic_render_save_job($config, $job);
 
@@ -332,6 +337,8 @@ function efpic_slideshow_enqueue_render(array $config, string $slug, array &$met
     $slot['render_updated_at'] = gmdate('c');
     $slots[$owner] = $slot;
     $meta['slideshow'] = $slots;
+
+    return true;
 }
 
 function efpic_render_claim_next_job(array $config): ?array

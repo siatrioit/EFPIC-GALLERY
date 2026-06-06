@@ -492,7 +492,8 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_image_source_all" value="1"'
         . ($adminSlot['image_source'] === 'all' ? ' checked' : '') . '> Izmantot visas redzamās bildes (ne tikai favorītus)</label>';
     $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
-    $html .= '<p class="muted">Video statuss: <strong>' . efpic_admin_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
+    $html .= '<p class="muted" id="slideshow-admin-render-status">Video statuss: <strong data-render-status="' . efpic_admin_esc($renderStatus) . '">'
+        . efpic_admin_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
     if ($renderStatus === 'failed' && ($adminSlot['render_error'] ?? '') !== '') {
         $html .= '<p class="admin-warn">' . efpic_admin_esc((string) $adminSlot['render_error']) . '</p>';
     }

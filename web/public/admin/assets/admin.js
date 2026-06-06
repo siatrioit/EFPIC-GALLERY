@@ -438,6 +438,7 @@
     fd.delete('sync_now');
     fd.delete('create_share_set');
     fd.delete('share_set_tokens');
+    fd.delete('slideshow_admin_generate_video');
 
     adminAutoSaveInFlight = true;
     fetch(window.location.pathname + window.location.search, {
@@ -472,6 +473,7 @@
         }
         applyAdminGalleryLinksPayload(data);
         applyAdminShareAutosavePayload(data);
+        applyAdminSlideshowRenderPayload(data);
       })
       .catch(function (err) {
         showAdminAutoSaveToast(err && err.message ? err.message : 'Neizdevās saglabāt', true);
@@ -1855,6 +1857,25 @@
     });
   }
 
+  function applyAdminSlideshowRenderPayload(data) {
+    if (!data || !data.render_label) {
+      if (data && data.slideshow_render_label) {
+        data.render_label = data.slideshow_render_label;
+        data.render_status = data.slideshow_render_status;
+      } else {
+        return;
+      }
+    }
+    var row = document.getElementById('slideshow-admin-render-status');
+    if (!row) return;
+    var strong = row.querySelector('strong');
+    if (!strong) return;
+    if (data.render_status) {
+      strong.setAttribute('data-render-status', data.render_status);
+    }
+    strong.textContent = data.render_label;
+  }
+
   function initAdminGalleryLinksPoll() {
     var form = document.getElementById('admin-delivery-form');
     if (!form || !adminFormIsEditDelivery()) return;
@@ -1883,6 +1904,42 @@
       if (!document.hidden) poll();
     });
     window.setInterval(poll, 15000);
+  }
+
+  function initAdminSlideshowRenderPoll() {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form || !adminFormIsEditDelivery()) return;
+    var slug = form.getAttribute('data-admin-edit-slug');
+    var row = document.getElementById('slideshow-admin-render-status');
+    if (!slug || !row) return;
+
+    function shouldPoll() {
+      var strong = row.querySelector('strong');
+      var st = strong ? strong.getAttribute('data-render-status') : '';
+      return st === 'queued' || st === 'processing';
+    }
+
+    function poll() {
+      if (!shouldPoll()) return;
+      fetch('delivery_edit.php?slug=' + encodeURIComponent(slug) + '&poll=slideshow', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          applyAdminSlideshowRenderPayload(data);
+        })
+        .catch(function () {});
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) poll();
+    });
+    window.setInterval(poll, 12000);
   }
 
   function initAdminSidebar() {
@@ -1928,6 +1985,7 @@
   initAdminConfirmForms();
   initAdminRegeneratePublicLink();
   initAdminGalleryLinksPoll();
+  initAdminSlideshowRenderPoll();
   initAdminSidebar();
 
   function initAdminRegeneratePublicLink() {

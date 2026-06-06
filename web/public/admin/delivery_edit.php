@@ -27,6 +27,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
+    header('Content-Type: application/json; charset=utf-8');
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        echo json_encode(['ok' => false, 'error' => 'not_found'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $adminSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['admin']);
+    $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
+    echo json_encode([
+        'ok' => true,
+        'render_status' => $renderStatus,
+        'render_label' => efpic_render_status_label($renderStatus),
+        'render_error' => (string) ($adminSlot['render_error'] ?? ''),
+        'video_ready' => efpic_slideshow_slot_video_ready($adminSlot),
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
@@ -77,6 +96,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
+        $wantedVideo = !empty($_POST['slideshow_admin_generate_video']);
         efpic_admin_save_delivery_from_post($config, $slug);
         if (!empty($_POST['autosave'])) {
             $meta = efpic_load_gallery_meta($config, $slug);
@@ -88,20 +108,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $gt = (string) ($meta['gallery_token'] ?? '');
                 $payload['videos_html'] = efpic_admin_render_existing_videos_list($config, $meta, $gt);
                 $payload = array_merge($payload, efpic_admin_gallery_links_payload($config, $meta));
+                $adminSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['admin']);
+                $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
+                $payload['slideshow_render_status'] = $renderStatus;
+                $payload['slideshow_render_label'] = efpic_render_status_label($renderStatus);
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);
             exit;
         }
-        if (!empty($_POST['slideshow_admin_generate_video'])) {
-            $flash = 'Saglabāts. Slideshow video ģenerēšana ievietota rindā — gaidi, kamēr NAS pabeidz render.';
+
+        $qs = 'slug=' . rawurlencode($slug);
+        if ($wantedVideo) {
+            $qs .= '&video_queued=1';
         } elseif (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
-            $flash = 'Kopīgojamā izlase izveidota — saite sadaļā «Kopīgojamās izlases».';
+            $qs .= '&share_created=1';
+        } elseif (!empty($_POST['sync_now'])) {
+            $qs .= '&saved=1&synced=1';
         } else {
-            $flash = !empty($_POST['sync_now']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';
+            $qs .= '&saved=1';
         }
-        $meta = efpic_load_gallery_meta($config, $slug);
-        efpic_admin_delivery_form($config, $meta, $slug, $flash);
+        header('Location: delivery_edit.php?' . $qs);
+        exit;
     } catch (Throwable $e) {
         if (!empty($_POST['autosave'])) {
             header('Content-Type: application/json; charset=utf-8');
@@ -113,7 +141,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$flash = isset($_GET['saved']) ? 'Galerija izveidota.' : null;
+$flash = null;
+if (isset($_GET['saved'])) {
+    $flash = !empty($_GET['synced']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';
+}
+if (isset($_GET['video_queued'])) {
+    $flash = 'Saglabāts. Slideshow video ģenerēšana ievietota rindā — vari droši atjaunot lapu, lai pārbaudītu statusu.';
+}
+if (isset($_GET['share_created'])) {
+    $flash = 'Kopīgojamā izlase izveidota — saite sadaļā «Kopīgojamās izlases».';
+}
 if (isset($_GET['link_regenerated'])) {
     $flash = 'Jauna publiskā saite izveidota. Vecā saite vairs nedarbojas.';
 }
