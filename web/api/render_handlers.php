@@ -34,10 +34,10 @@ function efpic_handle_render_get_job(array $config, string $jobId): void
     efpic_json_response(200, efpic_render_job_api_payload($config, $job));
 }
 
-function efpic_handle_render_job_audio(array $config, string $jobId): void
+function efpic_handle_render_job_audio(array $config, string $jobId, int $index = 0): void
 {
     efpic_require_token($config);
-    efpic_render_stream_job_audio($config, $jobId);
+    efpic_render_stream_job_audio($config, $jobId, $index);
 }
 
 function efpic_handle_render_job_image(array $config, string $jobId, string $token): void

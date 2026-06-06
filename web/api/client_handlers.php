@@ -751,7 +751,12 @@ function efpic_client_render_slideshow_overlay(array $config, array $meta, array
         foreach ($favs as $img) {
             $slides[] = efpic_client_media_url($config, $img, 'web', 1920, $ctx);
         }
-        $audioUrl = efpic_gallery_asset_url($config, $gt, $slideshow['audio_file'], $guestQ);
+        $audioFiles = efpic_slideshow_slot_audio_files($slideshow);
+        $primaryAudio = $audioFiles[0] ?? '';
+        if ($primaryAudio === '') {
+            return '';
+        }
+        $audioUrl = efpic_gallery_asset_url($config, $gt, $primaryAudio, $guestQ);
         $html .= '<img src="" alt="">';
         $html .= '</div>';
         $html .= '<audio class="efpic-slideshow-audio" src="' . efpic_client_esc($audioUrl) . '" loop></audio>';

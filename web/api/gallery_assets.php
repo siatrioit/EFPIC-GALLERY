@@ -132,6 +132,7 @@ function efpic_gallery_slideshow_defaults(): array
     return [
         'enabled' => false,
         'audio_file' => '',
+        'audio_files' => [],
         'interval_sec' => 5,
         'intro_title' => '',
         'bg_mode' => 'white',
@@ -193,10 +194,25 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
         $jobId = '';
     }
 
+    $audioFiles = [];
+    if (is_array($raw['audio_files'] ?? null)) {
+        foreach ($raw['audio_files'] as $file) {
+            $file = (string) $file;
+            if (preg_match('/^[a-zA-Z0-9._-]+$/', $file) === 1) {
+                $audioFiles[] = $file;
+            }
+        }
+    }
+    $legacyAudio = (string) ($raw['audio_file'] ?? '');
+    if ($audioFiles === [] && preg_match('/^[a-zA-Z0-9._-]+$/', $legacyAudio) === 1) {
+        $audioFiles[] = $legacyAudio;
+    }
+    $audioFiles = array_values(array_unique($audioFiles));
+
     return [
         'enabled' => !empty($raw['enabled']),
-        'audio_file' => preg_match('/^[a-zA-Z0-9._-]+$/', (string) ($raw['audio_file'] ?? '')) === 1
-            ? (string) $raw['audio_file'] : '',
+        'audio_file' => $audioFiles[0] ?? '',
+        'audio_files' => $audioFiles,
         'interval_sec' => $interval,
         'intro_title' => $intro,
         'bg_mode' => $bg,
@@ -260,9 +276,31 @@ function efpic_apply_admin_favorites_from_post(array &$meta): void
     }
 }
 
+/** @return list<string> */
+function efpic_slideshow_slot_audio_files(array $slot): array
+{
+    $files = [];
+    if (is_array($slot['audio_files'] ?? null)) {
+        foreach ($slot['audio_files'] as $file) {
+            $file = (string) $file;
+            if (preg_match('/^[a-zA-Z0-9._-]+$/', $file) === 1) {
+                $files[] = $file;
+            }
+        }
+    }
+    if ($files === []) {
+        $legacy = (string) ($slot['audio_file'] ?? '');
+        if (preg_match('/^[a-zA-Z0-9._-]+$/', $legacy) === 1) {
+            $files[] = $legacy;
+        }
+    }
+
+    return array_values(array_unique($files));
+}
+
 function efpic_slideshow_slot_interactive_ready(array $slot, int $favoriteCount): bool
 {
-    return $slot['enabled'] && $slot['audio_file'] !== '' && $favoriteCount > 0;
+    return $slot['enabled'] && efpic_slideshow_slot_audio_files($slot) !== [] && $favoriteCount > 0;
 }
 
 function efpic_slideshow_slot_video_ready(array $slot): bool
@@ -402,8 +440,13 @@ function efpic_gallery_asset_registered(array $meta, string $filename): bool
 {
     $slots = efpic_gallery_slideshows_struct($meta);
     foreach (['admin', 'client'] as $who) {
-        if ($slots[$who]['audio_file'] === $filename || $slots[$who]['video_file'] === $filename) {
+        if ($slots[$who]['video_file'] === $filename) {
             return true;
+        }
+        foreach (efpic_slideshow_slot_audio_files($slots[$who]) as $audioFile) {
+            if ($audioFile === $filename) {
+                return true;
+            }
         }
     }
     foreach ($meta['videos'] ?? [] as $video) {
@@ -681,6 +724,61 @@ function efpic_apply_image_scenes_from_post(array &$meta): void
     }
 }
 
+function efpic_collect_uploaded_files(string $field): array
+{
+    if (!isset($_FILES[$field]) || !is_array($_FILES[$field])) {
+        return [];
+    }
+    $file = $_FILES[$field];
+    if (!is_array($file['error'] ?? null)) {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            return [];
+        }
+
+        return [$file];
+    }
+
+    $out = [];
+    foreach ($file['error'] as $i => $error) {
+        if ((int) $error === UPLOAD_ERR_NO_FILE) {
+            continue;
+        }
+        $out[] = [
+            'name' => (string) ($file['name'][$i] ?? ''),
+            'type' => (string) ($file['type'][$i] ?? ''),
+            'tmp_name' => (string) ($file['tmp_name'][$i] ?? ''),
+            'error' => (int) $error,
+            'size' => (int) ($file['size'][$i] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
+/** @param list<string> $files */
+function efpic_slideshow_reorder_audio_files(array $files, array $order): array
+{
+    if ($order === []) {
+        return $files;
+    }
+    $lookup = array_fill_keys($files, true);
+    $out = [];
+    foreach ($order as $file) {
+        $file = (string) $file;
+        if ($file !== '' && isset($lookup[$file])) {
+            $out[] = $file;
+            unset($lookup[$file]);
+        }
+    }
+    foreach ($files as $file) {
+        if (isset($lookup[$file])) {
+            $out[] = $file;
+        }
+    }
+
+    return $out;
+}
+
 function efpic_apply_slideshow_from_post(array $config, string $slug, array &$meta, string $owner = 'admin'): void
 {
     if (!in_array($owner, ['admin', 'client'], true)) {
@@ -701,33 +799,75 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
     $interval = (int) ($_POST[$prefix . '_interval'] ?? $_POST['slideshow_interval'] ?? $slideshow['interval_sec']);
     $slideshow['interval_sec'] = max(2, min(60, $interval));
 
-    $removeKey = $prefix . '_remove_audio';
-    $remove = !empty($_POST[$removeKey]);
-    if ($owner === 'client' && !$remove) {
-        $remove = !empty($_POST['remove_slideshow_audio']);
-    }
-    if ($owner === 'admin' && !$remove) {
-        $remove = !empty($_POST['remove_slideshow_audio']);
-    }
-    if ($remove) {
-        if ($slideshow['audio_file'] !== '') {
-            efpic_delete_gallery_asset_file($config, $slug, $slideshow['audio_file']);
+    $audioFiles = efpic_slideshow_slot_audio_files($slideshow);
+    $maxAudioTracks = 8;
+
+    if ($owner === 'admin' && array_key_exists($prefix . '_audio_order', $_POST)) {
+        $orderRaw = trim((string) $_POST[$prefix . '_audio_order']);
+        $order = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
+        $validOrder = [];
+        foreach ($order as $file) {
+            if (preg_match('/^[a-zA-Z0-9._-]+$/', $file) === 1) {
+                $validOrder[] = $file;
+            }
         }
-        $slideshow['audio_file'] = '';
+        $audioFiles = efpic_slideshow_reorder_audio_files($audioFiles, $validOrder);
     }
 
-    $fileKey = $prefix . '_mp3';
-    if ($owner === 'client' && empty($_FILES[$fileKey])) {
-        $fileKey = 'slideshow_mp3';
+    $removeKey = $prefix . '_remove_audio';
+    $removeAll = !empty($_POST[$removeKey]);
+    if ($owner === 'client' && !$removeAll) {
+        $removeAll = !empty($_POST['remove_slideshow_audio']);
     }
-    if (isset($_FILES[$fileKey]) && is_array($_FILES[$fileKey]) && ($_FILES[$fileKey]['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE) {
-        $max = 25 * 1024 * 1024;
-        $newFile = efpic_store_gallery_upload($config, $slug, $_FILES[$fileKey], ['mp3'], $max);
-        if ($slideshow['audio_file'] !== '' && $slideshow['audio_file'] !== $newFile) {
-            efpic_delete_gallery_asset_file($config, $slug, $slideshow['audio_file']);
+    if ($owner === 'admin' && !$removeAll) {
+        $removeAll = !empty($_POST['remove_slideshow_audio']);
+    }
+    if ($removeAll) {
+        foreach ($audioFiles as $file) {
+            efpic_delete_gallery_asset_file($config, $slug, $file);
         }
-        $slideshow['audio_file'] = $newFile;
+        $audioFiles = [];
     }
+
+    $removeFiles = $_POST[$prefix . '_remove_audio_file'] ?? [];
+    if (is_array($removeFiles) && $removeFiles !== []) {
+        $kept = [];
+        foreach ($audioFiles as $file) {
+            if (!empty($removeFiles[$file])) {
+                efpic_delete_gallery_asset_file($config, $slug, $file);
+            } else {
+                $kept[] = $file;
+            }
+        }
+        $audioFiles = $kept;
+    }
+
+    $uploads = efpic_collect_uploaded_files($prefix . '_mp3');
+    $clientUploads = $owner === 'client' ? efpic_collect_uploaded_files('slideshow_mp3') : [];
+    if ($uploads === [] && $clientUploads !== []) {
+        $uploads = $clientUploads;
+    }
+    if ($owner === 'client' && $uploads !== []) {
+        foreach ($audioFiles as $file) {
+            efpic_delete_gallery_asset_file($config, $slug, $file);
+        }
+        $audioFiles = [];
+    }
+    if ($uploads !== []) {
+        $max = 25 * 1024 * 1024;
+        foreach ($uploads as $upload) {
+            if (count($audioFiles) >= $maxAudioTracks) {
+                break;
+            }
+            $newFile = efpic_store_gallery_upload($config, $slug, $upload, ['mp3'], $max);
+            if (!in_array($newFile, $audioFiles, true)) {
+                $audioFiles[] = $newFile;
+            }
+        }
+    }
+
+    $slideshow['audio_files'] = array_values($audioFiles);
+    $slideshow['audio_file'] = $audioFiles[0] ?? '';
 
     $introKey = $prefix . '_intro_title';
     if (array_key_exists($introKey, $_POST)) {
@@ -910,8 +1050,13 @@ function efpic_can_view_gallery_asset(array $config, array $meta, string $galler
 
     $slots = efpic_gallery_slideshows_struct($meta);
     foreach (['admin', 'client'] as $who) {
-        if ($slots[$who]['audio_file'] === $filename || $slots[$who]['video_file'] === $filename) {
+        if ($slots[$who]['video_file'] === $filename) {
             return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+        }
+        foreach (efpic_slideshow_slot_audio_files($slots[$who]) as $audioFile) {
+            if ($audioFile === $filename) {
+                return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+            }
         }
     }
 

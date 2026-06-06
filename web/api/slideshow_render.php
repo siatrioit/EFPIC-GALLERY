@@ -165,14 +165,21 @@ function efpic_slideshow_validate_render_request(array $config, string $slug, ar
         return ['ok' => false, 'error' => 'Nederīgs slideshow īpašnieks'];
     }
     $slot = efpic_slideshow_slot_with_render($slots[$owner]);
-    $audio = (string) ($slot['audio_file'] ?? '');
-    if ($audio === '') {
+    $audioFiles = efpic_slideshow_slot_audio_files($slot);
+    if ($audioFiles === []) {
         return ['ok' => false, 'error' => 'Augšupielādē MP3 pirms video ģenerēšanas.'];
     }
 
-    $audioPath = efpic_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $audio;
-    if (!is_file($audioPath)) {
-        return ['ok' => false, 'error' => 'MP3 fails nav atrasts serverī.'];
+    $totalAudioSec = 0.0;
+    foreach ($audioFiles as $audio) {
+        $audioPath = efpic_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $audio;
+        if (!is_file($audioPath)) {
+            return ['ok' => false, 'error' => 'MP3 fails nav atrasts serverī: ' . $audio];
+        }
+        $dur = efpic_audio_duration_sec_estimate($audioPath);
+        if ($dur !== null && $dur > 0) {
+            $totalAudioSec += $dur;
+        }
     }
 
     $source = (string) ($slot['image_source'] ?? 'favorites');
@@ -188,7 +195,7 @@ function efpic_slideshow_validate_render_request(array $config, string $slug, ar
         return ['ok' => false, 'error' => 'Nav nevienas bildes slideshow (favorīti vai redzamās).'];
     }
 
-    $duration = efpic_audio_duration_sec_estimate($audioPath);
+    $duration = $totalAudioSec > 0 ? $totalAudioSec : null;
     if ($duration !== null && $duration > 0) {
         $minImages = (int) max(1, ceil($duration / 5));
         if ($source === 'favorites' && $count < $minImages) {
@@ -230,6 +237,7 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
     $slot = efpic_slideshow_slot_with_render($slots[$owner]);
     $source = (string) ($slot['image_source'] ?? 'favorites');
     $order = is_array($slot['image_order_tokens'] ?? null) ? $slot['image_order_tokens'] : [];
+    $audioFiles = efpic_slideshow_slot_audio_files($slot);
     $images = efpic_slideshow_sort_images_for_render(
         efpic_slideshow_collect_images_for_render($config, $meta, $owner, $source),
         $order,
@@ -263,7 +271,8 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
             ? (string) $slot['bg_mode'] : 'white',
         'page_bg_color' => efpic_client_page_bg_color($config, $meta),
         'image_source' => $source,
-        'audio_file' => (string) ($slot['audio_file'] ?? ''),
+        'audio_file' => $audioFiles[0] ?? '',
+        'audio_files' => $audioFiles,
         'images' => $imagePayload,
         'spec' => [
             'width' => 1920,
@@ -424,11 +433,37 @@ function efpic_render_sync_slot_from_job(array $config, array $job): void
     efpic_save_gallery_meta($config, $slug, $meta);
 }
 
+function efpic_render_job_audio_files(array $job): array
+{
+    $files = [];
+    if (is_array($job['audio_files'] ?? null)) {
+        foreach ($job['audio_files'] as $file) {
+            $file = (string) $file;
+            if (preg_match('/^[a-zA-Z0-9._-]+$/', $file) === 1) {
+                $files[] = $file;
+            }
+        }
+    }
+    if ($files === []) {
+        $legacy = (string) ($job['audio_file'] ?? '');
+        if (preg_match('/^[a-zA-Z0-9._-]+$/', $legacy) === 1) {
+            $files[] = $legacy;
+        }
+    }
+
+    return array_values(array_unique($files));
+}
+
 /** @param array<string, mixed> $job */
 function efpic_render_job_api_payload(array $config, array $job): array
 {
     $base = efpic_base_url($config);
     $id = (string) ($job['id'] ?? '');
+    $audioFiles = efpic_render_job_audio_files($job);
+    $audioTracks = [];
+    foreach (array_keys($audioFiles) as $index) {
+        $audioTracks[] = $base . '/api/render/jobs/' . rawurlencode($id) . '/audio/' . $index;
+    }
 
     return [
         'ok' => true,
@@ -440,11 +475,13 @@ function efpic_render_job_api_payload(array $config, array $job): array
             'intro_title' => (string) ($job['intro_title'] ?? ''),
             'bg_mode' => (string) ($job['bg_mode'] ?? 'white'),
             'page_bg_color' => (string) ($job['page_bg_color'] ?? '#ffffff'),
-            'audio_file' => (string) ($job['audio_file'] ?? ''),
+            'audio_file' => $audioFiles[0] ?? '',
+            'audio_files' => $audioFiles,
             'images' => $job['images'] ?? [],
             'spec' => $job['spec'] ?? [],
             'assets' => [
-                'audio' => $base . '/api/render/jobs/' . rawurlencode($id) . '/audio',
+                'audio' => $audioTracks[0] ?? ($base . '/api/render/jobs/' . rawurlencode($id) . '/audio/0'),
+                'audio_tracks' => $audioTracks,
                 'images' => array_map(
                     static fn (array $img): array => [
                         'token' => (string) ($img['token'] ?? ''),
@@ -513,7 +550,7 @@ function efpic_render_fail_job(array $config, array $job, string $message): void
     efpic_render_sync_slot_from_job($config, $job);
 }
 
-function efpic_render_stream_job_audio(array $config, string $jobId): void
+function efpic_render_stream_job_audio(array $config, string $jobId, int $index = 0): void
 {
     $job = efpic_render_load_job($config, $jobId);
     if (!is_array($job) || (string) ($job['status'] ?? '') === 'ready') {
@@ -521,11 +558,12 @@ function efpic_render_stream_job_audio(array $config, string $jobId): void
         exit;
     }
     $slug = (string) ($job['slug'] ?? '');
-    $audio = (string) ($job['audio_file'] ?? '');
-    if ($slug === '' || $audio === '' || preg_match('/^[a-zA-Z0-9._-]+$/', $audio) !== 1) {
+    $audioFiles = efpic_render_job_audio_files($job);
+    if ($slug === '' || !isset($audioFiles[$index])) {
         http_response_code(404);
         exit;
     }
+    $audio = $audioFiles[$index];
     $path = efpic_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $audio;
     if (!is_file($path)) {
         http_response_code(404);

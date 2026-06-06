@@ -3,7 +3,6 @@ set -euo pipefail
 
 payload="$(cat)"
 job_id="$(echo "$payload" | jq -r '.job.id')"
-audio_url="$(echo "$payload" | jq -r '.job.assets.audio')"
 complete_url="$(echo "$payload" | jq -r '.job.assets.complete')"
 intro_title="$(echo "$payload" | jq -r '.job.intro_title // ""')"
 intro_sec="$(echo "$payload" | jq -r '.job.spec.intro_sec // 6')"
@@ -79,7 +78,35 @@ BG_COLOR="$(resolve_bg_color)"
 CANVAS_COLOR="$BG_COLOR"
 MAT_COLOR="white"
 
-curl -sf -H "$auth_header" -o "${job_dir}/audio.mp3" "$audio_url" || die "Neizdevās lejupielādēt audio"
+mapfile -t audio_urls < <(echo "$payload" | jq -r '.job.assets.audio_tracks[]? // empty')
+if [ "${#audio_urls[@]}" -eq 0 ]; then
+  legacy_audio="$(echo "$payload" | jq -r '.job.assets.audio // ""')"
+  if [ -n "$legacy_audio" ]; then
+    audio_urls=("$legacy_audio")
+  fi
+fi
+if [ "${#audio_urls[@]}" -eq 0 ]; then
+  die "Nav audio URL"
+fi
+
+audio_idx=0
+for audio_url in "${audio_urls[@]}"; do
+  curl -sf -H "$auth_header" -o "${job_dir}/audio_${audio_idx}.mp3" "$audio_url" || die "Neizdevās lejupielādēt audio $((audio_idx + 1))"
+  audio_idx=$((audio_idx + 1))
+done
+
+if [ "$audio_idx" -eq 1 ]; then
+  cp "${job_dir}/audio_0.mp3" "${job_dir}/audio.mp3"
+else
+  audio_list="${job_dir}/audio_concat.txt"
+  : >"$audio_list"
+  i=0
+  while [ "$i" -lt "$audio_idx" ]; do
+    printf "file '%s'\n" "${job_dir}/audio_${i}.mp3" >>"$audio_list"
+    i=$((i + 1))
+  done
+  run_ffmpeg "Audio concat" ffmpeg -y -f concat -safe 0 -i "$audio_list" -c:a libmp3lame -q:a 2 "${job_dir}/audio.mp3"
+fi
 
 mapfile -t image_urls < <(echo "$payload" | jq -r '.job.assets.images[].url')
 if [ "${#image_urls[@]}" -eq 0 ]; then

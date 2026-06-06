@@ -487,6 +487,37 @@ function efpic_admin_render_slideshow_image_order_list(array $config, array $met
     return $html;
 }
 
+function efpic_admin_render_slideshow_audio_list(array $config, string $galleryToken, array $adminSlot): string
+{
+    $files = efpic_slideshow_slot_audio_files($adminSlot);
+    $html = '<div class="admin-slideshow-audio">';
+    $html .= '<h4 class="admin-slideshow-audio__title">Mūzika (MP3)</h4>';
+    $html .= '<p class="muted">Var pievienot līdz 8 dziesmām — video ģenerēšanā tās tiks savienotas secīgi.</p>';
+    if ($files !== []) {
+        $html .= '<ul class="admin-slideshow-audio-list" id="admin-slideshow-audio-list">';
+        foreach ($files as $file) {
+            $url = efpic_gallery_asset_url($config, $galleryToken, $file);
+            $html .= '<li class="admin-slideshow-audio-item" data-audio-file="' . efpic_admin_esc($file) . '" draggable="true">';
+            $html .= '<span class="admin-slideshow-order-grip" aria-hidden="true">⋮⋮</span>';
+            $html .= '<a href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($file) . '</a>';
+            $html .= '<label class="admin-check admin-slideshow-audio-remove">';
+            $html .= '<input type="checkbox" name="slideshow_admin_remove_audio_file[' . efpic_admin_esc($file) . ']" value="1"> Dzēst';
+            $html .= '</label></li>';
+        }
+        $html .= '</ul>';
+        $html .= '<input type="hidden" name="slideshow_admin_audio_order" id="slideshow-admin-audio-order" value="'
+            . efpic_admin_esc(implode(',', $files)) . '">';
+        $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_remove_audio" value="1"> Dzēst visus MP3</label>';
+    } else {
+        $html .= '<p class="muted admin-slideshow-order-empty">Nav augšupielādēts neviens MP3.</p>';
+        $html .= '<input type="hidden" name="slideshow_admin_audio_order" id="slideshow-admin-audio-order" value="">';
+    }
+    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_admin_mp3[]" accept="audio/mpeg,.mp3" multiple></label>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, string $galleryToken, string $slug = ''): string
 {
     $slots = efpic_gallery_slideshows_struct($meta);
@@ -522,12 +553,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā kā «Slideshow» sadaļa (visos motīvos). Bez MP4 — interaktīvs slideshow (bildes + MP3) pic-time motīvā.</p>';
     $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_admin_interval" min="2" max="60" value="' . (int) $adminSlot['interval_sec'] . '"></label>';
     $html .= '<p class="muted">Manas favorītbildes: <strong>' . $adminFavCount . '</strong></p>';
-    if ($adminSlot['audio_file'] !== '') {
-        $url = efpic_gallery_asset_url($config, $galleryToken, $adminSlot['audio_file']);
-        $html .= '<p class="admin-ok">MP3: <a href="' . efpic_admin_esc($url) . '" target="_blank" rel="noopener">' . efpic_admin_esc($adminSlot['audio_file']) . '</a></p>';
-        $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_remove_audio" value="1"> Dzēst MP3</label>';
-    }
-    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_admin_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= efpic_admin_render_slideshow_audio_list($config, $galleryToken, $adminSlot);
     $html .= '<label>Intro virsraksts<input type="text" name="slideshow_admin_intro_title" maxlength="120" value="'
         . efpic_admin_esc($adminSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
     $html .= '<p class="muted">Intro video: lielie burti, treknraksts. «+» starp vārdiem — jauna rinda (piem. Rihards + Annika).</p>';
@@ -570,12 +596,15 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<ul class="admin-status-list">';
     $html .= '<li>Ieslēgta: <strong>' . ($clientSlot['enabled'] ? 'Jā' : 'Nē') . '</strong></li>';
     $html .= '<li>Favorīti: <strong>' . $clientFavCount . '</strong></li>';
-    $html .= '<li>MP3: <strong>' . ($clientSlot['audio_file'] !== '' ? 'Jā' : 'Nē') . '</strong></li>';
+    $clientAudioFiles = efpic_slideshow_slot_audio_files($clientSlot);
+    $html .= '<li>MP3: <strong>' . ($clientAudioFiles !== [] ? 'Jā (' . count($clientAudioFiles) . ')' : 'Nē') . '</strong></li>';
     $html .= '<li>Publiski aktīva: <strong>' . ($clientActive ? 'Jā (galvenā)' : 'Nē') . '</strong></li>';
     $html .= '<li>MP4 gatavs: <strong>' . (efpic_slideshow_slot_video_ready($clientSlot) ? 'Jā' : 'Nē') . '</strong></li>';
     $html .= '</ul>';
-    if ($clientSlot['audio_file'] !== '') {
-        $html .= '<p><a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, $clientSlot['audio_file'])) . '" target="_blank" rel="noopener">Klausīties klienta MP3</a></p>';
+    if (efpic_slideshow_slot_audio_files($clientSlot) !== []) {
+        foreach (efpic_slideshow_slot_audio_files($clientSlot) as $clientAudio) {
+            $html .= '<p><a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, $clientAudio)) . '" target="_blank" rel="noopener">Klausīties: ' . efpic_admin_esc($clientAudio) . '</a></p>';
+        }
     }
     $html .= '</div></div></fieldset>';
 

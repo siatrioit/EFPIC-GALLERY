@@ -155,8 +155,12 @@ try {
         efpic_handle_render_get_job($config, $m[1]);
     }
 
+    if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/audio/([0-9]+)$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_render_job_audio($config, $m[1], (int) $m[2]);
+    }
+
     if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/audio$#', $uri, $m) && $method === 'GET') {
-        efpic_handle_render_job_audio($config, $m[1]);
+        efpic_handle_render_job_audio($config, $m[1], 0);
     }
 
     if (preg_match('#^/api/render/jobs/([a-f0-9]{32})/image/([a-f0-9]{48})$#', $uri, $m) && $method === 'GET') {
