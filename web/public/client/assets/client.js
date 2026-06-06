@@ -499,7 +499,14 @@
     return Math.min(LAYOUT_ASPECT_MAX, Math.max(LAYOUT_ASPECT_MIN, aspect));
   }
 
+  function isDeferredFeedImage(img) {
+    return !!(img && img.hasAttribute('data-src') && !img.getAttribute('src'));
+  }
+
   function isBrokenFeedImage(img) {
+    if (isDeferredFeedImage(img)) {
+      return false;
+    }
     return !!(img && img.complete && img.naturalWidth === 0);
   }
 
@@ -695,8 +702,8 @@
     }
     img.removeAttribute('data-src');
     img.classList.remove('pic-feed-img--deferred');
-    bindFeedImageLoad(img);
     img.src = src;
+    bindFeedImageLoad(img);
   }
 
   function initDeferredFeedImages() {
