@@ -445,7 +445,7 @@ function efpic_admin_render_favorite_thumb_grid(array $config, array $meta, stri
     return $html;
 }
 
-function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, string $galleryToken): string
+function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, string $galleryToken, string $slug = ''): string
 {
     $slots = efpic_gallery_slideshows_struct($meta);
     $adminSlot = efpic_slideshow_slot_with_render($slots['admin']);
@@ -484,7 +484,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_admin_mp3" accept="audio/mpeg,.mp3"></label>';
     $html .= '<label>Intro virsraksts<input type="text" name="slideshow_admin_intro_title" maxlength="120" value="'
         . efpic_admin_esc($adminSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
-    $html .= '<p class="muted">Garāki vārdi intro ekrānā tiek sakārtoti vairākās rindās. «+» starp vārdiem — vienā rindā ar plusu.</p>';
+    $html .= '<p class="muted">Intro video: lielie burti, treknraksts. «+» starp vārdiem — jauna rinda (piem. Rihards + Annika).</p>';
     $html .= '<label>Fona krāsa<select name="slideshow_admin_bg_mode">';
     $html .= '<option value="white"' . ($adminSlot['bg_mode'] === 'white' ? ' selected' : '') . '>Balts</option>';
     $html .= '<option value="gallery"' . ($adminSlot['bg_mode'] === 'gallery' ? ' selected' : '') . '>Galerijas fons</option>';
@@ -497,9 +497,16 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
         $html .= '<p class="admin-warn">' . efpic_admin_esc((string) $adminSlot['render_error']) . '</p>';
     }
     if (($adminSlot['video_file'] ?? '') !== '') {
-        $videoUrl = efpic_gallery_asset_url($config, $galleryToken, (string) $adminSlot['video_file']);
+        $videoFile = (string) $adminSlot['video_file'];
+        $videoUrl = efpic_gallery_asset_url($config, $galleryToken, $videoFile);
         $html .= '<p class="admin-ok">MP4: <a href="' . efpic_admin_esc($videoUrl) . '" target="_blank" rel="noopener">'
-            . efpic_admin_esc((string) $adminSlot['video_file']) . '</a></p>';
+            . efpic_admin_esc($videoFile) . '</a></p>';
+        if ($slug !== '') {
+            $videoPath = efpic_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $videoFile;
+            $sizeLabel = is_file($videoPath) ? efpic_format_bytes((int) filesize($videoPath)) : 'nav atrasts';
+            $html .= '<p class="muted">Serverī: <code>storage/galleries/' . efpic_admin_esc($slug) . '/assets/'
+                . efpic_admin_esc($videoFile) . '</code> (' . efpic_admin_esc($sizeLabel) . ')</p>';
+        }
     }
     $html .= '<div class="admin-media-action-row">';
     $html .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt slideshow</button>';
@@ -1316,7 +1323,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_share_sets($config, $meta);
         $body .= efpic_admin_tab_panel_close();
         $body .= efpic_admin_tab_panel_open('admin-tab-media');
-        $body .= efpic_admin_render_favorites_and_slideshow($config, $meta, (string) ($meta['gallery_token'] ?? ''));
+        $body .= efpic_admin_render_favorites_and_slideshow($config, $meta, (string) ($meta['gallery_token'] ?? ''), $slug);
         $body .= efpic_admin_render_videos_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
         $body .= efpic_admin_tab_panel_close();
     }

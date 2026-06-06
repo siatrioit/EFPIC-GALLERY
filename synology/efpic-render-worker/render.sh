@@ -72,14 +72,44 @@ escape_drawtext() {
   printf '%s' "$s"
 }
 
-title_line="$(escape_drawtext "$intro_title")"
-if [[ "$intro_title" == *"+"* ]]; then
-  title_line="$(escape_drawtext "$(echo "$intro_title" | sed 's/[[:space:]]*+[[:space:]]*/\\n/g')")"
-fi
+prepare_intro_drawtext() {
+  local raw="$1"
+  raw="$(printf '%s' "$raw" | tr '[:lower:]' '[:upper:]')"
+  local -a lines=()
+  if [[ "$raw" == *"+"* ]]; then
+    local part
+    local IFS='+'
+    read -ra parts <<< "$raw"
+    for part in "${parts[@]}"; do
+      part="$(printf '%s' "$part" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+      if [ -n "$part" ]; then
+        lines+=("$part")
+      fi
+    done
+  fi
+  if [ "${#lines[@]}" -eq 0 ] && [ -n "$raw" ]; then
+    lines=("$raw")
+  fi
+  local out="" line="" esc="" i=0
+  for line in "${lines[@]}"; do
+    esc="$(escape_drawtext "$line")"
+    if [ "$i" -gt 0 ]; then
+      out="${out}\n${esc}"
+    else
+      out="$esc"
+    fi
+    i=$((i + 1))
+  done
+  printf '%s' "$out"
+}
+
+intro_font="/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"
+intro_fontsize=72
+title_line="$(prepare_intro_drawtext "$intro_title")"
 
 intro_file="${job_dir}/segments/intro.mp4"
 if [ -n "$title_line" ]; then
-  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -vf "drawtext=fontfile=/usr/share/fonts/dejavu/DejaVuSans.ttf:text='${title_line}':fontsize=64:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:enable='gte(t,1)'" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
+  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -vf "drawtext=fontfile=${intro_font}:text='${title_line}':fontsize=${intro_fontsize}:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=8:enable='gte(t,1)'" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 else
   ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 fi
@@ -99,7 +129,7 @@ for _ in "${image_urls[@]}"; do
 done
 
 video_noaudio="${job_dir}/video_noaudio.mp4"
-ffmpeg -y -f concat -safe 0 -i "$seg_list" -c copy "$video_noaudio"
+ffmpeg -y -f concat -safe 0 -i "$seg_list" -c:v libx264 -pix_fmt yuv420p -r "$fps" -movflags +faststart "$video_noaudio"
 
 fade_out_start="$(echo "$total_dur - $fade_out" | bc -l)"
 if [ "$(echo "$fade_out_start < $music_start" | bc -l)" -eq 1 ]; then

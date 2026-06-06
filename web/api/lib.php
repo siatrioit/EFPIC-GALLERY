@@ -28,6 +28,18 @@ function efpic_app_version(): string
     return $cached;
 }
 
+function efpic_format_bytes(int $bytes): string
+{
+    if ($bytes >= 1048576) {
+        return round($bytes / 1048576, 1) . ' MB';
+    }
+    if ($bytes >= 1024) {
+        return round($bytes / 1024, 1) . ' KB';
+    }
+
+    return $bytes . ' B';
+}
+
 function efpic_app_version_label(): string
 {
     return 'v' . efpic_app_version();
