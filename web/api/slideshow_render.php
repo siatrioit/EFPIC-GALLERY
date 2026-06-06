@@ -261,6 +261,7 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
         'intro_title' => trim((string) ($slot['intro_title'] ?? '')),
         'bg_mode' => in_array((string) ($slot['bg_mode'] ?? 'white'), ['white', 'gallery'], true)
             ? (string) $slot['bg_mode'] : 'white',
+        'page_bg_color' => efpic_client_page_bg_color($config, $meta),
         'image_source' => $source,
         'audio_file' => (string) ($slot['audio_file'] ?? ''),
         'images' => $imagePayload,
@@ -381,6 +382,7 @@ function efpic_render_job_api_payload(array $config, array $job): array
             'status' => (string) ($job['status'] ?? ''),
             'intro_title' => (string) ($job['intro_title'] ?? ''),
             'bg_mode' => (string) ($job['bg_mode'] ?? 'white'),
+            'page_bg_color' => (string) ($job['page_bg_color'] ?? '#ffffff'),
             'audio_file' => (string) ($job['audio_file'] ?? ''),
             'images' => $job['images'] ?? [],
             'spec' => $job['spec'] ?? [],

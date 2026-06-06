@@ -1845,13 +1845,18 @@ input[type="password"] {
   background: #000;
 }
 
-.gallery-slideshow-video {
+.gallery-slideshow-section {
   max-width: 1100px;
   margin: 0 auto;
   padding: 24px var(--pic-feed-gap, 16px) 8px;
   box-sizing: border-box;
 }
 
+.gallery-slideshow-section + .gallery-slideshow-section {
+  padding-top: 8px;
+}
+
+.gallery-slideshow-section__title,
 .gallery-slideshow-video__title {
   margin: 0 0 12px;
   font-size: 1.15rem;
@@ -1860,6 +1865,7 @@ input[type="password"] {
   text-transform: uppercase;
 }
 
+.gallery-slideshow-section__player,
 .gallery-slideshow-video__player {
   position: relative;
   width: 100%;
@@ -1877,6 +1883,7 @@ input[type="password"] {
 }
 
 @media (min-width: 768px) {
+  .gallery-slideshow-section,
   .gallery-slideshow-video {
     padding: 32px var(--pic-feed-gap-tablet, 20px) 12px;
   }

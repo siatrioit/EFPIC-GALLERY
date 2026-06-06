@@ -473,7 +473,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
         $html .= '<p class="admin-warn">Klienta slideshow ir aktīva publiskajā galerijā — tava slideshow netiek rādīta.</p>';
     }
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_enabled" value="1"' . ($adminSlot['enabled'] ? ' checked' : '') . '> Ieslēgt manu slideshow</label>';
-    $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā virs bildēm un pogā «Video». Bez MP4 — interaktīvs slideshow (bildes + MP3).</p>';
+    $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā kā «Slideshow» sadaļa (visos motīvos). Bez MP4 — interaktīvs slideshow (bildes + MP3) pic-time motīvā.</p>';
     $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_admin_interval" min="2" max="60" value="' . (int) $adminSlot['interval_sec'] . '"></label>';
     $html .= '<p class="muted">Manas favorītbildes: <strong>' . $adminFavCount . '</strong></p>';
     if ($adminSlot['audio_file'] !== '') {

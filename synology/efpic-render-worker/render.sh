@@ -13,9 +13,12 @@ fade_in="$(echo "$payload" | jq -r '.job.spec.fade_in_sec // 1.5')"
 fade_out="$(echo "$payload" | jq -r '.job.spec.fade_out_sec // 2.5')"
 slide_min="$(echo "$payload" | jq -r '.job.spec.slide_min_sec // 3')"
 slide_max="$(echo "$payload" | jq -r '.job.spec.slide_max_sec // 5')"
+bg_mode="$(echo "$payload" | jq -r '.job.bg_mode // "white"')"
+page_bg_raw="$(echo "$payload" | jq -r '.job.page_bg_color // "#ffffff"')"
 width=1920
 height=1080
 fps=30
+gap=36
 
 WORKDIR="${EFPIC_WORK_DIR:-/tmp/efpic-render}"
 job_dir="${WORKDIR}/${job_id}"
@@ -28,6 +31,20 @@ die() {
 }
 
 auth_header="Authorization: Bearer ${EFPIC_API_TOKEN:?}"
+
+resolve_bg_color() {
+  if [ "$bg_mode" = "gallery" ]; then
+    local hex="${page_bg_raw#\#}"
+    hex="$(printf '%s' "$hex" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$hex" =~ ^[0-9a-f]{6}$ ]]; then
+      printf '0x%s' "$hex"
+      return
+    fi
+  fi
+  printf 'white'
+}
+
+BG_COLOR="$(resolve_bg_color)"
 
 curl -sf -H "$auth_header" -o "${job_dir}/audio.mp3" "$audio_url" || die "Neizdevās lejupielādēt audio"
 
@@ -54,13 +71,6 @@ if [ "$(echo "$slides_budget < 0" | bc -l)" -eq 1 ]; then
   slides_budget=0
 fi
 img_count="${#image_urls[@]}"
-slide_dur="$(echo "scale=3; if ($img_count > 0) $slides_budget / $img_count else $slide_min" | bc -l)"
-if [ "$(echo "$slide_dur < $slide_min" | bc -l)" -eq 1 ]; then
-  slide_dur="$slide_min"
-fi
-if [ "$(echo "$slide_dur > $slide_max" | bc -l)" -eq 1 ]; then
-  slide_dur="$slide_max"
-fi
 
 escape_drawtext() {
   local s="$1"
@@ -103,29 +113,168 @@ prepare_intro_drawtext() {
   printf '%s' "$out"
 }
 
+plan_segments() {
+  local remaining="$img_count"
+  local pos=1
+  local seg=0
+  local triple_count=0
+  local target_segs
+  target_segs="$(echo "scale=0; if ($slides_budget > 0) ($slides_budget + 3.5) / 4 else 1" | bc)"
+  if [ "$target_segs" -lt 1 ]; then
+    target_segs=1
+  fi
+  if [ "$target_segs" -gt "$img_count" ]; then
+    target_segs="$img_count"
+  fi
+
+  SEG_LAYOUTS=()
+  SEG_IMAGES=()
+
+  while [ "$remaining" -gt 0 ]; do
+    local segs_left=$((target_segs - seg))
+    if [ "$segs_left" -lt 1 ]; then
+      segs_left=1
+    fi
+    local triple_max=$(( (target_segs * 20 + 99) / 100 ))
+    local layout=1
+    local need
+    need="$(echo "scale=2; $remaining / $segs_left" | bc -l)"
+
+    if [ "$remaining" -ge 3 ] && [ "$triple_count" -lt "$triple_max" ] && [ "$(echo "$need >= 2.2" | bc -l)" -eq 1 ]; then
+      if [ $((RANDOM % 100)) -lt 35 ]; then
+        layout=3
+      elif [ "$remaining" -ge 2 ] && [ "$(echo "$need >= 1.5" | bc -l)" -eq 1 ]; then
+        layout=2
+      fi
+    elif [ "$remaining" -ge 2 ] && [ "$(echo "$need >= 1.4" | bc -l)" -eq 1 ]; then
+      layout=2
+    fi
+
+    if [ "$layout" -eq 3 ] && [ "$remaining" -lt 3 ]; then
+      layout=2
+    fi
+    if [ "$layout" -eq 2 ] && [ "$remaining" -lt 2 ]; then
+      layout=1
+    fi
+    if [ "$layout" -eq 3 ] && [ "$triple_count" -ge "$triple_max" ]; then
+      layout=2
+    fi
+
+    local imgs=""
+    local j=0
+    while [ "$j" -lt "$layout" ]; do
+      imgs="${imgs} $(printf '%04d' "$pos")"
+      pos=$((pos + 1))
+      remaining=$((remaining - 1))
+      j=$((j + 1))
+    done
+
+    if [ "$layout" -eq 3 ]; then
+      triple_count=$((triple_count + 1))
+    fi
+    SEG_LAYOUTS+=("$layout")
+    SEG_IMAGES+=("${imgs# }")
+    seg=$((seg + 1))
+  done
+
+  SEG_COUNT="$seg"
+}
+
+plan_segments
+
+if [ "$SEG_COUNT" -lt 1 ]; then
+  die "Nav segmentu"
+fi
+
+slide_dur="$(echo "scale=3; $slides_budget / $SEG_COUNT" | bc -l)"
+if [ "$(echo "$slide_dur < $slide_min" | bc -l)" -eq 1 ]; then
+  slide_dur="$slide_min"
+fi
+if [ "$(echo "$slide_dur > $slide_max" | bc -l)" -eq 1 ]; then
+  slide_dur="$slide_max"
+fi
+
+scale_pad_box() {
+  local box_w="$1"
+  local box_h="$2"
+  local label="$3"
+  printf '[%s:v]scale=%s:%s:force_original_aspect_ratio=decrease,pad=%s:%s:(ow-iw)/2:(oh-ih)/2:color=%s[%s]' \
+    "$label" "$box_w" "$box_h" "$box_w" "$box_h" "$BG_COLOR" "$label"
+}
+
+render_slide_segment() {
+  local seg_idx="$1"
+  local layout="$2"
+  local imgs="$3"
+  local out="$4"
+  local -a files=()
+  local f
+  for f in $imgs; do
+    files+=("${job_dir}/img_${f}.jpg")
+  done
+
+  local filter=""
+  local inputs=(-f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${slide_dur}:r=${fps}")
+
+  local i=1
+  for f in "${files[@]}"; do
+    inputs+=(-loop 1 -t "$slide_dur" -i "$f")
+    i=$((i + 1))
+  done
+
+  case "$layout" in
+    1)
+      filter="$(scale_pad_box 1680 960 1),[0:v][1]overlay=(W-w)/2:(H-h)/2,format=yuv420p"
+      ;;
+    2)
+      local cell_w=$(( (width - gap * 3) / 2 ))
+      local cell_h=$(( height - gap * 2 ))
+      filter="$(scale_pad_box "$cell_w" "$cell_h" 1),$(scale_pad_box "$cell_w" "$cell_h" 2),"
+      filter+="[0:v][1]overlay=${gap}:((H-h)/2)[tmp1];"
+      filter+="[tmp1][2]overlay=$((gap * 2 + cell_w)):((H-h)/2),format=yuv420p"
+      ;;
+    3)
+      local cell_w=$(( (width - gap * 4) / 3 ))
+      local cell_h=$(( height - gap * 2 ))
+      filter="$(scale_pad_box "$cell_w" "$cell_h" 1),$(scale_pad_box "$cell_w" "$cell_h" 2),$(scale_pad_box "$cell_w" "$cell_h" 3),"
+      filter+="[0:v][1]overlay=${gap}:((H-h)/2)[tmp1];"
+      filter+="[tmp1][2]overlay=$((gap * 2 + cell_w)):((H-h)/2)[tmp2];"
+      filter+="[tmp2][3]overlay=$((gap * 3 + cell_w * 2)):((H-h)/2),format=yuv420p"
+      ;;
+    *)
+      die "Nezināms layout ${layout}"
+      ;;
+  esac
+
+  ffmpeg -y "${inputs[@]}" -filter_complex "$filter" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$out"
+}
+
 intro_font="/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf"
-intro_fontsize=72
+intro_fontsize=68
 title_line="$(prepare_intro_drawtext "$intro_title")"
 
 intro_file="${job_dir}/segments/intro.mp4"
 if [ -n "$title_line" ]; then
-  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -vf "drawtext=fontfile=${intro_font}:text='${title_line}':fontsize=${intro_fontsize}:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=8:enable='gte(t,1)'" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
+  ffmpeg -y -f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${intro_sec}:r=${fps}" \
+    -vf "drawtext=fontfile=${intro_font}:text='${title_line}':fontsize=${intro_fontsize}:fontcolor=black:x=(w-text_w)/2:y=(h-text_h)/2:line_spacing=14:enable='gte(t,1)'" \
+    -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 else
-  ffmpeg -y -f lavfi -i "color=c=white:s=${width}x${height}:d=${intro_sec}:r=${fps}" -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
+  ffmpeg -y -f lavfi -i "color=c=${BG_COLOR}:s=${width}x${height}:d=${intro_sec}:r=${fps}" \
+    -c:v libx264 -pix_fmt yuv420p -t "$intro_sec" "$intro_file"
 fi
 
 seg_list="${job_dir}/segments/concat.txt"
 : >"$seg_list"
 printf "file '%s'\n" "$intro_file" >>"$seg_list"
 
-idx=1
-for _ in "${image_urls[@]}"; do
-  num="$(printf '%04d' "$idx")"
-  src="${job_dir}/img_${num}.jpg"
-  seg="${job_dir}/segments/slide_${num}.mp4"
-  ffmpeg -y -loop 1 -t "$slide_dur" -i "$src" -vf "scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:white,format=yuv420p" -r "$fps" -c:v libx264 -pix_fmt yuv420p "$seg"
+seg_idx=0
+while [ "$seg_idx" -lt "$SEG_COUNT" ]; do
+  layout="${SEG_LAYOUTS[$seg_idx]}"
+  imgs="${SEG_IMAGES[$seg_idx]}"
+  seg="${job_dir}/segments/slide_$(printf '%04d' "$((seg_idx + 1))").mp4"
+  render_slide_segment "$seg_idx" "$layout" "$imgs" "$seg"
   printf "file '%s'\n" "$seg" >>"$seg_list"
-  idx=$((idx + 1))
+  seg_idx=$((seg_idx + 1))
 done
 
 video_noaudio="${job_dir}/video_noaudio.mp4"
@@ -138,7 +287,9 @@ fi
 
 delay_ms="$(echo "$music_start * 1000" | bc | awk '{printf "%d", $1}')"
 out_mp4="${job_dir}/slideshow.mp4"
-ffmpeg -y -i "$video_noaudio" -i "${job_dir}/audio.mp3" -filter_complex "[1:a]adelay=${delay_ms}|${delay_ms},afade=t=in:st=${music_start}:d=${fade_in},afade=t=out:st=${fade_out_start}:d=${fade_out}[a]" -map 0:v:0 -map "[a]" -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart -t "$total_dur" "$out_mp4"
+ffmpeg -y -i "$video_noaudio" -i "${job_dir}/audio.mp3" \
+  -filter_complex "[1:a]adelay=${delay_ms}|${delay_ms},afade=t=in:st=${music_start}:d=${fade_in},afade=t=out:st=${fade_out_start}:d=${fade_out}[a]" \
+  -map 0:v:0 -map "[a]" -c:v libx264 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart -t "$total_dur" "$out_mp4"
 
 curl -sf -X POST -H "$auth_header" -F "video=@${out_mp4};type=video/mp4" "$complete_url" >/dev/null || die "Neizdevās augšupielādēt MP4"
 

@@ -758,25 +758,28 @@ function efpic_client_render_slideshow_overlay(array $config, array $meta, array
 
 function efpic_client_render_public_slideshow_video_inline(array $config, array $meta, array $ctx): string
 {
-    $resolved = efpic_resolve_public_slideshow($meta, $ctx, $config);
-    if ($resolved === null || ($resolved['mode'] ?? '') !== 'video') {
+    $sections = efpic_collect_public_slideshow_video_sections($meta, $ctx, $config);
+    if ($sections === []) {
         return '';
     }
-    $slideshow = $resolved['slideshow'];
     $gt = (string) ($meta['gallery_token'] ?? '');
     $guest = efpic_viewer_guest_token($ctx);
     $guestQ = $guest !== '' ? $guest : null;
-    $videoUrl = efpic_gallery_asset_url($config, $gt, (string) $slideshow['video_file'], $guestQ);
-    $title = trim((string) ($slideshow['intro_title'] ?? ''));
-    if ($title === '') {
-        $title = (string) ($meta['name'] ?? 'Slideshow');
-    }
 
-    $html = '<section class="gallery-slideshow-video" aria-label="Slideshow video">';
-    $html .= '<h2 class="gallery-slideshow-video__title">' . efpic_client_esc($title) . '</h2>';
-    $html .= '<div class="gallery-slideshow-video__player">';
-    $html .= '<video controls playsinline preload="metadata" src="' . efpic_client_esc($videoUrl) . '"></video>';
-    $html .= '</div></section>';
+    $html = '';
+    foreach ($sections as $section) {
+        $slideshow = $section['slideshow'];
+        $videoUrl = efpic_gallery_asset_url($config, $gt, (string) $slideshow['video_file'], $guestQ);
+        $title = (string) $section['title'];
+        $owner = (string) $section['owner'];
+        $html .= '<section class="gallery-slideshow-section gallery-slideshow-video" data-slideshow-owner="'
+            . efpic_client_esc($owner) . '" aria-label="' . efpic_client_esc($title) . '">';
+        $html .= '<h2 class="gallery-slideshow-section__title gallery-slideshow-video__title">'
+            . efpic_client_esc($title) . '</h2>';
+        $html .= '<div class="gallery-slideshow-section__player gallery-slideshow-video__player">';
+        $html .= '<video controls playsinline preload="metadata" src="' . efpic_client_esc($videoUrl) . '"></video>';
+        $html .= '</div></section>';
+    }
 
     return $html;
 }
@@ -905,26 +908,31 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $right .= efpic_client_icon('share') . '</button></div>';
 
     $isPicTime = $theme === 'pic-time';
+    $usesSceneMain = efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true);
+    $slideshowHtml = efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
     $body = '';
     if ($isPicTime) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
-        $body .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
+        $body .= $slideshowHtml;
         $body .= efpic_client_topbar($name, $right, 'topbar-floating');
     } else {
         $body .= efpic_client_topbar($name, $right);
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
+        if (!$usesSceneMain) {
+            $body .= $slideshowHtml;
+        }
     }
 
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
 
-    if (efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true)) {
+    if ($usesSceneMain) {
         $sceneNav = efpic_client_render_scene_jump_nav($config, $meta, $images, $ctx);
         $body .= '<main class="gallery-main">';
         if ($sceneNav !== '') {
             $body .= $sceneNav;
         }
         if (!$isPicTime) {
-            $body .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
+            $body .= $slideshowHtml;
         }
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
         $body .= '</main>';
@@ -945,12 +953,11 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
     if ($isPicTime) {
         $resolvedSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config);
-        $hasSlideshow = $resolvedSlideshow !== null;
-        $slideshowLabel = ($resolvedSlideshow['mode'] ?? '') === 'video' ? 'Video' : 'Slideshow';
+        $showFloatSlideshow = $resolvedSlideshow !== null && ($resolvedSlideshow['mode'] ?? '') === 'interactive';
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
-        if ($hasSlideshow) {
-            $body .= '<button type="button" class="float-btn" data-slideshow-open aria-label="' . efpic_client_esc($slideshowLabel) . '">';
-            $body .= '<span>▶</span><span>' . efpic_client_esc($slideshowLabel) . '</span></button>';
+        if ($showFloatSlideshow) {
+            $body .= '<button type="button" class="float-btn" data-slideshow-open aria-label="Slideshow">';
+            $body .= '<span>▶</span><span>Slideshow</span></button>';
         }
         $body .= '<button type="button" class="float-btn" data-share-open aria-label="Dalīties">';
         $body .= efpic_client_icon('share') . '<span>Dalīties</span></button>';

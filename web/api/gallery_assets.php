@@ -353,6 +353,34 @@ function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config):
     return null;
 }
 
+/**
+ * Publiskās galerijas MP4 slideshow sadaļas (fotogrāfs, tad klients).
+ *
+ * @return list<array{owner: string, slideshow: array, title: string}>
+ */
+function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, array $config): array
+{
+    $slots = efpic_gallery_slideshows_struct($meta);
+    $out = [];
+    foreach (['admin', 'client'] as $owner) {
+        $slot = $slots[$owner];
+        if (!efpic_slideshow_slot_video_ready($slot)) {
+            continue;
+        }
+        $title = trim((string) ($slot['intro_title'] ?? ''));
+        if ($title === '') {
+            $title = $owner === 'client' ? 'Klienta slideshow' : 'Slideshow';
+        }
+        $out[] = [
+            'owner' => $owner,
+            'slideshow' => $slot,
+            'title' => $title,
+        ];
+    }
+
+    return $out;
+}
+
 function efpic_gallery_asset_url(array $config, string $galleryToken, string $filename, ?string $guestToken = null): string
 {
     $url = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken) . '/asset/'
