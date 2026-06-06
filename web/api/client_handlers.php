@@ -291,6 +291,7 @@ function efpic_client_html(
     string $shareUrl = '',
     array $extraScriptVars = [],
     ?array $meta = null,
+    string $headExtra = '',
 ): void {
     $base = efpic_base_url($config);
     if ($shareUrl === '') {
@@ -307,6 +308,9 @@ function efpic_client_html(
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . efpic_client_esc($title) . '</title>';
     echo '<link rel="stylesheet" href="' . efpic_client_esc($base . '/client/assets/client.css') . '">';
+    if ($headExtra !== '') {
+        echo $headExtra;
+    }
     if ($meta !== null) {
         $accent = efpic_client_hero_accent_color($meta);
         $heroText = efpic_client_hero_text_color($accent);
@@ -377,12 +381,12 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($coverTok !== '') {
         foreach ($images as $img) {
             if (is_array($img) && ($img['token'] ?? '') === $coverTok) {
-                $imgUrl = efpic_client_media_url($config, $img, 'web', 1400);
+                $imgUrl = efpic_client_media_url($config, $img, 'web', 960);
                 break;
             }
         }
         if ($imgUrl === '') {
-            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1400);
+            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 960);
         }
     }
 
@@ -394,7 +398,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $html .= '<div class="gallery-intro-head">';
         $html .= '<figure class="gallery-intro-figure">';
         if ($imgUrl !== '') {
-            $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="">';
+            $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="" decoding="async" fetchpriority="low">';
         }
         if ($date !== '') {
             $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
@@ -472,6 +476,14 @@ function efpic_client_render_collection_tray(string $galleryUrl, int $count, arr
     return $html;
 }
 
+function efpic_client_render_pic_feed_img(array $config, array $img, array $ctx = []): string
+{
+    $imgUrl = efpic_client_media_url($config, $img, 'web', 960, $ctx);
+
+    return '<img class="pic-feed-img pic-feed-img--deferred" data-src="' . efpic_client_esc($imgUrl)
+        . '" alt="" decoding="async">';
+}
+
 function efpic_client_render_pic_feed_items(array $config, array $images, array $gridCtx, array $ctx = []): string
 {
     $html = '';
@@ -485,11 +497,10 @@ function efpic_client_render_pic_feed_items(array $config, array $images, array 
         if ($tok === '') {
             continue;
         }
-        $imgUrl = efpic_client_media_url($config, $img, 'web', 1600, $ctx);
         $pageUrl = efpic_image_view_url($config, $tok, $guestQ);
         $html .= '<div class="pic-feed-item" id="pic-' . efpic_client_esc($tok) . '" data-token="' . efpic_client_esc($tok) . '">';
         $html .= '<a class="pic-feed-link" href="' . efpic_client_esc($pageUrl) . '">';
-        $html .= '<img src="' . efpic_client_esc($imgUrl) . '" alt="" loading="lazy" decoding="async"></a>';
+        $html .= efpic_client_render_pic_feed_img($config, $img, $ctx) . '</a>';
         $html .= efpic_client_render_image_grid_actions($gridCtx, $img);
         $html .= '</div>';
     }
@@ -729,7 +740,7 @@ function efpic_client_render_slideshow_overlay(array $config, array $meta, array
 
     if ($mode === 'video') {
         $videoUrl = efpic_gallery_asset_url($config, $gt, (string) $slideshow['video_file'], $guestQ);
-        $html .= '<video class="efpic-slideshow-video" controls playsinline preload="metadata" src="'
+        $html .= '<video class="efpic-slideshow-video" controls playsinline preload="metadata" fetchpriority="high" src="'
             . efpic_client_esc($videoUrl) . '"></video>';
     } else {
         $favs = $resolved['images'];
@@ -777,7 +788,8 @@ function efpic_client_render_public_slideshow_video_inline(array $config, array 
         $html .= '<h2 class="gallery-slideshow-section__title gallery-slideshow-video__title">'
             . efpic_client_esc($title) . '</h2>';
         $html .= '<div class="gallery-slideshow-section__player gallery-slideshow-video__player">';
-        $html .= '<video controls playsinline preload="metadata" src="' . efpic_client_esc($videoUrl) . '"></video>';
+        $html .= '<video controls playsinline preload="metadata" fetchpriority="high" src="'
+            . efpic_client_esc($videoUrl) . '"></video>';
         $html .= '</div></section>';
     }
 
@@ -910,6 +922,20 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $isPicTime = $theme === 'pic-time';
     $usesSceneMain = efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true);
     $slideshowHtml = efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
+    $headExtra = '';
+    foreach (efpic_collect_public_slideshow_video_sections($meta, $ctx, $config) as $section) {
+        $videoFile = trim((string) ($section['slideshow']['video_file'] ?? ''));
+        if ($videoFile === '') {
+            continue;
+        }
+        $videoUrl = efpic_gallery_asset_url(
+            $config,
+            $galleryToken,
+            $videoFile,
+            $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null,
+        );
+        $headExtra .= '<link rel="preload" as="video" href="' . efpic_client_esc($videoUrl) . '" fetchpriority="high">';
+    }
     $body = '';
     if ($isPicTime) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
@@ -977,7 +1003,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_COLLECTION_COUNT' => $collectionCount,
         'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
-    ], $meta);
+    ], $meta, $headExtra);
 }
 
 function efpic_client_render_pic_time_viewer(

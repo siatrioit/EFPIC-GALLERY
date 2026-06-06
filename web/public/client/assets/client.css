@@ -740,6 +740,11 @@ input[type="password"] {
   vertical-align: middle;
 }
 
+.pic-feed-img--deferred:not([src]) {
+  min-height: clamp(120px, 28vw, 220px);
+  background: rgba(0, 0, 0, 0.05);
+}
+
 .grid-image-actions {
   position: absolute;
   top: 8px;
