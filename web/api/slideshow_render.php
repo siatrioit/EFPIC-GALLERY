@@ -437,6 +437,7 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
 
     $slot['video_file'] = $newVideo;
     $slot['render_status'] = 'ready';
+    $slot['enabled'] = true;
     $slot['render_job_id'] = (string) ($job['id'] ?? '');
     $slot['render_error'] = '';
     $slot['render_updated_at'] = gmdate('c');

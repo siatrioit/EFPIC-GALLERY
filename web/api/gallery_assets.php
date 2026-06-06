@@ -267,9 +267,6 @@ function efpic_slideshow_slot_interactive_ready(array $slot, int $favoriteCount)
 
 function efpic_slideshow_slot_video_ready(array $slot): bool
 {
-    if (empty($slot['enabled'])) {
-        return false;
-    }
     $video = trim((string) ($slot['video_file'] ?? ''));
     if ($video === '') {
         return false;
@@ -303,14 +300,6 @@ function efpic_try_resolve_public_slideshow_owner(
     if (empty($slot['enabled'])) {
         return null;
     }
-    if (efpic_slideshow_slot_video_ready($slot)) {
-        return [
-            'owner' => $owner,
-            'mode' => 'video',
-            'slideshow' => $slot,
-            'images' => [],
-        ];
-    }
     if (!efpic_slideshow_slot_interactive_ready($slot, $favoriteCount)) {
         return null;
     }
@@ -328,33 +317,40 @@ function efpic_try_resolve_public_slideshow_owner(
 }
 
 /**
- * Public gallery slideshow: client wins when ready (video > interactive).
+ * Public gallery slideshow: video first (client > admin), then interactive fallback.
  *
  * @return array{owner: string, mode: string, slideshow: array, images: list<array>}|null
  */
 function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config): ?array
 {
     $slots = efpic_gallery_slideshows_struct($meta);
-    $client = efpic_try_resolve_public_slideshow_owner(
-        $meta,
-        $ctx,
-        $config,
-        'client',
-        $slots['client'],
-        efpic_count_favorites($meta, 'client'),
-    );
-    if ($client !== null) {
-        return $client;
+    foreach (['client', 'admin'] as $owner) {
+        $slot = $slots[$owner];
+        if (efpic_slideshow_slot_video_ready($slot)) {
+            return [
+                'owner' => $owner,
+                'mode' => 'video',
+                'slideshow' => $slot,
+                'images' => [],
+            ];
+        }
     }
 
-    return efpic_try_resolve_public_slideshow_owner(
-        $meta,
-        $ctx,
-        $config,
-        'admin',
-        $slots['admin'],
-        efpic_count_favorites($meta, 'admin'),
-    );
+    foreach (['client', 'admin'] as $owner) {
+        $resolved = efpic_try_resolve_public_slideshow_owner(
+            $meta,
+            $ctx,
+            $config,
+            $owner,
+            $slots[$owner],
+            efpic_count_favorites($meta, $owner),
+        );
+        if ($resolved !== null) {
+            return $resolved;
+        }
+    }
+
+    return null;
 }
 
 function efpic_gallery_asset_url(array $config, string $galleryToken, string $filename, ?string $guestToken = null): string
@@ -659,8 +655,14 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
     $slots = efpic_gallery_slideshows_struct($meta);
     $slideshow = $slots[$owner];
     $prefix = $owner === 'client' ? 'slideshow_client' : 'slideshow_admin';
-
-    $slideshow['enabled'] = !empty($_POST[$prefix . '_enabled']) || ($owner === 'client' && !empty($_POST['slideshow_enabled']));
+    $enabledKey = $prefix . '_enabled';
+    if ($owner === 'client') {
+        if (array_key_exists($enabledKey, $_POST) || array_key_exists('slideshow_enabled', $_POST)) {
+            $slideshow['enabled'] = !empty($_POST[$enabledKey]) || !empty($_POST['slideshow_enabled']);
+        }
+    } elseif (array_key_exists($enabledKey, $_POST)) {
+        $slideshow['enabled'] = !empty($_POST[$enabledKey]);
+    }
     $interval = (int) ($_POST[$prefix . '_interval'] ?? $_POST['slideshow_interval'] ?? $slideshow['interval_sec']);
     $slideshow['interval_sec'] = max(2, min(60, $interval));
 

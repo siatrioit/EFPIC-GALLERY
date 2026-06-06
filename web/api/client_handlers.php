@@ -908,6 +908,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body = '';
     if ($isPicTime) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
+        $body .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
         $body .= efpic_client_topbar($name, $right, 'topbar-floating');
     } else {
         $body .= efpic_client_topbar($name, $right);
@@ -922,7 +923,9 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         if ($sceneNav !== '') {
             $body .= $sceneNav;
         }
-        $body .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
+        if (!$isPicTime) {
+            $body .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
+        }
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
         $body .= '</main>';
     } else {
