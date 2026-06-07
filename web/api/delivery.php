@@ -138,7 +138,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
     efpic_save_gallery_meta($config, $slug, $meta);
 
-    $dimensionsBackfilled = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, 48, true);
+    $dimensionsBackfilled = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, EFPIC_DIMS_SYNC_BATCH, true);
 
     $warnings = [];
     if ($pairResult['orphans_full'] !== []) {

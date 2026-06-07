@@ -29,7 +29,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
     header('Content-Type: application/json; charset=utf-8');
-    efpic_render_run_maintenance($config);
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta === null) {
         echo json_encode(['ok' => false, 'error' => 'not_found'], JSON_UNESCAPED_UNICODE);
@@ -126,6 +125,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $qs .= '&share_created=1';
         } elseif (!empty($_POST['sync_now'])) {
             $qs .= '&saved=1&synced=1';
+        } elseif (!empty($_POST['backfill_dimensions'])) {
+            $qs .= '&saved=1&dims_backfill=1';
         } else {
             $qs .= '&saved=1';
         }
@@ -155,6 +156,22 @@ if (isset($_GET['saved'])) {
                 $dimStats = efpic_gallery_image_dimensions_stats($meta);
                 $flash .= ' Kopā meta.json: ' . $dimStats['with_dims'] . ' / ' . $dimStats['total'] . '.';
             }
+        }
+    }
+}
+if (isset($_GET['dims_backfill'])) {
+    efpic_admin_session_start();
+    if (isset($_SESSION['efpic_admin_backfill_dims']) && is_array($_SESSION['efpic_admin_backfill_dims'])) {
+        $info = $_SESSION['efpic_admin_backfill_dims'];
+        unset($_SESSION['efpic_admin_backfill_dims']);
+        $updated = (int) ($info['updated'] ?? 0);
+        $dimStats = is_array($info['stats'] ?? null) ? $info['stats'] : efpic_gallery_image_dimensions_stats($meta ?? []);
+        $flash = 'Izmēri ievākti: ' . $updated . ' bildēm. Kopā meta.json: '
+            . (int) ($dimStats['with_dims'] ?? 0) . ' / ' . (int) ($dimStats['total'] ?? 0) . '.';
+        if ((int) ($dimStats['missing'] ?? 0) > 0) {
+            $flash .= ' Palika ' . (int) $dimStats['missing'] . ' — nospied «Ievākt izmērus» vēlreiz.';
+        } else {
+            $flash .= ' Viss gatavs — atjauno galeriju (Ctrl+F5).';
         }
     }
 }

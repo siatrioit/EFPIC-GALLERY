@@ -5,6 +5,8 @@ declare(strict_types=1);
 const EFPIC_LAYOUT_ASPECT_MIN = 0.62;
 const EFPIC_LAYOUT_ASPECT_MAX = 2.45;
 const EFPIC_LAYOUT_ASPECT_DEFAULT = 1.5;
+const EFPIC_DIMS_BACKFILL_BATCH = 150;
+const EFPIC_DIMS_SYNC_BATCH = 96;
 
 function efpic_image_has_dimensions(array $img): bool
 {

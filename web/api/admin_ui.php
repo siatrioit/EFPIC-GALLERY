@@ -1162,6 +1162,22 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
     return $slug;
 }
 
+/** @return array{updated: int, stats: array{total: int, with_dims: int, missing: int}} */
+function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): array
+{
+    @set_time_limit(300);
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        return ['updated' => 0, 'stats' => ['total' => 0, 'with_dims' => 0, 'missing' => 0]];
+    }
+
+    $updated = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, EFPIC_DIMS_BACKFILL_BATCH, true);
+    $meta = efpic_load_gallery_meta($config, $slug);
+    $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
+
+    return ['updated' => $updated, 'stats' => $stats];
+}
+
 function efpic_admin_render_dimensions_debug_line(array $meta): string
 {
     $stats = efpic_gallery_image_dimensions_stats($meta);
@@ -1173,7 +1189,9 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
         . efpic_app_version_label()
         . ' · izmēri meta.json: <strong>' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
     if ($stats['missing'] > 0) {
-        $line .= ' — trūkst ' . $stats['missing'] . ' (sync ņem līdz 48/reizi no Failiem)';
+        $line .= ' — trūkst <strong>' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
+        $line .= ' · <button type="submit" class="btn admin-btn-sm" name="backfill_dimensions" value="1">'
+            . 'Ievākt izmērus (līdz ' . EFPIC_DIMS_BACKFILL_BATCH . '/reizi)</button>';
     } else {
         $line .= ' — viss OK';
     }

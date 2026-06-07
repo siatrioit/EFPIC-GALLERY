@@ -544,6 +544,17 @@
     item.style.display = 'none';
   }
 
+  function feedItemHasKnownAspect(img) {
+    if (!img) {
+      return false;
+    }
+    if (img.getAttribute('data-aspect')) {
+      return true;
+    }
+    var item = img.closest('.pic-feed-item');
+    return !!(item && item.getAttribute('data-aspect'));
+  }
+
   function readAspectRatio(img) {
     if (img) {
       var fromAttr = parseFloat(img.getAttribute('data-aspect'));
