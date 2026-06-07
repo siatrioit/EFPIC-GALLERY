@@ -165,6 +165,31 @@ function efpic_admin_color_field(string $name, string $label, string $value): st
         . '</span></label>';
 }
 
+
+function efpic_admin_render_theme_fieldset(array $config, array $formMeta): string
+{
+    $theme = efpic_normalize_gallery_theme((string) ($formMeta['theme'] ?? 'efpic-modern'));
+    if (!efpic_is_valid_gallery_theme($theme)) {
+        $theme = 'efpic-modern';
+    }
+    $heroAccent = efpic_client_hero_accent_color($formMeta);
+    $pageBg = efpic_client_page_bg_color($config, $formMeta);
+    $html = '<fieldset class="admin-fieldset-full"><legend>Tēma</legend>';
+    $html .= '<div class="admin-form-layout admin-form-layout--basic">';
+    $html .= '<label>Tēma<select name="theme">';
+    foreach (efpic_gallery_theme_options() as $k => $lbl) {
+        $sel = $k === $theme ? ' selected' : '';
+        $html .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
+    $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
+    $html .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
+    $html .= '</div></fieldset>';
+
+    return $html;
+}
+
 function efpic_admin_render_scenes_fieldset(array $meta): string
 {
     $scenes = efpic_gallery_scene_options($meta);
@@ -1222,6 +1247,7 @@ function efpic_admin_render_edit_tabs_nav(): string
 {
     $tabs = [
         ['id' => 'admin-tab-basic', 'label' => 'Pamati'],
+        ['id' => 'admin-tab-theme', 'label' => 'Tēma'],
         ['id' => 'admin-tab-failiem', 'label' => 'Failiem'],
         ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas'],
         ['id' => 'admin-tab-images', 'label' => 'Bildes'],
@@ -1344,21 +1370,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Galerijas parole (jauna)<input type="password" name="gallery_password" autocomplete="new-password"></label>';
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '<label>Klienta parole (jauna)<input type="password" name="client_password" autocomplete="new-password"></label>';
-    $theme = efpic_normalize_gallery_theme((string) ($formMeta['theme'] ?? 'efpic-modern'));
-    if (!efpic_is_valid_gallery_theme($theme)) {
-        $theme = 'efpic-modern';
-    }
-    $heroAccent = efpic_client_hero_accent_color($formMeta);
-    $pageBg = efpic_client_page_bg_color($config, $formMeta);
-    $body .= '<label>Tēma<select name="theme">';
-    foreach (efpic_gallery_theme_options() as $k => $lbl) {
-        $sel = $k === $theme ? ' selected' : '';
-        $body .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
-    }
-    $body .= '</select></label>';
-    $body .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
-    $body .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
-    $body .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
         $commentsOn = !empty($gallerySettings['client_comments_enabled']);
@@ -1372,7 +1383,12 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     if ($isEdit) {
         $body .= efpic_admin_tab_panel_close();
+        $body .= efpic_admin_tab_panel_open('admin-tab-theme');
+        $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
+        $body .= efpic_admin_tab_panel_close();
         $body .= efpic_admin_tab_panel_open('admin-tab-failiem');
+    } else {
+        $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
     }
 
     $body .= '<fieldset class="admin-fieldset-full"><legend>Failiem.lv mapes</legend>';

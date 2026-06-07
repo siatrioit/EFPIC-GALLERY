@@ -32,8 +32,8 @@ const cssBlock = `
   text-align: center;
   gap: clamp(28px, 5vh, 48px);
   padding: clamp(32px, 6vh, 56px) 24px clamp(40px, 8vh, 72px);
-  background: var(--page-bg, #111111);
-  color: var(--page-text, #f3f3f3);
+  background: var(--hero-accent);
+  color: var(--hero-text);
 }
 
 .gallery-intro--mood .gallery-intro-byline {

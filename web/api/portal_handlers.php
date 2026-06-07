@@ -336,6 +336,10 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_portal_render_scenes_panel($meta);
     $body .= efpic_admin_tab_panel_close();
 
+    $body .= efpic_admin_tab_panel_open('admin-tab-theme');
+    $body .= efpic_portal_render_theme_panel($theme, $heroAccent, $pageBg);
+    $body .= efpic_admin_tab_panel_close();
+
     $body .= efpic_admin_tab_panel_open('admin-tab-share');
     $body .= efpic_admin_render_share_sets($config, $meta);
     $body .= efpic_admin_tab_panel_close();
@@ -358,20 +362,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<input type="hidden" name="confirm_regenerate" value="1">';
     $body .= '<button type="submit" class="btn">Ģenerēt jaunu publisko saiti</button></form></section>';
 
-    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Izskats</h2>';
-    $body .= '<form method="post" class="admin-form-split portal-theme-form">';
-    $body .= '<input type="hidden" name="portal_action" value="set_theme"><label>Tēma<select name="theme" onchange="this.form.submit()">';
-    foreach (efpic_gallery_theme_options() as $themeKey => $themeLabel) {
-        $sel = $themeKey === $theme ? ' selected' : '';
-        $body .= '<option value="' . efpic_client_esc($themeKey) . '"' . $sel . '>' . efpic_client_esc($themeLabel) . '</option>';
-    }
-    $body .= '</select></label></form>';
-    $body .= '<form method="post" class="admin-color-form">';
-    $body .= '<input type="hidden" name="portal_action" value="save_gallery_colors">';
-    $body .= efpic_client_color_field('hero_accent_color', 'Vāka krāsa', $heroAccent);
-    $body .= efpic_client_color_field('page_bg_color', 'Galerijas pamatkrāsa', $pageBg);
-    $body .= '<button type="submit" class="btn primary">Saglabāt krāsas</button></form></section>';
-
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Lejupielādes publiskajā galerijā</h2>';
     $body .= '<p class="muted">Atzīmē, lai apmeklētājiem vairs nerādītos «lejupielādēt visas bildes» attiecīgajā izmērā. Izvēlētās bildes (izlase) joprojām var lejupielādēt, ja izmērs ir atļauts.</p>';
     $body .= '<form method="post" class="portal-stack">';
@@ -386,6 +376,25 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '</main></div></div>';
 
     efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta);
+}
+
+function efpic_portal_render_theme_panel(string $theme, string $heroAccent, string $pageBg): string
+{
+    $html = '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Tēma</h2>';
+    $html .= '<form method="post" class="admin-form-split portal-theme-form">';
+    $html .= '<input type="hidden" name="portal_action" value="set_theme"><label>Tēma<select name="theme" onchange="this.form.submit()">';
+    foreach (efpic_gallery_theme_options() as $themeKey => $themeLabel) {
+        $sel = $themeKey === $theme ? ' selected' : '';
+        $html .= '<option value="' . efpic_client_esc($themeKey) . '"' . $sel . '>' . efpic_client_esc($themeLabel) . '</option>';
+    }
+    $html .= '</select></label></form>';
+    $html .= '<form method="post" class="admin-color-form">';
+    $html .= '<input type="hidden" name="portal_action" value="save_gallery_colors">';
+    $html .= efpic_client_color_field('hero_accent_color', 'Vāka krāsa', $heroAccent);
+    $html .= efpic_client_color_field('page_bg_color', 'Galerijas pamatkrāsa', $pageBg);
+    $html .= '<button type="submit" class="btn primary">Saglabāt krāsas</button></form></section>';
+
+    return $html;
 }
 
 function efpic_portal_render_image_grid(array $config, array $images, bool $commentsEnabled): string
@@ -587,6 +596,7 @@ function efpic_portal_render_sidebar(string $name, array $config, string $galler
     $nav = [
         ['id' => 'admin-tab-images', 'label' => 'Bildes'],
         ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas'],
+        ['id' => 'admin-tab-theme', 'label' => 'Tēma'],
         ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
         ['id' => 'admin-tab-media', 'label' => 'Slideshow & video'],
     ];
