@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/gallery_access.php';
+require_once __DIR__ . '/image_dimensions.php';
 require_once __DIR__ . '/failiem_client.php';
 require_once __DIR__ . '/zip_build.php';
 require_once __DIR__ . '/gallery_assets.php';
@@ -476,12 +477,41 @@ function efpic_client_render_collection_tray(string $galleryUrl, int $count, arr
     return $html;
 }
 
+function efpic_client_pic_feed_dimension_attrs(array $img): string
+{
+    $dims = efpic_image_dimensions($img);
+    if ($dims === null) {
+        return '';
+    }
+
+    $w = $dims['width'];
+    $h = $dims['height'];
+    $aspect = efpic_format_layout_aspect($w / $h);
+
+    return ' width="' . $w . '" height="' . $h . '"'
+        . ' data-aspect="' . efpic_client_esc($aspect) . '"'
+        . ' style="aspect-ratio: ' . $w . ' / ' . $h . '"';
+}
+
+function efpic_client_pic_feed_item_aspect_attr(array $img): string
+{
+    $dims = efpic_image_dimensions($img);
+    if ($dims === null) {
+        return '';
+    }
+
+    return ' data-aspect="' . efpic_client_esc(
+        efpic_format_layout_aspect($dims['width'] / $dims['height'])
+    ) . '"';
+}
+
 function efpic_client_render_pic_feed_img(array $config, array $img, array $ctx = []): string
 {
     $imgUrl = efpic_client_media_url($config, $img, 'web', 960, $ctx);
 
-    return '<img class="pic-feed-img pic-feed-img--deferred" data-src="' . efpic_client_esc($imgUrl)
-        . '" alt="" decoding="async">';
+    return '<img class="pic-feed-img pic-feed-img--deferred" data-src="' . efpic_client_esc($imgUrl) . '"'
+        . efpic_client_pic_feed_dimension_attrs($img)
+        . ' alt="" decoding="async">';
 }
 
 function efpic_client_render_pic_feed_items(array $config, array $images, array $gridCtx, array $ctx = [], array $meta = []): string
@@ -501,7 +531,8 @@ function efpic_client_render_pic_feed_items(array $config, array $images, array 
             continue;
         }
         $pageUrl = efpic_image_view_url($config, $tok, $guestQ);
-        $html .= '<div class="pic-feed-item" id="pic-' . efpic_client_esc($tok) . '" data-token="' . efpic_client_esc($tok) . '">';
+        $html .= '<div class="pic-feed-item" id="pic-' . efpic_client_esc($tok) . '" data-token="' . efpic_client_esc($tok) . '"'
+            . efpic_client_pic_feed_item_aspect_attr($img) . '>';
         $html .= '<a class="pic-feed-link" href="' . efpic_client_esc($pageUrl) . '">';
         $html .= efpic_client_render_pic_feed_img($config, $img, $ctx) . '</a>';
         $html .= efpic_client_render_image_grid_actions($gridCtx, $img);
@@ -1008,9 +1039,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     unset($_SESSION['efpic_single_entry']);
     efpic_record_gallery_view($config, $slug, $meta);
 
+    $theme = efpic_client_effective_theme($meta);
+    if (efpic_uses_mosaic_feed_theme($theme)) {
+        efpic_gallery_backfill_image_dimensions($config, $slug, $meta, 48, false);
+    }
+
     $ctx = efpic_viewer_context($config, $meta);
     $images = efpic_client_navigable_images($meta, $ctx);
-    $theme = efpic_client_effective_theme($meta);
     $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
     $gridCtx = efpic_client_build_grid_context($config, $galleryToken);
     $collectionCount = count($gridCtx['collection']);

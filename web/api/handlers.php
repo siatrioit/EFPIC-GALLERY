@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/gallery_access.php';
+require_once __DIR__ . '/image_dimensions.php';
 require_once __DIR__ . '/delivery.php';
 
 function efpic_handle_health(array $config): void
@@ -118,12 +119,18 @@ function efpic_handle_upload_image(array $config, string $slug): void
     if (!is_array($images)) {
         $images = [];
     }
-    $images[] = [
+    $entry = [
         'token' => $token,
         'file' => $safeName,
         'sort' => count($images) + 1,
         'scene_id' => 'main',
     ];
+    $dims = efpic_probe_image_dimensions_from_path($dest);
+    if ($dims !== null) {
+        $entry['width'] = $dims['width'];
+        $entry['height'] = $dims['height'];
+    }
+    $images[] = $entry;
     $meta['images'] = $images;
     efpic_save_gallery_meta($config, $slug, $meta);
 

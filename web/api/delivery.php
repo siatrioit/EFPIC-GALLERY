@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/failiem_client.php';
+require_once __DIR__ . '/image_dimensions.php';
 
 /**
  * Sinhronizē delivery galeriju no divām Failiem mapēm.
@@ -64,7 +65,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             $token = efpic_random_hex(24);
         }
 
-        $newImages[] = [
+        $entry = [
             'token' => $token,
             'sort' => is_array($prev) && !empty($prev['sort_manual']) ? (int) ($prev['sort'] ?? 0) : 0,
             'sort_manual' => is_array($prev) ? !empty($prev['sort_manual']) : false,
@@ -90,6 +91,15 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             'likes_count' => is_array($prev) ? (int) ($prev['likes_count'] ?? 0) : 0,
             'like_voters' => is_array($prev) && is_array($prev['like_voters'] ?? null) ? $prev['like_voters'] : [],
         ];
+        if (is_array($prev)) {
+            $prevW = (int) ($prev['width'] ?? 0);
+            $prevH = (int) ($prev['height'] ?? 0);
+            if ($prevW > 0 && $prevH > 0) {
+                $entry['width'] = $prevW;
+                $entry['height'] = $prevH;
+            }
+        }
+        $newImages[] = $entry;
     }
 
     $meta['images'] = $newImages;
@@ -127,6 +137,8 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
 
     efpic_save_gallery_meta($config, $slug, $meta);
+
+    efpic_gallery_backfill_image_dimensions($config, $slug, $meta, 48, true);
 
     $warnings = [];
     if ($pairResult['orphans_full'] !== []) {

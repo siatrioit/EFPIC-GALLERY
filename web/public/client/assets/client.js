@@ -545,19 +545,37 @@
   }
 
   function readAspectRatio(img) {
-    var w = img && img.naturalWidth ? img.naturalWidth : 0;
-    var h = img && img.naturalHeight ? img.naturalHeight : 0;
-    if (w > 0 && h > 0) {
-      return clampLayoutAspect(w / h);
+    if (img) {
+      var fromAttr = parseFloat(img.getAttribute('data-aspect'));
+      if (!(fromAttr > 0) || !isFinite(fromAttr)) {
+        var item = img.closest('.pic-feed-item');
+        if (item) {
+          fromAttr = parseFloat(item.getAttribute('data-aspect'));
+        }
+      }
+      if (fromAttr > 0 && isFinite(fromAttr)) {
+        return clampLayoutAspect(fromAttr);
+      }
+      var w = img.naturalWidth ? img.naturalWidth : 0;
+      var h = img.naturalHeight ? img.naturalHeight : 0;
+      if (w > 0 && h > 0) {
+        return clampLayoutAspect(w / h);
+      }
     }
     return LAYOUT_ASPECT_DEFAULT;
   }
 
   function measureFeedItemHeight(item, img, itemWidth, aspect) {
+    var estimated = itemWidth / aspect;
+    var hasKnownAspect = !!(img && img.getAttribute('data-aspect'))
+      || !!(item && item.getAttribute('data-aspect'));
+    if (hasKnownAspect) {
+      return estimated;
+    }
     if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
       return itemWidth * (img.naturalHeight / img.naturalWidth);
     }
-    return itemWidth / aspect;
+    return estimated;
   }
 
   /** Cik kolonnu platuma bilde aiz┼åem (1ŌĆō3), mosaic layout. Span tikai kad zin─ümi patiesie izm─ōri. */
@@ -565,7 +583,9 @@
     if (columns <= 1) {
       return 1;
     }
-    if (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img)) {
+    var hasKnownAspect = !!(img && img.getAttribute('data-aspect'))
+      || !!(img && img.closest('.pic-feed-item') && img.closest('.pic-feed-item').getAttribute('data-aspect'));
+    if (!hasKnownAspect && (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img))) {
       return 1;
     }
     if (aspect < 1.12) {

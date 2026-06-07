@@ -761,9 +761,17 @@ input[type="password"] {
   vertical-align: middle;
 }
 
-.pic-feed-img--deferred:not([src]) {
+.pic-feed-img--deferred:not([src]):not([data-aspect]) {
   min-height: clamp(120px, 28vw, 220px);
   background: rgba(0, 0, 0, 0.05);
+}
+
+.pic-feed-img--deferred:not([src])[data-aspect] {
+  display: block;
+  width: 100%;
+  min-height: 0;
+  height: auto;
+  background: rgba(0, 0, 0, 0.04);
 }
 
 /* Classic: vien─üds rindas augstums, pilna platuma re┼Š─Żis (2ŌåÆ3ŌåÆ4 kolonnas) */
