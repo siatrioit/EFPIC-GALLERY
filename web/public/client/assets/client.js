@@ -611,12 +611,12 @@
   }
 
   /** Cik kolonnu platuma bilde aiz┼åem (1ŌĆō3), mosaic layout. Span tikai kad zin─ümi patiesie izm─ōri. */
-  /** Mood / Forest: konservatīvs span (gandrīz viss 1 kol.). */
-  function pickColumnSpanStandard(aspect, index, columns, img) {
+  function pickColumnSpan(aspect, index, columns, img) {
     if (columns <= 1) {
       return 1;
     }
-    var hasKnownAspect = feedItemHasKnownAspect(img);
+    var hasKnownAspect = !!(img && img.getAttribute('data-aspect'))
+      || !!(img && img.closest('.pic-feed-item') && img.closest('.pic-feed-item').getAttribute('data-aspect'));
     if (!hasKnownAspect && (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img))) {
       return 1;
     }
@@ -630,60 +630,6 @@
       return Math.min(2, columns);
     }
     return 1;
-  }
-
-  function findMosaicPlacement(span, colHeights, columns) {
-    var bestCol = 0;
-    var bestTop = Infinity;
-    var startCol;
-    for (startCol = 0; startCol <= columns - span; startCol++) {
-      var top = 0;
-      var s;
-      for (s = 0; s < span; s++) {
-        if (colHeights[startCol + s] > top) {
-          top = colHeights[startCol + s];
-        }
-      }
-      if (top < bestTop) {
-        bestTop = top;
-        bestCol = startCol;
-      }
-    }
-    return { col: bestCol, top: bestTop };
-  }
-
-  /** Modern: reti lielas “hero” bildes; nekad divas blakus vienā rindā. */
-  function pickColumnSpanModern(aspect, index, columns, img, layout) {
-    layout = layout || {};
-    if (columns <= 1 || layout.wideBlocked || (layout.cooldown > 0)) {
-      return 1;
-    }
-    var hasKnownAspect = feedItemHasKnownAspect(img);
-    if (!hasKnownAspect && (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img))) {
-      return 1;
-    }
-    if (aspect < 1.3) {
-      return 1;
-    }
-
-    var slot = index % 10;
-    if (slot !== 4 && slot !== 7) {
-      return 1;
-    }
-    if (columns >= 4 && aspect >= 2.5 && slot === 7) {
-      return 3;
-    }
-    if (aspect >= 1.5) {
-      return Math.min(2, columns);
-    }
-    return 1;
-  }
-
-  function pickColumnSpan(aspect, index, columns, img, layout) {
-    if (getGalleryThemeSlug() === 'efpic-modern') {
-      return pickColumnSpanModern(aspect, index, columns, img, layout);
-    }
-    return pickColumnSpanStandard(aspect, index, columns, img);
   }
 
   function resetMasonryItem(item) {
@@ -721,9 +667,6 @@
       colHeights.push(0);
     }
 
-    var modernLayout = { cooldown: 0, bandTop: null, wideInBand: 0 };
-    var modernHeroMaxH = Math.round((window.innerHeight || 800) * 0.44);
-
     items.forEach(function (item, index) {
       var img = item.querySelector('img');
       if (isBrokenFeedImage(img)) {
@@ -732,34 +675,23 @@
       }
 
       var aspect = readAspectRatio(img);
-      var isModernTheme = getGalleryThemeSlug() === 'efpic-modern';
-      if (isModernTheme && modernLayout.cooldown > 0) {
-        modernLayout.cooldown--;
-      }
-
-      var layoutHints = isModernTheme
-        ? {
-            cooldown: modernLayout.cooldown,
-            wideBlocked: modernLayout.wideInBand > 0
-          }
-        : null;
-      var span = pickColumnSpan(aspect, index, columns, img, layoutHints);
-      var placement = findMosaicPlacement(span, colHeights, columns);
-      var bestCol = placement.col;
-      var bestTop = placement.top;
+      var span = pickColumnSpan(aspect, index, columns, img);
       var itemWidth = span * colWidth + gap * (span - 1);
 
-      if (isModernTheme && span >= 2) {
-        if (
-          modernLayout.bandTop !== null &&
-          Math.abs(bestTop - modernLayout.bandTop) <= 1 &&
-          modernLayout.wideInBand > 0
-        ) {
-          span = 1;
-          itemWidth = colWidth;
-          placement = findMosaicPlacement(span, colHeights, columns);
-          bestCol = placement.col;
-          bestTop = placement.top;
+      var bestCol = 0;
+      var bestTop = Infinity;
+      var startCol;
+      for (startCol = 0; startCol <= columns - span; startCol++) {
+        var top = 0;
+        var s;
+        for (s = 0; s < span; s++) {
+          if (colHeights[startCol + s] > top) {
+            top = colHeights[startCol + s];
+          }
+        }
+        if (top < bestTop) {
+          bestTop = top;
+          bestCol = startCol;
         }
       }
 
@@ -775,59 +707,19 @@
         aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square'
       );
       item.setAttribute('data-span', String(span));
-      if (isModernTheme) {
-        item.setAttribute('data-size', span >= 2 ? 'lg' : 'md');
-      } else {
-        item.removeAttribute('data-size');
-      }
-
-      var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
-      var heroCover = false;
-      if (isModernTheme && span >= 2 && itemHeight > modernHeroMaxH) {
-        itemHeight = modernHeroMaxH;
-        heroCover = true;
-      }
 
       if (img) {
         img.style.width = '100%';
+        img.style.height = 'auto';
+        img.style.objectFit = '';
         img.style.display = 'block';
-        if (heroCover) {
-          img.style.height = '100%';
-          img.style.objectFit = 'cover';
-        } else {
-          img.style.height = 'auto';
-          img.style.objectFit = '';
-        }
       }
 
-      if (img) {
-        if (isImageLoaded(img)) {
-          item.classList.remove('pic-feed-item--loading');
-        } else {
-          item.classList.add('pic-feed-item--loading');
-        }
-      }
-
-      if (!heroCover) {
-        itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
-      }
+      var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
       item.style.height = Math.max(1, Math.round(itemHeight)) + 'px';
-
       var newBottom = bestTop + itemHeight + gap;
       for (s = 0; s < span; s++) {
         colHeights[bestCol + s] = newBottom;
-      }
-
-      if (isModernTheme && span >= 2) {
-        if (modernLayout.bandTop === null || Math.abs(bestTop - modernLayout.bandTop) > gap) {
-          modernLayout.bandTop = bestTop;
-          modernLayout.wideInBand = 0;
-        }
-        modernLayout.wideInBand++;
-        modernLayout.cooldown = 9;
-      } else if (isModernTheme && modernLayout.bandTop !== null && bestTop > modernLayout.bandTop + gap) {
-        modernLayout.bandTop = null;
-        modernLayout.wideInBand = 0;
       }
     });
 
