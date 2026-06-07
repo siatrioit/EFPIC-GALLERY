@@ -19,6 +19,7 @@ function efpic_slideshow_render_field_defaults(): array
         'render_job_id' => '',
         'render_error' => '',
         'render_updated_at' => '',
+        'render_fingerprint' => '',
     ];
 }
 
@@ -712,6 +713,7 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
     $slot['render_job_id'] = (string) ($job['id'] ?? '');
     $slot['render_error'] = '';
     $slot['render_updated_at'] = gmdate('c');
+    $slot['render_fingerprint'] = efpic_slideshow_render_config_fingerprint($slot);
     $slots[$owner] = $slot;
     $meta['slideshow'] = $slots;
     efpic_save_gallery_meta($config, $slug, $meta);

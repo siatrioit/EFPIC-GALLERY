@@ -509,6 +509,7 @@ function efpic_portal_render_favorites_and_slideshow(
     $html .= '<label>Intro virsraksts<input type="text" name="slideshow_client_intro_title" maxlength="120" value="'
         . efpic_client_esc($clientSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
     $html .= '<p class="muted">Intro video: lielie burti. «+» starp vārdiem — jauna rinda.</p>';
+    $html .= efpic_admin_render_slideshow_section_settings($meta, $clientSlot, 'client');
     $html .= '<label>Fona krāsa<select name="slideshow_client_bg_mode">';
     $html .= '<option value="white"' . ($clientSlot['bg_mode'] === 'white' ? ' selected' : '') . '>Balts</option>';
     $html .= '<option value="gallery"' . ($clientSlot['bg_mode'] === 'gallery' ? ' selected' : '') . '>Galerijas fons</option>';
@@ -518,6 +519,9 @@ function efpic_portal_render_favorites_and_slideshow(
         . efpic_client_esc($renderStatus) . '">' . efpic_client_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
     if ($renderStatus === 'failed' && ($clientSlot['render_error'] ?? '') !== '') {
         $html .= '<p class="admin-warn">' . efpic_client_esc((string) $clientSlot['render_error']) . '</p>';
+    }
+    if (efpic_slideshow_video_is_stale($clientSlot)) {
+        $html .= '<p class="admin-warn">Iestatījumi mainīti kopš pēdējā MP4 — ģenerē video no jauna.</p>';
     }
     if (($clientSlot['video_file'] ?? '') !== '') {
         $videoFile = (string) $clientSlot['video_file'];

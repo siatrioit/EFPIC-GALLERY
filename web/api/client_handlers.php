@@ -625,6 +625,7 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
             $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
             $html .= '</section>';
         }
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'after_scene', $sid);
     }
 
     if ($html === '') {
@@ -633,6 +634,8 @@ function efpic_client_render_pic_time_scenes(array $config, array $meta, array $
         $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx);
         $html .= '</div>';
     }
+
+    $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'bottom');
 
     return $html;
 }
@@ -772,8 +775,13 @@ function efpic_client_render_slideshow_overlay(array $config, array $meta, array
     return $html;
 }
 
-function efpic_client_render_public_slideshow_video_inline(array $config, array $meta, array $ctx): string
-{
+function efpic_client_render_public_slideshow_video_inline(
+    array $config,
+    array $meta,
+    array $ctx,
+    string $placement = 'top',
+    string $afterSceneId = '',
+): string {
     $sections = efpic_collect_public_slideshow_video_sections($meta, $ctx, $config);
     if ($sections === []) {
         return '';
@@ -784,11 +792,18 @@ function efpic_client_render_public_slideshow_video_inline(array $config, array 
 
     $html = '';
     foreach ($sections as $section) {
+        $sectionPlacement = (string) ($section['placement'] ?? 'top');
+        if ($sectionPlacement !== $placement) {
+            continue;
+        }
+        if ($placement === 'after_scene' && (string) ($section['after_scene'] ?? '') !== $afterSceneId) {
+            continue;
+        }
         $slideshow = $section['slideshow'];
         $videoUrl = efpic_gallery_asset_url($config, $gt, (string) $slideshow['video_file'], $guestQ);
         $title = (string) $section['title'];
         $owner = (string) $section['owner'];
-        $html .= '<section class="gallery-slideshow-section gallery-slideshow-video" data-slideshow-owner="'
+        $html .= '<section id="slideshow-' . efpic_client_esc($owner) . '" class="gallery-slideshow-section gallery-slideshow-video" data-slideshow-owner="'
             . efpic_client_esc($owner) . '" aria-label="' . efpic_client_esc($title) . '">';
         $html .= '<h2 class="gallery-slideshow-section__title gallery-slideshow-video__title">'
             . efpic_client_esc($title) . '</h2>';
@@ -865,7 +880,10 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
             $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
         }
         $html .= '</section>';
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'after_scene', $sid);
     }
+
+    $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'bottom');
 
     return $html;
 }
@@ -926,7 +944,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     $isPicTime = $theme === 'pic-time';
     $usesSceneMain = efpic_is_delivery_gallery($meta) || in_array($theme, ['masonry', 'dark', 'pic-time'], true);
-    $slideshowHtml = efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx);
+    $slideshowTopHtml = efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'top');
     $headExtra = '';
     foreach (efpic_collect_public_slideshow_video_sections($meta, $ctx, $config) as $section) {
         $videoFile = trim((string) ($section['slideshow']['video_file'] ?? ''));
@@ -944,13 +962,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body = '';
     if ($isPicTime) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
-        $body .= $slideshowHtml;
+        $body .= $slideshowTopHtml;
         $body .= efpic_client_topbar($name, $right, 'topbar-floating');
     } else {
         $body .= efpic_client_topbar($name, $right);
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
         if (!$usesSceneMain) {
-            $body .= $slideshowHtml;
+            $body .= $slideshowTopHtml;
         }
     }
 
@@ -963,7 +981,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             $body .= $sceneNav;
         }
         if (!$isPicTime) {
-            $body .= $slideshowHtml;
+            $body .= $slideshowTopHtml;
         }
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
         $body .= '</main>';

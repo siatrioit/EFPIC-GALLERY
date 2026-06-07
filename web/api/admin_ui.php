@@ -450,6 +450,50 @@ function efpic_slideshow_form_prefix(string $owner): string
     return $owner === 'client' ? 'slideshow_client' : 'slideshow_admin';
 }
 
+function efpic_admin_render_slideshow_section_settings(array $meta, array $slot, string $owner = 'admin'): string
+{
+    $prefix = efpic_slideshow_form_prefix($owner);
+    $esc = $owner === 'client' ? 'efpic_client_esc' : 'efpic_admin_esc';
+    $placement = (string) ($slot['section_placement'] ?? 'top');
+    if (!in_array($placement, ['top', 'bottom', 'after_scene'], true)) {
+        $placement = 'top';
+    }
+    $afterScene = (string) ($slot['section_after_scene'] ?? '');
+    $order = (int) ($slot['section_order'] ?? 0);
+    if ($order <= 0) {
+        $order = $owner === 'client' ? 20 : 10;
+    }
+
+    $html = '<div class="admin-slideshow-section-settings">';
+    $html .= '<h4 class="admin-slideshow-order__title">Publiskā galerija</h4>';
+    $html .= '<label>Sadaļas virsraksts<input type="text" name="' . $esc($prefix . '_section_title') . '" maxlength="80" value="'
+        . $esc((string) ($slot['section_title'] ?? '')) . '" placeholder="'
+        . ($owner === 'client' ? 'Klienta slideshow' : 'Slideshow') . '"></label>';
+    $html .= '<p class="muted">Atsevišķs nosaukums publiskajā lapā (nav tas pats, kas intro video virsraksts).</p>';
+    $html .= '<label>Sadaļas vieta<select name="' . $esc($prefix . '_section_placement') . '">';
+    $html .= '<option value="top"' . ($placement === 'top' ? ' selected' : '') . '>Galerijas augšā (pirms sadaļām)</option>';
+    $html .= '<option value="after_scene"' . ($placement === 'after_scene' ? ' selected' : '') . '>Pēc konkrētas sadaļas</option>';
+    $html .= '<option value="bottom"' . ($placement === 'bottom' ? ' selected' : '') . '>Galerijas apakšā</option>';
+    $html .= '</select></label>';
+    $html .= '<label>Pēc sadaļas<select name="' . $esc($prefix . '_section_after_scene') . '">';
+    $html .= '<option value="">— izvēlies —</option>';
+    foreach (efpic_gallery_scene_options($meta) as $scene) {
+        $sid = (string) ($scene['id'] ?? '');
+        if ($sid === '') {
+            continue;
+        }
+        $html .= '<option value="' . $esc($sid) . '"' . ($afterScene === $sid ? ' selected' : '') . '>'
+            . $esc((string) ($scene['title'] ?? $sid)) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= '<label>Slideshow secība (mazāks = augstāk)<input type="number" name="' . $esc($prefix . '_section_order') . '" min="0" max="999" value="'
+        . $order . '"></label>';
+    $html .= '<p class="muted">Ja ir vairākas slideshow, secību nosaka šis skaitlis (fotogrāfs parasti 10, klients 20).</p>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_admin_render_slideshow_image_order_list(array $config, array $meta, array $slot, string $owner = 'admin'): string
 {
     $prefix = efpic_slideshow_form_prefix($owner);
@@ -568,6 +612,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<label>Intro virsraksts<input type="text" name="slideshow_admin_intro_title" maxlength="120" value="'
         . efpic_admin_esc($adminSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
     $html .= '<p class="muted">Intro video: lielie burti, treknraksts. «+» starp vārdiem — jauna rinda (piem. Rihards + Annika).</p>';
+    $html .= efpic_admin_render_slideshow_section_settings($meta, $adminSlot);
     $html .= '<label>Fona krāsa<select name="slideshow_admin_bg_mode">';
     $html .= '<option value="white"' . ($adminSlot['bg_mode'] === 'white' ? ' selected' : '') . '>Balts</option>';
     $html .= '<option value="gallery"' . ($adminSlot['bg_mode'] === 'gallery' ? ' selected' : '') . '>Galerijas fons</option>';
@@ -580,6 +625,9 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
         . efpic_admin_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
     if ($renderStatus === 'failed' && ($adminSlot['render_error'] ?? '') !== '') {
         $html .= '<p class="admin-warn">' . efpic_admin_esc((string) $adminSlot['render_error']) . '</p>';
+    }
+    if (efpic_slideshow_video_is_stale($adminSlot)) {
+        $html .= '<p class="admin-warn">Iestatījumi mainīti kopš pēdējā MP4 — ģenerē video no jauna, lai atspoguļotu izmaiņas.</p>';
     }
     if (($adminSlot['video_file'] ?? '') !== '') {
         $videoFile = (string) $adminSlot['video_file'];
