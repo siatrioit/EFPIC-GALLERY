@@ -223,3 +223,25 @@ function efpic_gallery_backfill_image_dimensions(array $config, string $slug, ar
 
     return $updated;
 }
+
+/** @return array{total: int, with_dims: int, missing: int} */
+function efpic_gallery_image_dimensions_stats(array $meta): array
+{
+    $total = 0;
+    $withDims = 0;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $total++;
+        if (efpic_image_has_dimensions($img)) {
+            $withDims++;
+        }
+    }
+
+    return [
+        'total' => $total,
+        'with_dims' => $withDims,
+        'missing' => max(0, $total - $withDims),
+    ];
+}

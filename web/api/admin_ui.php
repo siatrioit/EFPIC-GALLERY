@@ -1141,7 +1141,9 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
     }
 
     if (!empty($_POST['sync_now'])) {
-        efpic_sync_delivery_gallery($config, $slug);
+        $syncResult = efpic_sync_delivery_gallery($config, $slug);
+        efpic_admin_session_start();
+        $_SESSION['efpic_admin_sync_dims'] = (int) ($syncResult['dimensions_backfilled'] ?? 0);
     }
 
     if (!empty($_POST['image_order_dirty']) && !empty($_POST['image_order']) && is_string($_POST['image_order'])) {
@@ -1158,6 +1160,26 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
     }
 
     return $slug;
+}
+
+function efpic_admin_render_dimensions_debug_line(array $meta): string
+{
+    $stats = efpic_gallery_image_dimensions_stats($meta);
+    if ($stats['total'] <= 0) {
+        return '';
+    }
+
+    $line = '<p class="muted admin-dims-debug"><strong>Diag (pagaidu):</strong> '
+        . efpic_app_version_label()
+        . ' · izmēri meta.json: <strong>' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
+    if ($stats['missing'] > 0) {
+        $line .= ' — trūkst ' . $stats['missing'] . ' (sync ņem līdz 48/reizi no Failiem)';
+    } else {
+        $line .= ' — viss OK';
+    }
+    $line .= ' · publiski pārbaudi lapas avotā: <code>data-aspect</code></p>';
+
+    return $line;
 }
 
 function efpic_admin_media_thumb_url(array $config, array $img): string
@@ -1281,6 +1303,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             }
             $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
         }
+        $body .= efpic_admin_render_dimensions_debug_line($meta);
         $body .= '</div>';
     }
 

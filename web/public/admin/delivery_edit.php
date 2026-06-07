@@ -145,6 +145,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 $flash = null;
 if (isset($_GET['saved'])) {
     $flash = !empty($_GET['synced']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';
+    if (!empty($_GET['synced'])) {
+        efpic_admin_session_start();
+        if (isset($_SESSION['efpic_admin_sync_dims'])) {
+            $dimsN = (int) $_SESSION['efpic_admin_sync_dims'];
+            unset($_SESSION['efpic_admin_sync_dims']);
+            $flash .= ' Izmēri ievākti šajā sync: ' . $dimsN . ' bildēm.';
+            if ($meta !== null) {
+                $dimStats = efpic_gallery_image_dimensions_stats($meta);
+                $flash .= ' Kopā meta.json: ' . $dimStats['with_dims'] . ' / ' . $dimStats['total'] . '.';
+            }
+        }
+    }
 }
 if (isset($_GET['video_queued'])) {
     $flash = 'Saglabāts. Slideshow video ģenerēšana ievietota rindā — vari droši atjaunot lapu, lai pārbaudītu statusu.';
