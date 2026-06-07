@@ -505,6 +505,20 @@
   var LAYOUT_ASPECT_MIN = 0.62;
   var LAYOUT_ASPECT_MAX = 2.45;
   var LAYOUT_ASPECT_DEFAULT = 1.5;
+  var PLACEHOLDER_DEFAULT_ASPECT = 1.08;
+  var PLACEHOLDER_MAX_HEIGHT_RATIO = 1.22;
+  var PLACEHOLDER_MIN_HEIGHT_RATIO = 0.68;
+
+  function isImageLoaded(img) {
+    return !!(img && !isDeferredFeedImage(img) && img.complete && img.naturalWidth > 0);
+  }
+
+  function clampPlaceholderHeight(itemWidth, aspect) {
+    var height = itemWidth / aspect;
+    var maxH = itemWidth * PLACEHOLDER_MAX_HEIGHT_RATIO;
+    var minH = itemWidth * PLACEHOLDER_MIN_HEIGHT_RATIO;
+    return Math.min(maxH, Math.max(minH, height));
+  }
 
   function collectFeedItems(container) {
     return Array.prototype.slice.call(
@@ -550,14 +564,14 @@
     if (w > 0 && h > 0) {
       return clampLayoutAspect(w / h);
     }
-    return LAYOUT_ASPECT_DEFAULT;
+    return PLACEHOLDER_DEFAULT_ASPECT;
   }
 
   function measureFeedItemHeight(item, img, itemWidth, aspect) {
     if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
       return itemWidth * (img.naturalHeight / img.naturalWidth);
     }
-    return itemWidth / aspect;
+    return clampPlaceholderHeight(itemWidth, aspect);
   }
 
   /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. Span tikai kad zināmi patiesie izmēri. */
@@ -665,6 +679,9 @@
       }
 
       var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
+      if (img) {
+        item.classList.toggle('pic-feed-item--loading', !isImageLoaded(img));
+      }
       var newBottom = bestTop + itemHeight + gap;
       for (s = 0; s < span; s++) {
         colHeights[bestCol + s] = newBottom;
@@ -715,8 +732,11 @@
     function doneImg() {
       if (isBrokenFeedImage(img)) {
         markBrokenFeedItem(item);
+      } else if (item) {
+        item.classList.remove('pic-feed-item--loading');
       }
       scheduleMosaicRelayout();
+      requestAnimationFrame(scheduleMosaicRelayout);
     }
     if (img.complete && img.naturalWidth > 0) {
       doneImg();
@@ -737,6 +757,16 @@
     bindFeedImageLoad(img);
   }
 
+  function activateDeferredImagesNearViewport() {
+    var viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
+    document.querySelectorAll('.pic-feed-item img[data-src]').forEach(function (img) {
+      var rect = img.getBoundingClientRect();
+      if (rect.bottom >= -600 && rect.top <= viewportH + 600) {
+        activateDeferredFeedImage(img);
+      }
+    });
+  }
+
   function initDeferredFeedImages() {
     var imgs = Array.prototype.slice.call(
       document.querySelectorAll('.pic-feed-item img[data-src]')
@@ -745,7 +775,9 @@
       return;
     }
 
-    var eagerLimit = 4;
+    activateDeferredImagesNearViewport();
+
+    var eagerLimit = 16;
     imgs.forEach(function (img, index) {
       if (index < eagerLimit) {
         activateDeferredFeedImage(img);

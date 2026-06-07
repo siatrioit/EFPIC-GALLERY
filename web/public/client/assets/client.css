@@ -762,8 +762,18 @@ input[type="password"] {
 }
 
 .pic-feed-img--deferred:not([src]) {
-  min-height: clamp(120px, 28vw, 220px);
-  background: rgba(0, 0, 0, 0.05);
+  display: block;
+  width: 100%;
+  aspect-ratio: 1 / 1.08;
+  max-height: min(42vw, 280px);
+  min-height: 0;
+  height: auto;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.pic-feed-item--loading .pic-feed-img:not([src]),
+.pic-feed-item--loading .pic-feed-img[src=""] {
+  background: rgba(0, 0, 0, 0.06);
 }
 
 /* Classic: vienāds rindas augstums, pilna platuma režģis (2→3→4 kolonnas) */
