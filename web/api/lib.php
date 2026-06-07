@@ -45,6 +45,26 @@ function efpic_app_version_label(): string
     return 'v' . efpic_app_version();
 }
 
+function efpic_asset_url(string $path, ?string $base = null): string
+{
+    $path = '/' . ltrim($path, '/');
+    $query = 'v=' . rawurlencode(efpic_app_version());
+    if ($base === null || $base === '') {
+        return $path . '?' . $query;
+    }
+
+    return rtrim($base, '/') . $path . '?' . $query;
+}
+
+function efpic_stream_versioned_public_asset(string $filesystemPath, string $contentType): void
+{
+    header('Content-Type: ' . $contentType . '; charset=utf-8');
+    header('Cache-Control: public, max-age=31536000, immutable');
+    header('ETag: W/"efpic-' . efpic_app_version() . '"');
+    readfile($filesystemPath);
+    exit;
+}
+
 /** Stream a local file with HTTP Range support (required for HTML5 video/audio). */
 function efpic_stream_local_file(string $path, string $contentType): void
 {
@@ -196,10 +216,10 @@ function efpic_sanitize_gallery_feed_gap(mixed $value, int $fallback = 16): int
 function efpic_gallery_theme_options(): array
 {
     return [
-        'efpic-modern' => 'Modern',
-        'efpic-mood' => 'Mood',
-        'efpic-forest' => 'Forest',
-        'efpic-classic' => 'Classic',
+        'pic-time' => 'EdgarsFoto (moderns)',
+        'classic' => 'EdgarsFoto (klasisks)',
+        'masonry' => 'EdgarsFoto (masonry)',
+        'dark' => 'EdgarsFoto (tumšs)',
     ];
 }
 
@@ -208,74 +228,27 @@ function efpic_is_valid_gallery_theme(string $theme): bool
     return array_key_exists($theme, efpic_gallery_theme_options());
 }
 
-function efpic_normalize_gallery_theme(string $theme): string
+function efpic_gallery_effective_theme(array $meta): string
 {
-    $theme = strtolower(trim($theme));
-    $legacy = [
-        'pic-time' => 'efpic-modern',
-        'pic_time' => 'efpic-modern',
-        'classic' => 'efpic-classic',
-        'masonry' => 'efpic-mood',
-        'dark' => 'efpic-mood',
-    ];
-    if (isset($legacy[$theme])) {
-        return $legacy[$theme];
+    $clientTheme = (string) ($meta['client_theme'] ?? '');
+    if ($clientTheme !== '' && efpic_is_valid_gallery_theme($clientTheme)) {
+        return $clientTheme;
     }
+    $theme = (string) ($meta['theme'] ?? 'pic-time');
     if (efpic_is_valid_gallery_theme($theme)) {
         return $theme;
     }
 
-    return 'efpic-modern';
-}
-
-function efpic_is_modern_gallery_theme(string $theme): bool
-{
-    return efpic_normalize_gallery_theme($theme) === 'efpic-modern';
-}
-
-function efpic_is_classic_gallery_theme(string $theme): bool
-{
-    return efpic_normalize_gallery_theme($theme) === 'efpic-classic';
-}
-
-function efpic_uses_mosaic_feed_theme(string $theme): bool
-{
-    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest'], true);
-}
-
-/** Intro vāks, pilna platuma galerija un modern skatītājs (visas 4 tēmas). */
-function efpic_uses_full_gallery_shell(string $theme): bool
-{
-    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest', 'efpic-classic'], true);
-}
-
-/** Fixed mosaic columns per theme; 0 = responsive (Modern: 2–4 by viewport). */
-function efpic_gallery_theme_mosaic_columns(string $theme): int
-{
-    return match (efpic_normalize_gallery_theme($theme)) {
-        'efpic-mood' => 3,
-        'efpic-forest' => 4,
-        default => 0,
-    };
-}
-
-function efpic_gallery_effective_theme(array $meta): string
-{
-    $clientTheme = (string) ($meta['client_theme'] ?? '');
-    if ($clientTheme !== '') {
-        return efpic_normalize_gallery_theme($clientTheme);
-    }
-
-    return efpic_normalize_gallery_theme((string) ($meta['theme'] ?? 'efpic-modern'));
+    return 'pic-time';
 }
 
 function efpic_theme_default_page_bg(string $theme): string
 {
-    return match (efpic_normalize_gallery_theme($theme)) {
-        'efpic-mood' => '#111111',
-        'efpic-forest' => '#f2f6f0',
-        'efpic-classic' => '#f0f0f0',
-        'efpic-modern' => '#ffffff',
+    return match ($theme) {
+        'dark' => '#111111',
+        'classic' => '#f0f0f0',
+        'masonry' => '#f5f5f5',
+        'pic-time' => '#ffffff',
         default => '#ffffff',
     };
 }
@@ -453,7 +426,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'gallery_token' => efpic_random_hex(24),
         'password_hash' => '',
         'restrict_gallery_from_single_link' => false,
-        'theme' => $type === 'delivery' ? 'efpic-modern' : 'efpic-classic',
+        'theme' => $type === 'delivery' ? 'pic-time' : 'classic',
         'client_theme' => null,
         'status' => 'active',
         'deleted_at' => null,

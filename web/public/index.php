@@ -114,33 +114,23 @@ try {
     }
 
     if ($uri === '/client/assets/client.css') {
-        header('Content-Type: text/css; charset=utf-8');
-        readfile(__DIR__ . '/client/assets/client.css');
-        exit;
+        efpic_stream_versioned_public_asset(__DIR__ . '/client/assets/client.css', 'text/css');
     }
 
     if ($uri === '/client/assets/client.js') {
-        header('Content-Type: application/javascript; charset=utf-8');
-        readfile(__DIR__ . '/client/assets/client.js');
-        exit;
+        efpic_stream_versioned_public_asset(__DIR__ . '/client/assets/client.js', 'application/javascript');
     }
 
     if ($uri === '/client/assets/portal.js') {
-        header('Content-Type: application/javascript; charset=utf-8');
-        readfile(__DIR__ . '/client/assets/portal.js');
-        exit;
+        efpic_stream_versioned_public_asset(__DIR__ . '/client/assets/portal.js', 'application/javascript');
     }
 
     if ($uri === '/admin/assets/admin.css') {
-        header('Content-Type: text/css; charset=utf-8');
-        readfile(__DIR__ . '/admin/assets/admin.css');
-        exit;
+        efpic_stream_versioned_public_asset(__DIR__ . '/admin/assets/admin.css', 'text/css');
     }
 
     if ($uri === '/admin/assets/admin.js') {
-        header('Content-Type: application/javascript; charset=utf-8');
-        readfile(__DIR__ . '/admin/assets/admin.js');
-        exit;
+        efpic_stream_versioned_public_asset(__DIR__ . '/admin/assets/admin.js', 'application/javascript');
     }
 
     if ($uri === '/api/render/ping' && $method === 'GET') {
