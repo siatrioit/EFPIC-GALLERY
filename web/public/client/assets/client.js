@@ -769,7 +769,6 @@
       item.style.left = Math.round(left) + 'px';
       item.style.top = Math.round(padTop + bestTop) + 'px';
       item.style.width = Math.round(itemWidth) + 'px';
-      item.style.height = 'auto';
 
       item.setAttribute(
         'data-orient',
@@ -795,7 +794,6 @@
         if (heroCover) {
           img.style.height = '100%';
           img.style.objectFit = 'cover';
-          item.style.height = Math.round(itemHeight) + 'px';
         } else {
           img.style.height = 'auto';
           img.style.objectFit = '';
@@ -813,6 +811,7 @@
       if (!heroCover) {
         itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
       }
+      item.style.height = Math.max(1, Math.round(itemHeight)) + 'px';
 
       var newBottom = bestTop + itemHeight + gap;
       for (s = 0; s < span; s++) {
