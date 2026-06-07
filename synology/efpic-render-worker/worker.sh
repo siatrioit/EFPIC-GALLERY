@@ -1,17 +1,33 @@
 #!/bin/bash
 set -euo pipefail
 
+# Bind-mounted scripts cannot be edited in place (sed -i → Resource busy on NAS).
+if [ -z "${EFPIC_WORKER_REEXECED:-}" ] && grep -q $'\r' "$0" 2>/dev/null; then
+  sed 's/\r$//' "$0" > /tmp/efpic-worker.sh
+  chmod +x /tmp/efpic-worker.sh
+  export EFPIC_WORKER_REEXECED=1
+  exec /tmp/efpic-worker.sh
+fi
+
 : "${EFPIC_API_BASE:?Set EFPIC_API_BASE}"
 : "${EFPIC_API_TOKEN:?Set EFPIC_API_TOKEN}"
 
 AUTH="Authorization: Bearer ${EFPIC_API_TOKEN}"
 POLL_SEC="${EFPIC_POLL_SEC:-20}"
 WORKDIR="${EFPIC_WORK_DIR:-/tmp/efpic-render}"
+RENDER_SRC="${EFPIC_RENDER_SRC:-./render.sh}"
+RENDER_RUN="${WORKDIR}/.render.sh"
 
 mkdir -p "$WORKDIR"
 
 log() {
   printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+prepare_render_script() {
+  sed 's/\r$//' "$RENDER_SRC" > "$RENDER_RUN"
+  chmod +x "$RENDER_RUN"
+  bash -n "$RENDER_RUN"
 }
 
 fail_job() {
@@ -24,7 +40,9 @@ fail_job() {
     "${EFPIC_API_BASE}/api/render/jobs/${job_id}/fail" >/dev/null || true
 }
 
-log "EFPIC render worker start — ${EFPIC_API_BASE}"
+prepare_render_script
+render_lines="$(wc -l < "$RENDER_RUN")"
+log "EFPIC render worker start — ${EFPIC_API_BASE} (render.sh ${render_lines} lines)"
 
 while true; do
   resp=""
@@ -41,11 +59,13 @@ while true; do
   fi
 
   log "claimed job ${job_id}"
-  if ! echo "$resp" | ./render.sh; then
-    err="$(cat "${WORKDIR}/${job_id}.err" 2>/dev/null || echo 'Render script failed')"
+  prepare_render_script
+  stderr_file="${WORKDIR}/${job_id}.stderr"
+  if ! echo "$resp" | bash "$RENDER_RUN" 2>"$stderr_file"; then
+    err="$(cat "${WORKDIR}/${job_id}.err" 2>/dev/null || tail -3 "$stderr_file" 2>/dev/null | tr '\n' ' ' || echo 'Render script failed')"
     log "job ${job_id} failed: ${err}"
     fail_job "$job_id" "$err"
-    rm -f "${WORKDIR}/${job_id}.err"
+    rm -f "${WORKDIR}/${job_id}.err" "$stderr_file"
   else
     log "job ${job_id} complete"
   fi

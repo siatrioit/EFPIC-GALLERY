@@ -2,12 +2,17 @@ services:
   efpic-render-worker:
     build: .
     container_name: efpic-render-worker
+    working_dir: /worker
+    entrypoint: ["/bin/bash", "./worker.sh"]
     restart: unless-stopped
     environment:
       EFPIC_API_BASE: https://klientiem.edgarsfoto.lv
       EFPIC_API_TOKEN: ${EFPIC_API_TOKEN}
       EFPIC_POLL_SEC: 20
     volumes:
+      # Bind-mount scripts so NAS file copy + container recreate updates without image rebuild.
+      - ./worker.sh:/worker/worker.sh
+      - ./render.sh:/worker/render.sh
       - render-work:/tmp/efpic-render
 
 volumes:
