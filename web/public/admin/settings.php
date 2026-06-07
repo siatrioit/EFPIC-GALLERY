@@ -8,11 +8,31 @@ $config = efpic_load_config();
 efpic_admin_handle_logout();
 efpic_admin_require_login($config);
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['save'])) {
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'render_queue') {
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode(efpic_render_admin_monitor_payload($config), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        efpic_admin_save_settings_from_post($config);
-        header('Location: settings.php?saved=1');
-        exit;
+        $action = trim((string) ($_POST['render_queue_action'] ?? ''));
+        if ($action !== '') {
+            if (str_starts_with($action, 'retry:')) {
+                efpic_render_admin_retry_job($config, substr($action, 6));
+            } elseif (str_starts_with($action, 'cancel:')) {
+                efpic_render_admin_cancel_job($config, substr($action, 7));
+            } else {
+                throw new InvalidArgumentException('Nederīga darbība');
+            }
+            header('Location: settings.php?render_queue=1');
+            exit;
+        }
+        if (!empty($_POST['save'])) {
+            efpic_admin_save_settings_from_post($config);
+            header('Location: settings.php?saved=1');
+            exit;
+        }
     } catch (Throwable $e) {
         header('Location: settings.php?error=' . rawurlencode($e->getMessage()));
         exit;

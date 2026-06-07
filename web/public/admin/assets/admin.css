@@ -1939,6 +1939,57 @@
   font-weight: 600;
 }
 
+.admin-render-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.admin-render-worker--online strong {
+  color: #1e7e34;
+}
+
+.admin-render-worker--stale strong {
+  color: #b8860b;
+}
+
+.admin-render-worker--offline strong {
+  color: #c0392b;
+}
+
+.admin-render-stats {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.admin-render-queue-table .admin-render-error {
+  font-size: 0.78rem;
+  display: inline-block;
+  max-width: 280px;
+}
+
+.admin-render-status--queued {
+  color: #6c5ce7;
+}
+
+.admin-render-status--processing {
+  color: #0984e3;
+}
+
+.admin-render-status--failed {
+  color: #c0392b;
+}
+
+.admin-render-actions {
+  white-space: nowrap;
+}
+
 .admin-slideshow-audio-list {
   list-style: none;
   margin: 10px 0;

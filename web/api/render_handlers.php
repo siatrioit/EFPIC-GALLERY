@@ -7,6 +7,7 @@ require_once __DIR__ . '/slideshow_render.php';
 function efpic_handle_render_ping(array $config): void
 {
     efpic_require_token($config);
+    efpic_render_worker_touch($config, 'ping');
     efpic_json_response(200, [
         'ok' => true,
         'service' => 'efpic-render',
@@ -17,6 +18,7 @@ function efpic_handle_render_ping(array $config): void
 function efpic_handle_render_claim_job(array $config): void
 {
     efpic_require_token($config);
+    efpic_render_worker_touch($config, 'claim');
     $job = efpic_render_claim_next_job($config);
     if ($job === null) {
         efpic_json_response(200, ['ok' => true, 'job' => null]);
@@ -99,6 +101,11 @@ function efpic_handle_render_job_fail(array $config, string $jobId): void
     if ($message === '') {
         $message = 'Render worker kļūda';
     }
-    efpic_render_fail_job($config, $job, $message);
-    efpic_json_response(200, ['ok' => true, 'job_id' => $jobId, 'status' => 'failed']);
+    $retried = efpic_render_fail_job($config, $job, $message);
+    efpic_json_response(200, [
+        'ok' => true,
+        'job_id' => $jobId,
+        'status' => $retried ? 'queued' : 'failed',
+        'retried' => $retried,
+    ]);
 }

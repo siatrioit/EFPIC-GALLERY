@@ -1430,6 +1430,81 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     );
 }
 
+function efpic_admin_render_render_queue_panel(array $config): string
+{
+    $payload = efpic_render_admin_monitor_payload($config);
+    $worker = $payload['worker'];
+    $stats = $payload['stats'];
+    $workerClass = 'admin-render-worker--' . efpic_admin_esc((string) ($worker['status'] ?? 'offline'));
+
+    $html = '<fieldset class="admin-fieldset-full" id="admin-render-queue-panel">';
+    $html .= '<legend>Slideshow render rinda</legend>';
+    $html .= '<p class="muted">Synology worker statuss un aktīvie render job. Atjaunina automātiski.</p>';
+    $html .= '<div class="admin-render-summary">';
+    $html .= '<p class="admin-render-worker ' . $workerClass . '">Worker: <strong data-render-worker-status="'
+        . efpic_admin_esc((string) ($worker['status'] ?? 'offline')) . '">'
+        . efpic_admin_esc((string) ($worker['status_label'] ?? '')) . '</strong>';
+    $html .= ' <span class="muted">(pēdējais signāls pirms '
+        . efpic_admin_esc((string) ($worker['last_seen_ago'] ?? 'nav datu')) . ')</span></p>';
+    $html .= '<ul class="admin-render-stats" data-render-stats>';
+    $html .= '<li>Rindā: <strong data-stat="queued">' . (int) ($stats['queued'] ?? 0) . '</strong></li>';
+    $html .= '<li>Apstrādē: <strong data-stat="processing">' . (int) ($stats['processing'] ?? 0) . '</strong></li>';
+    $html .= '<li>Kļūdas: <strong data-stat="failed">' . (int) ($stats['failed'] ?? 0) . '</strong></li>';
+    $html .= '</ul></div>';
+    $html .= '<div class="admin-table-wrap"><table class="admin-table admin-render-queue-table">';
+    $html .= '<thead><tr><th>Galerija</th><th>Slideshow</th><th>Statuss</th><th>Mēģ.</th><th>Atjaunots</th><th>Darbība</th></tr></thead>';
+    $html .= '<tbody id="admin-render-queue-body">';
+    $html .= efpic_admin_render_render_queue_rows($payload['jobs']);
+    $html .= '</tbody></table></div>';
+    $html .= '<p class="muted admin-render-queue-empty" id="admin-render-queue-empty"'
+        . ($payload['jobs'] !== [] ? ' hidden' : '') . '>Nav aktīvu render job.</p>';
+    $html .= '</fieldset>';
+
+    return $html;
+}
+
+/** @param list<array<string, mixed>> $jobs */
+function efpic_admin_render_render_queue_rows(array $jobs): string
+{
+    if ($jobs === []) {
+        return '';
+    }
+    $html = '';
+    foreach ($jobs as $job) {
+        $html .= '<tr data-job-id="' . efpic_admin_esc((string) ($job['id'] ?? '')) . '">';
+        $html .= '<td>';
+        if (($job['slug'] ?? '') !== '') {
+            $html .= '<a href="delivery_edit.php?slug=' . efpic_admin_esc((string) $job['slug'])
+                . '">' . efpic_admin_esc((string) ($job['gallery_name'] ?? '')) . '</a>';
+        } else {
+            $html .= efpic_admin_esc((string) ($job['gallery_name'] ?? ''));
+        }
+        $html .= '</td>';
+        $html .= '<td>' . efpic_admin_esc((string) ($job['owner_label'] ?? '')) . '</td>';
+        $html .= '<td><span class="admin-render-status admin-render-status--'
+            . efpic_admin_esc((string) ($job['status'] ?? '')) . '">'
+            . efpic_admin_esc((string) ($job['status_label'] ?? '')) . '</span>';
+        if (($job['error'] ?? '') !== '') {
+            $html .= '<br><span class="muted admin-render-error">' . efpic_admin_esc((string) $job['error']) . '</span>';
+        }
+        $html .= '</td>';
+        $html .= '<td>' . (int) ($job['attempt'] ?? 1) . '/' . (int) ($job['max_attempts'] ?? 3) . '</td>';
+        $html .= '<td>' . efpic_admin_esc((string) ($job['updated_ago'] ?? '')) . '</td>';
+        $html .= '<td class="admin-render-actions">';
+        if (!empty($job['can_retry'])) {
+            $html .= '<button type="submit" class="btn admin-btn-sm" name="render_queue_action" value="retry:'
+                . efpic_admin_esc((string) ($job['id'] ?? '')) . '">Retry</button> ';
+        }
+        if (!empty($job['can_cancel'])) {
+            $html .= '<button type="submit" class="btn admin-btn-sm admin-btn-danger" name="render_queue_action" value="cancel:'
+                . efpic_admin_esc((string) ($job['id'] ?? '')) . '" onclick="return confirm(\'Atcelt render job?\');">Atcelt</button>';
+        }
+        $html .= '</td></tr>';
+    }
+
+    return $html;
+}
+
 function efpic_admin_save_settings_from_post(array $config): void
 {
     $byline = trim((string) ($_POST['gallery_byline'] ?? ''));
@@ -1453,11 +1528,15 @@ function efpic_admin_settings_page(array $config): void
 {
     $settings = efpic_load_app_settings($config);
     $saved = isset($_GET['saved']);
+    $renderQueue = isset($_GET['render_queue']);
     $error = trim((string) ($_GET['error'] ?? ''));
 
     $body = '';
     if ($saved) {
         $body .= '<p class="admin-ok">Saglabāts.</p>';
+    }
+    if ($renderQueue) {
+        $body .= '<p class="admin-ok">Render rindas darbība izpildīta.</p>';
     }
     if ($error !== '') {
         $body .= '<p class="err">' . efpic_admin_esc($error) . '</p>';
@@ -1482,14 +1561,16 @@ function efpic_admin_settings_page(array $config): void
     $body .= '<label>Atstarpes — desktop (1024px+, px)<input type="number" name="gallery_feed_gap_desktop" min="0" max="120" step="1" required value="'
         . efpic_admin_esc((string) $gapDesktop) . '"></label>';
     $body .= '<p class="muted">Attiecas uz visām EdgarsFoto tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
-    $body .= '</fieldset></div></form>';
+    $body .= '</fieldset>';
+    $body .= efpic_admin_render_render_queue_panel($config);
+    $body .= '</div></form>';
 
     efpic_admin_layout(
         'Iestatījumi',
         $body,
         'settings',
         'Iestatījumi',
-        'Globālie iestatījumi visām publiskajām galerijām (paraksts, režģa atstarpes).',
+        'Globālie iestatījumi visām publiskajām galerijām (paraksts, režģa atstarpes, render rinda).',
         $config
     );
 }

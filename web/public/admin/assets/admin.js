@@ -2021,6 +2021,123 @@
   initAdminSlideshowOrderDrag();
   initAdminSlideshowAudioDrag();
   initAdminSidebar();
+  initAdminRenderQueueMonitor();
+
+  function initAdminRenderQueueMonitor() {
+    var panel = document.getElementById('admin-render-queue-panel');
+    if (!panel || panel.dataset.bound === '1') {
+      return;
+    }
+    panel.dataset.bound = '1';
+
+    function esc(s) {
+      return String(s || '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function renderRows(jobs) {
+      var tbody = document.getElementById('admin-render-queue-body');
+      var empty = document.getElementById('admin-render-queue-empty');
+      if (!tbody) return;
+      if (!jobs || !jobs.length) {
+        tbody.innerHTML = '';
+        if (empty) empty.hidden = false;
+        return;
+      }
+      if (empty) empty.hidden = true;
+      tbody.innerHTML = jobs
+        .map(function (job) {
+          var slug = job.slug || '';
+          var galleryCell = slug
+            ? '<a href="delivery_edit.php?slug=' + esc(encodeURIComponent(slug)) + '">' + esc(job.gallery_name || slug) + '</a>'
+            : esc(job.gallery_name || '');
+          var actions = '';
+          if (job.can_retry) {
+            actions +=
+              '<button type="submit" class="btn admin-btn-sm" name="render_queue_action" value="retry:' +
+              esc(job.id) +
+              '">Retry</button> ';
+          }
+          if (job.can_cancel) {
+            actions +=
+              '<button type="submit" class="btn admin-btn-sm admin-btn-danger" name="render_queue_action" value="cancel:' +
+              esc(job.id) +
+              '" onclick="return confirm(\'Atcelt render job?\');">Atcelt</button>';
+          }
+          var err = job.error
+            ? '<br><span class="muted admin-render-error">' + esc(job.error) + '</span>'
+            : '';
+          return (
+            '<tr data-job-id="' +
+            esc(job.id) +
+            '"><td>' +
+            galleryCell +
+            '</td><td>' +
+            esc(job.owner_label) +
+            '</td><td><span class="admin-render-status admin-render-status--' +
+            esc(job.status) +
+            '">' +
+            esc(job.status_label) +
+            '</span>' +
+            err +
+            '</td><td>' +
+            esc(String(job.attempt || 1)) +
+            '/' +
+            esc(String(job.max_attempts || 3)) +
+            '</td><td>' +
+            esc(job.updated_ago) +
+            '</td><td class="admin-render-actions">' +
+            actions +
+            '</td></tr>'
+          );
+        })
+        .join('');
+    }
+
+    function applyPayload(data) {
+      if (!data) return;
+      var worker = data.worker || {};
+      var stats = data.stats || {};
+      var workerEl = panel.querySelector('[data-render-worker-status]');
+      if (workerEl) {
+        workerEl.setAttribute('data-render-worker-status', worker.status || 'offline');
+        workerEl.textContent = worker.status_label || workerEl.textContent;
+      }
+      var workerWrap = panel.querySelector('.admin-render-worker');
+      if (workerWrap) {
+        workerWrap.className = 'admin-render-worker admin-render-worker--' + (worker.status || 'offline');
+      }
+      ['queued', 'processing', 'failed'].forEach(function (key) {
+        var el = panel.querySelector('[data-stat="' + key + '"]');
+        if (el) el.textContent = String(stats[key] || 0);
+      });
+      renderRows(data.jobs || []);
+    }
+
+    function poll() {
+      fetch('settings.php?poll=render_queue', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) {
+          if (!res.ok) return null;
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          applyPayload(data);
+        })
+        .catch(function () {});
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (!document.hidden) poll();
+    });
+    window.setInterval(poll, 15000);
+  }
 
   function initAdminSlideshowOrderDrag() {
     var list = document.getElementById('admin-slideshow-order-list');

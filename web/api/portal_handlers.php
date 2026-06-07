@@ -114,6 +114,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     if ($method === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
         header('Content-Type: application/json; charset=utf-8');
+        efpic_render_run_maintenance($config);
         $clientSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['client']);
         $renderStatus = (string) ($clientSlot['render_status'] ?? 'none');
         echo json_encode([

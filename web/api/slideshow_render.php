@@ -70,6 +70,177 @@ function efpic_render_status_label(string $status): string
     };
 }
 
+function efpic_render_max_attempts(): int
+{
+    return 3;
+}
+
+function efpic_render_stuck_seconds(): int
+{
+    return 45 * 60;
+}
+
+function efpic_render_reclaim_seconds(): int
+{
+    return 30 * 60;
+}
+
+function efpic_render_worker_state_path(array $config): string
+{
+    return dirname(efpic_storage_path($config)) . DIRECTORY_SEPARATOR . 'render_worker_state.json';
+}
+
+function efpic_render_worker_touch(array $config, string $event = 'ping'): void
+{
+    $path = efpic_render_worker_state_path($config);
+    $state = efpic_read_json_file($path) ?? [];
+    $now = gmdate('c');
+    $state['last_seen_at'] = $now;
+    if ($event === 'ping') {
+        $state['last_ping_at'] = $now;
+    } elseif ($event === 'claim') {
+        $state['last_claim_at'] = $now;
+    }
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    efpic_write_json_file($path, $state);
+}
+
+function efpic_render_format_ago(?int $seconds): string
+{
+    if ($seconds === null || $seconds < 0) {
+        return 'nav datu';
+    }
+    if ($seconds < 60) {
+        return $seconds . ' sek.';
+    }
+    if ($seconds < 3600) {
+        return intdiv($seconds, 60) . ' min';
+    }
+    return intdiv($seconds, 3600) . ' h ' . intdiv($seconds % 3600, 60) . ' min';
+}
+
+/** @return array{online: bool, status: string, status_label: string, last_seen_at: string, last_seen_ago: string, last_ping_at: string, last_claim_at: string} */
+function efpic_render_worker_status(array $config): array
+{
+    $state = efpic_read_json_file(efpic_render_worker_state_path($config)) ?? [];
+    $lastSeenRaw = (string) ($state['last_seen_at'] ?? '');
+    $lastSeen = $lastSeenRaw !== '' ? (strtotime($lastSeenRaw) ?: 0) : 0;
+    $age = $lastSeen > 0 ? time() - $lastSeen : null;
+    $online = $age !== null && $age <= 90;
+    $stale = $age !== null && $age <= 300;
+    $status = $online ? 'online' : ($stale ? 'stale' : 'offline');
+    $statusLabel = match ($status) {
+        'online' => 'Worker aktīvs',
+        'stale' => 'Worker klusums (pārbaudi logus)',
+        default => 'Worker bez signāla',
+    };
+
+    return [
+        'online' => $online,
+        'status' => $status,
+        'status_label' => $statusLabel,
+        'last_seen_at' => $lastSeenRaw,
+        'last_seen_ago' => efpic_render_format_ago($age),
+        'last_ping_at' => (string) ($state['last_ping_at'] ?? ''),
+        'last_claim_at' => (string) ($state['last_claim_at'] ?? ''),
+    ];
+}
+
+/** @return list<array<string, mixed>> */
+function efpic_render_list_jobs(array $config, int $limit = 50): array
+{
+    $dir = efpic_render_queue_dir($config);
+    if (!is_dir($dir)) {
+        return [];
+    }
+    $files = glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [];
+    $jobs = [];
+    foreach ($files as $path) {
+        $job = efpic_read_json_file($path);
+        if (!is_array($job)) {
+            continue;
+        }
+        $jobs[] = $job;
+    }
+    usort($jobs, static function (array $a, array $b): int {
+        $ta = strtotime((string) ($a['updated_at'] ?? $a['created_at'] ?? '')) ?: 0;
+        $tb = strtotime((string) ($b['updated_at'] ?? $b['created_at'] ?? '')) ?: 0;
+
+        return $tb <=> $ta;
+    });
+    if ($limit > 0 && count($jobs) > $limit) {
+        $jobs = array_slice($jobs, 0, $limit);
+    }
+
+    return $jobs;
+}
+
+/** @return array{queued: int, processing: int, failed: int, ready: int, cancelled: int, total: int} */
+function efpic_render_queue_stats(array $config): array
+{
+    $stats = [
+        'queued' => 0,
+        'processing' => 0,
+        'failed' => 0,
+        'ready' => 0,
+        'cancelled' => 0,
+        'total' => 0,
+    ];
+    foreach (efpic_render_list_jobs($config, 0) as $job) {
+        $status = (string) ($job['status'] ?? '');
+        if (!isset($stats[$status])) {
+            continue;
+        }
+        $stats[$status]++;
+        $stats['total']++;
+    }
+
+    return $stats;
+}
+
+function efpic_render_run_maintenance(array $config): void
+{
+    $dir = efpic_render_queue_dir($config);
+    if (!is_dir($dir)) {
+        return;
+    }
+    $now = time();
+    $stuckSec = efpic_render_stuck_seconds();
+    foreach (glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $path) {
+        $job = efpic_read_json_file($path);
+        if (!is_array($job)) {
+            continue;
+        }
+        $status = (string) ($job['status'] ?? '');
+        if ($status !== 'processing') {
+            continue;
+        }
+        $claimed = strtotime((string) ($job['claimed_at'] ?? '')) ?: 0;
+        if ($claimed <= 0 || ($now - $claimed) <= $stuckSec) {
+            continue;
+        }
+        efpic_render_fail_job(
+            $config,
+            $job,
+            'Render timeout pēc ' . intdiv($stuckSec, 60) . ' min',
+            true,
+        );
+    }
+}
+
+function efpic_render_slot_status_from_job(string $jobStatus): string
+{
+    return match ($jobStatus) {
+        'ready' => 'ready',
+        'failed' => 'failed',
+        'queued', 'processing' => $jobStatus,
+        default => 'none',
+    };
+}
+
 /** Aptuvenais MP3 garums sekundēs (128 kbps estimāts). */
 function efpic_audio_duration_sec_estimate(string $path): ?float
 {
@@ -265,6 +436,8 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
         'updated_at' => gmdate('c'),
         'claimed_at' => '',
         'error' => '',
+        'attempt' => 1,
+        'max_attempts' => efpic_render_max_attempts(),
         'gallery_token' => $gt,
         'intro_title' => trim((string) ($slot['intro_title'] ?? '')),
         'bg_mode' => in_array((string) ($slot['bg_mode'] ?? 'white'), ['white', 'gallery'], true)
@@ -367,6 +540,8 @@ function efpic_slideshow_enqueue_render(array $config, string $slug, array &$met
 
 function efpic_render_claim_next_job(array $config): ?array
 {
+    efpic_render_run_maintenance($config);
+
     $dir = efpic_render_queue_dir($config);
     if (!is_dir($dir)) {
         return null;
@@ -375,6 +550,7 @@ function efpic_render_claim_next_job(array $config): ?array
     $files = glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [];
     sort($files);
     $now = time();
+    $reclaimSec = efpic_render_reclaim_seconds();
     foreach ($files as $path) {
         $job = efpic_read_json_file($path);
         if (!is_array($job)) {
@@ -394,7 +570,7 @@ function efpic_render_claim_next_job(array $config): ?array
         }
         if ($status === 'processing') {
             $claimed = strtotime((string) ($job['claimed_at'] ?? '')) ?: 0;
-            if ($claimed > 0 && ($now - $claimed) > 1800) {
+            if ($claimed > 0 && ($now - $claimed) > $reclaimSec) {
                 $job['status'] = 'processing';
                 $job['claimed_at'] = gmdate('c');
                 $job['error'] = '';
@@ -424,7 +600,7 @@ function efpic_render_sync_slot_from_job(array $config, array $job): void
     }
     $slots = efpic_gallery_slideshows_struct($meta);
     $slot = efpic_slideshow_slot_with_render($slots[$owner]);
-    $slot['render_status'] = (string) ($job['status'] ?? $slot['render_status']);
+    $slot['render_status'] = efpic_render_slot_status_from_job((string) ($job['status'] ?? ''));
     $slot['render_job_id'] = (string) ($job['id'] ?? '');
     $slot['render_error'] = (string) ($job['error'] ?? '');
     $slot['render_updated_at'] = gmdate('c');
@@ -542,12 +718,128 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
 }
 
 /** @param array<string, mixed> $job */
-function efpic_render_fail_job(array $config, array $job, string $message): void
+function efpic_render_fail_job(array $config, array $job, string $message, bool $allowRetry = true): bool
 {
+    $attempt = max(1, (int) ($job['attempt'] ?? 1));
+    $maxAttempts = max(1, (int) ($job['max_attempts'] ?? efpic_render_max_attempts()));
+
+    if ($allowRetry && $attempt < $maxAttempts) {
+        $job['attempt'] = $attempt + 1;
+        $job['status'] = 'queued';
+        $job['claimed_at'] = '';
+        $job['error'] = 'Mēģinājums ' . $attempt . '/' . $maxAttempts . ' neizdevās: ' . $message;
+        efpic_render_save_job($config, $job);
+        efpic_render_sync_slot_from_job($config, $job);
+
+        return true;
+    }
+
     $job['status'] = 'failed';
-    $job['error'] = $message;
+    $job['error'] = $attempt > 1
+        ? 'Neizdevās pēc ' . $attempt . ' mēģinājumiem: ' . $message
+        : $message;
     efpic_render_save_job($config, $job);
     efpic_render_sync_slot_from_job($config, $job);
+
+    return false;
+}
+
+function efpic_render_admin_retry_job(array $config, string $jobId): void
+{
+    if (preg_match('/^[a-f0-9]{32}$/', $jobId) !== 1) {
+        throw new InvalidArgumentException('Nederīgs job ID');
+    }
+    $job = efpic_render_load_job($config, $jobId);
+    if (!is_array($job)) {
+        throw new InvalidArgumentException('Render job nav atrasts');
+    }
+    if ((string) ($job['status'] ?? '') !== 'failed') {
+        throw new InvalidArgumentException('Retry pieejams tikai neveiksmīgiem job');
+    }
+    $job['status'] = 'queued';
+    $job['claimed_at'] = '';
+    $job['error'] = '';
+    $job['attempt'] = 1;
+    $job['max_attempts'] = efpic_render_max_attempts();
+    efpic_render_save_job($config, $job);
+    efpic_render_sync_slot_from_job($config, $job);
+}
+
+function efpic_render_admin_cancel_job(array $config, string $jobId): void
+{
+    if (preg_match('/^[a-f0-9]{32}$/', $jobId) !== 1) {
+        throw new InvalidArgumentException('Nederīgs job ID');
+    }
+    $job = efpic_render_load_job($config, $jobId);
+    if (!is_array($job)) {
+        throw new InvalidArgumentException('Render job nav atrasts');
+    }
+    $status = (string) ($job['status'] ?? '');
+    if (!in_array($status, ['queued', 'processing'], true)) {
+        throw new InvalidArgumentException('Atcelt var tikai rindā esošus job');
+    }
+    $job['status'] = 'cancelled';
+    $job['error'] = 'Atcelts manuāli';
+    efpic_render_save_job($config, $job);
+    efpic_render_sync_slot_from_job($config, $job);
+}
+
+/** @return array<string, mixed> */
+function efpic_render_admin_job_row(array $config, array $job): array
+{
+    $slug = (string) ($job['slug'] ?? '');
+    $galleryName = $slug;
+    if ($slug !== '') {
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta !== null) {
+            $galleryName = (string) ($meta['name'] ?? $slug);
+        }
+    }
+    $status = (string) ($job['status'] ?? '');
+    $updated = strtotime((string) ($job['updated_at'] ?? $job['created_at'] ?? '')) ?: 0;
+    $attempt = max(1, (int) ($job['attempt'] ?? 1));
+    $maxAttempts = max(1, (int) ($job['max_attempts'] ?? efpic_render_max_attempts()));
+
+    return [
+        'id' => (string) ($job['id'] ?? ''),
+        'slug' => $slug,
+        'gallery_name' => $galleryName,
+        'owner' => (string) ($job['owner'] ?? ''),
+        'owner_label' => ((string) ($job['owner'] ?? '')) === 'client' ? 'Klients' : 'Fotogrāfs',
+        'status' => $status,
+        'status_label' => efpic_render_status_label($status),
+        'error' => (string) ($job['error'] ?? ''),
+        'attempt' => $attempt,
+        'max_attempts' => $maxAttempts,
+        'updated_at' => (string) ($job['updated_at'] ?? ''),
+        'updated_ago' => efpic_render_format_ago($updated > 0 ? time() - $updated : null),
+        'can_retry' => $status === 'failed',
+        'can_cancel' => in_array($status, ['queued', 'processing'], true),
+    ];
+}
+
+/** @return array<string, mixed> */
+function efpic_render_admin_monitor_payload(array $config): array
+{
+    efpic_render_run_maintenance($config);
+    $stats = efpic_render_queue_stats($config);
+    $worker = efpic_render_worker_status($config);
+    $rows = [];
+    foreach (efpic_render_list_jobs($config, 30) as $job) {
+        $status = (string) ($job['status'] ?? '');
+        if (in_array($status, ['ready', 'cancelled'], true)) {
+            continue;
+        }
+        $rows[] = efpic_render_admin_job_row($config, $job);
+    }
+
+    return [
+        'ok' => true,
+        'app_version' => efpic_app_version(),
+        'worker' => $worker,
+        'stats' => $stats,
+        'jobs' => $rows,
+    ];
 }
 
 function efpic_render_stream_job_audio(array $config, string $jobId, int $index = 0): void

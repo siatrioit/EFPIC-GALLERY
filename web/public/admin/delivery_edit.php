@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
     header('Content-Type: application/json; charset=utf-8');
+    efpic_render_run_maintenance($config);
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta === null) {
         echo json_encode(['ok' => false, 'error' => 'not_found'], JSON_UNESCAPED_UNICODE);

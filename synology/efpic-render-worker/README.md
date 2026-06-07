@@ -31,10 +31,11 @@ curl -H "Authorization: Bearer YOUR_TOKEN" https://klientiem.edgarsfoto.lv/api/r
 
 Admin panelī: galerija → «Slideshow & video» → aizpildi MP3, intro, favorītus → **Ģenerēt video**.
 
-## Phase A ierobežojumi
+Render rindas monitoring: **Iestatījumi** → sadaļa «Slideshow render rinda» (worker signāls, retry, stuck job tīrīšana).
 
-- Viena bilde uz kadru (bez multi-image layout)
-- Fona režīms `gallery` vēl neizmanto galerijas krāsu — balts canvas
-- Nav watermark
+## Uzlabojumi (v1.9.19+)
 
-Pilna spec (multi-image, galerijas fons, publiskā sadaļa) — nākamajās versijās.
+- Automātisks retry līdz 3 mēģinājumiem
+- Stuck job timeout (45 min)
+- Worker heartbeat (`/api/render/ping` un claim)
+- Admin monitoring panelis

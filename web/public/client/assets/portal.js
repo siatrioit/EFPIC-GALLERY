@@ -655,7 +655,7 @@
         .then(function (data) {
           if (!data || !data.ok) return;
           applyPortalSlideshowRenderPayload(data);
-          if (data.render_status === 'done' || data.render_status === 'failed') {
+          if (data.render_status === 'ready' || data.render_status === 'failed') {
             window.location.reload();
           }
         })
