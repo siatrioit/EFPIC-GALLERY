@@ -507,15 +507,14 @@ input[type="password"] {
   }
 }
 
-.theme-dark.page-gallery {
+.theme-efpic-mood.page-gallery {
   --text: #f3f3f3;
   --muted: #9ca3af;
   --border: #333;
   --surface: #1c1c1c;
 }
 
-.theme-classic.page-gallery,
-.theme-masonry.page-gallery {
+.theme-efpic-classic.page-gallery {
   --surface: #ffffff;
 }
 
@@ -547,12 +546,12 @@ input[type="password"] {
   opacity: 0.9;
 }
 
-/* —— EdgarsFoto (moderns) intro + feed + viewer —— */
-.theme-pic-time {
+/* —— Modern theme: intro + feed + viewer —— */
+.theme-efpic-modern {
   --bg: var(--page-bg, #ffffff);
 }
 
-.theme-pic-time.page-gallery {
+.theme-efpic-modern.page-gallery {
   background: var(--page-bg, #ffffff);
 }
 
@@ -689,19 +688,19 @@ input[type="password"] {
   height: 18px;
 }
 
-.theme-pic-time .gallery-main {
+.theme-efpic-modern .gallery-main {
   max-width: 100%;
   padding: 0;
   margin: 0;
 }
 
-.theme-pic-time .gallery-ai-hint {
+.theme-efpic-modern .gallery-ai-hint {
   max-width: 720px;
   margin: 0 auto;
   padding: 16px 20px 8px;
 }
 
-.theme-pic-time .downloads {
+.theme-efpic-modern .downloads {
   max-width: 480px;
   padding: 24px 20px 100px;
 }
@@ -850,7 +849,7 @@ input[type="password"] {
   margin-right: 4px;
 }
 
-.theme-pic-time .collection-tray {
+.theme-efpic-modern .collection-tray {
   bottom: 88px;
 }
 
@@ -870,8 +869,8 @@ input[type="password"] {
   }
 }
 
-/* Pic-Time full-screen image viewer */
-.page-viewer.theme-pic-time {
+/* Modern full-screen image viewer */
+.page-viewer.theme-efpic-modern {
   background: var(--page-bg, #ffffff);
   color: var(--text);
   overflow: hidden;
@@ -879,7 +878,7 @@ input[type="password"] {
   height: 100dvh;
 }
 
-.page-viewer.theme-pic-time .pt-viewer {
+.page-viewer.theme-efpic-modern .modern-viewer {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -887,7 +886,7 @@ input[type="password"] {
   height: 100dvh;
 }
 
-.pt-viewer-bar {
+.modern-viewer-bar {
   position: relative;
   z-index: 10;
   display: flex;
@@ -900,7 +899,7 @@ input[type="password"] {
   flex-shrink: 0;
 }
 
-.pt-viewer-back {
+.modern-viewer-back {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -911,12 +910,12 @@ input[type="password"] {
   flex-shrink: 0;
 }
 
-.pt-viewer-back svg {
+.modern-viewer-back svg {
   width: 24px;
   height: 24px;
 }
 
-.pt-viewer-title {
+.modern-viewer-title {
   flex: 1;
   min-width: 0;
   font-size: 0.88rem;
@@ -927,31 +926,31 @@ input[type="password"] {
   opacity: 0.92;
 }
 
-.pt-viewer-actions {
+.modern-viewer-actions {
   display: flex;
   align-items: center;
   gap: 2px;
   flex-shrink: 0;
 }
 
-.page-viewer.theme-pic-time .icon-btn {
+.page-viewer.theme-efpic-modern .icon-btn {
   color: var(--text);
 }
 
-.page-viewer.theme-pic-time .icon-btn:hover,
-.page-viewer.theme-pic-time .icon-btn:focus-visible {
+.page-viewer.theme-efpic-modern .icon-btn:hover,
+.page-viewer.theme-efpic-modern .icon-btn:focus-visible {
   background: rgba(0, 0, 0, 0.06);
 }
 
-.pt-like-btn.is-liked {
+.modern-like-btn.is-liked {
   color: #e11d48;
 }
 
-.pt-like-btn.is-liked svg {
+.modern-like-btn.is-liked svg {
   fill: currentColor;
 }
 
-.pt-viewer-stage {
+.modern-viewer-stage {
   position: relative;
   flex: 1;
   min-height: 0;
@@ -961,7 +960,7 @@ input[type="password"] {
   background: var(--page-bg, #ffffff);
 }
 
-.pt-viewer-figure {
+.modern-viewer-figure {
   margin: 0;
   width: 100%;
   height: 100%;
@@ -971,7 +970,7 @@ input[type="password"] {
   padding: 0;
 }
 
-.pt-viewer-figure img {
+.modern-viewer-figure img {
   max-width: 100%;
   max-height: 100%;
   width: auto;
@@ -982,7 +981,7 @@ input[type="password"] {
   -webkit-user-drag: none;
 }
 
-.pt-viewer-zone {
+.modern-viewer-zone {
   position: absolute;
   top: 0;
   bottom: 0;
@@ -997,25 +996,25 @@ input[type="password"] {
   transition: color 0.15s, background 0.15s;
 }
 
-.pt-viewer-zone:hover {
+.modern-viewer-zone:hover {
   color: var(--text);
   background: rgba(0, 0, 0, 0.03);
 }
 
-.pt-viewer-zone.prev {
+.modern-viewer-zone.prev {
   left: 0;
 }
 
-.pt-viewer-zone.next {
+.modern-viewer-zone.next {
   right: 0;
 }
 
-.pt-viewer-zone svg {
+.modern-viewer-zone svg {
   width: 28px;
   height: 28px;
 }
 
-.pt-viewer-count {
+.modern-viewer-count {
   position: absolute;
   bottom: 16px;
   left: 50%;
@@ -1096,7 +1095,7 @@ input[type="password"] {
   border-bottom: 1px solid var(--border);
 }
 
-.theme-pic-time .gallery-scene-nav {
+.theme-efpic-modern .gallery-scene-nav {
   top: 52px;
   margin: 0;
   padding: 10px clamp(12px, 2vw, 20px);
@@ -1116,7 +1115,7 @@ input[type="password"] {
   padding: 0 16px;
 }
 
-.theme-pic-time .gallery-scene-nav__inner {
+.theme-efpic-modern .gallery-scene-nav__inner {
   max-width: 100%;
   padding: 0;
 }
@@ -1178,7 +1177,7 @@ input[type="password"] {
   scroll-margin-top: 72px;
 }
 
-.theme-pic-time .scene-block[id] {
+.theme-efpic-modern .scene-block[id] {
   scroll-margin-top: 120px;
 }
 
@@ -1188,7 +1187,7 @@ input[type="password"] {
   padding: 20px 16px 32px;
 }
 
-.theme-pic-time .gallery-scene-next-wrap {
+.theme-efpic-modern .gallery-scene-next-wrap {
   padding: 24px clamp(12px, 2vw, 24px) 40px;
 }
 
@@ -1245,7 +1244,7 @@ input[type="password"] {
   color: var(--accent);
 }
 
-.theme-pic-time .gallery-scene-next {
+.theme-efpic-modern .gallery-scene-next {
   background: #fff;
 }
 
@@ -1285,16 +1284,16 @@ input[type="password"] {
   vertical-align: middle;
 }
 
-.theme-masonry .grid {
+.theme-efpic-mood .grid {
   grid-template-columns: repeat(2, 1fr);
 }
 
-.theme-masonry .grid-card img {
+.theme-efpic-mood .grid-card img {
   min-height: 120px;
   object-fit: cover;
 }
 
-.theme-dark {
+.theme-efpic-mood {
   --text: #f3f3f3;
   --muted: #9ca3af;
   --border: #333;
@@ -1745,13 +1744,13 @@ input[type="password"] {
     max-width: 520px;
   }
 
-  .theme-masonry .gallery-main,
-  .theme-dark .gallery-main {
+  .theme-efpic-mood .gallery-main,
+  .theme-efpic-mood .gallery-main {
     max-width: 900px;
   }
 
-  .theme-pic-time .gallery-main,
-  .theme-pic-time .downloads {
+  .theme-efpic-modern .gallery-main,
+  .theme-efpic-modern .downloads {
     max-width: 100%;
   }
 }

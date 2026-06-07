@@ -1,4 +1,4 @@
-/* EdgarsFoto admin — Pic-Time inspired studio panel */
+/* EdgarsFoto admin panel */
 
 .admin-body {
   --admin-sidebar-w: 248px;
@@ -737,7 +737,7 @@
   color: var(--admin-accent);
 }
 
-/* Scene blocks (Pic-Time style sections) */
+/* Scene blocks */
 .admin-scene-list {
   display: grid;
   gap: 10px;

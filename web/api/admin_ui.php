@@ -602,10 +602,10 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     if ($adminSlot['enabled'] && $adminVideoReady && $clientSlot['enabled'] && $clientVideoReady) {
         $html .= '<p class="muted">Publiski redzamas abas MP4 sadaļas (fotogrāfs, tad klients).</p>';
     } elseif ($clientActive && !$adminVideoReady) {
-        $html .= '<p class="admin-warn">Bez MP4 pic-time motivā aktīvs klienta interaktīvais slideshow (ja ir MP3 + favorīti).</p>';
+        $html .= '<p class="admin-warn">Bez MP4 Modern tēmā aktīvs klienta interaktīvais slideshow (ja ir MP3 + favorīti).</p>';
     }
     $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_admin_enabled" value="1"' . ($adminSlot['enabled'] ? ' checked' : '') . '> Ieslēgt manu slideshow</label>';
-    $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā kā «Slideshow» sadaļa (visos motīvos). Bez MP4 — interaktīvs slideshow (bildes + MP3) pic-time motīvā.</p>';
+    $html .= '<p class="muted">Kad MP4 ir gatavs, video parādās publiskajā galerijā kā «Slideshow» sadaļa (visās tēmās). Bez MP4 — interaktīvs slideshow (bildes + MP3) Modern tēmā.</p>';
     $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_admin_interval" min="2" max="60" value="' . (int) $adminSlot['interval_sec'] . '"></label>';
     $html .= '<p class="muted">Manas favorītbildes: <strong>' . $adminFavCount . '</strong></p>';
     $html .= efpic_admin_render_slideshow_audio_list($config, $galleryToken, $adminSlot);
@@ -1045,7 +1045,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'folder_parent_url' => trim((string) ($_POST['folder_parent_url'] ?? '')),
             'folder_full_url' => trim((string) ($_POST['folder_full_url'] ?? '')),
             'folder_web_url' => trim((string) ($_POST['folder_web_url'] ?? '')),
-            'theme' => (string) ($_POST['theme'] ?? 'pic-time'),
+            'theme' => efpic_normalize_gallery_theme((string) ($_POST['theme'] ?? 'efpic-modern')),
         ]);
         $slug = $created['slug'];
         $meta = $created['meta'];
@@ -1084,7 +1084,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $meta['event_date'] = $eventDate;
         $meta['theme'] = (string) ($_POST['theme'] ?? $meta['theme']);
         if (!efpic_is_valid_gallery_theme($meta['theme'])) {
-            $meta['theme'] = 'pic-time';
+            $meta['theme'] = 'efpic-modern';
         }
 
         $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
@@ -1302,9 +1302,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Galerijas parole (jauna)<input type="password" name="gallery_password" autocomplete="new-password"></label>';
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '<label>Klienta parole (jauna)<input type="password" name="client_password" autocomplete="new-password"></label>';
-    $theme = (string) ($formMeta['theme'] ?? 'pic-time');
+    $theme = efpic_normalize_gallery_theme((string) ($formMeta['theme'] ?? 'efpic-modern'));
     if (!efpic_is_valid_gallery_theme($theme)) {
-        $theme = 'pic-time';
+        $theme = 'efpic-modern';
     }
     $heroAccent = efpic_client_hero_accent_color($formMeta);
     $pageBg = efpic_client_page_bg_color($config, $formMeta);
@@ -1316,7 +1316,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '</select></label>';
     $body .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
     $body .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
-    $body .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās EdgarsFoto tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
+    $body .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
         $commentsOn = !empty($gallerySettings['client_comments_enabled']);
@@ -1608,7 +1608,7 @@ function efpic_admin_settings_page(array $config): void
         . efpic_admin_esc((string) $gapTablet) . '"></label>';
     $body .= '<label>Atstarpes — desktop (1024px+, px)<input type="number" name="gallery_feed_gap_desktop" min="0" max="120" step="1" required value="'
         . efpic_admin_esc((string) $gapDesktop) . '"></label>';
-    $body .= '<p class="muted">Attiecas uz visām EdgarsFoto tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
+    $body .= '<p class="muted">Attiecas uz visām tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
     $body .= '</fieldset>';
     $body .= efpic_admin_render_render_queue_panel($config);
     $body .= '</div></form>';

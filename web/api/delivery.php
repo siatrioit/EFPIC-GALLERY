@@ -162,7 +162,7 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta = efpic_gallery_defaults('delivery');
     $meta['name'] = $name;
     $meta['event_date'] = trim((string) ($input['event_date'] ?? '')) ?: null;
-    $meta['theme'] = (string) ($input['theme'] ?? 'pic-time');
+    $meta['theme'] = efpic_normalize_gallery_theme((string) ($input['theme'] ?? 'efpic-modern'));
 
     $pass = (string) ($input['password'] ?? '');
     if ($pass !== '') {

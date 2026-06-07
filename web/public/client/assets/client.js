@@ -542,7 +542,7 @@
     return estimated;
   }
 
-  /** Cik kolonnu platuma bilde aizņem (1–3), kā Pic-Time “enlarge”. */
+  /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. */
   function pickColumnSpan(aspect, index, columns) {
     if (columns <= 1) {
       return 1;

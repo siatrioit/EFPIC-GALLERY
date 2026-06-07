@@ -181,7 +181,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     throw new RuntimeException('Bilde nav atrasta');
                 })(),
                 'set_theme' => (function () use ($config, $slug, &$meta) {
-                    $theme = (string) ($_POST['theme'] ?? 'pic-time');
+                    $theme = efpic_normalize_gallery_theme((string) ($_POST['theme'] ?? 'efpic-modern'));
                     if (!efpic_is_valid_gallery_theme($theme)) {
                         throw new InvalidArgumentException('Nederīga tēma');
                     }
