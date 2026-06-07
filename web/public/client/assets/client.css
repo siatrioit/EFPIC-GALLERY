@@ -730,10 +730,37 @@ input[type="password"] {
 .pic-feed {
   position: relative;
   width: 100%;
-  gap: var(--pic-feed-gap, 16px);
   padding: var(--pic-feed-gap, 16px);
   background: var(--page-bg, #ffffff);
   box-sizing: border-box;
+}
+
+.pic-feed[data-masonry-gallery] {
+  column-gap: var(--pic-feed-gap, 16px);
+  column-count: 2;
+}
+
+.pic-feed[data-masonry-gallery][data-mosaic-columns="3"] {
+  column-count: 3;
+}
+
+.pic-feed[data-masonry-gallery][data-mosaic-columns="4"] {
+  column-count: 4;
+}
+
+.theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+  column-count: 2;
+}
+
+.pic-feed[data-masonry-gallery] > .pic-feed-item {
+  display: inline-block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 var(--pic-feed-gap, 16px);
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  page-break-inside: avoid;
+  vertical-align: top;
 }
 
 .pic-feed-item {
@@ -771,7 +798,8 @@ input[type="password"] {
   background: rgba(0, 0, 0, 0.06);
 }
 
-.pic-feed-item--loading .pic-feed-img {
+.pic-feed-item--loading .pic-feed-img:not([src]),
+.pic-feed-item--loading .pic-feed-img[src=""] {
   display: block;
   width: 100%;
   aspect-ratio: 1 / 1.08;
@@ -950,17 +978,39 @@ input[type="password"] {
 
 @media (min-width: 640px) {
   .pic-feed {
-    gap: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
     padding: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+  }
+
+  .pic-feed[data-masonry-gallery] {
+    column-gap: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+  }
+
+  .pic-feed[data-masonry-gallery] > .pic-feed-item {
+    margin-bottom: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+  }
+
+  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+    column-count: 3;
   }
 }
 
 @media (min-width: 1024px) {
   .pic-feed {
-    gap: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
     padding: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
     max-width: 100%;
     margin: 0 auto;
+  }
+
+  .pic-feed[data-masonry-gallery] {
+    column-gap: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+  }
+
+  .pic-feed[data-masonry-gallery] > .pic-feed-item {
+    margin-bottom: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+  }
+
+  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+    column-count: 4;
   }
 }
 

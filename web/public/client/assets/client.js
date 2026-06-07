@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   var shareUrl = window.EFPIC_SHARE_URL || window.location.href;
   var shareTitle = window.EFPIC_SHARE_TITLE || document.title;
 
@@ -66,7 +66,7 @@
   }
 
   function showCopied() {
-    if (copiedEl) copiedEl.textContent = 'Saite nokopēta';
+    if (copiedEl) copiedEl.textContent = 'Saite nokopÄ“ta';
   }
 
   function tryNativeShare(evt) {
@@ -158,7 +158,7 @@
   var cdlModal = document.getElementById('collectionDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
   var ZIP_DONE_HINT =
-    'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem lejupielāde var aizņemt ilgāku laiku.';
+    'Skaties pÄrlÅ«kprogrammas lejupielÄdÄ“s. Lieliem arhÄ«viem lejupielÄde var aizÅ†emt ilgÄku laiku.';
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
   var zipFetchAbort = null;
 
@@ -184,8 +184,8 @@
     setZipProgressUi({
       loading: true,
       success: false,
-      title: title || 'Sagatavo lejupielādi…',
-      hint: hint || 'Lūdzu uzgaidiet…',
+      title: title || 'Sagatavo lejupielÄdiā€¦',
+      hint: hint || 'LÅ«dzu uzgaidietā€¦',
     });
   }
 
@@ -202,8 +202,8 @@
     setZipProgressUi({
       loading: false,
       success: false,
-      title: 'Lejupielāde neizdevās',
-      hint: hint || 'Neizdevās lejupielādēt.',
+      title: 'LejupielÄde neizdevÄs',
+      hint: hint || 'NeizdevÄs lejupielÄdÄ“t.',
     });
   }
 
@@ -259,7 +259,7 @@
     var titleEl = document.getElementById('collectionDownloadModalTitle');
     if (!titleEl) return;
     titleEl.textContent =
-      count === 1 ? 'Atlasītā (1) bilde' : 'Atlasītās (' + count + ') bildes';
+      count === 1 ? 'AtlasÄ«tÄ (1) bilde' : 'AtlasÄ«tÄs (' + count + ') bildes';
   }
 
   function triggerBlobDownload(blob, filename) {
@@ -277,12 +277,12 @@
   }
 
   function humanZipError(text) {
-    if (!text) return 'Neizdevās lejupielādēt.';
+    if (!text) return 'NeizdevÄs lejupielÄdÄ“t.';
     if (text.indexOf('<') >= 0 || text.indexOf('Internal Server Error') >= 0) {
-      return 'Servera timeout — izmanto tiešo Failiem lejupielādi (WEB/PRINT pogas).';
+      return 'Servera timeout ā€” izmanto tieÅo Failiem lejupielÄdi (WEB/PRINT pogas).';
     }
     if (text.length > 200) {
-      return text.slice(0, 200) + '…';
+      return text.slice(0, 200) + 'ā€¦';
     }
     return text;
   }
@@ -294,14 +294,14 @@
 
   function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
-    openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
+    openZipProgressLoading('Sagatavo lejupielÄdiā€¦', hint || 'LejupielÄde sÄkas no Failiem.lvā€¦');
     triggerBrowserDownload(failiemUrl);
-    showZipProgressDone(doneTitle || 'Lejupielāde sākta', ZIP_DONE_HINT);
+    showZipProgressDone(doneTitle || 'LejupielÄde sÄkta', ZIP_DONE_HINT);
   }
 
   function downloadServerZip(url, filename, hint) {
     if (!url) return;
-    openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Veido ZIP arhīvu…');
+    openZipProgressLoading('Sagatavo lejupielÄdiā€¦', hint || 'Veido ZIP arhÄ«vuā€¦');
     zipFetchAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var fetchOpts = { credentials: 'same-origin' };
     if (zipFetchAbort) fetchOpts.signal = zipFetchAbort.signal;
@@ -317,7 +317,7 @@
       .then(function (blob) {
         zipFetchAbort = null;
         triggerBlobDownload(blob, filename || 'galerija.zip');
-        showZipProgressDone('Lejupielāde gatava', 'ZIP fails saglabāts.');
+        showZipProgressDone('LejupielÄde gatava', 'ZIP fails saglabÄts.');
       })
       .catch(function (err) {
         zipFetchAbort = null;
@@ -332,20 +332,20 @@
     closeCollectionDlModal();
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
-    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
+    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasiā€¦' : 'Sagatavo lejupielÄdiā€¦';
     var usesFolderZip =
       scope === 'all' &&
       (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1');
 
     if (usesFolderZip) {
-      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIP…');
+      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIPā€¦');
       triggerBrowserDownload(downloadUrl);
       return;
     }
 
     openZipProgressLoading(
       loadingTitle,
-      'Failiem sagatavo ZIP no redzamajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — neaizveriet šo logu.'
+      'Failiem sagatavo ZIP no redzamajÄm bildÄ“m. Lielai galerijai tas var aizÅ†emt lÄ«dz 1ā€“2 minÅ«tÄ“m ā€” neaizveriet Åo logu.'
     );
     fetch(downloadUrl + '&prepare=1', {
       credentials: 'same-origin',
@@ -354,23 +354,23 @@
       .then(function (res) {
         return res.json().then(function (data) {
           if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
+            throw new Error((data && data.error) || 'NeizdevÄs sagatavot lejupielÄdi');
           }
           return data;
         });
       })
       .then(function (data) {
         if (data.mode === 'failiem' && data.url) {
-          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
+          showZipProgressDone('LejupielÄde sÄkta', ZIP_DONE_HINT);
           triggerBrowserDownload(data.url);
           return;
         }
         if (data.mode === 'stream_ready') {
-          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
+          showZipProgressDone('LejupielÄde sÄkta', ZIP_DONE_HINT);
           triggerBrowserDownload(downloadUrl + '&dl=1');
           return;
         }
-        throw new Error('Neatbalstīts lejupielādes režīms');
+        throw new Error('NeatbalstÄ«ts lejupielÄdes reÅ¾Ä«ms');
       })
       .catch(function (err) {
         showZipProgressError(humanZipError(err && err.message ? err.message : ''));
@@ -462,97 +462,6 @@
     updateFloatingUi();
   }
 
-  function getGalleryThemeSlug() {
-    var body = document.body;
-    if (!body || !body.className) {
-      return 'efpic-modern';
-    }
-    var match = body.className.match(/\btheme-(efpic-[a-z]+)\b/);
-    return match ? match[1] : 'efpic-modern';
-  }
-
-  function getMosaicColumnCount(container) {
-    if (container && container.hasAttribute('data-mosaic-columns')) {
-      var fixed = parseInt(container.getAttribute('data-mosaic-columns'), 10);
-      if (fixed >= 1 && fixed <= 6) {
-        return fixed;
-      }
-    }
-    var theme = getGalleryThemeSlug();
-    if (theme === 'efpic-mood') {
-      return 3;
-    }
-    if (theme === 'efpic-forest') {
-      return 4;
-    }
-    var w = window.innerWidth;
-    if (w >= 1200) {
-      return 4;
-    }
-    if (w >= 768) {
-      return 3;
-    }
-    return 2;
-  }
-
-  function getContainerInnerWidth(container) {
-    var style = window.getComputedStyle(container);
-    var pl = parseFloat(style.paddingLeft) || 0;
-    var pr = parseFloat(style.paddingRight) || 0;
-    return Math.max(0, container.clientWidth - pl - pr);
-  }
-
-  var LAYOUT_ASPECT_MIN = 0.62;
-  var LAYOUT_ASPECT_MAX = 2.45;
-  var LAYOUT_ASPECT_DEFAULT = 1.5;
-  var PLACEHOLDER_DEFAULT_ASPECT = 1.08;
-  var PLACEHOLDER_MAX_HEIGHT_RATIO = 1.22;
-  var PLACEHOLDER_MIN_HEIGHT_RATIO = 0.68;
-
-  function isImageLoaded(img) {
-    return !!(img && !isDeferredFeedImage(img) && img.complete && img.naturalWidth > 0);
-  }
-
-  function clampPlaceholderHeight(itemWidth, aspect) {
-    var height = itemWidth / aspect;
-    var maxH = itemWidth * PLACEHOLDER_MAX_HEIGHT_RATIO;
-    var minH = itemWidth * PLACEHOLDER_MIN_HEIGHT_RATIO;
-    return Math.min(maxH, Math.max(minH, height));
-  }
-
-  function isLayoutFeedItem(item) {
-    if (!item || item.classList.contains('pic-feed-item--broken')) {
-      return false;
-    }
-    if (item.hidden || item.getAttribute('aria-hidden') === 'true') {
-      return false;
-    }
-    if (item.classList.contains('pic-feed-item--hidden')) {
-      return false;
-    }
-    var style = window.getComputedStyle(item);
-    return style.display !== 'none' && style.visibility !== 'hidden';
-  }
-
-  function collectFeedItems(container) {
-    return Array.prototype.slice.call(
-      container.querySelectorAll(':scope > .pic-feed-item')
-    ).filter(isLayoutFeedItem);
-  }
-
-  function unwrapFeedRows(container) {
-    Array.prototype.slice.call(container.querySelectorAll(':scope > .pic-feed-row')).forEach(function (rowEl) {
-      while (rowEl.firstChild) {
-        container.insertBefore(rowEl.firstChild, rowEl);
-      }
-      rowEl.remove();
-    });
-  }
-
-  function clampLayoutAspect(aspect) {
-    return Math.min(LAYOUT_ASPECT_MAX, Math.max(LAYOUT_ASPECT_MIN, aspect));
-  }
-
   function isDeferredFeedImage(img) {
     return !!(img && img.hasAttribute('data-src') && !img.getAttribute('src'));
   }
@@ -564,6 +473,10 @@
     return !!(img && img.complete && img.naturalWidth === 0);
   }
 
+  function isImageLoaded(img) {
+    return !!(img && !isDeferredFeedImage(img) && img.complete && img.naturalWidth > 0);
+  }
+
   function markBrokenFeedItem(item) {
     if (!item) {
       return;
@@ -572,247 +485,54 @@
     item.style.display = 'none';
   }
 
-  function readAspectRatio(img) {
-    if (img && isImageLoaded(img)) {
-      void img.offsetWidth;
-      if (img.offsetWidth > 0 && img.offsetHeight > 0) {
-        return clampLayoutAspect(img.offsetWidth / img.offsetHeight);
+  function unwrapFeedRows(container) {
+    Array.prototype.slice.call(container.querySelectorAll(':scope > .pic-feed-row')).forEach(function (rowEl) {
+      while (rowEl.firstChild) {
+        container.insertBefore(rowEl.firstChild, rowEl);
       }
-    }
-    var w = img && img.naturalWidth ? img.naturalWidth : 0;
-    var h = img && img.naturalHeight ? img.naturalHeight : 0;
-    if (w > 0 && h > 0) {
-      return clampLayoutAspect(w / h);
-    }
-    return PLACEHOLDER_DEFAULT_ASPECT;
+      rowEl.remove();
+    });
   }
 
-  function measureFeedItemHeight(item, img, itemWidth, aspect) {
-    if (img && img._efpicLayoutH > 0) {
-      return img._efpicLayoutH;
-    }
-    if (item) {
-      void item.offsetWidth;
-    }
-    if (img) {
-      void img.offsetWidth;
-      if (img.offsetHeight > 0) {
-        img._efpicLayoutH = img.offsetHeight;
-        return img.offsetHeight;
-      }
-    }
-    if (img && isImageLoaded(img) && img.naturalWidth > 0 && img.naturalHeight > 0) {
-      return itemWidth * (img.naturalHeight / img.naturalWidth);
-    }
-    return clampPlaceholderHeight(itemWidth, aspect);
-  }
-
-  function rememberFeedImageLayoutHeight(img) {
-    if (!img) {
-      return;
-    }
-    void img.offsetWidth;
-    if (img.offsetHeight > 0) {
-      img._efpicLayoutH = img.offsetHeight;
-    }
-  }
-
-  function feedLayoutSeed(item, index) {
-    var tok = item && item.getAttribute('data-token');
-    if (!tok) {
-      return index;
-    }
-    var h = 0;
-    var i;
-    for (i = 0; i < tok.length; i++) {
-      h = ((h << 5) - h + tok.charCodeAt(i)) | 0;
-    }
-    return Math.abs(h);
-  }
-
-  /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. Span tikai kad zināmi patiesie izmēri. */
-  function pickColumnSpan(aspect, index, columns, img, item) {
-    if (columns <= 1) {
-      return 1;
-    }
-    if (!img || !isImageLoaded(img)) {
-      return 1;
-    }
-    if (aspect < 1.12) {
-      return 1;
-    }
-    var seed = feedLayoutSeed(item, index);
-    if (columns >= 4 && aspect >= 2.1 && seed % 7 === 2) {
-      return 3;
-    }
-    if (aspect >= 1.35 && (seed % 4 === 1 || aspect >= 1.75)) {
-      return Math.min(2, columns);
-    }
-    return 1;
-  }
-
-  function resetMasonryItem(item) {
+  function resetMasonryFeedItem(item) {
     item.style.position = '';
     item.style.left = '';
     item.style.top = '';
     item.style.width = '';
     item.style.height = '';
+    item.style.display = '';
+    item.removeAttribute('data-span');
+    item.removeAttribute('data-orient');
+    item.removeAttribute('data-layout-h');
   }
 
-  function layoutColumnMasonry(container) {
+  function prepareCssMosaicFeed(container) {
     unwrapFeedRows(container);
-    var items = collectFeedItems(container);
-    if (!items.length) {
-      container.style.height = '';
-      return;
-    }
-
-    items.forEach(resetMasonryItem);
-
-    var containerStyle = window.getComputedStyle(container);
-    var gap = parseFloat(containerStyle.gap) || 16;
-    var padLeft = parseFloat(containerStyle.paddingLeft) || 0;
-    var padTop = parseFloat(containerStyle.paddingTop) || 0;
-    var innerWidth = getContainerInnerWidth(container);
-    if (innerWidth <= 0) {
-      return;
-    }
-
-    var columns = getMosaicColumnCount(container);
-    var colWidth = (innerWidth - gap * (columns - 1)) / columns;
-    var colHeights = [];
-    var c;
-    for (c = 0; c < columns; c++) {
-      colHeights.push(0);
-    }
-
-    items.forEach(function (item, index) {
-      var img = item.querySelector('img');
-      if (isBrokenFeedImage(img)) {
-        markBrokenFeedItem(item);
-        return;
-      }
-
-      var aspect = readAspectRatio(img);
-      var span = pickColumnSpan(aspect, index, columns, img, item);
-      var itemWidth = span * colWidth + gap * (span - 1);
-
-      var bestCol = 0;
-      var bestTop = Infinity;
-      var startCol;
-      for (startCol = 0; startCol <= columns - span; startCol++) {
-        var top = 0;
-        var s;
-        for (s = 0; s < span; s++) {
-          if (colHeights[startCol + s] > top) {
-            top = colHeights[startCol + s];
-          }
-        }
-        if (top < bestTop) {
-          bestTop = top;
-          bestCol = startCol;
-        }
-      }
-
-      var left = padLeft + bestCol * (colWidth + gap);
-      item.style.display = '';
-      item.style.position = 'absolute';
-      item.style.left = Math.round(left) + 'px';
-      item.style.top = Math.round(padTop + bestTop) + 'px';
-      item.style.width = Math.round(itemWidth) + 'px';
-      item.style.height = 'auto';
-
-      item.setAttribute(
-        'data-orient',
-        aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square'
-      );
-      item.setAttribute('data-span', String(span));
-
-      if (img) {
-        img.style.width = '100%';
-        img.style.height = 'auto';
-        img.style.objectFit = '';
-        img.style.display = 'block';
-      }
-
-      var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
-      if (img) {
-        item.classList.toggle('pic-feed-item--loading', !isImageLoaded(img));
-      }
-      var newBottom = bestTop + itemHeight + gap;
-      for (s = 0; s < span; s++) {
-        colHeights[bestCol + s] = newBottom;
-      }
-    });
-
-    var maxH = 0;
-    for (c = 0; c < colHeights.length; c++) {
-      if (colHeights[c] > maxH) {
-        maxH = colHeights[c];
-      }
-    }
-    container.style.height = Math.max(0, Math.ceil(maxH - gap)) + 'px';
-
-  }
-
-  var mosaicContainers = [];
-  var mosaicRelayoutTimer = 0;
-  var mosaicRelayoutFollowUp = 0;
-  var mosaicRelayoutPending = false;
-
-  function runMosaicRelayoutPass() {
-    mosaicContainers.forEach(layoutColumnMasonry);
-  }
-
-  function scheduleMosaicRelayout() {
-    if (!mosaicContainers.length) {
-      return;
-    }
-    mosaicRelayoutPending = true;
-    if (mosaicRelayoutTimer) {
-      return;
-    }
-    mosaicRelayoutTimer = window.setTimeout(function flushMosaicRelayout() {
-      mosaicRelayoutTimer = 0;
-      if (!mosaicRelayoutPending) {
-        return;
-      }
-      mosaicRelayoutPending = false;
-      runMosaicRelayoutPass();
-      if (mosaicRelayoutFollowUp) {
-        return;
-      }
-      mosaicRelayoutFollowUp = requestAnimationFrame(function () {
-        mosaicRelayoutFollowUp = 0;
-        if (mosaicRelayoutPending) {
-          scheduleMosaicRelayout();
-          return;
-        }
-        runMosaicRelayoutPass();
-      });
-    }, 120);
+    Array.prototype.slice.call(container.querySelectorAll(':scope > .pic-feed-item')).forEach(resetMasonryFeedItem);
+    container.style.height = '';
   }
 
   function bindFeedImageLoad(img) {
     var item = img.closest('.pic-feed-item');
     if (isBrokenFeedImage(img)) {
       markBrokenFeedItem(item);
-      scheduleMosaicRelayout();
       return;
     }
     function doneImg() {
       if (isBrokenFeedImage(img)) {
         markBrokenFeedItem(item);
-      } else if (item) {
-        item.classList.remove('pic-feed-item--loading');
-        rememberFeedImageLayoutHeight(img);
+        return;
       }
-      scheduleMosaicRelayout();
+      if (item) {
+        item.classList.remove('pic-feed-item--loading');
+      }
     }
     if (img.complete && img.naturalWidth > 0) {
-      rememberFeedImageLayoutHeight(img);
       doneImg();
       return;
+    }
+    if (item) {
+      item.classList.add('pic-feed-item--loading');
     }
     img.addEventListener('load', doneImg, { once: true });
     img.addEventListener('error', doneImg, { once: true });
@@ -849,7 +569,7 @@
 
     activateDeferredImagesNearViewport();
 
-    var eagerLimit = 8;
+    var eagerLimit = 6;
     imgs.forEach(function (img, index) {
       if (index < eagerLimit) {
         activateDeferredFeedImage(img);
@@ -862,7 +582,6 @@
           activateDeferredFeedImage(img);
         }
       });
-      scheduleMosaicRelayout();
       return;
     }
 
@@ -889,36 +608,21 @@
   }
 
   function initMosaicGalleries(done) {
-    mosaicContainers = Array.prototype.slice.call(
+    var containers = Array.prototype.slice.call(
       document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]')
     );
 
     initDeferredFeedImages();
 
-    if (!mosaicContainers.length) {
-      if (done) {
-        done();
-      }
-      return;
-    }
-
-    mosaicContainers.forEach(function (container) {
+    containers.forEach(function (container) {
+      prepareCssMosaicFeed(container);
       container.querySelectorAll('.pic-feed-item img').forEach(bindFeedImageLoad);
     });
 
-    scheduleMosaicRelayout();
     if (done) {
       done();
     }
   }
-
-  var resizeTimer;
-  window.addEventListener('resize', function () {
-    clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(function () {
-      scheduleMosaicRelayout();
-    }, 150);
-  });
 
   function restoreGalleryFocus() {
     var hash = window.location.hash || '';
@@ -1149,7 +853,7 @@
         '<strong id="collectionTrayCount">' +
         count +
         '</strong> ' +
-        (count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas');
+        (count === 1 ? 'bilde izvÄ“lÄ“ta' : 'bildes izvÄ“lÄ“tas');
     }
     tray.hidden = count <= 0;
     tray.classList.toggle('is-visible', count > 0);
