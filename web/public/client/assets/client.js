@@ -462,10 +462,36 @@
     updateFloatingUi();
   }
 
-  function getMosaicColumnCount() {
+  function getGalleryThemeSlug() {
+    var body = document.body;
+    if (!body || !body.className) {
+      return 'efpic-modern';
+    }
+    var match = body.className.match(/\btheme-(efpic-[a-z]+)\b/);
+    return match ? match[1] : 'efpic-modern';
+  }
+
+  function getMosaicColumnCount(container) {
+    if (container && container.hasAttribute('data-mosaic-columns')) {
+      var fixed = parseInt(container.getAttribute('data-mosaic-columns'), 10);
+      if (fixed >= 1 && fixed <= 6) {
+        return fixed;
+      }
+    }
+    var theme = getGalleryThemeSlug();
+    if (theme === 'efpic-mood') {
+      return 3;
+    }
+    if (theme === 'efpic-forest') {
+      return 4;
+    }
     var w = window.innerWidth;
-    if (w >= 1200) return 4;
-    if (w >= 768) return 3;
+    if (w >= 1200) {
+      return 4;
+    }
+    if (w >= 768) {
+      return 3;
+    }
     return 2;
   }
 
@@ -528,23 +554,18 @@
   }
 
   function measureFeedItemHeight(item, img, itemWidth, aspect) {
-    var estimated = itemWidth / aspect;
-    var minHeight = itemWidth / LAYOUT_ASPECT_MAX;
-    if (img && img.complete && img.naturalWidth > 0) {
-      var measured = item.offsetHeight;
-      if (measured > 0) {
-        if (measured < minHeight * 0.55) {
-          return minHeight;
-        }
-        return measured;
-      }
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      return itemWidth * (img.naturalHeight / img.naturalWidth);
     }
-    return estimated;
+    return itemWidth / aspect;
   }
 
-  /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. */
-  function pickColumnSpan(aspect, index, columns) {
+  /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. Span tikai kad zināmi patiesie izmēri. */
+  function pickColumnSpan(aspect, index, columns, img) {
     if (columns <= 1) {
+      return 1;
+    }
+    if (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img)) {
       return 1;
     }
     if (aspect < 1.12) {
@@ -553,7 +574,7 @@
     if (columns >= 4 && aspect >= 2.1 && index % 7 === 2) {
       return 3;
     }
-    if (aspect >= 1.18 && (index % 3 === 1 || aspect >= 1.55)) {
+    if (aspect >= 1.35 && (index % 4 === 1 || aspect >= 1.75)) {
       return Math.min(2, columns);
     }
     return 1;
@@ -586,7 +607,7 @@
       return;
     }
 
-    var columns = getMosaicColumnCount();
+    var columns = getMosaicColumnCount(container);
     var colWidth = (innerWidth - gap * (columns - 1)) / columns;
     var colHeights = [];
     var c;
@@ -602,7 +623,7 @@
       }
 
       var aspect = readAspectRatio(img);
-      var span = pickColumnSpan(aspect, index, columns);
+      var span = pickColumnSpan(aspect, index, columns, img);
       var itemWidth = span * colWidth + gap * (span - 1);
 
       var bestCol = 0;
@@ -661,17 +682,26 @@
 
   var mosaicContainers = [];
   var mosaicRelayoutRaf = 0;
+  var mosaicRelayoutAgain = false;
 
   function scheduleMosaicRelayout() {
     if (!mosaicContainers.length) {
       return;
     }
+    mosaicRelayoutAgain = true;
     if (mosaicRelayoutRaf) {
       return;
     }
-    mosaicRelayoutRaf = requestAnimationFrame(function () {
+    mosaicRelayoutRaf = requestAnimationFrame(function runMosaicRelayout() {
       mosaicRelayoutRaf = 0;
+      if (!mosaicRelayoutAgain) {
+        return;
+      }
+      mosaicRelayoutAgain = false;
       mosaicContainers.forEach(layoutColumnMasonry);
+      if (mosaicRelayoutAgain) {
+        scheduleMosaicRelayout();
+      }
     });
   }
 
@@ -682,14 +712,15 @@
       scheduleMosaicRelayout();
       return;
     }
-    if (img.complete && img.naturalWidth > 0) {
-      return;
-    }
     function doneImg() {
       if (isBrokenFeedImage(img)) {
         markBrokenFeedItem(item);
       }
       scheduleMosaicRelayout();
+    }
+    if (img.complete && img.naturalWidth > 0) {
+      doneImg();
+      return;
     }
     img.addEventListener('load', doneImg, { once: true });
     img.addEventListener('error', doneImg, { once: true });
@@ -757,6 +788,9 @@
     mosaicContainers = Array.prototype.slice.call(
       document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]')
     );
+
+    initDeferredFeedImages();
+
     if (!mosaicContainers.length) {
       if (done) {
         done();
@@ -764,10 +798,8 @@
       return;
     }
 
-    initDeferredFeedImages();
-
     mosaicContainers.forEach(function (container) {
-      container.querySelectorAll('.pic-feed-item img:not([data-src])').forEach(bindFeedImageLoad);
+      container.querySelectorAll('.pic-feed-item img').forEach(bindFeedImageLoad);
     });
 
     scheduleMosaicRelayout();

@@ -477,6 +477,7 @@ input[type="password"] {
 
 .page-gallery .gallery-main,
 .page-gallery .pic-feed,
+.page-gallery .classic-feed,
 .page-gallery .feed {
   background: var(--page-bg, #ffffff);
 }
@@ -507,15 +508,35 @@ input[type="password"] {
   }
 }
 
+.theme-efpic-modern,
+.theme-efpic-mood,
+.theme-efpic-forest,
+.theme-efpic-classic {
+  --bg: var(--page-bg, #ffffff);
+}
+
+.theme-efpic-modern.page-gallery,
+.theme-efpic-mood.page-gallery,
+.theme-efpic-forest.page-gallery,
+.theme-efpic-classic.page-gallery {
+  background: var(--page-bg, #ffffff);
+}
+
 .theme-efpic-mood.page-gallery {
   --text: #f3f3f3;
   --muted: #9ca3af;
   --border: #333;
   --surface: #1c1c1c;
+  background: var(--page-bg, #111111);
+}
+
+.theme-efpic-forest.page-gallery {
+  background: var(--page-bg, #f2f6f0);
 }
 
 .theme-efpic-classic.page-gallery {
   --surface: #ffffff;
+  background: var(--page-bg, #f0f0f0);
 }
 
 .gallery-cover-img {
@@ -546,15 +567,7 @@ input[type="password"] {
   opacity: 0.9;
 }
 
-/* —— Modern theme: intro + feed + viewer —— */
-.theme-efpic-modern {
-  --bg: var(--page-bg, #ffffff);
-}
-
-.theme-efpic-modern.page-gallery {
-  background: var(--page-bg, #ffffff);
-}
-
+/* —— Mosaic themes: intro + feed + viewer —— */
 .gallery-intro {
   min-height: 100vh;
   min-height: 100dvh;
@@ -688,19 +701,28 @@ input[type="password"] {
   height: 18px;
 }
 
-.theme-efpic-modern .gallery-main {
+.theme-efpic-modern .gallery-main,
+.theme-efpic-mood .gallery-main,
+.theme-efpic-forest .gallery-main,
+.theme-efpic-classic .gallery-main {
   max-width: 100%;
   padding: 0;
   margin: 0;
 }
 
-.theme-efpic-modern .gallery-ai-hint {
+.theme-efpic-modern .gallery-ai-hint,
+.theme-efpic-mood .gallery-ai-hint,
+.theme-efpic-forest .gallery-ai-hint,
+.theme-efpic-classic .gallery-ai-hint {
   max-width: 720px;
   margin: 0 auto;
   padding: 16px 20px 8px;
 }
 
-.theme-efpic-modern .downloads {
+.theme-efpic-modern .downloads,
+.theme-efpic-mood .downloads,
+.theme-efpic-forest .downloads,
+.theme-efpic-classic .downloads {
   max-width: 480px;
   padding: 24px 20px 100px;
 }
@@ -742,6 +764,61 @@ input[type="password"] {
 .pic-feed-img--deferred:not([src]) {
   min-height: clamp(120px, 28vw, 220px);
   background: rgba(0, 0, 0, 0.05);
+}
+
+/* Classic: vienāds rindas augstums, pilna platuma režģis (2→3→4 kolonnas) */
+.classic-feed {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--pic-feed-gap, 16px);
+  width: 100%;
+  padding: var(--pic-feed-gap, 16px);
+  background: var(--page-bg, #ffffff);
+  box-sizing: border-box;
+}
+
+.theme-efpic-classic .classic-feed {
+  --classic-row-h: clamp(148px, 24vw, 260px);
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-item {
+  position: relative;
+  height: var(--classic-row-h);
+  overflow: hidden;
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-item img,
+.theme-efpic-classic .classic-feed .pic-feed-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-img--deferred:not([src]) {
+  min-height: 100%;
+  height: 100%;
+}
+
+@media (min-width: 640px) {
+  .classic-feed {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+    padding: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+  }
+}
+
+@media (min-width: 1024px) {
+  .classic-feed {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+    padding: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+  }
 }
 
 .grid-image-actions {
@@ -849,7 +926,10 @@ input[type="password"] {
   margin-right: 4px;
 }
 
-.theme-efpic-modern .collection-tray {
+.theme-efpic-modern .collection-tray,
+.theme-efpic-mood .collection-tray,
+.theme-efpic-forest .collection-tray,
+.theme-efpic-classic .collection-tray {
   bottom: 88px;
 }
 
@@ -870,7 +950,10 @@ input[type="password"] {
 }
 
 /* Modern full-screen image viewer */
-.page-viewer.theme-efpic-modern {
+.page-viewer.theme-efpic-modern,
+.page-viewer.theme-efpic-mood,
+.page-viewer.theme-efpic-forest,
+.page-viewer.theme-efpic-classic {
   background: var(--page-bg, #ffffff);
   color: var(--text);
   overflow: hidden;
@@ -878,7 +961,10 @@ input[type="password"] {
   height: 100dvh;
 }
 
-.page-viewer.theme-efpic-modern .modern-viewer {
+.page-viewer.theme-efpic-modern .modern-viewer,
+.page-viewer.theme-efpic-mood .modern-viewer,
+.page-viewer.theme-efpic-forest .modern-viewer,
+.page-viewer.theme-efpic-classic .modern-viewer {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -933,12 +1019,21 @@ input[type="password"] {
   flex-shrink: 0;
 }
 
-.page-viewer.theme-efpic-modern .icon-btn {
+.page-viewer.theme-efpic-modern .icon-btn,
+.page-viewer.theme-efpic-mood .icon-btn,
+.page-viewer.theme-efpic-forest .icon-btn,
+.page-viewer.theme-efpic-classic .icon-btn {
   color: var(--text);
 }
 
 .page-viewer.theme-efpic-modern .icon-btn:hover,
-.page-viewer.theme-efpic-modern .icon-btn:focus-visible {
+.page-viewer.theme-efpic-modern .icon-btn:focus-visible,
+.page-viewer.theme-efpic-mood .icon-btn:hover,
+.page-viewer.theme-efpic-mood .icon-btn:focus-visible,
+.page-viewer.theme-efpic-forest .icon-btn:hover,
+.page-viewer.theme-efpic-forest .icon-btn:focus-visible,
+.page-viewer.theme-efpic-classic .icon-btn:hover,
+.page-viewer.theme-efpic-classic .icon-btn:focus-visible {
   background: rgba(0, 0, 0, 0.06);
 }
 
@@ -1095,7 +1190,10 @@ input[type="password"] {
   border-bottom: 1px solid var(--border);
 }
 
-.theme-efpic-modern .gallery-scene-nav {
+.theme-efpic-modern .gallery-scene-nav,
+.theme-efpic-mood .gallery-scene-nav,
+.theme-efpic-forest .gallery-scene-nav,
+.theme-efpic-classic .gallery-scene-nav {
   top: 52px;
   margin: 0;
   padding: 10px clamp(12px, 2vw, 20px);
@@ -1115,7 +1213,10 @@ input[type="password"] {
   padding: 0 16px;
 }
 
-.theme-efpic-modern .gallery-scene-nav__inner {
+.theme-efpic-modern .gallery-scene-nav__inner,
+.theme-efpic-mood .gallery-scene-nav__inner,
+.theme-efpic-forest .gallery-scene-nav__inner,
+.theme-efpic-classic .gallery-scene-nav__inner {
   max-width: 100%;
   padding: 0;
 }
@@ -1177,7 +1278,10 @@ input[type="password"] {
   scroll-margin-top: 72px;
 }
 
-.theme-efpic-modern .scene-block[id] {
+.theme-efpic-modern .scene-block[id],
+.theme-efpic-mood .scene-block[id],
+.theme-efpic-forest .scene-block[id],
+.theme-efpic-classic .scene-block[id] {
   scroll-margin-top: 120px;
 }
 
@@ -1187,7 +1291,10 @@ input[type="password"] {
   padding: 20px 16px 32px;
 }
 
-.theme-efpic-modern .gallery-scene-next-wrap {
+.theme-efpic-modern .gallery-scene-next-wrap,
+.theme-efpic-mood .gallery-scene-next-wrap,
+.theme-efpic-forest .gallery-scene-next-wrap,
+.theme-efpic-classic .gallery-scene-next-wrap {
   padding: 24px clamp(12px, 2vw, 24px) 40px;
 }
 
@@ -1244,8 +1351,15 @@ input[type="password"] {
   color: var(--accent);
 }
 
-.theme-efpic-modern .gallery-scene-next {
+.theme-efpic-modern .gallery-scene-next,
+.theme-efpic-forest .gallery-scene-next,
+.theme-efpic-classic .gallery-scene-next {
   background: #fff;
+}
+
+.theme-efpic-mood .gallery-scene-next {
+  background: var(--surface);
+  color: var(--text);
 }
 
 .grid {
@@ -1284,20 +1398,15 @@ input[type="password"] {
   vertical-align: middle;
 }
 
-.theme-efpic-mood .grid {
-  grid-template-columns: repeat(2, 1fr);
-}
-
-.theme-efpic-mood .grid-card img {
-  min-height: 120px;
-  object-fit: cover;
-}
-
 .theme-efpic-mood {
   --text: #f3f3f3;
   --muted: #9ca3af;
   --border: #333;
   --surface: #1c1c1c;
+}
+
+.theme-efpic-forest {
+  --bg: var(--page-bg, #f2f6f0);
 }
 
 .page-portal .portal-appearance {
@@ -1744,13 +1853,14 @@ input[type="password"] {
     max-width: 520px;
   }
 
-  .theme-efpic-mood .gallery-main,
-  .theme-efpic-mood .gallery-main {
-    max-width: 900px;
-  }
-
   .theme-efpic-modern .gallery-main,
-  .theme-efpic-modern .downloads {
+  .theme-efpic-mood .gallery-main,
+  .theme-efpic-forest .gallery-main,
+  .theme-efpic-classic .gallery-main,
+  .theme-efpic-modern .downloads,
+  .theme-efpic-mood .downloads,
+  .theme-efpic-forest .downloads,
+  .theme-efpic-classic .downloads {
     max-width: 100%;
   }
 }

@@ -375,7 +375,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     $name = (string) ($meta['name'] ?? '');
     $dateRaw = (string) ($meta['event_date'] ?? '');
     $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_client_effective_theme($meta);
-    $isModern = efpic_is_modern_gallery_theme($theme);
+    $usesShell = efpic_uses_full_gallery_shell($theme);
     $coverTok = efpic_resolve_gallery_cover_token($meta, $images);
     $imgUrl = '';
     if ($coverTok !== '') {
@@ -390,7 +390,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         }
     }
 
-    if ($isModern) {
+    if ($usesShell) {
         $byline = efpic_client_gallery_byline($config);
         $date = efpic_client_format_event_date($dateRaw);
         $html = '<section class="gallery-intro" id="galleryHero">';
@@ -579,6 +579,83 @@ function efpic_client_scene_next_button_for_index(array $scenesWithImages, int $
     );
 }
 
+function efpic_client_mosaic_feed_open(array $meta): string
+{
+    $cols = efpic_gallery_theme_mosaic_columns(efpic_client_effective_theme($meta));
+    $attr = ' data-masonry-gallery data-justified-gallery';
+    if ($cols > 0) {
+        $attr .= ' data-mosaic-columns="' . $cols . '"';
+    }
+
+    return '<div class="pic-feed"' . $attr . '>';
+}
+
+function efpic_client_classic_feed_open(array $meta): string
+{
+    return '<div class="classic-feed" data-classic-gallery>';
+}
+
+function efpic_client_render_classic_scenes(array $config, array $meta, array $images, array $gridCtx, array $ctx = []): string
+{
+    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
+
+    $byScene = [];
+    foreach ($images as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sid = (string) ($img['scene_id'] ?? 'main');
+        $byScene[$sid][] = $img;
+    }
+
+    $scenesWithContent = [];
+    foreach ($visible as $scene) {
+        $sid = $scene['id'];
+        $sceneImages = $byScene[$sid] ?? [];
+        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
+        if ($sceneImages === [] && $sceneVideos === '') {
+            continue;
+        }
+        $scenesWithContent[] = $scene;
+    }
+    $multiScene = count($scenesWithContent) > 1;
+
+    $html = '';
+    foreach ($scenesWithContent as $i => $scene) {
+        $sid = $scene['id'];
+        $sceneImages = $byScene[$sid] ?? [];
+        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
+        $title = $scene['title'];
+        $anchor = efpic_scene_element_id($sid);
+        if ($multiScene) {
+            $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
+                . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+        }
+        $html .= $sceneVideos;
+        if ($sceneImages !== []) {
+            $html .= efpic_client_classic_feed_open($meta);
+            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx);
+            $html .= '</div>';
+        }
+        if ($multiScene) {
+            $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
+            $html .= '</section>';
+        }
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'after_scene', $sid);
+    }
+
+    if ($html === '') {
+        $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
+        $html .= efpic_client_classic_feed_open($meta);
+        $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx);
+        $html .= '</div>';
+    }
+
+    $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'bottom');
+
+    return $html;
+}
+
 function efpic_client_render_modern_scenes(array $config, array $meta, array $images, array $gridCtx, array $ctx = []): string
 {
     $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
@@ -617,7 +694,7 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
         }
         $html .= $sceneVideos;
         if ($sceneImages !== []) {
-            $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
+            $html .= efpic_client_mosaic_feed_open($meta);
             $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx);
             $html .= '</div>';
         }
@@ -630,7 +707,7 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
 
     if ($html === '') {
         $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
-        $html .= '<div class="pic-feed" data-masonry-gallery data-justified-gallery>';
+        $html .= efpic_client_mosaic_feed_open($meta);
         $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx);
         $html .= '</div>';
     }
@@ -819,7 +896,10 @@ function efpic_client_render_public_slideshow_video_inline(
 function efpic_client_render_gallery_grid(array $config, array $meta, array $images, string $theme, array $gridCtx, array $ctx = []): string
 {
     $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_client_effective_theme($meta);
-    if (efpic_is_modern_gallery_theme($theme)) {
+    if (efpic_is_classic_gallery_theme($theme)) {
+        return efpic_client_render_classic_scenes($config, $meta, $images, $gridCtx, $ctx);
+    }
+    if (efpic_uses_mosaic_feed_theme($theme)) {
         return efpic_client_render_modern_scenes($config, $meta, $images, $gridCtx, $ctx);
     }
 
@@ -942,9 +1022,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $right .= '<button type="button" class="icon-btn" data-share-open aria-label="Dalīties">';
     $right .= efpic_client_icon('share') . '</button></div>';
 
+    $usesShell = efpic_uses_full_gallery_shell($theme);
     $isModern = efpic_is_modern_gallery_theme($theme);
     $normalizedTheme = efpic_normalize_gallery_theme($theme);
-    $usesSceneMain = efpic_is_delivery_gallery($meta) || in_array($normalizedTheme, ['efpic-modern', 'efpic-mood'], true);
+    $usesSceneMain = efpic_is_delivery_gallery($meta) || efpic_uses_full_gallery_shell($normalizedTheme);
     $slideshowTopHtml = efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'top');
     $headExtra = '';
     foreach (efpic_collect_public_slideshow_video_sections($meta, $ctx, $config) as $section) {
@@ -961,7 +1042,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $headExtra .= '<link rel="preload" as="video" href="' . efpic_client_esc($videoUrl) . '" fetchpriority="high">';
     }
     $body = '';
-    if ($isModern) {
+    if ($usesShell) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
         $body .= $slideshowTopHtml;
         $body .= efpic_client_topbar($name, $right, 'topbar-floating');
@@ -981,7 +1062,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         if ($sceneNav !== '') {
             $body .= $sceneNav;
         }
-        if (!$isModern) {
+        if (!$usesShell) {
             $body .= $slideshowTopHtml;
         }
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
@@ -1001,13 +1082,16 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
     $body .= efpic_client_zip_progress_modal();
     $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
-    if ($isModern) {
-        $resolvedSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config);
-        $showFloatSlideshow = $resolvedSlideshow !== null && ($resolvedSlideshow['mode'] ?? '') === 'interactive';
+    if ($usesShell) {
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
-        if ($showFloatSlideshow) {
-            $body .= '<button type="button" class="float-btn" data-slideshow-open aria-label="Slideshow">';
-            $body .= '<span>▶</span><span>Slideshow</span></button>';
+        if ($isModern) {
+            $resolvedSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config);
+            $showFloatSlideshow = $resolvedSlideshow !== null && ($resolvedSlideshow['mode'] ?? '') === 'interactive';
+            if ($showFloatSlideshow) {
+                $body .= '<button type="button" class="float-btn" data-slideshow-open aria-label="Slideshow">';
+                $body .= '<span>▶</span><span>Slideshow</span></button>';
+            }
+            $body .= efpic_client_render_slideshow_overlay($config, $meta, $ctx);
         }
         $body .= '<button type="button" class="float-btn" data-share-open aria-label="Dalīties">';
         $body .= efpic_client_icon('share') . '<span>Dalīties</span></button>';
@@ -1016,7 +1100,6 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></button>';
         }
         $body .= '</nav>';
-        $body .= efpic_client_render_slideshow_overlay($config, $meta, $ctx);
     }
     $pageClass = 'page-gallery theme-' . preg_replace('/[^a-z0-9-]/', '', efpic_normalize_gallery_theme($theme));
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [
@@ -1125,7 +1208,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     }
 
     $theme = efpic_normalize_gallery_theme($theme);
-    if (efpic_is_modern_gallery_theme($theme)) {
+    if (efpic_uses_full_gallery_shell($theme)) {
         $body = efpic_client_render_modern_viewer(
             $config,
             $meta,
@@ -1142,7 +1225,8 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
         );
         $body .= efpic_client_share_modal($name);
         $body .= efpic_client_download_modal();
-        efpic_client_html($name, $body, $config, 'page-viewer theme-efpic-modern', $pageUrl, [
+        $viewerThemeClass = 'page-viewer theme-' . preg_replace('/[^a-z0-9-]/', '', $theme);
+        efpic_client_html($name, $body, $config, $viewerThemeClass, $pageUrl, [
             'EFPIC_IMAGE_TOKEN' => $imageToken,
             'EFPIC_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download',
             'EFPIC_VIEWER_PREV' => $prevUrl,

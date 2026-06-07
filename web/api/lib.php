@@ -197,8 +197,9 @@ function efpic_gallery_theme_options(): array
 {
     return [
         'efpic-modern' => 'Modern',
-        'efpic-classic' => 'Classic',
         'efpic-mood' => 'Mood',
+        'efpic-forest' => 'Forest',
+        'efpic-classic' => 'Classic',
     ];
 }
 
@@ -232,6 +233,32 @@ function efpic_is_modern_gallery_theme(string $theme): bool
     return efpic_normalize_gallery_theme($theme) === 'efpic-modern';
 }
 
+function efpic_is_classic_gallery_theme(string $theme): bool
+{
+    return efpic_normalize_gallery_theme($theme) === 'efpic-classic';
+}
+
+function efpic_uses_mosaic_feed_theme(string $theme): bool
+{
+    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest'], true);
+}
+
+/** Intro vāks, pilna platuma galerija un modern skatītājs (visas 4 tēmas). */
+function efpic_uses_full_gallery_shell(string $theme): bool
+{
+    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest', 'efpic-classic'], true);
+}
+
+/** Fixed mosaic columns per theme; 0 = responsive (Modern: 2–4 by viewport). */
+function efpic_gallery_theme_mosaic_columns(string $theme): int
+{
+    return match (efpic_normalize_gallery_theme($theme)) {
+        'efpic-mood' => 3,
+        'efpic-forest' => 4,
+        default => 0,
+    };
+}
+
 function efpic_gallery_effective_theme(array $meta): string
 {
     $clientTheme = (string) ($meta['client_theme'] ?? '');
@@ -246,6 +273,7 @@ function efpic_theme_default_page_bg(string $theme): string
 {
     return match (efpic_normalize_gallery_theme($theme)) {
         'efpic-mood' => '#111111',
+        'efpic-forest' => '#f2f6f0',
         'efpic-classic' => '#f0f0f0',
         'efpic-modern' => '#ffffff',
         default => '#ffffff',
