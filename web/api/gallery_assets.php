@@ -788,12 +788,10 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
     $slideshow = $slots[$owner];
     $prefix = $owner === 'client' ? 'slideshow_client' : 'slideshow_admin';
     $enabledKey = $prefix . '_enabled';
-    if ($owner === 'client') {
-        if (array_key_exists($enabledKey, $_POST) || array_key_exists('slideshow_enabled', $_POST)) {
-            $slideshow['enabled'] = !empty($_POST[$enabledKey]) || !empty($_POST['slideshow_enabled']);
-        }
+    // Neatzīmēts checkbox POSTā neparādās — traktējam kā izslēgtu.
+    if ($owner === 'client' && !array_key_exists($enabledKey, $_POST) && array_key_exists('slideshow_enabled', $_POST)) {
+        $slideshow['enabled'] = !empty($_POST['slideshow_enabled']);
     } else {
-        // Admin forma: neatzīmēts checkbox POSTā neparādās — traktējam kā izslēgtu.
         $slideshow['enabled'] = !empty($_POST[$enabledKey]);
     }
     $interval = (int) ($_POST[$prefix . '_interval'] ?? $_POST['slideshow_interval'] ?? $slideshow['interval_sec']);
@@ -802,7 +800,7 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
     $audioFiles = efpic_slideshow_slot_audio_files($slideshow);
     $maxAudioTracks = 8;
 
-    if ($owner === 'admin' && array_key_exists($prefix . '_audio_order', $_POST)) {
+    if (array_key_exists($prefix . '_audio_order', $_POST)) {
         $orderRaw = trim((string) $_POST[$prefix . '_audio_order']);
         $order = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
         $validOrder = [];
@@ -847,12 +845,6 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
     if ($uploads === [] && $clientUploads !== []) {
         $uploads = $clientUploads;
     }
-    if ($owner === 'client' && $uploads !== []) {
-        foreach ($audioFiles as $file) {
-            efpic_delete_gallery_asset_file($config, $slug, $file);
-        }
-        $audioFiles = [];
-    }
     if ($uploads !== []) {
         $max = 25 * 1024 * 1024;
         foreach ($uploads as $upload) {
@@ -886,24 +878,24 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
         $slideshow['bg_mode'] = in_array($bg, ['white', 'gallery'], true) ? $bg : 'white';
     }
 
+    if (array_key_exists($prefix . '_image_order', $_POST)) {
+        $orderRaw = trim((string) $_POST[$prefix . '_image_order']);
+        $tokens = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
+        $valid = [];
+        foreach ($tokens as $tok) {
+            if (preg_match('/^[a-f0-9]{48}$/', $tok) === 1) {
+                $valid[] = $tok;
+            }
+        }
+        $slideshow['image_order_tokens'] = $valid;
+    }
+
+    if (!empty($_POST[$prefix . '_remove_video'])) {
+        efpic_slideshow_clear_slot_video($config, $slug, $slideshow, $owner);
+    }
+
     if ($owner === 'admin') {
         $slideshow['image_source'] = !empty($_POST[$prefix . '_image_source_all']) ? 'all' : 'favorites';
-
-        if (!empty($_POST[$prefix . '_remove_video'])) {
-            efpic_slideshow_clear_slot_video($config, $slug, $slideshow, $owner);
-        }
-
-        if (array_key_exists($prefix . '_image_order', $_POST)) {
-            $orderRaw = trim((string) $_POST[$prefix . '_image_order']);
-            $tokens = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
-            $valid = [];
-            foreach ($tokens as $tok) {
-                if (preg_match('/^[a-f0-9]{48}$/', $tok) === 1) {
-                    $valid[] = $tok;
-                }
-            }
-            $slideshow['image_order_tokens'] = $valid;
-        }
     }
 
     $slots[$owner] = $slideshow;

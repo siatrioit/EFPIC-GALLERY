@@ -112,6 +112,20 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         );
     }
 
+    if ($method === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
+        header('Content-Type: application/json; charset=utf-8');
+        $clientSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['client']);
+        $renderStatus = (string) ($clientSlot['render_status'] ?? 'none');
+        echo json_encode([
+            'ok' => true,
+            'render_status' => $renderStatus,
+            'render_label' => efpic_render_status_label($renderStatus),
+            'render_error' => (string) ($clientSlot['render_error'] ?? ''),
+            'video_ready' => efpic_slideshow_slot_video_ready($clientSlot),
+        ], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+
     if ($method === 'POST' && !empty($_POST['portal_share_api'])) {
         header('Content-Type: application/json; charset=utf-8');
         try {
@@ -225,7 +239,13 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                 })(),
                 'save_slideshow' => (function () use ($config, $slug, &$meta) {
                     efpic_apply_slideshow_from_post($config, $slug, $meta, 'client');
+                    if (!empty($_POST['slideshow_client_generate_video'])) {
+                        efpic_slideshow_enqueue_render($config, $slug, $meta, 'client');
+                    }
                     efpic_save_gallery_meta($config, $slug, $meta);
+                    $_SESSION['efpic_portal_flash'] = !empty($_POST['slideshow_client_generate_video'])
+                        ? 'Slideshow saglabāts — video ģenerēšana sākta.'
+                        : 'Slideshow saglabāts.';
                 })(),
                 'save_scenes' => (function () use ($config, $slug, &$meta) {
                     $meta['scenes'] = efpic_parse_portal_scenes_from_post($meta);
@@ -278,7 +298,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $name = (string) ($meta['name'] ?? '');
     $theme = efpic_gallery_effective_theme($meta);
     $slots = efpic_gallery_slideshows_struct($meta);
-    $slideshow = $slots['client'];
+    $slideshow = efpic_slideshow_slot_with_render($slots['client']);
     $favCount = efpic_count_favorites($meta, 'client');
     $settings = efpic_gallery_settings($meta);
     $disableAllWeb = !empty($settings['disable_public_download_all_web']);
@@ -320,7 +340,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_tab_panel_close();
 
     $body .= efpic_admin_tab_panel_open('admin-tab-media');
-    $body .= efpic_portal_render_favorites_and_slideshow($config, $meta, $gt, $slideshow, $favCount);
+    $body .= efpic_portal_render_favorites_and_slideshow($config, $meta, $gt, $slideshow, $favCount, $slug);
     $body .= efpic_portal_render_videos_fieldset($config, $meta, $gt);
     $body .= efpic_admin_tab_panel_close();
 
@@ -452,7 +472,14 @@ function efpic_portal_render_favorites_and_slideshow(
     string $galleryToken,
     array $slideshow,
     int $favCount,
+    string $slug = '',
 ): string {
+    $clientSlot = efpic_slideshow_slot_with_render($slideshow);
+    $adminSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['admin']);
+    $adminVideoReady = efpic_slideshow_slot_video_ready($adminSlot);
+    $clientVideoReady = efpic_slideshow_slot_video_ready($clientSlot);
+    $renderStatus = (string) ($clientSlot['render_status'] ?? 'none');
+
     $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
 
     $html .= '<div class="admin-fav-columns">';
@@ -463,21 +490,51 @@ function efpic_portal_render_favorites_and_slideshow(
 
     $html .= '<div class="admin-slideshow-columns">';
     $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Tava slideshow</h3>';
-    $html .= '<p class="muted">Augšupielādē MP3. Kad slideshow ir gatava, tā kļūst par galveno publiskajā galerijā.</p>';
-    $html .= '<form method="post" enctype="multipart/form-data" class="portal-stack">';
-    $html .= '<input type="hidden" name="portal_action" value="save_slideshow">';
-    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_enabled" value="1"' . (!empty($slideshow['enabled']) ? ' checked' : '') . '> Ieslēgt slideshow</label>';
-    $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_interval" min="2" max="60" value="' . (int) ($slideshow['interval_sec'] ?? 5) . '"></label>';
-    $html .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
-    if (($slideshow['audio_file'] ?? '') !== '') {
-        $url = efpic_gallery_asset_url($config, $galleryToken, (string) $slideshow['audio_file']);
-        $html .= '<p class="admin-ok">MP3: <a href="' . efpic_client_esc($url) . '" target="_blank" rel="noopener">'
-            . efpic_client_esc((string) $slideshow['audio_file']) . '</a></p>';
-        $html .= '<label class="admin-check"><input type="checkbox" name="remove_slideshow_audio" value="1"> Dzēst MP3</label>';
+    if ($clientSlot['enabled'] && $clientVideoReady && $adminSlot['enabled'] && $adminVideoReady) {
+        $html .= '<p class="muted">Publiski redzamas abas MP4 sadaļas (fotogrāfs, tad klients).</p>';
+    } elseif ($adminVideoReady && !$clientVideoReady) {
+        $html .= '<p class="muted">Fotogrāfa slideshow video jau ir publiskajā galerijā. Ģenerē savu, lai rādītu abas.</p>';
+    } else {
+        $html .= '<p class="muted">Ieslēdz slideshow un ģenerē MP4 — tas parādīsies publiskajā galerijā kā atsevišķa sadaļa.</p>';
     }
-    $html .= '<label>Augšupielādēt MP3<input type="file" name="slideshow_mp3" accept="audio/mpeg,.mp3"></label>';
+    $html .= '<form method="post" enctype="multipart/form-data" class="portal-stack" id="portal-slideshow-form">';
+    $html .= '<input type="hidden" name="portal_action" value="save_slideshow">';
+    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_client_enabled" value="1"'
+        . (!empty($clientSlot['enabled']) ? ' checked' : '') . '> Ieslēgt slideshow publiskajā galerijā</label>';
+    $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_client_interval" min="2" max="60" value="'
+        . (int) ($clientSlot['interval_sec'] ?? 5) . '"></label>';
+    $html .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
+    $html .= efpic_admin_render_slideshow_audio_list($config, $galleryToken, $clientSlot, 'client');
+    $html .= '<label>Intro virsraksts<input type="text" name="slideshow_client_intro_title" maxlength="120" value="'
+        . efpic_client_esc($clientSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
+    $html .= '<p class="muted">Intro video: lielie burti. «+» starp vārdiem — jauna rinda.</p>';
+    $html .= '<label>Fona krāsa<select name="slideshow_client_bg_mode">';
+    $html .= '<option value="white"' . ($clientSlot['bg_mode'] === 'white' ? ' selected' : '') . '>Balts</option>';
+    $html .= '<option value="gallery"' . ($clientSlot['bg_mode'] === 'gallery' ? ' selected' : '') . '>Galerijas fons</option>';
+    $html .= '</select></label>';
+    $html .= efpic_admin_render_slideshow_image_order_list($config, $meta, $clientSlot, 'client');
+    $html .= '<p class="muted" id="slideshow-client-render-status">Video statuss: <strong data-render-status="'
+        . efpic_client_esc($renderStatus) . '">' . efpic_client_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
+    if ($renderStatus === 'failed' && ($clientSlot['render_error'] ?? '') !== '') {
+        $html .= '<p class="admin-warn">' . efpic_client_esc((string) $clientSlot['render_error']) . '</p>';
+    }
+    if (($clientSlot['video_file'] ?? '') !== '') {
+        $videoFile = (string) $clientSlot['video_file'];
+        $videoUrl = efpic_gallery_asset_url($config, $galleryToken, $videoFile);
+        $html .= '<p class="admin-ok">MP4: <a href="' . efpic_client_esc($videoUrl) . '" target="_blank" rel="noopener">'
+            . efpic_client_esc($videoFile) . '</a></p>';
+        if ($slug !== '') {
+            $videoPath = efpic_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $videoFile;
+            $sizeLabel = is_file($videoPath) ? efpic_format_bytes((int) filesize($videoPath)) : 'nav atrasts';
+            $html .= '<p class="muted">Izmērs serverī: ' . efpic_client_esc($sizeLabel) . '</p>';
+        }
+        $html .= '<button type="submit" class="btn admin-btn-danger" name="slideshow_client_remove_video" value="1"'
+            . ' onclick="return confirm(\'Dzēst slideshow MP4?\');">Dzēst MP4</button>';
+    }
     $html .= '<div class="admin-media-action-row">';
     $html .= '<button type="submit" class="btn primary">Saglabāt slideshow</button>';
+    $html .= '<button type="submit" class="btn" name="slideshow_client_generate_video" value="1"'
+        . ' onclick="return confirm(\'Ģenerēt jaunu slideshow video? Esošais MP4 tiks aizstāts, kad render pabeigts.\');">Ģenerēt video</button>';
     $html .= '</div>';
     $html .= '</form></div></div></fieldset>';
 
