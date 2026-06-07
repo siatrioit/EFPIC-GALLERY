@@ -478,18 +478,23 @@
         return fixed;
       }
     }
-    var theme = getGalleryThemeSlug();
-    if (theme === 'efpic-mood') {
-      return 3;
-    }
-    if (theme === 'efpic-forest') {
-      return 4;
+    var maxCols = 4;
+    if (container && container.hasAttribute('data-mosaic-max-columns')) {
+      var maxAttr = parseInt(container.getAttribute('data-mosaic-max-columns'), 10);
+      if (maxAttr >= 2 && maxAttr <= 6) {
+        maxCols = maxAttr;
+      }
+    } else {
+      var theme = getGalleryThemeSlug();
+      if (theme === 'efpic-forest') {
+        maxCols = 3;
+      }
     }
     var w = window.innerWidth;
-    if (w >= 1200) {
+    if (maxCols >= 4 && w >= 1200) {
       return 4;
     }
-    if (w >= 768) {
+    if (maxCols >= 3 && w >= 768) {
       return 3;
     }
     return 2;

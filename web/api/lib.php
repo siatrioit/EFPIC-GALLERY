@@ -269,14 +269,24 @@ function efpic_uses_full_gallery_shell(string $theme): bool
     return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest', 'efpic-classic'], true);
 }
 
-/** Fixed mosaic columns per theme; 0 = responsive (Modern: 2–4 by viewport). */
+/** Fixed mosaic columns per theme; 0 = responsive (see client.js for per-theme ranges). */
 function efpic_gallery_theme_mosaic_columns(string $theme): int
 {
+    return 0;
+}
+
+/** Max responsive columns when mosaic_columns is 0. */
+function efpic_gallery_theme_mosaic_max_columns(string $theme): int
+{
     return match (efpic_normalize_gallery_theme($theme)) {
-        'efpic-mood' => 3,
-        'efpic-forest' => 4,
-        default => 0,
+        'efpic-forest' => 3,
+        default => 4,
     };
+}
+
+function efpic_uses_mosaic_slideshow_ui(string $theme): bool
+{
+    return efpic_uses_mosaic_feed_theme($theme);
 }
 
 function efpic_gallery_effective_theme(array $meta): string

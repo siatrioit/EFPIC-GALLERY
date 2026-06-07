@@ -617,10 +617,14 @@ function efpic_client_scene_next_button_for_index(array $scenesWithImages, int $
 
 function efpic_client_mosaic_feed_open(array $meta): string
 {
-    $cols = efpic_gallery_theme_mosaic_columns(efpic_client_effective_theme($meta));
+    $theme = efpic_client_effective_theme($meta);
+    $cols = efpic_gallery_theme_mosaic_columns($theme);
+    $maxCols = efpic_gallery_theme_mosaic_max_columns($theme);
     $attr = ' data-masonry-gallery data-justified-gallery';
     if ($cols > 0) {
         $attr .= ' data-mosaic-columns="' . $cols . '"';
+    } elseif ($maxCols > 0 && $maxCols < 4) {
+        $attr .= ' data-mosaic-max-columns="' . $maxCols . '"';
     }
 
     return '<div class="pic-feed"' . $attr . '>';
@@ -1073,7 +1077,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $right .= efpic_client_icon('share') . '</button></div>';
 
     $usesShell = efpic_uses_full_gallery_shell($theme);
-    $isModern = efpic_is_modern_gallery_theme($theme);
+    $usesMosaicSlideshow = efpic_uses_mosaic_slideshow_ui($theme);
     $normalizedTheme = efpic_normalize_gallery_theme($theme);
     $usesSceneMain = efpic_is_delivery_gallery($meta) || efpic_uses_full_gallery_shell($normalizedTheme);
     $slideshowTopHtml = efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'top');
@@ -1134,7 +1138,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
     if ($usesShell) {
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
-        if ($isModern) {
+        if ($usesMosaicSlideshow) {
             $resolvedSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config);
             $showFloatSlideshow = $resolvedSlideshow !== null && ($resolvedSlideshow['mode'] ?? '') === 'interactive';
             if ($showFloatSlideshow) {
