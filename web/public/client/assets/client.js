@@ -563,22 +563,31 @@
   }
 
   function readAspectRatio(img) {
-    if (img) {
-      var fromAttr = parseFloat(img.getAttribute('data-aspect'));
-      if (!(fromAttr > 0) || !isFinite(fromAttr)) {
-        var item = img.closest('.pic-feed-item');
-        if (item) {
-          fromAttr = parseFloat(item.getAttribute('data-aspect'));
-        }
-      }
-      if (fromAttr > 0 && isFinite(fromAttr)) {
-        return clampLayoutAspect(fromAttr);
-      }
-      var w = img.naturalWidth ? img.naturalWidth : 0;
-      var h = img.naturalHeight ? img.naturalHeight : 0;
-      if (w > 0 && h > 0) {
-        return clampLayoutAspect(w / h);
-      }
+    if (!img) {
+      return LAYOUT_ASPECT_DEFAULT;
+    }
+    var item = img.closest('.pic-feed-item');
+    var stored = parseFloat(img.getAttribute('data-aspect'));
+    if (!(stored > 0) || !isFinite(stored)) {
+      stored = item ? parseFloat(item.getAttribute('data-aspect')) : NaN;
+    }
+    var natural = 0;
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      natural = clampLayoutAspect(img.naturalWidth / img.naturalHeight);
+    }
+    if (natural > 0 && (!(stored > 0) || !isFinite(stored) || aspectRatioMismatch(stored, natural))) {
+      return natural;
+    }
+    if (stored > 0 && isFinite(stored)) {
+      return clampLayoutAspect(stored);
+    }
+    var dw = parseInt(img.getAttribute('width'), 10);
+    var dh = parseInt(img.getAttribute('height'), 10);
+    if (dw > 0 && dh > 0) {
+      return clampLayoutAspect(dw / dh);
+    }
+    if (natural > 0) {
+      return natural;
     }
     return LAYOUT_ASPECT_DEFAULT;
   }
@@ -612,7 +621,7 @@
     if (columns >= 4 && aspect >= 2.1 && index % 7 === 2) {
       return 3;
     }
-    if (aspect >= 1.35 && (index % 4 === 1 || aspect >= 1.75)) {
+    if (aspect >= 1.7 && (index % 5 === 2 || aspect >= 1.95)) {
       return Math.min(2, columns);
     }
     return 1;

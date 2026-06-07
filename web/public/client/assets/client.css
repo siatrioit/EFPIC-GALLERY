@@ -741,6 +741,7 @@ input[type="password"] {
   display: block;
   line-height: 0;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .pic-feed-item--broken {
