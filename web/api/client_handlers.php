@@ -396,6 +396,25 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($usesShell) {
         $byline = efpic_client_gallery_byline($config);
         $date = efpic_client_format_event_date($dateRaw);
+        if ($theme === 'efpic-mood') {
+            $html = '<section class="gallery-intro gallery-intro--mood" id="galleryHero">';
+            $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
+            $html .= '<div class="gallery-intro-blob-wrap">';
+            $html .= '<div class="gallery-intro-blob">';
+            if ($imgUrl !== '') {
+                $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="" decoding="async" fetchpriority="high">';
+            }
+            $html .= '</div></div>';
+            $html .= '<div class="gallery-intro-footer">';
+            $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
+            if ($date !== '') {
+                $html .= '<p class="gallery-intro-date">' . efpic_client_esc($date) . '</p>';
+            }
+            $html .= '</div></section>';
+
+            return $html;
+        }
+
         $html = '<section class="gallery-intro" id="galleryHero">';
         $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
         $html .= '<div class="gallery-intro-head">';
