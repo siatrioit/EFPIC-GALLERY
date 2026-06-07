@@ -2016,6 +2016,7 @@
 
   initAdminConfirmForms();
   initAdminRegeneratePublicLink();
+  initAdminBackfillDimensions();
   initAdminGalleryLinksPoll();
   initAdminSlideshowRenderPoll();
   initAdminSlideshowOrderDrag();
@@ -2214,6 +2215,81 @@
           list.insertBefore(dragEl, li);
         }
       });
+    });
+  }
+
+
+  function initAdminBackfillDimensions() {
+    var btn = document.getElementById('admin-backfill-dimensions');
+    if (!btn || btn.dataset.bound === '1') {
+      return;
+    }
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', function () {
+      if (btn.disabled) {
+        return;
+      }
+      var label = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Ievācu…';
+      var statusEl = document.getElementById('admin-dims-status');
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.textContent = 'Savienojos ar Failiem…';
+      }
+      var fd = new FormData();
+      fd.set('backfill_dimensions_api', '1');
+      fetch(window.location.pathname + window.location.search, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            if (!res.ok || !data || !data.ok) {
+              throw new Error((data && data.error) || 'Neizdevās ievākt izmērus');
+            }
+            return data;
+          });
+        })
+        .then(function (data) {
+          var stats = data.stats || {};
+          var countEl = document.getElementById('admin-dims-count');
+          var missingEl = document.getElementById('admin-dims-missing');
+          if (countEl && stats.with_dims !== undefined && stats.total !== undefined) {
+            countEl.textContent = stats.with_dims + ' / ' + stats.total;
+          }
+          if (missingEl && stats.missing !== undefined) {
+            missingEl.textContent = String(stats.missing);
+          }
+          var msg = 'Ievākti ' + (data.updated || 0) + ' bildēm. Kopā: '
+            + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + '.';
+          if ((stats.missing || 0) > 0) {
+            msg += ' Palika ' + stats.missing + ' — spied vēlreiz.';
+            if ((data.updated || 0) === 0) {
+              msg += ' (Neizdevās nolasīt nevienu — pārbaudi Failiem piekļuvi serverī.)';
+            }
+          } else {
+            msg += ' Viss gatavs — atjauno galeriju (Ctrl+F5).';
+            btn.hidden = true;
+          }
+          if (statusEl) {
+            statusEl.textContent = msg;
+          }
+          showAdminAutoSaveToast(msg, (data.updated || 0) === 0 && (stats.missing || 0) > 0);
+        })
+        .catch(function (err) {
+          var errMsg = (err && err.message) ? err.message : 'Kļūda';
+          if (statusEl) {
+            statusEl.textContent = errMsg;
+          }
+          showAdminAutoSaveToast(errMsg, true);
+        })
+        .finally(function () {
+          btn.disabled = false;
+          btn.textContent = label;
+        });
     });
   }
 

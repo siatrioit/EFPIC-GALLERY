@@ -1185,13 +1185,14 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
         return '';
     }
 
-    $line = '<p class="muted admin-dims-debug"><strong>Diag (pagaidu):</strong> '
+    $line = '<p class="muted admin-dims-debug" id="admin-dims-debug"><strong>Diag (pagaidu):</strong> '
         . efpic_app_version_label()
-        . ' · izmēri meta.json: <strong>' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
+        . ' · izmēri meta.json: <strong id="admin-dims-count">' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
     if ($stats['missing'] > 0) {
-        $line .= ' — trūkst <strong>' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
-        $line .= ' · <button type="submit" class="btn admin-btn-sm" name="backfill_dimensions" value="1">'
+        $line .= ' — trūkst <strong id="admin-dims-missing">' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
+        $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
             . 'Ievākt izmērus (līdz ' . EFPIC_DIMS_BACKFILL_BATCH . '/reizi)</button>';
+        $line .= ' <span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
     } else {
         $line .= ' — viss OK';
     }

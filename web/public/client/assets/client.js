@@ -555,6 +555,13 @@
     return !!(item && item.getAttribute('data-aspect'));
   }
 
+  function aspectRatioMismatch(stored, natural) {
+    if (!(stored > 0) || !(natural > 0)) {
+      return false;
+    }
+    return Math.abs(natural - stored) / stored > 0.1;
+  }
+
   function readAspectRatio(img) {
     if (img) {
       var fromAttr = parseFloat(img.getAttribute('data-aspect'));

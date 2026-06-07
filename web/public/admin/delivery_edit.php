@@ -72,6 +72,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) 
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $info = efpic_admin_backfill_gallery_dimensions($config, $slug);
+        echo json_encode(array_merge(['ok' => true], $info), JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (!empty($_POST['regenerate_public_link'])) {

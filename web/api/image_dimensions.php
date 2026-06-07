@@ -5,8 +5,9 @@ declare(strict_types=1);
 const EFPIC_LAYOUT_ASPECT_MIN = 0.62;
 const EFPIC_LAYOUT_ASPECT_MAX = 2.45;
 const EFPIC_LAYOUT_ASPECT_DEFAULT = 1.5;
-const EFPIC_DIMS_BACKFILL_BATCH = 150;
-const EFPIC_DIMS_SYNC_BATCH = 96;
+const EFPIC_DIMS_BACKFILL_BATCH = 30;
+const EFPIC_DIMS_SYNC_BATCH = 30;
+const EFPIC_DIMS_BACKFILL_SAVE_EVERY = 5;
 
 function efpic_image_has_dimensions(array $img): bool
 {
@@ -142,8 +143,8 @@ function efpic_probe_image_dimensions_remote(array $config, array $img): ?array
         return null;
     }
 
-    $thumbUrl = efpic_failiem_thumb_url($config, $hash, 640);
-    $binary = efpic_fetch_binary_quick($config, $thumbUrl, 12);
+    $thumbUrl = efpic_failiem_thumb_url($config, $hash, 360);
+    $binary = efpic_fetch_binary_quick($config, $thumbUrl, 8);
     if ($binary !== null) {
         $dims = efpic_probe_image_dimensions_from_binary($binary);
         if ($dims !== null) {
@@ -198,7 +199,7 @@ function efpic_image_apply_dimensions(array &$img, array $config, ?string $slug,
     return true;
 }
 
-function efpic_gallery_backfill_image_dimensions(array $config, string $slug, array &$meta, int $limit = 48, bool $allowRemote = false): int
+function efpic_gallery_backfill_image_dimensions(array $config, string $slug, array &$meta, int $limit = 48, bool $allowRemote = false, int $saveEvery = EFPIC_DIMS_BACKFILL_SAVE_EVERY): int
 {
     $images = $meta['images'] ?? [];
     if (!is_array($images) || $images === [] || $limit <= 0) {
@@ -211,9 +212,16 @@ function efpic_gallery_backfill_image_dimensions(array $config, string $slug, ar
         if (!is_array($img) || $updated >= $limit) {
             continue;
         }
-        if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote)) {
-            $updated++;
-            $dirty = true;
+        if (!efpic_image_has_dimensions($img)) {
+            if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote)) {
+                $updated++;
+                $dirty = true;
+                if ($saveEvery > 0 && $updated % $saveEvery === 0) {
+                    $meta['images'] = $images;
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                    $dirty = false;
+                }
+            }
         }
     }
     unset($img);
