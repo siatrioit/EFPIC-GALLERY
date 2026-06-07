@@ -66,7 +66,7 @@
   }
 
   function showCopied() {
-    if (copiedEl) copiedEl.textContent = 'Saite nokopÄ“ta';
+    if (copiedEl) copiedEl.textContent = 'Saite nokop─ōta';
   }
 
   function tryNativeShare(evt) {
@@ -158,7 +158,7 @@
   var cdlModal = document.getElementById('collectionDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
   var ZIP_DONE_HINT =
-    'Skaties pÄrlÅ«kprogrammas lejupielÄdÄ“s. Lieliem arhÄ«viem lejupielÄde var aizÅ†emt ilgÄku laiku.';
+    'Skaties p─ürl┼½kprogrammas lejupiel─üd─ōs. Lieliem arh─½viem lejupiel─üde var aiz┼åemt ilg─üku laiku.';
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
   var zipFetchAbort = null;
 
@@ -184,8 +184,8 @@
     setZipProgressUi({
       loading: true,
       success: false,
-      title: title || 'Sagatavo lejupielÄdiā€¦',
-      hint: hint || 'LÅ«dzu uzgaidietā€¦',
+      title: title || 'Sagatavo lejupiel─üdiŌĆ”',
+      hint: hint || 'L┼½dzu uzgaidietŌĆ”',
     });
   }
 
@@ -202,8 +202,8 @@
     setZipProgressUi({
       loading: false,
       success: false,
-      title: 'LejupielÄde neizdevÄs',
-      hint: hint || 'NeizdevÄs lejupielÄdÄ“t.',
+      title: 'Lejupiel─üde neizdev─üs',
+      hint: hint || 'Neizdev─üs lejupiel─üd─ōt.',
     });
   }
 
@@ -259,7 +259,7 @@
     var titleEl = document.getElementById('collectionDownloadModalTitle');
     if (!titleEl) return;
     titleEl.textContent =
-      count === 1 ? 'AtlasÄ«tÄ (1) bilde' : 'AtlasÄ«tÄs (' + count + ') bildes';
+      count === 1 ? 'Atlas─½t─ü (1) bilde' : 'Atlas─½t─üs (' + count + ') bildes';
   }
 
   function triggerBlobDownload(blob, filename) {
@@ -277,12 +277,12 @@
   }
 
   function humanZipError(text) {
-    if (!text) return 'NeizdevÄs lejupielÄdÄ“t.';
+    if (!text) return 'Neizdev─üs lejupiel─üd─ōt.';
     if (text.indexOf('<') >= 0 || text.indexOf('Internal Server Error') >= 0) {
-      return 'Servera timeout ā€” izmanto tieÅo Failiem lejupielÄdi (WEB/PRINT pogas).';
+      return 'Servera timeout ŌĆö izmanto tie┼Īo Failiem lejupiel─üdi (WEB/PRINT pogas).';
     }
     if (text.length > 200) {
-      return text.slice(0, 200) + 'ā€¦';
+      return text.slice(0, 200) + 'ŌĆ”';
     }
     return text;
   }
@@ -294,14 +294,14 @@
 
   function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
-    openZipProgressLoading('Sagatavo lejupielÄdiā€¦', hint || 'LejupielÄde sÄkas no Failiem.lvā€¦');
+    openZipProgressLoading('Sagatavo lejupiel─üdiŌĆ”', hint || 'Lejupiel─üde s─ükas no Failiem.lvŌĆ”');
     triggerBrowserDownload(failiemUrl);
-    showZipProgressDone(doneTitle || 'LejupielÄde sÄkta', ZIP_DONE_HINT);
+    showZipProgressDone(doneTitle || 'Lejupiel─üde s─ükta', ZIP_DONE_HINT);
   }
 
   function downloadServerZip(url, filename, hint) {
     if (!url) return;
-    openZipProgressLoading('Sagatavo lejupielÄdiā€¦', hint || 'Veido ZIP arhÄ«vuā€¦');
+    openZipProgressLoading('Sagatavo lejupiel─üdiŌĆ”', hint || 'Veido ZIP arh─½vuŌĆ”');
     zipFetchAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var fetchOpts = { credentials: 'same-origin' };
     if (zipFetchAbort) fetchOpts.signal = zipFetchAbort.signal;
@@ -317,7 +317,7 @@
       .then(function (blob) {
         zipFetchAbort = null;
         triggerBlobDownload(blob, filename || 'galerija.zip');
-        showZipProgressDone('LejupielÄde gatava', 'ZIP fails saglabÄts.');
+        showZipProgressDone('Lejupiel─üde gatava', 'ZIP fails saglab─üts.');
       })
       .catch(function (err) {
         zipFetchAbort = null;
@@ -332,20 +332,20 @@
     closeCollectionDlModal();
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
-    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasiā€¦' : 'Sagatavo lejupielÄdiā€¦';
+    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasiŌĆ”' : 'Sagatavo lejupiel─üdiŌĆ”';
     var usesFolderZip =
       scope === 'all' &&
       (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1');
 
     if (usesFolderZip) {
-      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIPā€¦');
+      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIPŌĆ”');
       triggerBrowserDownload(downloadUrl);
       return;
     }
 
     openZipProgressLoading(
       loadingTitle,
-      'Failiem sagatavo ZIP no redzamajÄm bildÄ“m. Lielai galerijai tas var aizÅ†emt lÄ«dz 1ā€“2 minÅ«tÄ“m ā€” neaizveriet Åo logu.'
+      'Failiem sagatavo ZIP no redzamaj─üm bild─ōm. Lielai galerijai tas var aiz┼åemt l─½dz 1ŌĆō2 min┼½t─ōm ŌĆö neaizveriet ┼Īo logu.'
     );
     fetch(downloadUrl + '&prepare=1', {
       credentials: 'same-origin',
@@ -354,23 +354,23 @@
       .then(function (res) {
         return res.json().then(function (data) {
           if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) || 'NeizdevÄs sagatavot lejupielÄdi');
+            throw new Error((data && data.error) || 'Neizdev─üs sagatavot lejupiel─üdi');
           }
           return data;
         });
       })
       .then(function (data) {
         if (data.mode === 'failiem' && data.url) {
-          showZipProgressDone('LejupielÄde sÄkta', ZIP_DONE_HINT);
+          showZipProgressDone('Lejupiel─üde s─ükta', ZIP_DONE_HINT);
           triggerBrowserDownload(data.url);
           return;
         }
         if (data.mode === 'stream_ready') {
-          showZipProgressDone('LejupielÄde sÄkta', ZIP_DONE_HINT);
+          showZipProgressDone('Lejupiel─üde s─ükta', ZIP_DONE_HINT);
           triggerBrowserDownload(downloadUrl + '&dl=1');
           return;
         }
-        throw new Error('NeatbalstÄ«ts lejupielÄdes reÅ¾Ä«ms');
+        throw new Error('Neatbalst─½ts lejupiel─üdes re┼Š─½ms');
       })
       .catch(function (err) {
         showZipProgressError(humanZipError(err && err.message ? err.message : ''));
@@ -462,27 +462,54 @@
     updateFloatingUi();
   }
 
-  function isDeferredFeedImage(img) {
-    return !!(img && img.hasAttribute('data-src') && !img.getAttribute('src'));
-  }
-
-  function isBrokenFeedImage(img) {
-    if (isDeferredFeedImage(img)) {
-      return false;
+  function getGalleryThemeSlug() {
+    var body = document.body;
+    if (!body || !body.className) {
+      return 'efpic-modern';
     }
-    return !!(img && img.complete && img.naturalWidth === 0);
+    var match = body.className.match(/\btheme-(efpic-[a-z]+)\b/);
+    return match ? match[1] : 'efpic-modern';
   }
 
-  function isImageLoaded(img) {
-    return !!(img && !isDeferredFeedImage(img) && img.complete && img.naturalWidth > 0);
-  }
-
-  function markBrokenFeedItem(item) {
-    if (!item) {
-      return;
+  function getMosaicColumnCount(container) {
+    if (container && container.hasAttribute('data-mosaic-columns')) {
+      var fixed = parseInt(container.getAttribute('data-mosaic-columns'), 10);
+      if (fixed >= 1 && fixed <= 6) {
+        return fixed;
+      }
     }
-    item.classList.add('pic-feed-item--broken');
-    item.style.display = 'none';
+    var theme = getGalleryThemeSlug();
+    if (theme === 'efpic-mood') {
+      return 3;
+    }
+    if (theme === 'efpic-forest') {
+      return 4;
+    }
+    var w = window.innerWidth;
+    if (w >= 1200) {
+      return 4;
+    }
+    if (w >= 768) {
+      return 3;
+    }
+    return 2;
+  }
+
+  function getContainerInnerWidth(container) {
+    var style = window.getComputedStyle(container);
+    var pl = parseFloat(style.paddingLeft) || 0;
+    var pr = parseFloat(style.paddingRight) || 0;
+    return Math.max(0, container.clientWidth - pl - pr);
+  }
+
+  var LAYOUT_ASPECT_MIN = 0.62;
+  var LAYOUT_ASPECT_MAX = 2.45;
+  var LAYOUT_ASPECT_DEFAULT = 1.5;
+
+  function collectFeedItems(container) {
+    return Array.prototype.slice.call(
+      container.querySelectorAll(':scope > .pic-feed-item:not(.pic-feed-item--broken)')
+    );
   }
 
   function unwrapFeedRows(container) {
@@ -494,45 +521,206 @@
     });
   }
 
-  function resetMasonryFeedItem(item) {
+  function clampLayoutAspect(aspect) {
+    return Math.min(LAYOUT_ASPECT_MAX, Math.max(LAYOUT_ASPECT_MIN, aspect));
+  }
+
+  function isDeferredFeedImage(img) {
+    return !!(img && img.hasAttribute('data-src') && !img.getAttribute('src'));
+  }
+
+  function isBrokenFeedImage(img) {
+    if (isDeferredFeedImage(img)) {
+      return false;
+    }
+    return !!(img && img.complete && img.naturalWidth === 0);
+  }
+
+  function markBrokenFeedItem(item) {
+    if (!item) {
+      return;
+    }
+    item.classList.add('pic-feed-item--broken');
+    item.style.display = 'none';
+  }
+
+  function readAspectRatio(img) {
+    var w = img && img.naturalWidth ? img.naturalWidth : 0;
+    var h = img && img.naturalHeight ? img.naturalHeight : 0;
+    if (w > 0 && h > 0) {
+      return clampLayoutAspect(w / h);
+    }
+    return LAYOUT_ASPECT_DEFAULT;
+  }
+
+  function measureFeedItemHeight(item, img, itemWidth, aspect) {
+    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
+      return itemWidth * (img.naturalHeight / img.naturalWidth);
+    }
+    return itemWidth / aspect;
+  }
+
+  /** Cik kolonnu platuma bilde aiz┼åem (1ŌĆō3), mosaic layout. Span tikai kad zin─ümi patiesie izm─ōri. */
+  function pickColumnSpan(aspect, index, columns, img) {
+    if (columns <= 1) {
+      return 1;
+    }
+    if (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img)) {
+      return 1;
+    }
+    if (aspect < 1.12) {
+      return 1;
+    }
+    if (columns >= 4 && aspect >= 2.1 && index % 7 === 2) {
+      return 3;
+    }
+    if (aspect >= 1.35 && (index % 4 === 1 || aspect >= 1.75)) {
+      return Math.min(2, columns);
+    }
+    return 1;
+  }
+
+  function resetMasonryItem(item) {
     item.style.position = '';
     item.style.left = '';
     item.style.top = '';
     item.style.width = '';
     item.style.height = '';
-    item.style.display = '';
-    item.removeAttribute('data-span');
-    item.removeAttribute('data-orient');
-    item.removeAttribute('data-layout-h');
   }
 
-  function prepareCssMosaicFeed(container) {
+  function layoutColumnMasonry(container) {
     unwrapFeedRows(container);
-    Array.prototype.slice.call(container.querySelectorAll(':scope > .pic-feed-item')).forEach(resetMasonryFeedItem);
-    container.style.height = '';
+    var items = collectFeedItems(container);
+    if (!items.length) {
+      container.style.height = '';
+      return;
+    }
+
+    items.forEach(resetMasonryItem);
+
+    var containerStyle = window.getComputedStyle(container);
+    var gap = parseFloat(containerStyle.gap) || 16;
+    var padLeft = parseFloat(containerStyle.paddingLeft) || 0;
+    var padTop = parseFloat(containerStyle.paddingTop) || 0;
+    var innerWidth = getContainerInnerWidth(container);
+    if (innerWidth <= 0) {
+      return;
+    }
+
+    var columns = getMosaicColumnCount(container);
+    var colWidth = (innerWidth - gap * (columns - 1)) / columns;
+    var colHeights = [];
+    var c;
+    for (c = 0; c < columns; c++) {
+      colHeights.push(0);
+    }
+
+    items.forEach(function (item, index) {
+      var img = item.querySelector('img');
+      if (isBrokenFeedImage(img)) {
+        markBrokenFeedItem(item);
+        return;
+      }
+
+      var aspect = readAspectRatio(img);
+      var span = pickColumnSpan(aspect, index, columns, img);
+      var itemWidth = span * colWidth + gap * (span - 1);
+
+      var bestCol = 0;
+      var bestTop = Infinity;
+      var startCol;
+      for (startCol = 0; startCol <= columns - span; startCol++) {
+        var top = 0;
+        var s;
+        for (s = 0; s < span; s++) {
+          if (colHeights[startCol + s] > top) {
+            top = colHeights[startCol + s];
+          }
+        }
+        if (top < bestTop) {
+          bestTop = top;
+          bestCol = startCol;
+        }
+      }
+
+      var left = padLeft + bestCol * (colWidth + gap);
+      item.style.display = '';
+      item.style.position = 'absolute';
+      item.style.left = Math.round(left) + 'px';
+      item.style.top = Math.round(padTop + bestTop) + 'px';
+      item.style.width = Math.round(itemWidth) + 'px';
+      item.style.height = 'auto';
+
+      item.setAttribute(
+        'data-orient',
+        aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square'
+      );
+      item.setAttribute('data-span', String(span));
+
+      if (img) {
+        img.style.width = '100%';
+        img.style.height = 'auto';
+        img.style.objectFit = '';
+        img.style.display = 'block';
+      }
+
+      var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
+      var newBottom = bestTop + itemHeight + gap;
+      for (s = 0; s < span; s++) {
+        colHeights[bestCol + s] = newBottom;
+      }
+    });
+
+    var maxH = 0;
+    for (c = 0; c < colHeights.length; c++) {
+      if (colHeights[c] > maxH) {
+        maxH = colHeights[c];
+      }
+    }
+    container.style.height = Math.max(0, Math.ceil(maxH - gap)) + 'px';
+  }
+
+  var mosaicContainers = [];
+  var mosaicRelayoutRaf = 0;
+  var mosaicRelayoutAgain = false;
+
+  function scheduleMosaicRelayout() {
+    if (!mosaicContainers.length) {
+      return;
+    }
+    mosaicRelayoutAgain = true;
+    if (mosaicRelayoutRaf) {
+      return;
+    }
+    mosaicRelayoutRaf = requestAnimationFrame(function runMosaicRelayout() {
+      mosaicRelayoutRaf = 0;
+      if (!mosaicRelayoutAgain) {
+        return;
+      }
+      mosaicRelayoutAgain = false;
+      mosaicContainers.forEach(layoutColumnMasonry);
+      if (mosaicRelayoutAgain) {
+        scheduleMosaicRelayout();
+      }
+    });
   }
 
   function bindFeedImageLoad(img) {
     var item = img.closest('.pic-feed-item');
     if (isBrokenFeedImage(img)) {
       markBrokenFeedItem(item);
+      scheduleMosaicRelayout();
       return;
     }
     function doneImg() {
       if (isBrokenFeedImage(img)) {
         markBrokenFeedItem(item);
-        return;
       }
-      if (item) {
-        item.classList.remove('pic-feed-item--loading');
-      }
+      scheduleMosaicRelayout();
     }
     if (img.complete && img.naturalWidth > 0) {
       doneImg();
       return;
-    }
-    if (item) {
-      item.classList.add('pic-feed-item--loading');
     }
     img.addEventListener('load', doneImg, { once: true });
     img.addEventListener('error', doneImg, { once: true });
@@ -549,16 +737,6 @@
     bindFeedImageLoad(img);
   }
 
-  function activateDeferredImagesNearViewport() {
-    var viewportH = window.innerHeight || document.documentElement.clientHeight || 800;
-    document.querySelectorAll('.pic-feed-item img[data-src]').forEach(function (img) {
-      var rect = img.getBoundingClientRect();
-      if (rect.bottom >= -600 && rect.top <= viewportH + 600) {
-        activateDeferredFeedImage(img);
-      }
-    });
-  }
-
   function initDeferredFeedImages() {
     var imgs = Array.prototype.slice.call(
       document.querySelectorAll('.pic-feed-item img[data-src]')
@@ -567,9 +745,7 @@
       return;
     }
 
-    activateDeferredImagesNearViewport();
-
-    var eagerLimit = 6;
+    var eagerLimit = 4;
     imgs.forEach(function (img, index) {
       if (index < eagerLimit) {
         activateDeferredFeedImage(img);
@@ -582,6 +758,7 @@
           activateDeferredFeedImage(img);
         }
       });
+      scheduleMosaicRelayout();
       return;
     }
 
@@ -608,21 +785,36 @@
   }
 
   function initMosaicGalleries(done) {
-    var containers = Array.prototype.slice.call(
+    mosaicContainers = Array.prototype.slice.call(
       document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]')
     );
 
     initDeferredFeedImages();
 
-    containers.forEach(function (container) {
-      prepareCssMosaicFeed(container);
+    if (!mosaicContainers.length) {
+      if (done) {
+        done();
+      }
+      return;
+    }
+
+    mosaicContainers.forEach(function (container) {
       container.querySelectorAll('.pic-feed-item img').forEach(bindFeedImageLoad);
     });
 
+    scheduleMosaicRelayout();
     if (done) {
       done();
     }
   }
+
+  var resizeTimer;
+  window.addEventListener('resize', function () {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(function () {
+      scheduleMosaicRelayout();
+    }, 150);
+  });
 
   function restoreGalleryFocus() {
     var hash = window.location.hash || '';
@@ -645,7 +837,6 @@
   }
 
   initMosaicGalleries(restoreGalleryFocus);
-
 
   document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (item) {
     var link = item.querySelector('.pic-feed-link');
@@ -853,7 +1044,7 @@
         '<strong id="collectionTrayCount">' +
         count +
         '</strong> ' +
-        (count === 1 ? 'bilde izvÄ“lÄ“ta' : 'bildes izvÄ“lÄ“tas');
+        (count === 1 ? 'bilde izv─ōl─ōta' : 'bildes izv─ōl─ōtas');
     }
     tray.hidden = count <= 0;
     tray.classList.toggle('is-visible', count > 0);
