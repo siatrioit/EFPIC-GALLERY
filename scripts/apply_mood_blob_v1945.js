@@ -177,6 +177,10 @@ function patchCss() {
     console.log('css already patched');
     return;
   }
+  if (!t.includes('.theme-efpic-mood')) {
+    console.error('client.css missing efpic theme rules — restore from git before patching');
+    process.exit(1);
+  }
   const marker = '.topbar-floating {';
   if (!t.includes(marker)) {
     console.error('css marker not found');
