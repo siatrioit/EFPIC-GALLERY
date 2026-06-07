@@ -520,10 +520,24 @@
     return Math.min(maxH, Math.max(minH, height));
   }
 
+  function isLayoutFeedItem(item) {
+    if (!item || item.classList.contains('pic-feed-item--broken')) {
+      return false;
+    }
+    if (item.hidden || item.getAttribute('aria-hidden') === 'true') {
+      return false;
+    }
+    if (item.classList.contains('pic-feed-item--hidden')) {
+      return false;
+    }
+    var style = window.getComputedStyle(item);
+    return style.display !== 'none' && style.visibility !== 'hidden';
+  }
+
   function collectFeedItems(container) {
     return Array.prototype.slice.call(
-      container.querySelectorAll(':scope > .pic-feed-item:not(.pic-feed-item--broken)')
-    );
+      container.querySelectorAll(':scope > .pic-feed-item')
+    ).filter(isLayoutFeedItem);
   }
 
   function unwrapFeedRows(container) {
@@ -569,7 +583,17 @@
 
   function measureFeedItemHeight(item, img, itemWidth, aspect) {
     if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-      return itemWidth * (img.naturalHeight / img.naturalWidth);
+      var naturalHeight = itemWidth * (img.naturalHeight / img.naturalWidth);
+      if (item) {
+        var rendered = item.getBoundingClientRect().height;
+        if (rendered > 0 && rendered < naturalHeight * 1.08) {
+          return rendered;
+        }
+      }
+      return naturalHeight;
+    }
+    if (img && (img.getAttribute('src') || img.currentSrc)) {
+      return clampPlaceholderHeight(itemWidth, aspect);
     }
     return clampPlaceholderHeight(itemWidth, aspect);
   }
@@ -722,8 +746,20 @@
     });
   }
 
+  function observeFeedImageResize(img) {
+    if (!img || img._efpicResizeObserved || !('ResizeObserver' in window)) {
+      return;
+    }
+    img._efpicResizeObserved = true;
+    var ro = new ResizeObserver(function () {
+      scheduleMosaicRelayout();
+    });
+    ro.observe(img);
+  }
+
   function bindFeedImageLoad(img) {
     var item = img.closest('.pic-feed-item');
+    observeFeedImageResize(img);
     if (isBrokenFeedImage(img)) {
       markBrokenFeedItem(item);
       scheduleMosaicRelayout();

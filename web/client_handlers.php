@@ -484,7 +484,7 @@ function efpic_client_render_pic_feed_img(array $config, array $img, array $ctx 
         . '" alt="" decoding="async">';
 }
 
-function efpic_client_render_pic_feed_items(array $config, array $images, array $gridCtx, array $ctx = []): string
+function efpic_client_render_pic_feed_items(array $config, array $images, array $gridCtx, array $ctx = [], array $meta = []): string
 {
     $html = '';
     $guestQ = efpic_viewer_guest_token($ctx);
@@ -495,6 +495,9 @@ function efpic_client_render_pic_feed_items(array $config, array $images, array 
         }
         $tok = (string) ($img['token'] ?? '');
         if ($tok === '') {
+            continue;
+        }
+        if ($meta !== [] && !efpic_image_visible_to_viewer($img, $meta, $ctx)) {
             continue;
         }
         $pageUrl = efpic_image_view_url($config, $tok, $guestQ);
@@ -634,7 +637,7 @@ function efpic_client_render_classic_scenes(array $config, array $meta, array $i
         $html .= $sceneVideos;
         if ($sceneImages !== []) {
             $html .= efpic_client_classic_feed_open($meta);
-            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx);
+            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx, $meta);
             $html .= '</div>';
         }
         if ($multiScene) {
@@ -647,7 +650,7 @@ function efpic_client_render_classic_scenes(array $config, array $meta, array $i
     if ($html === '') {
         $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
         $html .= efpic_client_classic_feed_open($meta);
-        $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx);
+        $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx, $meta);
         $html .= '</div>';
     }
 
@@ -695,7 +698,7 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
         $html .= $sceneVideos;
         if ($sceneImages !== []) {
             $html .= efpic_client_mosaic_feed_open($meta);
-            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx);
+            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx, $meta);
             $html .= '</div>';
         }
         if ($multiScene) {
@@ -708,7 +711,7 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
     if ($html === '') {
         $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
         $html .= efpic_client_mosaic_feed_open($meta);
-        $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx);
+        $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx, $meta);
         $html .= '</div>';
     }
 
