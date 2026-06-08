@@ -1822,6 +1822,28 @@
   margin: 12px 0;
 }
 
+.admin-slideshow-ready__actions {
+  margin-top: 12px;
+}
+
+.admin-slideshow-order-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.admin-slideshow-order-controls__label {
+  font-size: 0.9rem;
+  color: var(--admin-text-muted);
+  margin-right: 4px;
+}
+
+.admin-slideshow-order-btn {
+  min-width: 5.5rem;
+}
+
 .admin-slideshow-ready__badge {
   display: inline-block;
   margin-left: 6px;
@@ -1896,6 +1918,17 @@
   padding: 12px;
   border: 1px dashed var(--admin-border);
   border-radius: var(--admin-radius);
+}
+
+.admin-slideshow-source-toggles {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 14px;
+}
+
+.admin-slideshow-source-toggle.admin-toggle-field {
+  margin: 0;
 }
 
 .admin-slideshow-source .admin-radio {

@@ -222,6 +222,9 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
     if (!in_array($renderStatus, ['none', 'queued', 'processing', 'ready', 'failed'], true)) {
         $renderStatus = 'none';
     }
+    if ($video !== '' && $renderStatus === 'none') {
+        $renderStatus = 'ready';
+    }
     $jobId = (string) ($raw['render_job_id'] ?? '');
     if (preg_match('/^[a-f0-9]{32}$/', $jobId) !== 1) {
         $jobId = '';
@@ -281,10 +284,15 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
         $title = substr($title, 0, 80);
     }
 
+    $enabled = !empty($raw['enabled']);
+    if (!array_key_exists('enabled', $raw) && $video !== '' && in_array($renderStatus, ['ready', 'none'], true)) {
+        $enabled = true;
+    }
+
     return [
         'id' => $id,
         'title' => $title,
-        'enabled' => !empty($raw['enabled']),
+        'enabled' => $enabled,
         'audio_file' => $audioFiles[0] ?? '',
         'audio_files' => $audioFiles,
         'interval_sec' => $interval,
@@ -370,9 +378,10 @@ function efpic_gallery_slideshow_storage(array $meta): array
     }
 
     $client = efpic_gallery_normalize_slideshow_slot($raw['client'] ?? null);
-    $draft = efpic_gallery_normalize_slideshow_item($raw['draft'] ?? null, 1);
+    $draftRaw = is_array($raw['draft'] ?? null) ? $raw['draft'] : [];
+    $draft = efpic_gallery_normalize_slideshow_slot($draftRaw);
     $draft['id'] = '';
-    $draft['title'] = trim((string) ($draft['title'] ?? '')) !== '' ? (string) $draft['title'] : 'Jauns slideshow';
+    $draft['title'] = trim((string) ($draftRaw['title'] ?? ''));
 
     $items = [];
     $orphans = [];
@@ -400,11 +409,10 @@ function efpic_gallery_slideshow_storage(array $meta): array
     }
 
     if ($orphans !== [] && efpic_gallery_slideshow_draft_is_empty($draft)) {
-        $draft = efpic_gallery_normalize_slideshow_item($orphans[count($orphans) - 1], 1);
+        $orphanRaw = $orphans[count($orphans) - 1];
+        $draft = efpic_gallery_normalize_slideshow_slot($orphanRaw);
         $draft['id'] = '';
-        if (trim((string) ($draft['title'] ?? '')) === '' || str_starts_with((string) $draft['title'], 'Slideshow ')) {
-            $draft['title'] = 'Jauns slideshow';
-        }
+        $draft['title'] = trim((string) ($orphanRaw['title'] ?? ''));
     }
 
     return [
@@ -417,11 +425,10 @@ function efpic_gallery_slideshow_storage(array $meta): array
 /** @param array{draft: array<string, mixed>, items: list<array<string, mixed>>, client: array<string, mixed>} $storage */
 function efpic_gallery_persist_slideshow_storage(array &$meta, array $storage): void
 {
-    $draft = efpic_gallery_normalize_slideshow_item($storage['draft'] ?? null, 1);
+    $draftRaw = is_array($storage['draft'] ?? null) ? $storage['draft'] : [];
+    $draft = efpic_gallery_normalize_slideshow_slot($draftRaw);
     $draft['id'] = '';
-    if (trim((string) ($draft['title'] ?? '')) === '') {
-        $draft['title'] = 'Jauns slideshow';
-    }
+    $draft['title'] = trim((string) ($draftRaw['title'] ?? ''));
     $items = [];
     $n = 0;
     foreach ($storage['items'] ?? [] as $item) {
@@ -535,7 +542,15 @@ function efpic_slideshow_slot_video_ready(array $slot): bool
         return false;
     }
 
-    return (string) ($slot['render_status'] ?? '') === 'ready';
+    $status = (string) ($slot['render_status'] ?? 'none');
+    if ($status === 'ready') {
+        return true;
+    }
+    if (in_array($status, ['queued', 'processing', 'failed'], true)) {
+        return false;
+    }
+
+    return true;
 }
 
 function efpic_slideshow_slot_public_ready(array $slot, int $favoriteCount): bool
@@ -1168,7 +1183,9 @@ function efpic_apply_slideshow_ready_item_from_post(array $config, string $slug,
     if (empty($_POST[$prefix . '_ready'])) {
         return;
     }
-    $item['enabled'] = !empty($_POST[$prefix . '_enabled']);
+    if (array_key_exists($prefix . '_enabled', $_POST)) {
+        $item['enabled'] = !empty($_POST[$prefix . '_enabled']);
+    }
 
     if (array_key_exists($prefix . '_section_title', $_POST)) {
         $sectionTitle = trim((string) $_POST[$prefix . '_section_title']);
@@ -1368,8 +1385,111 @@ function efpic_apply_slideshow_item_fields_from_post(
     }
 }
 
+function efpic_slideshow_ready_effective_order(array $slot, string $owner, int $adminIndex = 1): int
+{
+    $order = (int) ($slot['section_order'] ?? 0);
+    if ($order > 0) {
+        return $order;
+    }
+
+    return $owner === 'client' ? 10 : 20 + max(0, $adminIndex - 1) * 5;
+}
+
+function efpic_slideshow_ready_move_target_valid(string $target): bool
+{
+    return $target === 'client' || efpic_gallery_slideshow_item_id_valid($target);
+}
+
+function efpic_slideshow_set_ready_slot_order(array &$meta, string $owner, string $id, int $order): void
+{
+    $storage = efpic_gallery_slideshow_storage($meta);
+    if ($owner === 'client') {
+        $storage['client']['section_order'] = max(1, min(999, $order));
+        efpic_gallery_persist_slideshow_storage($meta, $storage);
+
+        return;
+    }
+    foreach ($storage['items'] as $i => $item) {
+        if ((string) ($item['id'] ?? '') !== $id) {
+            continue;
+        }
+        $storage['items'][$i]['section_order'] = max(1, min(999, $order));
+        efpic_gallery_persist_slideshow_storage($meta, $storage);
+
+        return;
+    }
+}
+
+function efpic_slideshow_apply_ready_move_from_post(array &$meta, string $target, string $direction): void
+{
+    if (!efpic_slideshow_ready_move_target_valid($target) || !in_array($direction, ['up', 'down'], true)) {
+        return;
+    }
+
+    $storage = efpic_gallery_slideshow_storage($meta);
+    $entries = [];
+    $client = efpic_slideshow_slot_with_render($storage['client']);
+    if (efpic_slideshow_item_is_published($client)) {
+        $entries[] = [
+            'owner' => 'client',
+            'id' => 'client',
+            'key' => 'client',
+            'order' => efpic_slideshow_ready_effective_order($client, 'client'),
+        ];
+    }
+    $adminIndex = 0;
+    foreach ($storage['items'] as $item) {
+        if (!efpic_slideshow_item_is_published($item)) {
+            continue;
+        }
+        ++$adminIndex;
+        $id = (string) ($item['id'] ?? '');
+        if ($id === '') {
+            continue;
+        }
+        $entries[] = [
+            'owner' => 'admin',
+            'id' => $id,
+            'key' => $id,
+            'order' => efpic_slideshow_ready_effective_order($item, 'admin', $adminIndex),
+        ];
+    }
+    if (count($entries) < 2) {
+        return;
+    }
+    usort($entries, static fn (array $a, array $b): int => $a['order'] <=> $b['order']);
+
+    $idx = -1;
+    foreach ($entries as $i => $entry) {
+        if ($entry['key'] === $target) {
+            $idx = $i;
+            break;
+        }
+    }
+    if ($idx < 0) {
+        return;
+    }
+    $swapIdx = $direction === 'up' ? $idx - 1 : $idx + 1;
+    if ($swapIdx < 0 || $swapIdx >= count($entries)) {
+        return;
+    }
+
+    $orderA = (int) $entries[$idx]['order'];
+    $orderB = (int) $entries[$swapIdx]['order'];
+    efpic_slideshow_set_ready_slot_order($meta, $entries[$idx]['owner'], $entries[$idx]['id'], $orderB);
+    efpic_slideshow_set_ready_slot_order($meta, $entries[$swapIdx]['owner'], $entries[$swapIdx]['id'], $orderA);
+}
+
 function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug, array &$meta): void
 {
+    $moveUp = trim((string) ($_POST['slideshow_move_up'] ?? ''));
+    $moveDown = trim((string) ($_POST['slideshow_move_down'] ?? ''));
+    if ($moveUp !== '') {
+        efpic_slideshow_apply_ready_move_from_post($meta, $moveUp, 'up');
+    } elseif ($moveDown !== '') {
+        efpic_slideshow_apply_ready_move_from_post($meta, $moveDown, 'down');
+    }
+
     $storage = efpic_gallery_slideshow_storage($meta);
     $items = $storage['items'];
     $draft = $storage['draft'];
@@ -1430,7 +1550,6 @@ function efpic_slideshow_create_from_draft(array $config, string $slug, array &$
     $newItem = efpic_gallery_new_slideshow_item_from_draft($draft);
     $storage['items'][] = $newItem;
     $storage['draft'] = efpic_gallery_new_slideshow_item();
-    $storage['draft']['title'] = 'Jauns slideshow';
     efpic_gallery_persist_slideshow_storage($meta, $storage);
 
     $newId = (string) $newItem['id'];
