@@ -266,6 +266,19 @@ function efpic_gallery_intro_extra_class(array $meta): string
     return efpic_gallery_intro_all_caps($meta) ? ' gallery-intro--all-caps' : '';
 }
 
+function efpic_render_intro_all_caps_toggle(array $formMeta): string
+{
+    $allCaps = efpic_gallery_intro_all_caps($formMeta);
+
+    return '<label class="admin-toggle-field">'
+        . '<span class="admin-toggle-field__label">Nosaukums ar lielajiem burtiem</span>'
+        . '<span class="admin-toggle">'
+        . '<input type="checkbox" name="intro_all_caps" id="intro_all_caps" value="1"'
+        . ($allCaps ? ' checked' : '') . '>'
+        . '<span class="admin-toggle__track" aria-hidden="true"><span class="admin-toggle__thumb"></span></span>'
+        . '</span></label>';
+}
+
 /** @return array<string, string> */
 function efpic_gallery_mood_date_format_options(): array
 {
@@ -619,7 +632,7 @@ function efpic_render_cover_theme_controls(
     $html .= '<fieldset class="admin-cover-theme__block admin-intro-typography" id="admin-intro-typography-block">';
     $html .= '<legend>Vāka tipogrāfija</legend>';
     $html .= '<p class="muted">Attiecas uz visām tēmām — parakstu, nosaukumu un datumu sākuma ekrānā. Šrifts ar pilnu latviešu alfabēta atbalstu (ā, č, ē, ģ, ī, ķ, ļ, ņ, š, ū, ž).</p>';
-    $html .= '<div class="admin-form-layout admin-form-layout--basic">';
+    $html .= '<div class="admin-intro-typography-row">';
     $moodFont = efpic_gallery_mood_font_family_key($formMeta);
     $html .= '<label>Šrifts<select name="mood_font_family" id="mood_font_family">';
     $groups = ['serif' => 'Serif', 'sans' => 'Sans-serif'];
@@ -641,9 +654,9 @@ function efpic_render_cover_theme_controls(
     } elseif (function_exists('efpic_client_color_field')) {
         $html .= efpic_client_color_field('intro_text_color', 'Teksta krāsa', $introTextColor);
     }
-    $allCaps = efpic_gallery_intro_all_caps($formMeta);
-    $html .= '<label class="admin-check admin-fieldset-full"><input type="checkbox" name="intro_all_caps" id="intro_all_caps" value="1"'
-        . ($allCaps ? ' checked' : '') . '> Nosaukums ar lielajiem burtiem</label>';
+    $html .= efpic_render_intro_all_caps_toggle($formMeta);
+    $html .= '</div>';
+    $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $moodDateFmt = efpic_gallery_mood_date_format_key($formMeta);
     $html .= '<label>Datuma formāts<select name="mood_date_format" id="mood_date_format">';
     foreach (efpic_gallery_mood_date_format_options() as $k => $lbl) {
