@@ -1,8 +1,16 @@
 (function () {
   'use strict';
 
-  var SERIF = '"Cormorant Garamond", Georgia, "Times New Roman", serif';
-  var SANS = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+  var DEFAULT_FONTS = {
+    cormorant: "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+    montserrat: "'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif",
+  };
+
+  var BYLINE_SIZES = {
+    sm: '0.65rem',
+    md: 'clamp(0.75rem, 2vw, 0.95rem)',
+    lg: '1.05rem',
+  };
 
   var TITLE_SIZES = {
     mood: { sm: 'clamp(1.35rem, 3.2vw, 1.85rem)', md: 'clamp(1.6rem, 4.5vw, 2.4rem)', lg: 'clamp(2rem, 5.5vw, 3.2rem)' },
@@ -65,8 +73,35 @@
     return bucket[key] || bucket.md;
   }
 
-  function fontCss(key) {
-    return key === 'sans' ? SANS : SERIF;
+  function readFontMap(root) {
+    if (!root) return DEFAULT_FONTS;
+    try {
+      return JSON.parse(root.getAttribute('data-fonts') || '{}');
+    } catch (e) {
+      return DEFAULT_FONTS;
+    }
+  }
+
+  function safeStyleVar(value) {
+    return String(value || '').replace(/"/g, "'");
+  }
+
+  function fontCss(key, fontMap) {
+    var family = '';
+    if (fontMap && fontMap[key]) family = fontMap[key];
+    else if (key === 'sans' || key === 'montserrat') family = DEFAULT_FONTS.montserrat;
+    else family = DEFAULT_FONTS.cormorant;
+    return safeStyleVar(family);
+  }
+
+  function bylineSizeCss(key) {
+    return BYLINE_SIZES[key] || BYLINE_SIZES.md;
+  }
+
+  function sectionClass(state, extra) {
+    var cls = extra || '';
+    if (state.allCaps) cls += ' gallery-intro--all-caps';
+    return cls;
   }
 
   function readColorInput(name) {
@@ -101,6 +136,7 @@
     var fontKey = fontSel ? fontSel.value : (base.fontFamily || 'serif');
     var titleKey = titleSel ? titleSel.value : (base.titleSize || 'md');
     var dateKey = dateSizeSel ? dateSizeSel.value : (base.dateSize || 'md');
+    var allCapsEl = document.getElementById('intro_all_caps');
     var heroAccent = readColorInput('hero_accent_color') || base.heroAccent || '#9a9578';
     var coverUrl = readCoverImageUrl() || base.coverUrl || '';
 
@@ -119,6 +155,7 @@
       dateFormat: dateFormat,
       titleSize: titleKey,
       dateSize: dateKey,
+      allCaps: allCapsEl ? allCapsEl.checked : !!base.allCaps,
     };
   }
 
@@ -128,15 +165,16 @@
       + ' style="object-position:' + focalX + '% ' + focalY + '%;">';
   }
 
-  function introStyle(state) {
-    var font = fontCss(state.fontFamily);
-    var title = titleSizeCss(state.theme, state.layout, state.titleSize);
-    var date = dateSizeCss(state.theme, state.dateSize);
+  function introStyle(state, fontMap) {
+    var font = fontCss(state.fontFamily, fontMap);
+    var title = safeStyleVar(titleSizeCss(state.theme, state.layout, state.titleSize));
+    var date = safeStyleVar(dateSizeCss(state.theme, state.dateSize));
+    var byline = safeStyleVar(bylineSizeCss(state.dateSize));
     return '--hero-accent:' + state.heroAccent + ';--hero-text:#1a1a1a;--intro-font:' + font
-      + ';--intro-title-size:' + title + ';--intro-date-size:' + date + ';';
+      + ';--intro-title-size:' + title + ';--intro-date-size:' + date + ';--intro-byline-size:' + byline + ';';
   }
 
-  function renderSplit(state, layout) {
+  function renderSplit(state, layout, fontMap) {
     var text = '<div class="gallery-intro-split-text">'
       + '<div class="gallery-intro-split-top">'
       + '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
@@ -146,12 +184,12 @@
     text += '</div><h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></div>';
     var media = '<div class="gallery-intro-split-media">' + photoHtml(state.coverUrl, state.focalX, state.focalY) + '</div>';
     var inner = layout === 'half-left' ? media + text : text + media;
-    return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + '" style="' + introStyle(state) + '">'
+    return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">'
       + '<div class="gallery-intro-split">' + inner + '</div></section>';
   }
 
-  function renderMood(state) {
-    var html = '<section class="gallery-intro gallery-intro--mood" style="' + introStyle(state) + '">';
+  function renderMood(state, fontMap) {
+    var html = '<section class="gallery-intro gallery-intro--mood' + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">';
     html += photoHtml(state.coverUrl, state.focalX, state.focalY);
@@ -164,9 +202,9 @@
     return html;
   }
 
-  function renderStandard(state) {
+  function renderStandard(state, fontMap) {
     var layout = state.layout || 'right';
-    var html = '<section class="gallery-intro gallery-intro--layout-' + layout + '" style="' + introStyle(state) + '">';
+    var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure">';
     html += photoHtml(state.coverUrl, state.focalX, state.focalY);
@@ -181,15 +219,15 @@
     return html;
   }
 
-  function renderLivePreview(previewEl, state) {
+  function renderLivePreview(previewEl, state, fontMap) {
     if (!previewEl) return;
     var html = '';
     if (state.theme === 'efpic-mood') {
-      html = renderMood(state);
+      html = renderMood(state, fontMap);
     } else if (state.layout === 'half-left' || state.layout === 'half-right') {
-      html = renderSplit(state, state.layout);
+      html = renderSplit(state, state.layout, fontMap);
     } else {
-      html = renderStandard(state);
+      html = renderStandard(state, fontMap);
     }
     previewEl.innerHTML = html;
   }
@@ -208,6 +246,7 @@
     var fx = document.getElementById('cover_focal_x');
     var fy = document.getElementById('cover_focal_y');
     var base = parsePreviewData(previewEl);
+    var fontMap = readFontMap(root);
     var layoutInputs = root.querySelectorAll('input[name="cover_layout"]');
 
     function isMood() {
@@ -269,7 +308,7 @@
       if (cropImg && state.coverUrl && cropImg.getAttribute('src') !== state.coverUrl) {
         cropImg.setAttribute('src', state.coverUrl);
       }
-      renderLivePreview(previewEl, state);
+      renderLivePreview(previewEl, state, fontMap);
       syncThemePanels();
       updateCropAspect();
     }
@@ -296,7 +335,12 @@
     });
 
     bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"]');
-    bindLiveInput('#mood_font_family, #mood_date_format, #mood_title_font_size, #mood_date_font_size');
+    ['#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps'].forEach(function (sel) {
+      document.querySelectorAll(sel).forEach(function (el) {
+        el.addEventListener('change', refreshPreview);
+        el.addEventListener('input', refreshPreview);
+      });
+    });
 
     document.addEventListener('change', function (evt) {
       if (evt.target && evt.target.matches && evt.target.matches('input[name="cover_image_token"]')) {

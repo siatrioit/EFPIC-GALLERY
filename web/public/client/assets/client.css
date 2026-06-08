@@ -570,8 +570,8 @@ input[type="password"] {
 .gallery-intro-byline {
   margin: 0 0 14px;
   text-align: left;
-  font-family: var(--intro-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
-  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
+  font-size: var(--intro-byline-size, clamp(0.75rem, 2vw, 0.95rem));
   font-weight: 400;
   letter-spacing: 0.32em;
   text-transform: uppercase;
@@ -684,6 +684,17 @@ input[type="password"] {
   max-width: min(92vw, 28rem);
 }
 
+.gallery-intro--all-caps .gallery-intro-title,
+.gallery-intro--all-caps .gallery-intro-date,
+.gallery-intro--all-caps .gallery-intro-byline {
+  text-transform: uppercase;
+}
+
+.gallery-intro--all-caps.gallery-intro--mood .gallery-intro-title {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+
 .gallery-intro--mood .gallery-intro-title {
   margin: 0;
   padding: 0;
@@ -751,7 +762,7 @@ input[type="password"] {
 .gallery-intro-date--split {
   margin: 0;
   text-align: right;
-  font-size: clamp(0.9rem, 2vw, 1.05rem);
+  font-size: var(--intro-date-size, clamp(0.9rem, 2vw, 1.05rem));
   font-weight: 300;
   letter-spacing: 0.04em;
   opacity: 0.85;
@@ -1431,7 +1442,7 @@ input[type="password"] {
   }
 
   .gallery-intro-date {
-    font-size: 1.15rem;
+    font-size: var(--intro-date-size, 1.15rem);
   }
 
   .gallery-intro-title {

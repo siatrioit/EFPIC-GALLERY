@@ -61,29 +61,170 @@ function efpic_gallery_cover_image_style_attr(array $meta): string
     return ' style="object-position:' . efpic_gallery_cover_object_position($meta) . ';"';
 }
 
+/** @return array<string, array{label: string, group: string, family: string, google: string}> */
+function efpic_gallery_intro_font_catalog(): array
+{
+    return [
+        'cormorant' => [
+            'label' => 'Cormorant Garamond',
+            'group' => 'serif',
+            'family' => "'Cormorant Garamond', Georgia, 'Times New Roman', serif",
+            'google' => 'Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400',
+        ],
+        'playfair' => [
+            'label' => 'Playfair Display',
+            'group' => 'serif',
+            'family' => '"Playfair Display", Georgia, "Times New Roman", serif',
+            'google' => 'Playfair+Display:ital,wght@0,400;0,500;0,600;1,400',
+        ],
+        'libre-baskerville' => [
+            'label' => 'Libre Baskerville',
+            'group' => 'serif',
+            'family' => '"Libre Baskerville", Georgia, "Times New Roman", serif',
+            'google' => 'Libre+Baskerville:ital,wght@0,400;0,700;1,400',
+        ],
+        'lora' => [
+            'label' => 'Lora',
+            'group' => 'serif',
+            'family' => '"Lora", Georgia, "Times New Roman", serif',
+            'google' => 'Lora:ital,wght@0,400;0,500;0,600;1,400',
+        ],
+        'dm-serif' => [
+            'label' => 'DM Serif Display',
+            'group' => 'serif',
+            'family' => '"DM Serif Display", Georgia, "Times New Roman", serif',
+            'google' => 'DM+Serif+Display:ital,wght@0,400;1,400',
+        ],
+        'cinzel' => [
+            'label' => 'Cinzel',
+            'group' => 'serif',
+            'family' => '"Cinzel", Georgia, "Times New Roman", serif',
+            'google' => 'Cinzel:wght@400;500;600',
+        ],
+        'montserrat' => [
+            'label' => 'Montserrat',
+            'group' => 'sans',
+            'family' => '"Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Montserrat:ital,wght@0,300;0,400;0,500;0,600;1,400',
+        ],
+        'raleway' => [
+            'label' => 'Raleway',
+            'group' => 'sans',
+            'family' => '"Raleway", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Raleway:ital,wght@0,300;0,400;0,500;0,600;1,400',
+        ],
+        'lato' => [
+            'label' => 'Lato',
+            'group' => 'sans',
+            'family' => '"Lato", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Lato:ital,wght@0,300;0,400;0,700;1,400',
+        ],
+        'poppins' => [
+            'label' => 'Poppins',
+            'group' => 'sans',
+            'family' => '"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Poppins:ital,wght@0,300;0,400;0,500;0,600;1,400',
+        ],
+        'open-sans' => [
+            'label' => 'Open Sans',
+            'group' => 'sans',
+            'family' => '"Open Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Open+Sans:ital,wght@0,300;0,400;0,600;1,400',
+        ],
+        'josefin' => [
+            'label' => 'Josefin Sans',
+            'group' => 'sans',
+            'family' => '"Josefin Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Josefin+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400',
+        ],
+        'dm-sans' => [
+            'label' => 'DM Sans',
+            'group' => 'sans',
+            'family' => '"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'DM+Sans:ital,wght@0,400;0,500;0,700;1,400',
+        ],
+        'inter' => [
+            'label' => 'Inter',
+            'group' => 'sans',
+            'family' => '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'google' => 'Inter:ital,wght@0,300;0,400;0,500;0,600;1,400',
+        ],
+    ];
+}
+
+function efpic_gallery_intro_font_key(string $key): string
+{
+    $key = trim($key);
+    $legacy = [
+        'serif' => 'cormorant',
+        'sans' => 'montserrat',
+    ];
+    if (isset($legacy[$key])) {
+        $key = $legacy[$key];
+    }
+
+    return array_key_exists($key, efpic_gallery_intro_font_catalog()) ? $key : 'cormorant';
+}
+
 /** @return array<string, string> */
 function efpic_gallery_mood_font_options(): array
 {
-    return [
-        'serif' => 'Serif (Cormorant)',
-        'sans' => 'Sans-serif',
-    ];
+    $out = [];
+    foreach (efpic_gallery_intro_font_catalog() as $key => $font) {
+        $out[$key] = (string) $font['label'];
+    }
+
+    return $out;
 }
 
 function efpic_gallery_mood_font_family_key(array $meta): string
 {
-    $key = trim((string) ($meta['mood_font_family'] ?? 'serif'));
+    return efpic_gallery_intro_font_key((string) ($meta['mood_font_family'] ?? 'cormorant'));
+}
 
-    return array_key_exists($key, efpic_gallery_mood_font_options()) ? $key : 'serif';
+function efpic_gallery_intro_style_var(string $value): string
+{
+    return str_replace('"', "'", $value);
 }
 
 function efpic_gallery_mood_font_family_css(array $meta): string
 {
-    if (efpic_gallery_mood_font_family_key($meta) === 'sans') {
-        return 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
+    $key = efpic_gallery_mood_font_family_key($meta);
+    $catalog = efpic_gallery_intro_font_catalog();
+    $family = (string) ($catalog[$key]['family'] ?? $catalog['cormorant']['family']);
+
+    return efpic_gallery_intro_style_var($family);
+}
+
+function efpic_gallery_intro_fonts_google_url(): string
+{
+    $families = [];
+    foreach (efpic_gallery_intro_font_catalog() as $font) {
+        $families[] = 'family=' . $font['google'];
     }
 
-    return '"Cormorant Garamond", Georgia, "Times New Roman", serif';
+    return 'https://fonts.googleapis.com/css2?' . implode('&', $families) . '&display=swap';
+}
+
+/** @return array<string, string> */
+function efpic_gallery_intro_fonts_family_map(): array
+{
+    $out = [];
+    foreach (efpic_gallery_intro_font_catalog() as $key => $font) {
+        $out[$key] = efpic_gallery_intro_style_var((string) $font['family']);
+    }
+
+    return $out;
+}
+
+function efpic_gallery_intro_all_caps(array $meta): bool
+{
+    return !empty($meta['intro_all_caps']);
+}
+
+function efpic_gallery_intro_extra_class(array $meta): string
+{
+    return efpic_gallery_intro_all_caps($meta) ? ' gallery-intro--all-caps' : '';
 }
 
 /** @return array<string, string> */
@@ -177,20 +318,34 @@ function efpic_gallery_intro_date_size_css(array $meta, string $theme = ''): str
     }
 
     return match (efpic_gallery_mood_date_size_key($meta)) {
-        'sm' => '0.9rem',
-        'lg' => '1.2rem',
+        'sm' => '0.85rem',
+        'lg' => '1.25rem',
         default => '1.05rem',
     };
 }
 
-function efpic_gallery_intro_typography_style_attr(array $meta, string $theme = ''): string
+function efpic_gallery_intro_byline_size_css(array $meta): string
+{
+    return match (efpic_gallery_mood_date_size_key($meta)) {
+        'sm' => '0.65rem',
+        'lg' => '1.05rem',
+        default => 'clamp(0.75rem, 2vw, 0.95rem)',
+    };
+}
+
+function efpic_gallery_intro_typography_style_vars(array $meta, string $theme = ''): string
 {
     $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_gallery_effective_theme($meta);
-    $font = efpic_gallery_mood_font_family_css($meta);
-    $title = efpic_gallery_intro_title_size_css($meta, $theme);
-    $date = efpic_gallery_intro_date_size_css($meta, $theme);
 
-    return ' style="--intro-font:' . $font . ';--intro-title-size:' . $title . ';--intro-date-size:' . $date . ';"';
+    return '--intro-font:' . efpic_gallery_mood_font_family_css($meta)
+        . ';--intro-title-size:' . efpic_gallery_intro_title_size_css($meta, $theme)
+        . ';--intro-date-size:' . efpic_gallery_intro_date_size_css($meta, $theme)
+        . ';--intro-byline-size:' . efpic_gallery_intro_byline_size_css($meta) . ';';
+}
+
+function efpic_gallery_intro_typography_style_attr(array $meta, string $theme = ''): string
+{
+    return ' style="' . efpic_gallery_intro_typography_style_vars($meta, $theme) . '"';
 }
 
 function efpic_gallery_mood_intro_style_attr(array $meta): string
@@ -275,6 +430,7 @@ function efpic_apply_mood_theme_from_post(array &$meta): void
     if ($dateSize !== '' && array_key_exists($dateSize, efpic_gallery_mood_date_size_options())) {
         $meta['mood_date_font_size'] = $dateSize;
     }
+    $meta['intro_all_caps'] = !empty($_POST['intro_all_caps']);
 }
 
 function efpic_admin_cover_preview_url(array $config, array $meta): string
@@ -333,6 +489,8 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta, strin
         'dateFormat' => efpic_gallery_mood_date_format_key($formMeta),
         'titleSize' => efpic_gallery_mood_title_size_key($formMeta),
         'dateSize' => efpic_gallery_mood_date_size_key($formMeta),
+        'allCaps' => efpic_gallery_intro_all_caps($formMeta),
+        'fonts' => efpic_gallery_intro_fonts_family_map(),
     ];
 }
 
@@ -360,7 +518,9 @@ function efpic_render_cover_theme_controls(
         $html .= '<input type="hidden" name="portal_action" value="' . efpic_cover_theme_esc($formAction) . '">';
     }
 
-    $html .= '<div class="admin-cover-theme" id="admin-cover-theme" data-theme="' . efpic_cover_theme_esc($theme) . '">';
+    $fontsJson = json_encode(efpic_gallery_intro_fonts_family_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $html .= '<div class="admin-cover-theme" id="admin-cover-theme" data-theme="' . efpic_cover_theme_esc($theme) . '"'
+        . ' data-fonts="' . efpic_cover_theme_esc($fontsJson !== false ? $fontsJson : '{}') . '">';
 
     $html .= '<fieldset class="admin-cover-theme__block' . ($isMood ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
     $html .= '<legend>Vāka bildes novietojums</legend>';
@@ -402,10 +562,22 @@ function efpic_render_cover_theme_controls(
     $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $moodFont = efpic_gallery_mood_font_family_key($formMeta);
     $html .= '<label>Šrifts<select name="mood_font_family" id="mood_font_family">';
-    foreach (efpic_gallery_mood_font_options() as $k => $lbl) {
-        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $moodFont ? ' selected' : '') . '>' . efpic_cover_theme_esc($lbl) . '</option>';
+    $groups = ['serif' => 'Serif', 'sans' => 'Sans-serif'];
+    foreach ($groups as $groupKey => $groupLabel) {
+        $html .= '<optgroup label="' . efpic_cover_theme_esc($groupLabel) . '">';
+        foreach (efpic_gallery_intro_font_catalog() as $k => $font) {
+            if (($font['group'] ?? '') !== $groupKey) {
+                continue;
+            }
+            $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $moodFont ? ' selected' : '') . '>'
+                . efpic_cover_theme_esc((string) $font['label']) . '</option>';
+        }
+        $html .= '</optgroup>';
     }
     $html .= '</select></label>';
+    $allCaps = efpic_gallery_intro_all_caps($formMeta);
+    $html .= '<label class="admin-check admin-fieldset-full"><input type="checkbox" name="intro_all_caps" id="intro_all_caps" value="1"'
+        . ($allCaps ? ' checked' : '') . '> Visi lielie burti (paraksts, nosaukums, datums)</label>';
     $moodDateFmt = efpic_gallery_mood_date_format_key($formMeta);
     $html .= '<label>Datuma formāts<select name="mood_date_format" id="mood_date_format">';
     foreach (efpic_gallery_mood_date_format_options() as $k => $lbl) {
