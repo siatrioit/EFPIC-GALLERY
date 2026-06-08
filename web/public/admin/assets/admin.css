@@ -1757,10 +1757,15 @@
     grid-template-columns: 1fr 1fr;
   }
 
-  .admin-fav-columns--client-only {
-    grid-template-columns: 1fr;
-    max-width: 520px;
-  }
+}
+
+.admin-client-favorites-panel {
+  margin-bottom: 20px;
+}
+
+.admin-slideshow-video-preview {
+  width: 100%;
+  margin: 12px 0;
 }
 
 .admin-fav-heading {

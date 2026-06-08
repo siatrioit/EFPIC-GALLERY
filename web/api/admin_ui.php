@@ -549,9 +549,15 @@ function efpic_admin_render_slideshow_image_grid(array $config, array $meta, arr
         efpic_slideshow_collect_images_for_render($config, $meta, $owner, $source),
         is_array($slot['image_order_tokens'] ?? null) ? $slot['image_order_tokens'] : [],
     );
+    if ($owner === 'admin') {
+        $images = array_values(array_filter($images, static function (array $img): bool {
+            return !(efpic_image_favorited_client($img) && !efpic_image_favorited_admin($img));
+        }));
+    }
     if ($images === []) {
         return '<p class="muted admin-slideshow-order-empty">Nav bilžu — izvēlies favorītus'
-            . ($owner === 'admin' ? ' vai ieslēdz «visas bildes»' : '') . '.</p>';
+            . ($owner === 'admin' ? ' vai ieslēdz «visas bildes»' : '') . '.'
+            . ($owner === 'admin' ? ' Klienta favorīti ir sadaļā «Klienta Favorīti».' : '') . '</p>';
     }
 
     $tokens = [];
@@ -633,20 +639,13 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $slots = efpic_gallery_slideshows_struct($meta);
     $adminSlot = efpic_slideshow_slot_with_render($slots['admin']);
     $clientSlot = efpic_slideshow_slot_with_render($slots['client']);
-    $adminFavCount = efpic_count_favorites($meta, 'admin');
     $clientFavCount = efpic_count_favorites($meta, 'client');
     $clientActive = efpic_slideshow_slot_public_ready($clientSlot, $clientFavCount);
     $adminVideoReady = efpic_slideshow_slot_video_ready($adminSlot);
     $clientVideoReady = efpic_slideshow_slot_video_ready($clientSlot);
 
-    $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
-
-    $html .= '<div class="admin-fav-columns admin-fav-columns--client-only">';
-    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Klienta favorīti</h3>';
-    $html .= '<p class="muted">Ko klients izvēlējies klienta panelī (tikai skatīšanai).</p>';
-    $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', false);
-    $html .= '</div></div>';
-
+    $html = efpic_admin_render_client_favorites_section($config, $meta);
+    $html .= '<fieldset class="admin-fieldset-full"><legend>Slideshow</legend>';
     $html .= '<div class="admin-slideshow-columns">';
     $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mans slideshow</h3>';
     if ($adminSlot['enabled'] && $adminVideoReady && $clientSlot['enabled'] && $clientVideoReady) {
@@ -681,6 +680,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     if (efpic_slideshow_video_is_stale($adminSlot)) {
         $html .= '<p class="admin-warn">Iestatījumi mainīti kopš pēdējā MP4 — ģenerē video no jauna, lai atspoguļotu izmaiņas.</p>';
     }
+    $html .= efpic_admin_render_slideshow_video_preview($config, $galleryToken, $adminSlot);
     if (($adminSlot['video_file'] ?? '') !== '') {
         $videoFile = (string) $adminSlot['video_file'];
         $videoUrl = efpic_gallery_asset_url($config, $galleryToken, $videoFile);
@@ -704,6 +704,7 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
 
     $html .= '<div class="admin-fav-col admin-fav-col--readonly"><h3 class="admin-fav-heading">Klienta slideshow</h3>';
     $html .= '<p class="muted">Konfigurē klienta panelī. Rāda publiski, ja ir ieslēgta, MP3 un favorīti.</p>';
+    $html .= efpic_admin_render_slideshow_video_preview($config, $galleryToken, $clientSlot);
     $html .= '<ul class="admin-status-list">';
     $html .= '<li>Ieslēgta: <strong>' . ($clientSlot['enabled'] ? 'Jā' : 'Nē') . '</strong></li>';
     $html .= '<li>Favorīti: <strong>' . $clientFavCount . '</strong></li>';
@@ -747,6 +748,35 @@ function efpic_admin_render_video_preview(array $config, string $galleryToken, a
 
     return '<div class="admin-video-preview admin-video-preview--file"><video controls playsinline preload="metadata" src="'
         . efpic_admin_esc($url) . '"></video></div>';
+}
+
+function efpic_admin_render_slideshow_video_preview(array $config, string $galleryToken, array $slot): string
+{
+    if (!efpic_slideshow_slot_video_ready($slot)) {
+        return '';
+    }
+    $videoFile = trim((string) ($slot['video_file'] ?? ''));
+    if ($videoFile === '') {
+        return '';
+    }
+
+    $preview = efpic_admin_render_video_preview($config, $galleryToken, ['kind' => 'file', 'file' => $videoFile]);
+    if ($preview === '') {
+        return '';
+    }
+
+    return '<div class="admin-slideshow-video-preview">' . $preview . '</div>';
+}
+
+function efpic_admin_render_client_favorites_section(array $config, array $meta): string
+{
+    $html = '<fieldset class="admin-fieldset-full admin-client-favorites-panel">';
+    $html .= '<legend>Klienta Favorīti</legend>';
+    $html .= '<p class="muted">Bildes, ko klients izvēlējies klienta panelī. Tikai skatīšanai — netiek jauktas ar tavu slideshow bilžu secību.</p>';
+    $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', false);
+    $html .= '</fieldset>';
+
+    return $html;
 }
 
 function efpic_admin_render_existing_videos_list(array $config, array $meta, string $galleryToken, bool $readOnly = false): string
