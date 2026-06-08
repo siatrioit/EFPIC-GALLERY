@@ -309,7 +309,7 @@ function efpic_client_html(
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . efpic_client_esc($title) . '</title>';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
-    echo '<link href="' . efpic_client_esc(efpic_gallery_intro_fonts_google_url()) . '" rel="stylesheet">';
+    echo '<link href="' . efpic_client_esc(efpic_gallery_intro_font_google_url_for_meta($meta)) . '" rel="stylesheet">';
     echo '<!-- ' . efpic_client_esc(efpic_app_version_label()) . ' -->';
     echo '<link rel="stylesheet" href="' . efpic_client_esc(efpic_asset_url('/client/assets/client.css', $base)) . '">';
     if ($headExtra !== '') {
@@ -357,7 +357,7 @@ function efpic_portal_html(
     echo '<title>' . efpic_client_esc($title) . '</title>';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
-    echo '<link href="' . efpic_client_esc(efpic_gallery_intro_fonts_google_url()) . '" rel="stylesheet">';
+    echo efpic_gallery_intro_fonts_google_link_tags();
     echo '<!-- ' . efpic_client_esc(efpic_app_version_label()) . ' -->';
     echo '<link rel="stylesheet" href="' . efpic_client_esc(efpic_asset_url('/client/assets/client.css', $base)) . '">';
     echo '<link rel="stylesheet" href="' . efpic_client_esc(efpic_asset_url('/admin/assets/admin.css', $base)) . '">';

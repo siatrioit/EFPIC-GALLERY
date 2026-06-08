@@ -154,7 +154,37 @@
     return getCoverUrl(cropImg, base) !== '';
   }
 
-  function collectState(root, previewEl, base) {
+  function readPreviewAssets(root) {
+    if (!root) {
+      return { clientCss: '', fontUrls: [] };
+    }
+    var fontUrls = [];
+    try {
+      fontUrls = JSON.parse(root.getAttribute('data-font-urls') || '[]');
+    } catch (e) {
+      fontUrls = [];
+    }
+    return {
+      clientCss: root.getAttribute('data-client-css') || '',
+      fontUrls: fontUrls,
+    };
+  }
+
+  function buildPreviewDocument(html, assets) {
+    var links = (assets.fontUrls || []).map(function (url) {
+      return '<link rel="stylesheet" href="' + escapeHtml(url) + '">';
+    }).join('');
+    return '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">'
+      + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<link rel="preconnect" href="https://fonts.googleapis.com">'
+      + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
+      + links
+      + '<link rel="stylesheet" href="' + escapeHtml(assets.clientCss) + '">'
+      + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#fff;}</style>'
+      + '</head><body>' + html + '</body></html>';
+  }
+
+  function collectState(root, base) {
     var themeSelect = document.getElementById('admin-gallery-theme-select');
     var theme = themeSelect ? themeSelect.value : (base.theme || 'efpic-modern');
     var layoutInput = root.querySelector('input[name="cover_layout"]:checked');
@@ -260,21 +290,57 @@
     return html;
   }
 
-  function renderLivePreview(previewEl, state, fontMap, groupMap) {
-    if (!previewEl) return;
-    var html = '';
+  function renderCoverHtml(state, fontMap, groupMap) {
     if (state.theme === 'efpic-mood') {
-      html = renderMood(state, fontMap, groupMap);
-    } else if (state.layout === 'half-left' || state.layout === 'half-right') {
-      html = renderSplit(state, state.layout, fontMap, groupMap);
-    } else {
-      html = renderStandard(state, fontMap, groupMap);
+      return renderMood(state, fontMap, groupMap);
     }
-    previewEl.innerHTML = html;
+    if (state.layout === 'half-left' || state.layout === 'half-right') {
+      return renderSplit(state, state.layout, fontMap, groupMap);
+    }
+    return renderStandard(state, fontMap, groupMap);
+  }
+
+  function updateDeviceScale(deviceEl) {
+    var iframe = deviceEl.querySelector('.admin-cover-live-device__iframe');
+    var viewport = deviceEl.querySelector('.admin-cover-live-device__viewport');
+    if (!iframe || !viewport) return;
+    var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
+    var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
+    var vw = viewport.clientWidth || 1;
+    var scale = vw / designW;
+    iframe.style.width = designW + 'px';
+    iframe.style.height = designH + 'px';
+    iframe.style.transform = 'scale(' + scale + ')';
+    iframe.style.transformOrigin = 'top left';
+    viewport.style.height = Math.ceil(designH * scale) + 'px';
+  }
+
+  function updateAllDeviceScales(root) {
+    if (!root) return;
+    root.querySelectorAll('.admin-cover-live-device').forEach(updateDeviceScale);
+  }
+
+  function refreshAllPreviews(root, state, fontMap, groupMap, assets) {
+    if (!root) return;
+    var html = renderCoverHtml(state, fontMap, groupMap);
+    var doc = buildPreviewDocument(html, assets);
+    root.querySelectorAll('.admin-cover-live-device__iframe').forEach(function (iframe) {
+      iframe.onload = function () {
+        var deviceEl = iframe.closest('.admin-cover-live-device');
+        if (deviceEl) {
+          updateDeviceScale(deviceEl);
+        }
+      };
+      iframe.srcdoc = doc;
+    });
+    updateAllDeviceScales(root);
   }
 
   function syncFontSelectPreview(fontSel, fontMap) {
     if (!fontSel) return;
+    Array.prototype.forEach.call(fontSel.options, function (opt) {
+      opt.style.fontFamily = fontCss(opt.value, fontMap);
+    });
     fontSel.style.fontFamily = fontCss(fontSel.value, fontMap);
   }
 
@@ -288,12 +354,10 @@
     var crop = document.getElementById('admin-cover-crop');
     var frame = document.getElementById('admin-cover-crop-frame');
     var cropImg = document.getElementById('admin-cover-crop-img');
-    var previewEl = document.getElementById('admin-cover-live-preview');
-    var previewViewport = document.getElementById('admin-cover-live-viewport');
-    var previewScale = document.getElementById('admin-cover-live-scale');
     var fx = document.getElementById('cover_focal_x');
     var fy = document.getElementById('cover_focal_y');
-    var base = parsePreviewData(previewEl);
+    var base = parsePreviewData(root);
+    var assets = readPreviewAssets(root);
     var fontMap = readFontMap(root);
     var groupMap = readFontGroupMap(root);
     var fontSel = document.getElementById('mood_font_family');
@@ -342,16 +406,6 @@
       if (crop) crop.dataset.layout = layout;
     }
 
-    function updatePreviewScale() {
-      if (!previewViewport || !previewScale) return;
-      var designW = 1280;
-      var designH = 720;
-      var vw = previewViewport.clientWidth || 1;
-      var vh = previewViewport.clientHeight || 300;
-      var scale = Math.min(vw / designW, vh / designH, 1);
-      previewScale.style.transform = 'translateX(-50%) scale(' + scale + ')';
-    }
-
     function applyFocal() {
       if (!cropImg || !fx || !fy) return;
       cropImg.style.objectFit = 'cover';
@@ -359,17 +413,16 @@
     }
 
     function refreshPreview() {
-      var state = collectState(root, previewEl, base);
+      var state = collectState(root, base);
       var url = getCoverUrl(cropImg, base);
       state.coverUrl = url;
       if (cropImg && url && cropImg.getAttribute('src') !== url) {
         cropImg.setAttribute('src', url);
       }
-      renderLivePreview(previewEl, state, fontMap, groupMap);
+      refreshAllPreviews(root, state, fontMap, groupMap, assets);
       syncFontSelectPreview(fontSel, fontMap);
       syncThemePanels();
       updateCropAspect();
-      updatePreviewScale();
     }
 
     function bindLiveInput(sel) {
@@ -411,10 +464,16 @@
     updateCropAspect();
     applyFocal();
     refreshPreview();
-    updatePreviewScale();
-    window.addEventListener('resize', updatePreviewScale);
-    if (typeof ResizeObserver !== 'undefined' && previewViewport) {
-      new ResizeObserver(updatePreviewScale).observe(previewViewport);
+    window.addEventListener('resize', function () {
+      updateAllDeviceScales(root);
+    });
+    if (typeof ResizeObserver !== 'undefined') {
+      var grid = document.getElementById('admin-cover-live-grid');
+      if (grid) {
+        new ResizeObserver(function () {
+          updateAllDeviceScales(root);
+        }).observe(grid);
+      }
     }
 
     if (!frame || !cropImg || !fx || !fy) return;

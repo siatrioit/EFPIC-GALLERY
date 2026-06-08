@@ -689,13 +689,8 @@ input[type="password"] {
   max-width: min(92vw, 28rem);
 }
 
-.gallery-intro--all-caps .gallery-intro-title,
-.gallery-intro--all-caps .gallery-intro-date,
-.gallery-intro--all-caps .gallery-intro-byline {
-  text-transform: uppercase;
-}
-
 .gallery-intro--all-caps .gallery-intro-title {
+  text-transform: uppercase;
   letter-spacing: var(--intro-title-tracking-caps, 0.12em);
 }
 

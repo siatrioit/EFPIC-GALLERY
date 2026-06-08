@@ -201,14 +201,56 @@ function efpic_gallery_mood_font_family_css(array $meta): string
     return efpic_gallery_intro_style_var($family);
 }
 
-function efpic_gallery_intro_fonts_google_url(): string
+/** @return list<string> */
+function efpic_gallery_intro_fonts_google_urls(): array
 {
     $families = [];
     foreach (efpic_gallery_intro_font_catalog() as $font) {
         $families[] = 'family=' . $font['google'];
     }
+    $urls = [];
+    foreach (array_chunk($families, 4) as $chunk) {
+        $urls[] = 'https://fonts.googleapis.com/css2?' . implode('&', $chunk) . '&display=swap';
+    }
 
-    return 'https://fonts.googleapis.com/css2?' . implode('&', $families) . '&display=swap';
+    return $urls;
+}
+
+function efpic_gallery_intro_fonts_google_url(): string
+{
+    $urls = efpic_gallery_intro_fonts_google_urls();
+
+    return $urls[0] ?? '';
+}
+
+function efpic_gallery_intro_font_google_url(string $key): string
+{
+    $key = efpic_gallery_intro_font_key($key);
+    $catalog = efpic_gallery_intro_font_catalog();
+    if (!isset($catalog[$key])) {
+        return '';
+    }
+
+    return 'https://fonts.googleapis.com/css2?family=' . $catalog[$key]['google'] . '&display=swap';
+}
+
+function efpic_gallery_intro_font_google_url_for_meta(?array $meta): string
+{
+    if ($meta === null) {
+        return efpic_gallery_intro_font_google_url('cormorant');
+    }
+
+    return efpic_gallery_intro_font_google_url(efpic_gallery_mood_font_family_key($meta));
+}
+
+function efpic_gallery_intro_fonts_google_link_tags(): string
+{
+    $html = '';
+    foreach (efpic_gallery_intro_fonts_google_urls() as $url) {
+        $html .= '<link href="' . efpic_cover_theme_esc($url) . '" rel="stylesheet">';
+    }
+
+    return $html;
 }
 
 /** @return array<string, string> */
@@ -562,9 +604,14 @@ function efpic_render_cover_theme_controls(
 
     $fontsJson = json_encode(efpic_gallery_intro_fonts_family_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $fontGroupsJson = json_encode(efpic_gallery_intro_fonts_group_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $fontUrlsJson = json_encode(efpic_gallery_intro_fonts_google_urls(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $clientCssUrl = efpic_asset_url('/client/assets/client.css');
     $html .= '<div class="admin-cover-theme" id="admin-cover-theme" data-theme="' . efpic_cover_theme_esc($theme) . '"'
+        . ' data-preview="' . efpic_cover_theme_esc($previewJson !== false ? $previewJson : '{}') . '"'
         . ' data-fonts="' . efpic_cover_theme_esc($fontsJson !== false ? $fontsJson : '{}') . '"'
-        . ' data-font-groups="' . efpic_cover_theme_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '">';
+        . ' data-font-groups="' . efpic_cover_theme_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '"'
+        . ' data-font-urls="' . efpic_cover_theme_esc($fontUrlsJson !== false ? $fontUrlsJson : '[]') . '"'
+        . ' data-client-css="' . efpic_cover_theme_esc($clientCssUrl) . '">';
 
     $html .= '<fieldset class="admin-cover-theme__block' . ($isMood ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
     $html .= '<legend>Vāka bildes novietojums</legend>';
@@ -581,26 +628,6 @@ function efpic_render_cover_theme_controls(
     $html .= '<input type="hidden" name="cover_focal_x" id="cover_focal_x" value="' . efpic_cover_theme_esc((string) $focal['x']) . '">';
     $html .= '<input type="hidden" name="cover_focal_y" id="cover_focal_y" value="' . efpic_cover_theme_esc((string) $focal['y']) . '">';
     $html .= '</fieldset>';
-
-    $html .= '<div class="admin-cover-live" id="admin-cover-live">';
-    $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā, samazināts)</span></p>';
-    $html .= '<div class="admin-cover-live__shell" id="admin-cover-live-shell">';
-    $html .= '<div class="admin-cover-live__viewport" id="admin-cover-live-viewport">';
-    $html .= '<div class="admin-cover-live__scale" id="admin-cover-live-scale">';
-    $html .= '<div class="admin-cover-live__preview" id="admin-cover-live-preview" data-preview="'
-        . efpic_cover_theme_esc($previewJson !== false ? $previewJson : '{}') . '"></div>';
-    $html .= '</div></div></div>';
-    if (!$hasCover) {
-        $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu bildi priekšskatījumā.</p>';
-    }
-    $cropHidden = $isMood || !$hasCover ? ' hidden' : '';
-    $html .= '<div class="admin-cover-crop' . $cropHidden . '" id="admin-cover-crop" data-layout="' . efpic_cover_theme_esc($layout) . '">';
-    $html .= '<p class="admin-cover-crop__label">Pārkadrējiet vāka bildi — velciet, lai mainītu redzamo apgabalu.</p>';
-    $html .= '<div class="admin-cover-crop__frame" id="admin-cover-crop-frame" tabindex="0" role="img" aria-label="Vāka bildes pārkadrēšana">';
-    $html .= '<img src="' . efpic_cover_theme_esc($coverUrl) . '" alt="" id="admin-cover-crop-img" draggable="false"'
-        . ' style="object-position:' . efpic_cover_theme_esc(efpic_gallery_cover_object_position($formMeta)) . ';">';
-    $html .= '</div></div>';
-    $html .= '</div>';
 
     $html .= '<fieldset class="admin-cover-theme__block admin-intro-typography" id="admin-intro-typography-block">';
     $html .= '<legend>Vāka tipogrāfija</legend>';
@@ -623,7 +650,7 @@ function efpic_render_cover_theme_controls(
     $html .= '</select></label>';
     $allCaps = efpic_gallery_intro_all_caps($formMeta);
     $html .= '<label class="admin-check admin-fieldset-full"><input type="checkbox" name="intro_all_caps" id="intro_all_caps" value="1"'
-        . ($allCaps ? ' checked' : '') . '> Visi lielie burti (paraksts, nosaukums, datums)</label>';
+        . ($allCaps ? ' checked' : '') . '> Nosaukums ar lielajiem burtiem</label>';
     $moodDateFmt = efpic_gallery_mood_date_format_key($formMeta);
     $html .= '<label>Datuma formāts<select name="mood_date_format" id="mood_date_format">';
     foreach (efpic_gallery_mood_date_format_options() as $k => $lbl) {
@@ -643,6 +670,37 @@ function efpic_render_cover_theme_controls(
     }
     $html .= '</select></label>';
     $html .= '</div></fieldset>';
+
+    $previewDevices = [
+        ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
+        ['id' => 'tablet', 'label' => 'Planšete', 'width' => 768, 'height' => 1024],
+        ['id' => 'phone', 'label' => 'Telefons', 'width' => 390, 'height' => 844],
+    ];
+    $html .= '<div class="admin-cover-live" id="admin-cover-live">';
+    $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā)</span></p>';
+    $html .= '<div class="admin-cover-live-grid" id="admin-cover-live-grid">';
+    foreach ($previewDevices as $device) {
+        $html .= '<div class="admin-cover-live-device" data-device="' . efpic_cover_theme_esc($device['id']) . '"'
+            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '">';
+        $html .= '<p class="admin-cover-live-device__label">' . efpic_cover_theme_esc($device['label']) . '</p>';
+        $html .= '<div class="admin-cover-live-device__shell">';
+        $html .= '<div class="admin-cover-live-device__viewport">';
+        $html .= '<iframe class="admin-cover-live-device__iframe" title="Priekšskatījums: '
+            . efpic_cover_theme_esc($device['label']) . '" loading="lazy"></iframe>';
+        $html .= '</div></div></div>';
+    }
+    $html .= '</div>';
+    if (!$hasCover) {
+        $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu bildi priekšskatījumā.</p>';
+    }
+    $cropHidden = $isMood || !$hasCover ? ' hidden' : '';
+    $html .= '<div class="admin-cover-crop' . $cropHidden . '" id="admin-cover-crop" data-layout="' . efpic_cover_theme_esc($layout) . '">';
+    $html .= '<p class="admin-cover-crop__label">Pārkadrējiet vāka bildi — velciet, lai mainītu redzamo apgabalu.</p>';
+    $html .= '<div class="admin-cover-crop__frame" id="admin-cover-crop-frame" tabindex="0" role="img" aria-label="Vāka bildes pārkadrēšana">';
+    $html .= '<img src="' . efpic_cover_theme_esc($coverUrl) . '" alt="" id="admin-cover-crop-img" draggable="false"'
+        . ' style="object-position:' . efpic_cover_theme_esc(efpic_gallery_cover_object_position($formMeta)) . ';">';
+    $html .= '</div></div>';
+    $html .= '</div>';
 
     $html .= '</div>';
 
