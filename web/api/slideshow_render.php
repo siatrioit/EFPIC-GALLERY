@@ -259,7 +259,7 @@ function efpic_audio_duration_sec_estimate(string $path): ?float
 /**
  * @return list<array<string, mixed>>
  */
-function efpic_slideshow_collect_images_for_render(array $config, array $meta, string $owner, string $source): array
+function efpic_slideshow_collect_images_for_render(array $config, array $meta, string $owner, string $source, array $sceneIds = []): array
 {
     $ctx = ['guest_token' => '', 'share_image_tokens' => null, 'share_include_videos' => false];
     if ($source === 'all') {
@@ -280,8 +280,55 @@ function efpic_slideshow_collect_images_for_render(array $config, array $meta, s
 
         return $out;
     }
+    if ($source === 'scenes') {
+        return efpic_slideshow_collect_scene_images($meta, $ctx, $config, $sceneIds);
+    }
 
     return efpic_slideshow_favorite_images($meta, $ctx, $config, $owner);
+}
+
+/**
+ * @return array{slot: array<string, mixed>, storage: array{items: list<array<string, mixed>>, client: array<string, mixed>}, index: int}|null
+ */
+function efpic_slideshow_resolve_slot_ref(array $meta, string $owner, string $slideshowId = ''): ?array
+{
+    $storage = efpic_gallery_slideshow_storage($meta);
+    if ($owner === 'client') {
+        return [
+            'slot' => efpic_slideshow_slot_with_render($storage['client']),
+            'storage' => $storage,
+            'index' => -1,
+        ];
+    }
+    foreach ($storage['items'] as $i => $item) {
+        if ((string) ($item['id'] ?? '') === $slideshowId) {
+            return [
+                'slot' => efpic_slideshow_slot_with_render($item),
+                'storage' => $storage,
+                'index' => $i,
+            ];
+        }
+    }
+    if ($slideshowId === '' && $storage['items'] !== []) {
+        return [
+            'slot' => efpic_slideshow_slot_with_render($storage['items'][0]),
+            'storage' => $storage,
+            'index' => 0,
+        ];
+    }
+
+    return null;
+}
+
+/** @param array{items: list<array<string, mixed>>, client: array<string, mixed>} $storage */
+function efpic_slideshow_persist_slot_ref(array &$meta, string $owner, array $storage, int $index, array $slot): void
+{
+    if ($owner === 'client') {
+        $storage['client'] = $slot;
+    } elseif ($index >= 0 && isset($storage['items'][$index])) {
+        $storage['items'][$index] = $slot;
+    }
+    efpic_gallery_persist_slideshow_storage($meta, $storage);
 }
 
 /**
@@ -330,13 +377,13 @@ function efpic_slideshow_sort_images_for_render(array $images, array $orderToken
 /**
  * @return array{ok: bool, error?: string, min_images?: int, have_images?: int}
  */
-function efpic_slideshow_validate_render_request(array $config, string $slug, array $meta, string $owner): array
+function efpic_slideshow_validate_render_request(array $config, string $slug, array $meta, string $owner, string $slideshowId = ''): array
 {
-    $slots = efpic_gallery_slideshows_struct($meta);
-    if (!isset($slots[$owner])) {
-        return ['ok' => false, 'error' => 'Nederīgs slideshow īpašnieks'];
+    $resolved = efpic_slideshow_resolve_slot_ref($meta, $owner, $slideshowId);
+    if ($resolved === null) {
+        return ['ok' => false, 'error' => 'Slideshow nav atrasts'];
     }
-    $slot = efpic_slideshow_slot_with_render($slots[$owner]);
+    $slot = $resolved['slot'];
     $audioFiles = efpic_slideshow_slot_audio_files($slot);
     if ($audioFiles === []) {
         return ['ok' => false, 'error' => 'Augšupielādē MP3 pirms video ģenerēšanas.'];
@@ -355,16 +402,24 @@ function efpic_slideshow_validate_render_request(array $config, string $slug, ar
     }
 
     $source = (string) ($slot['image_source'] ?? 'favorites');
-    if (!in_array($source, ['favorites', 'all'], true)) {
+    if (!in_array($source, ['favorites', 'all', 'scenes'], true)) {
         $source = 'favorites';
     }
+    $sceneIds = is_array($slot['image_scene_ids'] ?? null) ? $slot['image_scene_ids'] : [];
+    if ($source === 'scenes' && $sceneIds === []) {
+        return ['ok' => false, 'error' => 'Izvēlies vismaz vienu galerijas sadaļu.'];
+    }
     $images = efpic_slideshow_sort_images_for_render(
-        efpic_slideshow_collect_images_for_render($config, $meta, $owner, $source),
+        efpic_slideshow_collect_images_for_render($config, $meta, $owner, $source, $sceneIds),
         is_array($slot['image_order_tokens'] ?? null) ? $slot['image_order_tokens'] : [],
     );
     $count = count($images);
     if ($count === 0) {
-        return ['ok' => false, 'error' => 'Nav nevienas bildes slideshow (favorīti vai redzamās).'];
+        $msg = $source === 'scenes'
+            ? 'Izvēlētajās sadaļās nav nevienas bildes.'
+            : 'Nav nevienas bildes slideshow (favorīti vai redzamās).';
+
+        return ['ok' => false, 'error' => $msg];
     }
 
     $duration = $totalAudioSec > 0 ? $totalAudioSec : null;
@@ -380,7 +435,7 @@ function efpic_slideshow_validate_render_request(array $config, string $slug, ar
                 'have_images' => $count,
             ];
         }
-        if ($source === 'all') {
+        if ($source === 'all' || $source === 'scenes') {
             $musicNeeded = $count * 4;
             if ($duration + 0.5 < $musicNeeded) {
                 $missingSec = (int) ceil($musicNeeded - $duration);
@@ -403,15 +458,24 @@ function efpic_slideshow_validate_render_request(array $config, string $slug, ar
 /**
  * @return array<string, mixed>
  */
-function efpic_slideshow_build_job(array $config, string $slug, array $meta, string $owner): array
+function efpic_slideshow_build_job(array $config, string $slug, array $meta, string $owner, string $slideshowId = ''): array
 {
-    $slots = efpic_gallery_slideshows_struct($meta);
-    $slot = efpic_slideshow_slot_with_render($slots[$owner]);
+    $resolved = efpic_slideshow_resolve_slot_ref($meta, $owner, $slideshowId);
+    if ($resolved === null) {
+        throw new InvalidArgumentException('Slideshow nav atrasts');
+    }
+    $slot = $resolved['slot'];
+    if ($owner === 'admin') {
+        $slideshowId = (string) ($slot['id'] ?? $slideshowId);
+    } else {
+        $slideshowId = 'client';
+    }
     $source = (string) ($slot['image_source'] ?? 'favorites');
+    $sceneIds = is_array($slot['image_scene_ids'] ?? null) ? $slot['image_scene_ids'] : [];
     $order = is_array($slot['image_order_tokens'] ?? null) ? $slot['image_order_tokens'] : [];
     $audioFiles = efpic_slideshow_slot_audio_files($slot);
     $images = efpic_slideshow_sort_images_for_render(
-        efpic_slideshow_collect_images_for_render($config, $meta, $owner, $source),
+        efpic_slideshow_collect_images_for_render($config, $meta, $owner, $source, $sceneIds),
         $order,
     );
     $gt = (string) ($meta['gallery_token'] ?? '');
@@ -432,6 +496,7 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
         'id' => $jobId,
         'slug' => $slug,
         'owner' => $owner,
+        'slideshow_id' => $slideshowId,
         'status' => 'queued',
         'created_at' => gmdate('c'),
         'updated_at' => gmdate('c'),
@@ -464,7 +529,7 @@ function efpic_slideshow_build_job(array $config, string $slug, array $meta, str
 }
 
 /** Notīra saglabāto MP4 un atceļ gaidošos render darbus. */
-function efpic_slideshow_clear_slot_video(array $config, string $slug, array &$slot, string $owner): void
+function efpic_slideshow_clear_slot_video(array $config, string $slug, array &$slot, string $owner, string $slideshowId = ''): void
 {
     $video = (string) ($slot['video_file'] ?? '');
     if ($video !== '') {
@@ -475,13 +540,16 @@ function efpic_slideshow_clear_slot_video(array $config, string $slug, array &$s
     $slot['render_error'] = '';
     $slot['render_job_id'] = '';
     $slot['render_updated_at'] = gmdate('c');
-    efpic_render_cancel_pending_jobs($config, $slug, $owner);
+    efpic_render_cancel_pending_jobs($config, $slug, $owner, $slideshowId);
 }
 
-function efpic_render_cancel_pending_jobs(array $config, string $slug, string $owner): void
+function efpic_render_cancel_pending_jobs(array $config, string $slug, string $owner, string $slideshowId = ''): void
 {
     if ($slug === '' || !in_array($owner, ['admin', 'client'], true)) {
         return;
+    }
+    if ($owner === 'client') {
+        $slideshowId = 'client';
     }
     $dir = efpic_render_queue_dir($config);
     if (!is_dir($dir)) {
@@ -495,6 +563,13 @@ function efpic_render_cancel_pending_jobs(array $config, string $slug, string $o
         if ((string) ($job['slug'] ?? '') !== $slug || (string) ($job['owner'] ?? '') !== $owner) {
             continue;
         }
+        $jobSlideshowId = (string) ($job['slideshow_id'] ?? '');
+        if ($jobSlideshowId === '' && $owner === 'admin') {
+            $jobSlideshowId = $slideshowId;
+        }
+        if ($jobSlideshowId !== $slideshowId) {
+            continue;
+        }
         $status = (string) ($job['status'] ?? '');
         if (!in_array($status, ['queued', 'processing'], true)) {
             continue;
@@ -506,35 +581,43 @@ function efpic_render_cancel_pending_jobs(array $config, string $slug, string $o
     }
 }
 
-function efpic_slideshow_enqueue_render(array $config, string $slug, array &$meta, string $owner): bool
+function efpic_slideshow_enqueue_render(array $config, string $slug, array &$meta, string $owner, string $slideshowId = ''): bool
 {
     if (!in_array($owner, ['admin', 'client'], true)) {
         throw new InvalidArgumentException('Nederīgs slideshow īpašnieks');
     }
 
-    $validation = efpic_slideshow_validate_render_request($config, $slug, $meta, $owner);
+    $validation = efpic_slideshow_validate_render_request($config, $slug, $meta, $owner, $slideshowId);
     if (empty($validation['ok'])) {
         throw new InvalidArgumentException((string) ($validation['error'] ?? 'Nevar izveidot render job'));
     }
 
-    $slots = efpic_gallery_slideshows_struct($meta);
-    $slot = efpic_slideshow_slot_with_render($slots[$owner]);
+    $resolved = efpic_slideshow_resolve_slot_ref($meta, $owner, $slideshowId);
+    if ($resolved === null) {
+        throw new InvalidArgumentException('Slideshow nav atrasts');
+    }
+    $slot = $resolved['slot'];
     $status = (string) ($slot['render_status'] ?? 'none');
     if (in_array($status, ['queued', 'processing'], true)) {
         return false;
     }
 
-    efpic_render_cancel_pending_jobs($config, $slug, $owner);
+    if ($owner === 'admin') {
+        $slideshowId = (string) ($slot['id'] ?? $slideshowId);
+    } else {
+        $slideshowId = 'client';
+    }
 
-    $job = efpic_slideshow_build_job($config, $slug, $meta, $owner);
+    efpic_render_cancel_pending_jobs($config, $slug, $owner, $slideshowId);
+
+    $job = efpic_slideshow_build_job($config, $slug, $meta, $owner, $slideshowId);
     efpic_render_save_job($config, $job);
 
     $slot['render_status'] = 'queued';
     $slot['render_job_id'] = (string) $job['id'];
     $slot['render_error'] = '';
     $slot['render_updated_at'] = gmdate('c');
-    $slots[$owner] = $slot;
-    $meta['slideshow'] = $slots;
+    efpic_slideshow_persist_slot_ref($meta, $owner, $resolved['storage'], $resolved['index'], $slot);
 
     return true;
 }
@@ -592,6 +675,7 @@ function efpic_render_sync_slot_from_job(array $config, array $job): void
 {
     $slug = (string) ($job['slug'] ?? '');
     $owner = (string) ($job['owner'] ?? '');
+    $slideshowId = (string) ($job['slideshow_id'] ?? '');
     if ($slug === '' || !in_array($owner, ['admin', 'client'], true)) {
         return;
     }
@@ -599,14 +683,16 @@ function efpic_render_sync_slot_from_job(array $config, array $job): void
     if ($meta === null) {
         return;
     }
-    $slots = efpic_gallery_slideshows_struct($meta);
-    $slot = efpic_slideshow_slot_with_render($slots[$owner]);
+    $resolved = efpic_slideshow_resolve_slot_ref($meta, $owner, $slideshowId);
+    if ($resolved === null) {
+        return;
+    }
+    $slot = $resolved['slot'];
     $slot['render_status'] = efpic_render_slot_status_from_job((string) ($job['status'] ?? ''));
     $slot['render_job_id'] = (string) ($job['id'] ?? '');
     $slot['render_error'] = (string) ($job['error'] ?? '');
     $slot['render_updated_at'] = gmdate('c');
-    $slots[$owner] = $slot;
-    $meta['slideshow'] = $slots;
+    efpic_slideshow_persist_slot_ref($meta, $owner, $resolved['storage'], $resolved['index'], $slot);
     efpic_save_gallery_meta($config, $slug, $meta);
 }
 
@@ -679,6 +765,7 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
 {
     $slug = (string) ($job['slug'] ?? '');
     $owner = (string) ($job['owner'] ?? '');
+    $slideshowId = (string) ($job['slideshow_id'] ?? '');
     if ($slug === '' || !is_file($tmpMp4Path)) {
         throw new InvalidArgumentException('Trūkst MP4 fails');
     }
@@ -688,10 +775,14 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
         throw new InvalidArgumentException('Galerija nav atrasta');
     }
 
-    $slots = efpic_gallery_slideshows_struct($meta);
-    $slot = efpic_slideshow_slot_with_render($slots[$owner]);
+    $resolved = efpic_slideshow_resolve_slot_ref($meta, $owner, $slideshowId);
+    if ($resolved === null) {
+        throw new InvalidArgumentException('Slideshow nav atrasts');
+    }
+    $slot = $resolved['slot'];
     $oldVideo = (string) ($slot['video_file'] ?? '');
-    $newVideo = 'slideshow_' . $owner . '_' . efpic_random_hex(6) . '.mp4';
+    $fileKey = $owner === 'client' ? 'client' : (string) ($slot['id'] ?? $slideshowId);
+    $newVideo = 'slideshow_' . $fileKey . '_' . efpic_random_hex(6) . '.mp4';
     $dest = efpic_ensure_gallery_assets_dir($config, $slug) . DIRECTORY_SEPARATOR . $newVideo;
     if (!rename($tmpMp4Path, $dest)) {
         if (!copy($tmpMp4Path, $dest)) {
@@ -714,8 +805,7 @@ function efpic_render_complete_job(array $config, array $job, string $tmpMp4Path
     $slot['render_error'] = '';
     $slot['render_updated_at'] = gmdate('c');
     $slot['render_fingerprint'] = efpic_slideshow_render_config_fingerprint($slot);
-    $slots[$owner] = $slot;
-    $meta['slideshow'] = $slots;
+    efpic_slideshow_persist_slot_ref($meta, $owner, $resolved['storage'], $resolved['index'], $slot);
     efpic_save_gallery_meta($config, $slug, $meta);
 }
 

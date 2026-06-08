@@ -222,15 +222,21 @@
   }
 
   function syncSlideshowOrderField() {
-    var list = document.getElementById('admin-slideshow-order-list');
-    var input = document.getElementById('slideshow-admin-image-order');
-    if (!list || !input) return;
-    var tokens = [];
-    list.querySelectorAll('li[data-token]').forEach(function (li) {
-      var tok = li.getAttribute('data-token');
-      if (tok) tokens.push(tok);
+    document.querySelectorAll('.admin-slideshow-order-list').forEach(function (list) {
+      var listId = list.getAttribute('id') || '';
+      var input = listId ? document.getElementById(listId.replace('-order-list', '-image-order')) : null;
+      if (!input) {
+        var wrap = list.closest('.admin-slideshow-order');
+        input = wrap ? wrap.querySelector('input[type="hidden"][name*="_image_order"]') : null;
+      }
+      if (!input) return;
+      var tokens = [];
+      list.querySelectorAll('li[data-token]').forEach(function (li) {
+        var tok = li.getAttribute('data-token');
+        if (tok) tokens.push(tok);
+      });
+      input.value = tokens.join(',');
     });
-    input.value = tokens.join(',');
   }
 
   function markSlideshowOrderDirty() {
@@ -239,15 +245,21 @@
   }
 
   function syncSlideshowAudioOrderField() {
-    var list = document.getElementById('admin-slideshow-audio-list');
-    var input = document.getElementById('slideshow-admin-audio-order');
-    if (!list || !input) return;
-    var files = [];
-    list.querySelectorAll('.admin-slideshow-audio-item[data-audio-file]').forEach(function (li) {
-      var file = li.getAttribute('data-audio-file');
-      if (file) files.push(file);
+    document.querySelectorAll('.admin-slideshow-audio-list').forEach(function (list) {
+      var listId = list.getAttribute('id') || '';
+      var input = listId ? document.getElementById(listId.replace('-audio-list', '-audio-order')) : null;
+      if (!input) {
+        var wrap = list.closest('.admin-slideshow-audio');
+        input = wrap ? wrap.querySelector('input[type="hidden"][name*="_audio_order"]') : null;
+      }
+      if (!input) return;
+      var files = [];
+      list.querySelectorAll('.admin-slideshow-audio-item[data-audio-file]').forEach(function (li) {
+        var file = li.getAttribute('data-audio-file');
+        if (file) files.push(file);
+      });
+      input.value = files.join(',');
     });
-    input.value = files.join(',');
   }
 
   function markFavoritesDirty() {
@@ -294,8 +306,9 @@
     });
     var file = form.querySelector('[name="gallery_video"]');
     if (file) file.value = '';
-    var mp3 = form.querySelector('[name="slideshow_admin_mp3[]"]');
-    if (mp3) mp3.value = '';
+    form.querySelectorAll('input[type="file"][name$="_mp3[]"]').forEach(function (mp3) {
+      mp3.value = '';
+    });
   }
 
   function bindAdminVideoRowEvents() {
@@ -371,14 +384,15 @@
       });
     }
 
-    var slideshowMp3 = form.querySelector('[name="slideshow_admin_mp3[]"]');
-    if (slideshowMp3) {
+    form.querySelectorAll('input[type="file"][name$="_mp3[]"]').forEach(function (slideshowMp3) {
+      if (slideshowMp3.dataset.autosaveBound === '1') return;
+      slideshowMp3.dataset.autosaveBound = '1';
       slideshowMp3.addEventListener('change', function () {
         if (slideshowMp3.files && slideshowMp3.files.length) {
           runAdminAutoSave();
         }
       });
-    }
+    });
 
     var addEmbedBtn = document.getElementById('admin-add-embed-video');
     if (addEmbedBtn) {
@@ -469,8 +483,10 @@
     fd.delete('sync_now');
     fd.delete('create_share_set');
     fd.delete('share_set_tokens');
-    fd.delete('slideshow_admin_generate_video');
-    fd.delete('slideshow_admin_remove_video');
+    fd.delete('slideshow_item_generate_video');
+    fd.forEach(function (_value, key) {
+      if (key.indexOf('_remove_video') !== -1) fd.delete(key);
+    });
 
     adminAutoSaveInFlight = true;
     fetch(window.location.pathname + window.location.search, {
@@ -1890,22 +1906,25 @@
   }
 
   function applyAdminSlideshowRenderPayload(data) {
-    if (!data || !data.render_label) {
-      if (data && data.slideshow_render_label) {
-        data.render_label = data.slideshow_render_label;
-        data.render_status = data.slideshow_render_status;
-      } else {
-        return;
+    var items = (data && data.slideshow_items) || (data && data.items) || [];
+    if (!items.length && data && data.render_label) {
+      items = [{
+        id: '',
+        render_status: data.render_status,
+        render_label: data.render_label,
+      }];
+    }
+    items.forEach(function (item) {
+      if (!item || !item.id) return;
+      var row = document.getElementById('slideshow-item-' + item.id + '-render-status');
+      if (!row) return;
+      var strong = row.querySelector('strong');
+      if (!strong) return;
+      if (item.render_status) {
+        strong.setAttribute('data-render-status', item.render_status);
       }
-    }
-    var row = document.getElementById('slideshow-admin-render-status');
-    if (!row) return;
-    var strong = row.querySelector('strong');
-    if (!strong) return;
-    if (data.render_status) {
-      strong.setAttribute('data-render-status', data.render_status);
-    }
-    strong.textContent = data.render_label;
+      strong.textContent = item.render_label || '';
+    });
   }
 
   function initAdminGalleryLinksPoll() {
@@ -1942,13 +1961,15 @@
     var form = document.getElementById('admin-delivery-form');
     if (!form || !adminFormIsEditDelivery()) return;
     var slug = form.getAttribute('data-admin-edit-slug');
-    var row = document.getElementById('slideshow-admin-render-status');
-    if (!slug || !row) return;
+    if (!slug) return;
 
     function shouldPoll() {
-      var strong = row.querySelector('strong');
-      var st = strong ? strong.getAttribute('data-render-status') : '';
-      return st === 'queued' || st === 'processing';
+      var active = false;
+      document.querySelectorAll('[id^="slideshow-item-"][id$="-render-status"] strong').forEach(function (strong) {
+        var st = strong.getAttribute('data-render-status') || '';
+        if (st === 'queued' || st === 'processing') active = true;
+      });
+      return active;
     }
 
     function poll() {
@@ -2021,6 +2042,7 @@
   initAdminSlideshowRenderPoll();
   initAdminSlideshowOrderDrag();
   initAdminSlideshowAudioDrag();
+  initAdminSlideshowSourceToggle();
   initAdminSidebar();
   initAdminRenderQueueMonitor();
 
@@ -2174,8 +2196,7 @@
     }
   }
 
-  function initAdminSlideshowOrderDrag() {
-    var list = document.getElementById('admin-slideshow-order-list');
+  function bindAdminSlideshowOrderList(list) {
     if (!list || list.dataset.bound === '1') {
       return;
     }
@@ -2216,8 +2237,11 @@
     });
   }
 
-  function initAdminSlideshowAudioDrag() {
-    var list = document.getElementById('admin-slideshow-audio-list');
+  function initAdminSlideshowOrderDrag() {
+    document.querySelectorAll('.admin-slideshow-order-list').forEach(bindAdminSlideshowOrderList);
+  }
+
+  function bindAdminSlideshowAudioList(list) {
     if (!list || list.dataset.bound === '1') {
       return;
     }
@@ -2248,9 +2272,26 @@
           list.insertBefore(dragEl, li);
         }
       });
-    });
+     });
   }
 
+  function initAdminSlideshowAudioDrag() {
+    document.querySelectorAll('.admin-slideshow-audio-list').forEach(bindAdminSlideshowAudioList);
+  }
+
+  function initAdminSlideshowSourceToggle() {
+    document.querySelectorAll('.admin-slideshow-source').forEach(function (fieldset) {
+      if (fieldset.dataset.bound === '1') return;
+      fieldset.dataset.bound = '1';
+      var picks = fieldset.querySelector('.admin-slideshow-scene-picks');
+      if (!picks) return;
+      fieldset.querySelectorAll('input[type="radio"][name$="_image_source"]').forEach(function (radio) {
+        radio.addEventListener('change', function () {
+          picks.classList.toggle('is-visible', radio.value === 'scenes' && radio.checked);
+        });
+      });
+    });
+  }
 
   function initAdminBackfillDimensions() {
     var btn = document.getElementById('admin-backfill-dimensions');

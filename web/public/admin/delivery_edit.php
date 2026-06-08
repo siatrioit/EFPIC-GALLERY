@@ -34,14 +34,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'slideshow
         echo json_encode(['ok' => false, 'error' => 'not_found'], JSON_UNESCAPED_UNICODE);
         exit;
     }
-    $adminSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['admin']);
-    $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
+    $items = [];
+    foreach (efpic_gallery_slideshow_storage($meta)['items'] as $item) {
+        $item = efpic_slideshow_slot_with_render($item);
+        $id = (string) ($item['id'] ?? '');
+        $renderStatus = (string) ($item['render_status'] ?? 'none');
+        $items[] = [
+            'id' => $id,
+            'render_status' => $renderStatus,
+            'render_label' => efpic_render_status_label($renderStatus),
+            'render_error' => (string) ($item['render_error'] ?? ''),
+            'video_ready' => efpic_slideshow_slot_video_ready($item),
+        ];
+    }
     echo json_encode([
         'ok' => true,
-        'render_status' => $renderStatus,
-        'render_label' => efpic_render_status_label($renderStatus),
-        'render_error' => (string) ($adminSlot['render_error'] ?? ''),
-        'video_ready' => efpic_slideshow_slot_video_ready($adminSlot),
+        'items' => $items,
     ], JSON_UNESCAPED_UNICODE);
     exit;
 }
@@ -109,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $wantedVideo = !empty($_POST['slideshow_admin_generate_video']);
+        $wantedVideo = trim((string) ($_POST['slideshow_item_generate_video'] ?? '')) !== '';
         efpic_admin_save_delivery_from_post($config, $slug);
         if (!empty($_POST['autosave'])) {
             $meta = efpic_load_gallery_meta($config, $slug);
@@ -121,10 +129,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $gt = (string) ($meta['gallery_token'] ?? '');
                 $payload['videos_html'] = efpic_admin_render_existing_videos_list($config, $meta, $gt);
                 $payload = array_merge($payload, efpic_admin_gallery_links_payload($config, $meta));
-                $adminSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshows_struct($meta)['admin']);
-                $renderStatus = (string) ($adminSlot['render_status'] ?? 'none');
-                $payload['slideshow_render_status'] = $renderStatus;
-                $payload['slideshow_render_label'] = efpic_render_status_label($renderStatus);
+                $slideshowItems = [];
+                foreach (efpic_gallery_slideshow_storage($meta)['items'] as $item) {
+                    $item = efpic_slideshow_slot_with_render($item);
+                    $slideshowItems[] = [
+                        'id' => (string) ($item['id'] ?? ''),
+                        'render_status' => (string) ($item['render_status'] ?? 'none'),
+                        'render_label' => efpic_render_status_label((string) ($item['render_status'] ?? 'none')),
+                    ];
+                }
+                $payload['slideshow_items'] = $slideshowItems;
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);

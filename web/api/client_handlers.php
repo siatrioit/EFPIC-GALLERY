@@ -1062,9 +1062,11 @@ function efpic_client_render_public_slideshow_video_inline(
         $videoUrl = efpic_gallery_asset_url($config, $gt, (string) $slideshow['video_file'], $guestQ);
         $title = trim((string) $section['title']);
         $owner = (string) $section['owner'];
+        $slideshowId = (string) ($section['slideshow_id'] ?? $owner);
+        $sectionDomId = $owner === 'client' ? 'slideshow-client' : 'slideshow-admin-' . $slideshowId;
         $ariaLabel = $title !== '' ? $title : ($owner === 'client' ? 'Klienta slideshow' : 'Slideshow');
-        $html .= '<section id="slideshow-' . efpic_client_esc($owner) . '" class="gallery-slideshow-section gallery-slideshow-video" data-slideshow-owner="'
-            . efpic_client_esc($owner) . '" aria-label="' . efpic_client_esc($ariaLabel) . '">';
+        $html .= '<section id="' . efpic_client_esc($sectionDomId) . '" class="gallery-slideshow-section gallery-slideshow-video" data-slideshow-owner="'
+            . efpic_client_esc($owner) . '" data-slideshow-id="' . efpic_client_esc($slideshowId) . '" aria-label="' . efpic_client_esc($ariaLabel) . '">';
         if ($title !== '') {
             $html .= '<h2 class="gallery-slideshow-section__title gallery-slideshow-video__title">'
                 . efpic_client_esc($title) . '</h2>';
