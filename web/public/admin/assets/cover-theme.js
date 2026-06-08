@@ -23,7 +23,7 @@
     standard: { sm: '0.8rem', md: '1.05rem', lg: '1.35rem' },
   };
 
-  var PREVIEW_DISPLAY_H = 280;
+  var PREVIEW_DISPLAY_H = 400;
 
   function escapeHtml(s) {
     return String(s || '')
@@ -327,7 +327,7 @@
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
     var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
     var vw = viewport.clientWidth || 1;
-    var scale = Math.min(vw / designW, PREVIEW_DISPLAY_H / designH);
+    var scale = vw / designW;
     iframe.style.width = designW + 'px';
     iframe.style.height = designH + 'px';
     iframe.style.transform = 'scale(' + scale + ')';
