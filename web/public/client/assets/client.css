@@ -1879,12 +1879,10 @@ input[type="password"] {
 }
 
 .page-gallery .scene-title {
-  margin: 36px 0 28px;
-  padding: 18px clamp(16px, 3vw, 32px);
-  background: var(--page-bg, var(--surface));
+  margin: 0 0 24px;
+  padding: 20px clamp(16px, 3vw, 32px) 12px;
+  background: transparent;
   color: var(--page-text, var(--text));
-  border-top: 3px solid color-mix(in srgb, var(--page-text, var(--text)) 18%, var(--page-bg, var(--surface)));
-  border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 10%, transparent);
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.08em;
@@ -1893,8 +1891,8 @@ input[type="password"] {
 }
 
 .scene-title {
-  margin: 32px 0 24px;
-  padding: 4px 12px;
+  margin: 0 0 20px;
+  padding: 16px 12px 8px;
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -1904,7 +1902,11 @@ input[type="password"] {
 }
 
 .scene-block {
-  margin-bottom: 28px;
+  margin-bottom: 0;
+}
+
+.scene-block + .scene-block {
+  margin-top: clamp(56px, 9vw, 96px);
 }
 
 .scene-block[id] {
