@@ -139,6 +139,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     ];
                 }
                 $payload['slideshow_items'] = $slideshowItems;
+                if (!empty($_POST['favorites_dirty']) || isset($_POST['image_fav_admin'])) {
+                    $payload = array_merge($payload, efpic_admin_favorites_slideshow_panels_payload($config, $meta));
+                }
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);

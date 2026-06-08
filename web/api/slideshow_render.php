@@ -364,11 +364,21 @@ function efpic_slideshow_sort_images_for_render(array $images, array $orderToken
             $used[$tok] = true;
         }
     }
+    $remaining = [];
     foreach ($images as $img) {
         $tok = (string) ($img['token'] ?? '');
         if ($tok !== '' && empty($used[$tok])) {
-            $out[] = $img;
+            $remaining[] = $img;
         }
+    }
+    usort($remaining, static function (array $a, array $b): int {
+        $na = strtolower((string) ($a['basename'] ?? $a['filename'] ?? ''));
+        $nb = strtolower((string) ($b['basename'] ?? $b['filename'] ?? ''));
+
+        return $na <=> $nb;
+    });
+    foreach ($remaining as $img) {
+        $out[] = $img;
     }
 
     return $out;

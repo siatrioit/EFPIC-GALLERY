@@ -489,7 +489,7 @@ function efpic_gallery_normalize_slideshow(array $meta): array
 
 function efpic_apply_admin_favorites_from_post(array &$meta): void
 {
-    if (empty($_POST['favorites_dirty'])) {
+    if (!empty($_POST['autosave']) && empty($_POST['favorites_dirty'])) {
         return;
     }
     $posted = $_POST['image_fav_admin'] ?? [];
@@ -1215,7 +1215,9 @@ function efpic_apply_slideshow_ready_item_from_post(array $config, string $slug,
     if (empty($_POST[$readyKey]) && !array_key_exists($enabledKey, $_POST)) {
         return;
     }
-    if (array_key_exists($enabledKey, $_POST)) {
+    if (!empty($_POST[$readyKey])) {
+        $item['enabled'] = isset($_POST[$enabledKey]) && efpic_post_flag_is_on($enabledKey);
+    } elseif (array_key_exists($enabledKey, $_POST)) {
         $item['enabled'] = efpic_post_flag_is_on($enabledKey);
     }
     if (empty($_POST[$readyKey])) {
@@ -1544,9 +1546,15 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
 
     efpic_apply_slideshow_item_fields_from_post($config, $slug, $meta, $draft, 'slideshow_draft', 'admin');
 
-    if (array_key_exists('slideshow_favorites_image_order', $_POST)) {
-        $orderRaw = trim((string) $_POST['slideshow_favorites_image_order']);
-        $tokens = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
+    $favoritesOrderRaw = null;
+    foreach (['slideshow_favorites_image_order', 'slideshow_item_favorites_image_order'] as $favoritesOrderKey) {
+        if (array_key_exists($favoritesOrderKey, $_POST)) {
+            $favoritesOrderRaw = trim((string) $_POST[$favoritesOrderKey]);
+            break;
+        }
+    }
+    if ($favoritesOrderRaw !== null) {
+        $tokens = $favoritesOrderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $favoritesOrderRaw)));
         $valid = [];
         foreach ($tokens as $tok) {
             if (preg_match('/^[a-f0-9]{48}$/', $tok) === 1) {
@@ -1773,6 +1781,13 @@ function efpic_slideshow_favorite_images(array $meta, array $ctx, array $config,
         }
         $out[] = $img;
     }
+
+    usort($out, static function (array $a, array $b): int {
+        $na = strtolower((string) ($a['basename'] ?? $a['filename'] ?? ''));
+        $nb = strtolower((string) ($b['basename'] ?? $b['filename'] ?? ''));
+
+        return $na <=> $nb;
+    });
 
     return $out;
 }
