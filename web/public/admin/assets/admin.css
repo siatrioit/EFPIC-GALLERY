@@ -1759,19 +1759,39 @@
 
 }
 
-.admin-client-favorites-panel {
-  margin-bottom: 20px;
+.admin-slideshow-admin-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  width: 100%;
 }
 
-.admin-client-favorites-panel__intro {
-  margin: 0 0 12px;
+.admin-client-panel {
+  margin-top: 28px;
 }
 
-.admin-client-favorites-panel .admin-fav-card.is-readonly {
+.admin-client-panel__intro {
+  margin: 0 0 16px;
+}
+
+.admin-client-panel__block + .admin-client-panel__block {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-client-panel__title {
+  margin: 0 0 6px;
+  font-size: 0.92rem;
+  font-weight: 600;
+}
+
+.admin-client-panel .admin-fav-card.is-readonly {
   cursor: default;
 }
 
-.admin-client-favorites-panel .admin-fav-card.is-readonly img {
+.admin-client-panel .admin-fav-card.is-readonly img {
   border-radius: 8px;
 }
 

@@ -648,10 +648,9 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $adminVideoReady = efpic_slideshow_slot_video_ready($adminSlot);
     $clientVideoReady = efpic_slideshow_slot_video_ready($clientSlot);
 
-    $html = efpic_admin_render_client_favorites_section($config, $meta);
-    $html .= '<fieldset class="admin-fieldset-full"><legend>Slideshow</legend>';
-    $html .= '<div class="admin-slideshow-columns">';
-    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Mans slideshow</h3>';
+    $html = '<fieldset class="admin-fieldset-full"><legend>Slideshow</legend>';
+    $html .= '<div class="admin-slideshow-admin-panel">';
+    $html .= '<h3 class="admin-fav-heading">Mans slideshow</h3>';
     if ($adminSlot['enabled'] && $adminVideoReady && $clientSlot['enabled'] && $clientVideoReady) {
         $html .= '<p class="muted">Publiski redzamas abas MP4 sadaļas (fotogrāfs, tad klients).</p>';
     } elseif ($clientActive && !$adminVideoReady) {
@@ -704,26 +703,19 @@ function efpic_admin_render_favorites_and_slideshow(array $config, array $meta, 
     $html .= '<button type="submit" class="btn" name="slideshow_admin_generate_video" value="1"'
         . ' onclick="return confirm(\'Ģenerēt jaunu slideshow video? Esošais MP4 tiks aizstāts, kad render pabeigts.\');">Ģenerēt video</button>';
     $html .= '</div>';
-    $html .= '</div>';
-
-    $html .= '<div class="admin-fav-col admin-fav-col--readonly"><h3 class="admin-fav-heading">Klienta slideshow</h3>';
-    $html .= '<p class="muted">Konfigurē klienta panelī. Rāda publiski, ja ir ieslēgta un ir MP3.</p>';
-    $html .= efpic_admin_render_slideshow_video_preview($config, $galleryToken, $clientSlot);
-    $clientAudioFiles = efpic_slideshow_slot_audio_files($clientSlot);
-    $html .= '<ul class="admin-status-list">';
-    $html .= '<li>Ieslēgta: <strong>' . ($clientSlot['enabled'] ? 'Jā' : 'Nē') . '</strong></li>';
-    $html .= '<li>MP3: <strong>' . ($clientAudioFiles !== [] ? 'Jā (' . count($clientAudioFiles) . ')' : 'Nē') . '</strong></li>';
-    $html .= '<li>Publiski aktīva: <strong>' . ($clientActive ? 'Jā (galvenā)' : 'Nē') . '</strong></li>';
-    $html .= '<li>MP4 gatavs: <strong>' . (efpic_slideshow_slot_video_ready($clientSlot) ? 'Jā' : 'Nē') . '</strong></li>';
-    $html .= '</ul>';
-    if ($clientAudioFiles !== []) {
-        foreach ($clientAudioFiles as $clientAudio) {
-            $html .= '<p><a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, $clientAudio)) . '" target="_blank" rel="noopener">Klausīties: ' . efpic_admin_esc($clientAudio) . '</a></p>';
-        }
-    }
-    $html .= '</div></div></fieldset>';
+    $html .= '</div></fieldset>';
 
     return $html;
+}
+
+function efpic_admin_render_client_media_panel(array $config, array $meta, string $galleryToken): string
+{
+    $slots = efpic_gallery_slideshows_struct($meta);
+    $clientSlot = efpic_slideshow_slot_with_render($slots['client']);
+    $clientFavCount = efpic_count_favorites($meta, 'client');
+    $clientActive = efpic_slideshow_slot_public_ready($clientSlot, $clientFavCount);
+
+    return efpic_admin_render_client_panel_section($config, $meta, $galleryToken, $clientSlot, $clientFavCount, $clientActive);
 }
 
 function efpic_admin_render_video_preview(array $config, string $galleryToken, array $video): string
@@ -771,15 +763,43 @@ function efpic_admin_render_slideshow_video_preview(array $config, string $galle
     return '<div class="admin-slideshow-video-preview">' . $preview . '</div>';
 }
 
-function efpic_admin_render_client_favorites_section(array $config, array $meta): string
-{
-    $clientFavCount = efpic_count_favorites($meta, 'client');
-    $html = '<fieldset class="admin-fieldset-full admin-client-favorites-panel">';
-    $html .= '<legend>Klienta Favorīti</legend>';
-    $html .= '<p class="muted admin-client-favorites-panel__intro">Ko klients izvēlējies klienta panelī — '
-        . $clientFavCount . ' bildes. Tikai skatīšanai, netiek rādītas tavā slideshow bilžu secībā.</p>';
+function efpic_admin_render_client_panel_section(
+    array $config,
+    array $meta,
+    string $galleryToken,
+    array $clientSlot,
+    int $clientFavCount,
+    bool $clientActive,
+): string {
+    $clientAudioFiles = efpic_slideshow_slot_audio_files($clientSlot);
+
+    $html = '<fieldset class="admin-fieldset-full admin-client-panel">';
+    $html .= '<legend>Klients</legend>';
+    $html .= '<p class="muted admin-client-panel__intro">Ko klients izvēlējies un konfigurējis klienta panelī. Tikai skatīšanai.</p>';
+
+    $html .= '<div class="admin-client-panel__block">';
+    $html .= '<h4 class="admin-client-panel__title">Favorīti</h4>';
+    $html .= '<p class="muted">' . $clientFavCount . ' bildes — netiek rādītas tavā slideshow bilžu secībā.</p>';
     $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', false, false);
-    $html .= '</fieldset>';
+    $html .= '</div>';
+
+    $html .= '<div class="admin-client-panel__block">';
+    $html .= '<h4 class="admin-client-panel__title">Slideshow</h4>';
+    $html .= '<p class="muted">Konfigurē klienta panelī. Rāda publiski, ja ir ieslēgta un ir MP3.</p>';
+    $html .= efpic_admin_render_slideshow_video_preview($config, $galleryToken, $clientSlot);
+    $html .= '<ul class="admin-status-list">';
+    $html .= '<li>Ieslēgta: <strong>' . ($clientSlot['enabled'] ? 'Jā' : 'Nē') . '</strong></li>';
+    $html .= '<li>MP3: <strong>' . ($clientAudioFiles !== [] ? 'Jā (' . count($clientAudioFiles) . ')' : 'Nē') . '</strong></li>';
+    $html .= '<li>Publiski aktīva: <strong>' . ($clientActive ? 'Jā (galvenā)' : 'Nē') . '</strong></li>';
+    $html .= '<li>MP4 gatavs: <strong>' . (efpic_slideshow_slot_video_ready($clientSlot) ? 'Jā' : 'Nē') . '</strong></li>';
+    $html .= '</ul>';
+    if ($clientAudioFiles !== []) {
+        foreach ($clientAudioFiles as $clientAudio) {
+            $html .= '<p><a href="' . efpic_admin_esc(efpic_gallery_asset_url($config, $galleryToken, $clientAudio))
+                . '" target="_blank" rel="noopener">Klausīties: ' . efpic_admin_esc($clientAudio) . '</a></p>';
+        }
+    }
+    $html .= '</div></fieldset>';
 
     return $html;
 }
@@ -1591,6 +1611,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_tab_panel_open('admin-tab-media');
         $body .= efpic_admin_render_favorites_and_slideshow($config, $meta, (string) ($meta['gallery_token'] ?? ''), $slug);
         $body .= efpic_admin_render_videos_fieldset($config, $meta, (string) ($meta['gallery_token'] ?? ''));
+        $body .= efpic_admin_render_client_media_panel($config, $meta, (string) ($meta['gallery_token'] ?? ''));
         $body .= efpic_admin_tab_panel_close();
     }
 
