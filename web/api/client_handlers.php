@@ -308,6 +308,8 @@ function efpic_client_html(
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . efpic_client_esc($title) . '</title>';
+    echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
+    echo '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">';
     echo '<!-- ' . efpic_client_esc(efpic_app_version_label()) . ' -->';
     echo '<link rel="stylesheet" href="' . efpic_client_esc(efpic_asset_url('/client/assets/client.css', $base)) . '">';
     if ($headExtra !== '') {
@@ -368,9 +370,35 @@ function efpic_portal_html(
     }
     echo '</head><body class="' . efpic_client_esc($classes) . '">';
     echo $body;
+    echo '<script src="' . efpic_client_esc(efpic_asset_url('/admin/assets/cover-theme.js', $base)) . '" defer></script>';
     echo '<script src="' . efpic_client_esc(efpic_asset_url('/client/assets/portal.js', $base)) . '" defer></script>';
     echo '</body></html>';
     exit;
+}
+
+function efpic_client_render_cover_photo(string $imgUrl, array $meta, string $fetchPriority = 'low'): string
+{
+    if ($imgUrl === '') {
+        return '';
+    }
+
+    return '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="" decoding="async" fetchpriority="'
+        . efpic_client_esc($fetchPriority) . '"' . efpic_gallery_cover_image_style_attr($meta) . '>';
+}
+
+function efpic_client_render_cover_split_text(string $config, string $name, string $date): string
+{
+    $html = '<div class="gallery-intro-split-text">';
+    $html .= '<div class="gallery-intro-split-top">';
+    $html .= '<p class="gallery-intro-byline">' . efpic_client_esc(efpic_client_gallery_byline_display($config)) . '</p>';
+    if ($date !== '') {
+        $html .= '<p class="gallery-intro-date gallery-intro-date--split">' . efpic_client_esc($date) . '</p>';
+    }
+    $html .= '</div>';
+    $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
+    $html .= '</div>';
+
+    return $html;
 }
 
 function efpic_client_render_cover(array $config, array $meta, array $images, string $theme = ''): string
@@ -384,25 +412,26 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($coverTok !== '') {
         foreach ($images as $img) {
             if (is_array($img) && ($img['token'] ?? '') === $coverTok) {
-                $imgUrl = efpic_client_media_url($config, $img, 'web', 960);
+                $imgUrl = efpic_client_media_url($config, $img, 'web', 1200);
                 break;
             }
         }
         if ($imgUrl === '') {
-            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 960);
+            $imgUrl = efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1200);
         }
     }
 
     if ($usesShell) {
-        $byline = efpic_client_gallery_byline($config);
-        $date = efpic_client_format_event_date($dateRaw);
+        $byline = efpic_client_gallery_byline_display($config);
+        $date = efpic_client_format_event_date_for_gallery($meta, $dateRaw, $theme);
         if ($theme === 'efpic-mood') {
-            $html = '<section class="gallery-intro gallery-intro--mood" id="galleryHero">';
+            $html = '<section class="gallery-intro gallery-intro--mood" id="galleryHero"'
+                . efpic_gallery_mood_intro_style_attr($meta) . '>';
             $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
             $html .= '<div class="gallery-intro-blob-wrap">';
             $html .= '<div class="gallery-intro-blob">';
             if ($imgUrl !== '') {
-                $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="" decoding="async" fetchpriority="high">';
+                $html .= efpic_client_render_cover_photo($imgUrl, $meta, 'high');
             }
             $html .= '</div></div>';
             $html .= '<div class="gallery-intro-footer">';
@@ -415,17 +444,42 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
             return $html;
         }
 
-        $html = '<section class="gallery-intro" id="galleryHero">';
+        $layout = efpic_gallery_cover_layout($meta);
+        if (in_array($layout, ['half-left', 'half-right'], true)) {
+            $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
+            $html = '<section class="gallery-intro gallery-intro--split ' . $layoutClass . '" id="galleryHero">';
+            $html .= '<div class="gallery-intro-split">';
+            $media = '<div class="gallery-intro-split-media">';
+            if ($imgUrl !== '') {
+                $media .= efpic_client_render_cover_photo($imgUrl, $meta, 'high');
+            }
+            $media .= '</div>';
+            $text = efpic_client_render_cover_split_text($config, $name, $date);
+            if ($layout === 'half-left') {
+                $html .= $media . $text;
+            } else {
+                $html .= $text . $media;
+            }
+            $html .= '</div></section>';
+
+            return $html;
+        }
+
+        $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
+        $html = '<section class="gallery-intro ' . $layoutClass . '" id="galleryHero">';
         $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
         $html .= '<div class="gallery-intro-head">';
         $html .= '<figure class="gallery-intro-figure">';
         if ($imgUrl !== '') {
-            $html .= '<img class="gallery-intro-photo" src="' . efpic_client_esc($imgUrl) . '" alt="" decoding="async" fetchpriority="low">';
+            $html .= efpic_client_render_cover_photo($imgUrl, $meta, 'low');
         }
-        if ($date !== '') {
+        if ($date !== '' && $layout !== 'full') {
             $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
         }
         $html .= '</figure></div>';
+        if ($layout === 'full' && $date !== '') {
+            $html .= '<p class="gallery-intro-date gallery-intro-date--below">' . efpic_client_esc($date) . '</p>';
+        }
         $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
         $html .= '</section>';
 
@@ -434,7 +488,8 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
 
     $html = '<section class="gallery-cover">';
     if ($imgUrl !== '') {
-        $html .= '<img class="gallery-cover-img" src="' . efpic_client_esc($imgUrl) . '" alt="">';
+        $html .= '<img class="gallery-cover-img" src="' . efpic_client_esc($imgUrl) . '" alt=""'
+            . efpic_gallery_cover_image_style_attr($meta) . '>';
     }
     $html .= '<div class="gallery-cover-text"><h2>' . efpic_client_esc($name) . '</h2>';
     if ($dateRaw !== '') {

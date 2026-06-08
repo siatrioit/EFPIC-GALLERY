@@ -569,10 +569,12 @@ input[type="password"] {
 .gallery-intro-byline {
   margin: 0 0 14px;
   text-align: left;
-  font-size: 1rem;
-  font-weight: 300;
-  letter-spacing: 0.05em;
-  opacity: 0.9;
+  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-size: clamp(0.75rem, 2vw, 0.95rem);
+  font-weight: 400;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  opacity: 0.55;
 }
 
 .gallery-intro-head {
@@ -628,13 +630,13 @@ input[type="password"] {
   color: var(--hero-text);
 }
 
+.gallery-intro--mood {
+  font-family: var(--mood-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
+}
+
 .gallery-intro--mood .gallery-intro-byline {
   margin: 0;
   text-align: center;
-  font-size: clamp(0.75rem, 2vw, 0.95rem);
-  letter-spacing: 0.32em;
-  text-transform: uppercase;
-  opacity: 0.55;
   flex: 0 0 auto;
 }
 
@@ -687,7 +689,7 @@ input[type="password"] {
   text-align: center;
   text-transform: none;
   letter-spacing: 0.06em;
-  font-size: clamp(1.6rem, 4.5vw, 2.4rem);
+  font-size: var(--mood-title-size, clamp(1.6rem, 4.5vw, 2.4rem));
   font-weight: 400;
   line-height: 1.2;
   max-width: none;
@@ -696,9 +698,154 @@ input[type="password"] {
 .gallery-intro--mood .gallery-intro-date {
   margin: 0;
   text-align: center;
-  font-size: clamp(0.95rem, 2.5vw, 1.1rem);
+  font-size: var(--mood-date-size, clamp(0.95rem, 2.5vw, 1.1rem));
   letter-spacing: 0.08em;
   opacity: 0.72;
+}
+
+/* —— Cover layout: split half-screen —— */
+.gallery-intro--split {
+  padding: 0;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.gallery-intro-split {
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  width: 100%;
+  min-height: inherit;
+}
+
+.gallery-intro-split-text,
+.gallery-intro-split-media {
+  flex: 1 1 50%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.gallery-intro-split-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: clamp(28px, 4vw, 48px);
+  background: var(--hero-accent);
+  color: var(--hero-text);
+}
+
+.gallery-intro-split-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.gallery-intro-split-text .gallery-intro-byline {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.gallery-intro-date--split {
+  margin: 0;
+  text-align: right;
+  font-size: clamp(0.9rem, 2vw, 1.05rem);
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  opacity: 0.85;
+  white-space: nowrap;
+}
+
+.gallery-intro-split-text .gallery-intro-title {
+  margin: 0;
+  padding: 0;
+  align-self: flex-start;
+  max-width: none;
+  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  line-height: 1.1;
+}
+
+.gallery-intro-split-media {
+  position: relative;
+  overflow: hidden;
+  background: #111;
+}
+
+.gallery-intro-split-media .gallery-intro-photo {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  box-shadow: none;
+  margin: 0;
+  max-width: none;
+  max-height: none;
+}
+
+/* —— Cover layout: left / center / right / full —— */
+.gallery-intro--layout-left .gallery-intro-head {
+  justify-content: flex-start;
+}
+
+.gallery-intro--layout-left .gallery-intro-figure {
+  margin-left: 0;
+  margin-right: auto;
+}
+
+.gallery-intro--layout-center .gallery-intro-head {
+  justify-content: center;
+}
+
+.gallery-intro--layout-center .gallery-intro-figure {
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.gallery-intro--layout-right .gallery-intro-head {
+  justify-content: flex-end;
+}
+
+.gallery-intro--layout-right .gallery-intro-figure {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.gallery-intro--layout-full {
+  padding-bottom: 24px;
+}
+
+.gallery-intro--layout-full .gallery-intro-head {
+  justify-content: center;
+}
+
+.gallery-intro--layout-full .gallery-intro-figure {
+  width: 100%;
+  max-width: none;
+  margin: 0;
+}
+
+.gallery-intro--layout-full .gallery-intro-photo {
+  width: 100%;
+  max-height: min(52vh, 520px);
+  object-fit: cover;
+}
+
+.gallery-intro--layout-full .gallery-intro-title {
+  padding-top: 24px;
+}
+
+.gallery-intro-date--below {
+  margin: 0 0 8px;
+  text-align: left;
+  font-size: 1.05rem;
+  font-weight: 300;
+  letter-spacing: 0.04em;
+  opacity: 0.9;
 }
 
 @keyframes moodIntroBlobMorph {
@@ -1199,14 +1346,56 @@ input[type="password"] {
   pointer-events: none;
 }
 
+@media (max-width: 767px) {
+  .gallery-intro-split {
+    flex-direction: column;
+  }
+
+  .gallery-intro--layout-half-left .gallery-intro-split {
+    flex-direction: column-reverse;
+  }
+
+  .gallery-intro-split-text {
+    flex: 1 1 auto;
+    min-height: 50vh;
+    min-height: 50dvh;
+    justify-content: center;
+    text-align: center;
+    padding: clamp(24px, 5vw, 40px) 20px;
+  }
+
+  .gallery-intro-split-top {
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .gallery-intro-split-text .gallery-intro-title {
+    align-self: center;
+    text-align: center;
+    margin-top: 20px;
+    font-size: clamp(1.75rem, 7vw, 2.5rem);
+  }
+
+  .gallery-intro-date--split {
+    text-align: center;
+    white-space: normal;
+  }
+
+  .gallery-intro-split-media {
+    flex: 1 1 auto;
+    min-height: 50vh;
+    min-height: 50dvh;
+  }
+}
+
 @media (min-width: 768px) {
-  .gallery-intro {
+  .gallery-intro:not(.gallery-intro--split) {
     padding: 40px 48px 48px;
   }
 
   .gallery-intro-byline {
     margin-bottom: 16px;
-    font-size: 1.05rem;
   }
 
   .gallery-intro-figure {
@@ -1221,6 +1410,22 @@ input[type="password"] {
     max-height: var(--intro-cover-max-h, calc(min(78vw, 960px) * 9 / 16));
     margin-left: auto;
     object-fit: contain;
+  }
+
+  .gallery-intro--layout-full .gallery-intro-photo {
+    width: 100%;
+    max-height: min(56vh, 560px);
+    object-fit: cover;
+  }
+
+  .gallery-intro--layout-left .gallery-intro-photo {
+    margin-left: 0;
+    margin-right: auto;
+  }
+
+  .gallery-intro--layout-center .gallery-intro-photo {
+    margin-left: auto;
+    margin-right: auto;
   }
 
   .gallery-intro-date {

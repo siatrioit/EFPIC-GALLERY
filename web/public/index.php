@@ -133,6 +133,10 @@ try {
         efpic_stream_versioned_public_asset(__DIR__ . '/admin/assets/admin.js', 'application/javascript');
     }
 
+    if ($uri === '/admin/assets/cover-theme.js') {
+        efpic_stream_versioned_public_asset(__DIR__ . '/admin/assets/cover-theme.js', 'application/javascript');
+    }
+
     if ($uri === '/api/render/ping' && $method === 'GET') {
         efpic_handle_render_ping($config);
     }

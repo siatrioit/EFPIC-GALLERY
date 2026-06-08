@@ -131,6 +131,7 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     }
     echo '</header>';
     echo '<main class="admin-main">' . $body . '</main></div></div>';
+    echo '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/cover-theme.js')) . '" defer></script>';
     echo '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/admin.js')) . '" defer></script></body></html>';
     exit;
 }
@@ -176,7 +177,7 @@ function efpic_admin_render_theme_fieldset(array $config, array $formMeta): stri
     $pageBg = efpic_client_page_bg_color($config, $formMeta);
     $html = '<fieldset class="admin-fieldset-full"><legend>Tēma</legend>';
     $html .= '<div class="admin-form-layout admin-form-layout--basic">';
-    $html .= '<label>Tēma<select name="theme">';
+    $html .= '<label>Tēma<select name="theme" id="admin-gallery-theme-select">';
     foreach (efpic_gallery_theme_options() as $k => $lbl) {
         $sel = $k === $theme ? ' selected' : '';
         $html .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
@@ -185,7 +186,9 @@ function efpic_admin_render_theme_fieldset(array $config, array $formMeta): stri
     $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
     $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
     $html .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
-    $html .= '</div></fieldset>';
+    $html .= '</div>';
+    $html .= efpic_render_cover_theme_controls($config, $formMeta, $theme, false);
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -1083,6 +1086,8 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) === 1) {
             $meta['page_bg_color'] = strtolower($pageBg);
         }
+        efpic_apply_cover_theme_from_post($meta);
+        efpic_apply_mood_theme_from_post($meta);
         efpic_save_gallery_meta($config, $slug, $meta);
     } else {
         $meta = efpic_load_gallery_meta($config, $slug);
@@ -1121,6 +1126,9 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) === 1) {
             $meta['page_bg_color'] = strtolower($pageBg);
         }
+
+        efpic_apply_cover_theme_from_post($meta);
+        efpic_apply_mood_theme_from_post($meta);
 
         $coverTok = trim((string) ($_POST['cover_image_token'] ?? ''));
         if ($coverTok !== '') {
