@@ -2810,6 +2810,7 @@
 }
 
 .admin-cover-live-device__iframe {
+  position: absolute;
   display: block;
   border: 0;
   transform-origin: top left;

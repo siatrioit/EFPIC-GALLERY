@@ -327,7 +327,12 @@
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
     var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
     var vw = viewport.clientWidth || 1;
-    var scale = vw / designW;
+    var scale = Math.min(vw / designW, PREVIEW_DISPLAY_H / designH);
+    var scaledW = designW * scale;
+    var scaledH = designH * scale;
+    iframe.style.position = 'absolute';
+    iframe.style.left = Math.max(0, (vw - scaledW) / 2) + 'px';
+    iframe.style.top = Math.max(0, (PREVIEW_DISPLAY_H - scaledH) / 2) + 'px';
     iframe.style.width = designW + 'px';
     iframe.style.height = designH + 'px';
     iframe.style.transform = 'scale(' + scale + ')';
