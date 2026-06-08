@@ -564,13 +564,19 @@ input[type="password"] {
   padding: 28px 24px 36px;
   background: var(--hero-accent);
   color: var(--hero-text);
-  font-family: var(--intro-font, inherit);
+  font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
+}
+
+.gallery-intro .gallery-intro-byline,
+.gallery-intro .gallery-intro-title,
+.gallery-intro .gallery-intro-date,
+.gallery-intro .gallery-intro-split-text {
+  font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
 }
 
 .gallery-intro-byline {
   margin: 0 0 14px;
   text-align: left;
-  font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
   font-size: var(--intro-byline-size, clamp(0.75rem, 2vw, 0.95rem));
   font-weight: 400;
   letter-spacing: 0.32em;
@@ -603,7 +609,7 @@ input[type="password"] {
   margin: 12px 0 0;
   text-align: right;
   font-size: var(--intro-date-size, 1.05rem);
-  font-weight: 300;
+  font-weight: 400;
   letter-spacing: 0.04em;
   opacity: 0.9;
 }
@@ -612,13 +618,12 @@ input[type="password"] {
   margin: auto 0 0;
   padding-top: 36px;
   font-size: var(--intro-title-size, clamp(1.75rem, 5vw, 3rem));
-  font-weight: 300;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
+  font-weight: var(--intro-title-weight, 400);
+  letter-spacing: var(--intro-title-tracking, 0.03em);
+  text-transform: none;
   line-height: 1.15;
   max-width: min(92%, 52rem);
   align-self: flex-start;
-  font-family: var(--intro-font, inherit);
 }
 
 /* Mood: Pic-Time stila kustīgs burbulis galerijas sākumā */
@@ -633,7 +638,7 @@ input[type="password"] {
 }
 
 .gallery-intro--mood {
-  font-family: var(--intro-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
+  font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
 }
 
 .gallery-intro--mood .gallery-intro-byline {
@@ -690,9 +695,8 @@ input[type="password"] {
   text-transform: uppercase;
 }
 
-.gallery-intro--all-caps.gallery-intro--mood .gallery-intro-title {
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
+.gallery-intro--all-caps .gallery-intro-title {
+  letter-spacing: var(--intro-title-tracking-caps, 0.12em);
 }
 
 .gallery-intro--mood .gallery-intro-title {
@@ -701,9 +705,9 @@ input[type="password"] {
   align-self: center;
   text-align: center;
   text-transform: none;
-  letter-spacing: 0.06em;
+  letter-spacing: var(--intro-title-tracking, 0.04em);
   font-size: var(--intro-title-size, clamp(1.6rem, 4.5vw, 2.4rem));
-  font-weight: 400;
+  font-weight: var(--intro-title-weight, 400);
   line-height: 1.2;
   max-width: none;
 }
@@ -721,6 +725,13 @@ input[type="password"] {
   padding: 0;
   min-height: 100vh;
   min-height: 100dvh;
+  overflow: hidden;
+}
+
+.gallery-intro--split .gallery-intro-split {
+  flex: 1 1 auto;
+  width: 100%;
+  min-height: 100%;
 }
 
 .gallery-intro-split {
@@ -774,11 +785,10 @@ input[type="password"] {
   padding: 0;
   align-self: flex-start;
   max-width: none;
-  font-family: var(--intro-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
   font-size: var(--intro-title-size, clamp(2rem, 5vw, 3.5rem));
-  font-weight: 400;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  font-weight: var(--intro-title-weight, 400);
+  letter-spacing: var(--intro-title-tracking, 0.04em);
+  text-transform: none;
   line-height: 1.1;
 }
 
@@ -1367,10 +1377,6 @@ input[type="password"] {
     flex-direction: column;
   }
 
-  .gallery-intro--layout-half-left .gallery-intro-split {
-    flex-direction: column-reverse;
-  }
-
   .gallery-intro-split-text {
     flex: 1 1 auto;
     min-height: 50vh;
@@ -1434,9 +1440,23 @@ input[type="password"] {
     object-fit: cover;
   }
 
+  .gallery-intro--split {
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .gallery-intro--split .gallery-intro-split {
+    height: 100%;
+    min-height: 100%;
+  }
+
+  .gallery-intro-split-text,
   .gallery-intro-split-media {
-    min-height: 100vh;
-    min-height: 100dvh;
+    min-height: 0;
+  }
+
+  .gallery-intro-split-media {
+    min-height: 0;
   }
 
   .gallery-intro-split-media .gallery-intro-photo {

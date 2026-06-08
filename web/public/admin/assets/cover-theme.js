@@ -13,14 +13,14 @@
   };
 
   var TITLE_SIZES = {
-    mood: { sm: 'clamp(1.35rem, 3.2vw, 1.85rem)', md: 'clamp(1.6rem, 4.5vw, 2.4rem)', lg: 'clamp(2rem, 5.5vw, 3.2rem)' },
-    standard: { sm: 'clamp(1.4rem, 4vw, 2rem)', md: 'clamp(1.75rem, 5vw, 3rem)', lg: 'clamp(2.2rem, 6vw, 3.6rem)' },
-    split: { sm: 'clamp(1.5rem, 4vw, 2.2rem)', md: 'clamp(2rem, 5vw, 3.5rem)', lg: 'clamp(2.4rem, 6vw, 4rem)' },
+    mood: { sm: 'clamp(1.15rem, 3vw, 1.55rem)', md: 'clamp(1.65rem, 4.8vw, 2.5rem)', lg: 'clamp(2.35rem, 6.5vw, 3.75rem)' },
+    standard: { sm: 'clamp(1.25rem, 3.5vw, 1.75rem)', md: 'clamp(1.85rem, 5.5vw, 3.15rem)', lg: 'clamp(2.6rem, 7.5vw, 4.25rem)' },
+    split: { sm: 'clamp(1.25rem, 3.5vw, 1.75rem)', md: 'clamp(1.85rem, 5.5vw, 3.15rem)', lg: 'clamp(2.6rem, 7.5vw, 4.25rem)' },
   };
 
   var DATE_SIZES = {
-    mood: { sm: '0.85rem', md: 'clamp(0.95rem, 2.5vw, 1.1rem)', lg: '1.25rem' },
-    standard: { sm: '0.9rem', md: '1.05rem', lg: '1.2rem' },
+    mood: { sm: '0.78rem', md: 'clamp(0.95rem, 2.5vw, 1.1rem)', lg: '1.35rem' },
+    standard: { sm: '0.8rem', md: '1.05rem', lg: '1.35rem' },
   };
 
   function escapeHtml(s) {
@@ -80,6 +80,31 @@
     } catch (e) {
       return DEFAULT_FONTS;
     }
+  }
+
+  function readFontGroupMap(root) {
+    if (!root) return {};
+    try {
+      return JSON.parse(root.getAttribute('data-font-groups') || '{}');
+    } catch (e) {
+      return {};
+    }
+  }
+
+  function fontGroup(key, groupMap) {
+    return (groupMap && groupMap[key]) || 'serif';
+  }
+
+  function titleWeightCss(key, groupMap) {
+    return fontGroup(key, groupMap) === 'sans' ? '500' : '400';
+  }
+
+  function titleTrackingCss(key, groupMap) {
+    return fontGroup(key, groupMap) === 'sans' ? '0.06em' : '0.03em';
+  }
+
+  function titleTrackingCapsCss(key, groupMap) {
+    return fontGroup(key, groupMap) === 'sans' ? '0.1em' : '0.12em';
   }
 
   function safeStyleVar(value) {
@@ -178,16 +203,19 @@
       + ' style="' + style + '">';
   }
 
-  function introStyle(state, fontMap) {
+  function introStyle(state, fontMap, groupMap) {
     var font = fontCss(state.fontFamily, fontMap);
     var title = safeStyleVar(titleSizeCss(state.theme, state.layout, state.titleSize));
     var date = safeStyleVar(dateSizeCss(state.theme, state.dateSize));
     var byline = safeStyleVar(bylineSizeCss(state.dateSize));
     return '--hero-accent:' + state.heroAccent + ';--hero-text:#1a1a1a;--intro-font:' + font
-      + ';--intro-title-size:' + title + ';--intro-date-size:' + date + ';--intro-byline-size:' + byline + ';';
+      + ';--intro-title-size:' + title + ';--intro-date-size:' + date + ';--intro-byline-size:' + byline
+      + ';--intro-title-weight:' + titleWeightCss(state.fontFamily, groupMap)
+      + ';--intro-title-tracking:' + titleTrackingCss(state.fontFamily, groupMap)
+      + ';--intro-title-tracking-caps:' + titleTrackingCapsCss(state.fontFamily, groupMap) + ';';
   }
 
-  function renderSplit(state, layout, fontMap) {
+  function renderSplit(state, layout, fontMap, groupMap) {
     var text = '<div class="gallery-intro-split-text">'
       + '<div class="gallery-intro-split-top">'
       + '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
@@ -197,12 +225,12 @@
     text += '</div><h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></div>';
     var media = '<div class="gallery-intro-split-media">' + photoHtml(state.coverUrl, state.focalX, state.focalY, true) + '</div>';
     var inner = layout === 'half-left' ? media + text : text + media;
-    return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">'
+    return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
       + '<div class="gallery-intro-split">' + inner + '</div></section>';
   }
 
-  function renderMood(state, fontMap) {
-    var html = '<section class="gallery-intro gallery-intro--mood' + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">';
+  function renderMood(state, fontMap, groupMap) {
+    var html = '<section class="gallery-intro gallery-intro--mood' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">';
     html += photoHtml(state.coverUrl, state.focalX, state.focalY, true);
@@ -215,9 +243,9 @@
     return html;
   }
 
-  function renderStandard(state, fontMap) {
+  function renderStandard(state, fontMap, groupMap) {
     var layout = state.layout || 'right';
-    var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">';
+    var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure">';
     html += photoHtml(state.coverUrl, state.focalX, state.focalY, layout === 'full');
@@ -232,17 +260,22 @@
     return html;
   }
 
-  function renderLivePreview(previewEl, state, fontMap) {
+  function renderLivePreview(previewEl, state, fontMap, groupMap) {
     if (!previewEl) return;
     var html = '';
     if (state.theme === 'efpic-mood') {
-      html = renderMood(state, fontMap);
+      html = renderMood(state, fontMap, groupMap);
     } else if (state.layout === 'half-left' || state.layout === 'half-right') {
-      html = renderSplit(state, state.layout, fontMap);
+      html = renderSplit(state, state.layout, fontMap, groupMap);
     } else {
-      html = renderStandard(state, fontMap);
+      html = renderStandard(state, fontMap, groupMap);
     }
     previewEl.innerHTML = html;
+  }
+
+  function syncFontSelectPreview(fontSel, fontMap) {
+    if (!fontSel) return;
+    fontSel.style.fontFamily = fontCss(fontSel.value, fontMap);
   }
 
   function initCoverTheme() {
@@ -256,10 +289,14 @@
     var frame = document.getElementById('admin-cover-crop-frame');
     var cropImg = document.getElementById('admin-cover-crop-img');
     var previewEl = document.getElementById('admin-cover-live-preview');
+    var previewViewport = document.getElementById('admin-cover-live-viewport');
+    var previewScale = document.getElementById('admin-cover-live-scale');
     var fx = document.getElementById('cover_focal_x');
     var fy = document.getElementById('cover_focal_y');
     var base = parsePreviewData(previewEl);
     var fontMap = readFontMap(root);
+    var groupMap = readFontGroupMap(root);
+    var fontSel = document.getElementById('mood_font_family');
     var layoutInputs = root.querySelectorAll('input[name="cover_layout"]');
 
     function isMood() {
@@ -305,6 +342,16 @@
       if (crop) crop.dataset.layout = layout;
     }
 
+    function updatePreviewScale() {
+      if (!previewViewport || !previewScale) return;
+      var designW = 1280;
+      var designH = 720;
+      var vw = previewViewport.clientWidth || 1;
+      var vh = previewViewport.clientHeight || 300;
+      var scale = Math.min(vw / designW, vh / designH, 1);
+      previewScale.style.transform = 'translateX(-50%) scale(' + scale + ')';
+    }
+
     function applyFocal() {
       if (!cropImg || !fx || !fy) return;
       cropImg.style.objectFit = 'cover';
@@ -318,9 +365,11 @@
       if (cropImg && url && cropImg.getAttribute('src') !== url) {
         cropImg.setAttribute('src', url);
       }
-      renderLivePreview(previewEl, state, fontMap);
+      renderLivePreview(previewEl, state, fontMap, groupMap);
+      syncFontSelectPreview(fontSel, fontMap);
       syncThemePanels();
       updateCropAspect();
+      updatePreviewScale();
     }
 
     function bindLiveInput(sel) {
@@ -362,6 +411,11 @@
     updateCropAspect();
     applyFocal();
     refreshPreview();
+    updatePreviewScale();
+    window.addEventListener('resize', updatePreviewScale);
+    if (typeof ResizeObserver !== 'undefined' && previewViewport) {
+      new ResizeObserver(updatePreviewScale).observe(previewViewport);
+    }
 
     if (!frame || !cropImg || !fx || !fy) return;
 

@@ -79,79 +79,79 @@ function efpic_gallery_intro_font_catalog(): array
         'playfair' => [
             'label' => 'Playfair Display',
             'group' => 'serif',
-            'family' => '"Playfair Display", Georgia, "Times New Roman", serif',
+            'family' => "'Playfair Display', Georgia, 'Times New Roman', serif",
             'google' => 'Playfair+Display:ital,wght@0,400;0,500;0,600;1,400',
         ],
         'libre-baskerville' => [
             'label' => 'Libre Baskerville',
             'group' => 'serif',
-            'family' => '"Libre Baskerville", Georgia, "Times New Roman", serif',
+            'family' => "'Libre Baskerville', Georgia, 'Times New Roman', serif",
             'google' => 'Libre+Baskerville:ital,wght@0,400;0,700;1,400',
         ],
         'lora' => [
             'label' => 'Lora',
             'group' => 'serif',
-            'family' => '"Lora", Georgia, "Times New Roman", serif',
+            'family' => "'Lora', Georgia, 'Times New Roman', serif",
             'google' => 'Lora:ital,wght@0,400;0,500;0,600;1,400',
         ],
         'dm-serif' => [
             'label' => 'DM Serif Display',
             'group' => 'serif',
-            'family' => '"DM Serif Display", Georgia, "Times New Roman", serif',
+            'family' => "'DM Serif Display', Georgia, 'Times New Roman', serif",
             'google' => 'DM+Serif+Display:ital,wght@0,400;1,400',
         ],
         'cinzel' => [
             'label' => 'Cinzel',
             'group' => 'serif',
-            'family' => '"Cinzel", Georgia, "Times New Roman", serif',
+            'family' => "'Cinzel', Georgia, 'Times New Roman', serif",
             'google' => 'Cinzel:wght@400;500;600',
         ],
         'montserrat' => [
             'label' => 'Montserrat',
             'group' => 'sans',
-            'family' => '"Montserrat", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Montserrat:ital,wght@0,300;0,400;0,500;0,600;1,400',
         ],
         'raleway' => [
             'label' => 'Raleway',
             'group' => 'sans',
-            'family' => '"Raleway", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Raleway', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Raleway:ital,wght@0,300;0,400;0,500;0,600;1,400',
         ],
         'lato' => [
             'label' => 'Lato',
             'group' => 'sans',
-            'family' => '"Lato", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Lato', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Lato:ital,wght@0,300;0,400;0,700;1,400',
         ],
         'poppins' => [
             'label' => 'Poppins',
             'group' => 'sans',
-            'family' => '"Poppins", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Poppins', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Poppins:ital,wght@0,300;0,400;0,500;0,600;1,400',
         ],
         'open-sans' => [
             'label' => 'Open Sans',
             'group' => 'sans',
-            'family' => '"Open Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Open Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Open+Sans:ital,wght@0,300;0,400;0,600;1,400',
         ],
         'josefin' => [
             'label' => 'Josefin Sans',
             'group' => 'sans',
-            'family' => '"Josefin Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Josefin Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Josefin+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400',
         ],
         'dm-sans' => [
             'label' => 'DM Sans',
             'group' => 'sans',
-            'family' => '"DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'DM Sans', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'DM+Sans:ital,wght@0,400;0,500;0,700;1,400',
         ],
         'inter' => [
             'label' => 'Inter',
             'group' => 'sans',
-            'family' => '"Inter", system-ui, -apple-system, "Segoe UI", sans-serif',
+            'family' => "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif",
             'google' => 'Inter:ital,wght@0,300;0,400;0,500;0,600;1,400',
         ],
     ];
@@ -222,6 +222,17 @@ function efpic_gallery_intro_fonts_family_map(): array
     return $out;
 }
 
+/** @return array<string, string> */
+function efpic_gallery_intro_fonts_group_map(): array
+{
+    $out = [];
+    foreach (efpic_gallery_intro_font_catalog() as $key => $font) {
+        $out[$key] = (string) ($font['group'] ?? 'serif');
+    }
+
+    return $out;
+}
+
 function efpic_gallery_intro_all_caps(array $meta): bool
 {
     return !empty($meta['intro_all_caps']);
@@ -283,20 +294,43 @@ function efpic_gallery_mood_date_size_key(array $meta): string
     return array_key_exists($key, efpic_gallery_mood_date_size_options()) ? $key : 'md';
 }
 
+function efpic_gallery_intro_font_group(array $meta): string
+{
+    $key = efpic_gallery_mood_font_family_key($meta);
+    $catalog = efpic_gallery_intro_font_catalog();
+
+    return (string) ($catalog[$key]['group'] ?? 'serif');
+}
+
+function efpic_gallery_intro_title_weight_css(array $meta): string
+{
+    return efpic_gallery_intro_font_group($meta) === 'sans' ? '500' : '400';
+}
+
+function efpic_gallery_intro_title_tracking_css(array $meta): string
+{
+    return efpic_gallery_intro_font_group($meta) === 'sans' ? '0.06em' : '0.03em';
+}
+
+function efpic_gallery_intro_title_tracking_caps_css(array $meta): string
+{
+    return efpic_gallery_intro_font_group($meta) === 'sans' ? '0.1em' : '0.12em';
+}
+
 function efpic_gallery_mood_title_size_css(array $meta): string
 {
     return match (efpic_gallery_mood_title_size_key($meta)) {
-        'sm' => 'clamp(1.35rem, 3.2vw, 1.85rem)',
-        'lg' => 'clamp(2rem, 5.5vw, 3.2rem)',
-        default => 'clamp(1.6rem, 4.5vw, 2.4rem)',
+        'sm' => 'clamp(1.15rem, 3vw, 1.55rem)',
+        'lg' => 'clamp(2.35rem, 6.5vw, 3.75rem)',
+        default => 'clamp(1.65rem, 4.8vw, 2.5rem)',
     };
 }
 
 function efpic_gallery_mood_date_size_css(array $meta): string
 {
     return match (efpic_gallery_mood_date_size_key($meta)) {
-        'sm' => '0.85rem',
-        'lg' => '1.25rem',
+        'sm' => '0.78rem',
+        'lg' => '1.35rem',
         default => 'clamp(0.95rem, 2.5vw, 1.1rem)',
     };
 }
@@ -309,9 +343,9 @@ function efpic_gallery_intro_title_size_css(array $meta, string $theme = ''): st
     }
 
     return match (efpic_gallery_mood_title_size_key($meta)) {
-        'sm' => 'clamp(1.4rem, 4vw, 2rem)',
-        'lg' => 'clamp(2.2rem, 6vw, 3.6rem)',
-        default => 'clamp(1.75rem, 5vw, 3rem)',
+        'sm' => 'clamp(1.25rem, 3.5vw, 1.75rem)',
+        'lg' => 'clamp(2.6rem, 7.5vw, 4.25rem)',
+        default => 'clamp(1.85rem, 5.5vw, 3.15rem)',
     };
 }
 
@@ -323,8 +357,8 @@ function efpic_gallery_intro_date_size_css(array $meta, string $theme = ''): str
     }
 
     return match (efpic_gallery_mood_date_size_key($meta)) {
-        'sm' => '0.85rem',
-        'lg' => '1.25rem',
+        'sm' => '0.8rem',
+        'lg' => '1.35rem',
         default => '1.05rem',
     };
 }
@@ -345,7 +379,10 @@ function efpic_gallery_intro_typography_style_vars(array $meta, string $theme = 
     return '--intro-font:' . efpic_gallery_mood_font_family_css($meta)
         . ';--intro-title-size:' . efpic_gallery_intro_title_size_css($meta, $theme)
         . ';--intro-date-size:' . efpic_gallery_intro_date_size_css($meta, $theme)
-        . ';--intro-byline-size:' . efpic_gallery_intro_byline_size_css($meta) . ';';
+        . ';--intro-byline-size:' . efpic_gallery_intro_byline_size_css($meta)
+        . ';--intro-title-weight:' . efpic_gallery_intro_title_weight_css($meta)
+        . ';--intro-title-tracking:' . efpic_gallery_intro_title_tracking_css($meta)
+        . ';--intro-title-tracking-caps:' . efpic_gallery_intro_title_tracking_caps_css($meta) . ';';
 }
 
 function efpic_gallery_intro_typography_style_attr(array $meta, string $theme = ''): string
@@ -524,8 +561,10 @@ function efpic_render_cover_theme_controls(
     }
 
     $fontsJson = json_encode(efpic_gallery_intro_fonts_family_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $fontGroupsJson = json_encode(efpic_gallery_intro_fonts_group_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $html .= '<div class="admin-cover-theme" id="admin-cover-theme" data-theme="' . efpic_cover_theme_esc($theme) . '"'
-        . ' data-fonts="' . efpic_cover_theme_esc($fontsJson !== false ? $fontsJson : '{}') . '">';
+        . ' data-fonts="' . efpic_cover_theme_esc($fontsJson !== false ? $fontsJson : '{}') . '"'
+        . ' data-font-groups="' . efpic_cover_theme_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '">';
 
     $html .= '<fieldset class="admin-cover-theme__block' . ($isMood ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
     $html .= '<legend>Vāka bildes novietojums</legend>';
@@ -544,11 +583,13 @@ function efpic_render_cover_theme_controls(
     $html .= '</fieldset>';
 
     $html .= '<div class="admin-cover-live" id="admin-cover-live">';
-    $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā)</span></p>';
+    $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā, samazināts)</span></p>';
     $html .= '<div class="admin-cover-live__shell" id="admin-cover-live-shell">';
-    $html .= '<div class="admin-cover-live__viewport" id="admin-cover-live-preview" data-preview="'
+    $html .= '<div class="admin-cover-live__viewport" id="admin-cover-live-viewport">';
+    $html .= '<div class="admin-cover-live__scale" id="admin-cover-live-scale">';
+    $html .= '<div class="admin-cover-live__preview" id="admin-cover-live-preview" data-preview="'
         . efpic_cover_theme_esc($previewJson !== false ? $previewJson : '{}') . '"></div>';
-    $html .= '</div>';
+    $html .= '</div></div></div>';
     if (!$hasCover) {
         $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu bildi priekšskatījumā.</p>';
     }
