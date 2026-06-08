@@ -155,13 +155,47 @@ function efpic_gallery_mood_date_size_css(array $meta): string
     };
 }
 
+function efpic_gallery_intro_title_size_css(array $meta, string $theme = ''): string
+{
+    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : '';
+    if ($theme === 'efpic-mood') {
+        return efpic_gallery_mood_title_size_css($meta);
+    }
+
+    return match (efpic_gallery_mood_title_size_key($meta)) {
+        'sm' => 'clamp(1.4rem, 4vw, 2rem)',
+        'lg' => 'clamp(2.2rem, 6vw, 3.6rem)',
+        default => 'clamp(1.75rem, 5vw, 3rem)',
+    };
+}
+
+function efpic_gallery_intro_date_size_css(array $meta, string $theme = ''): string
+{
+    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : '';
+    if ($theme === 'efpic-mood') {
+        return efpic_gallery_mood_date_size_css($meta);
+    }
+
+    return match (efpic_gallery_mood_date_size_key($meta)) {
+        'sm' => '0.9rem',
+        'lg' => '1.2rem',
+        default => '1.05rem',
+    };
+}
+
+function efpic_gallery_intro_typography_style_attr(array $meta, string $theme = ''): string
+{
+    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_gallery_effective_theme($meta);
+    $font = efpic_gallery_mood_font_family_css($meta);
+    $title = efpic_gallery_intro_title_size_css($meta, $theme);
+    $date = efpic_gallery_intro_date_size_css($meta, $theme);
+
+    return ' style="--intro-font:' . $font . ';--intro-title-size:' . $title . ';--intro-date-size:' . $date . ';"';
+}
+
 function efpic_gallery_mood_intro_style_attr(array $meta): string
 {
-    $font = efpic_gallery_mood_font_family_css($meta);
-    $title = efpic_gallery_mood_title_size_css($meta);
-    $date = efpic_gallery_mood_date_size_css($meta);
-
-    return ' style="--mood-font:' . $font . ';--mood-title-size:' . $title . ';--mood-date-size:' . $date . ';"';
+    return efpic_gallery_intro_typography_style_attr($meta, 'efpic-mood');
 }
 
 function efpic_cover_theme_esc(string $s): string
@@ -206,12 +240,7 @@ function efpic_client_format_event_date_mood(array $meta, string $date): string
 
 function efpic_client_format_event_date_for_gallery(array $meta, string $date, string $theme = ''): string
 {
-    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_gallery_effective_theme($meta);
-    if ($theme === 'efpic-mood') {
-        return efpic_client_format_event_date_mood($meta, $date);
-    }
-
-    return efpic_client_format_event_date($date);
+    return efpic_client_format_event_date_mood($meta, $date);
 }
 
 function efpic_apply_cover_theme_from_post(array &$meta): void
@@ -230,14 +259,6 @@ function efpic_apply_cover_theme_from_post(array &$meta): void
 
 function efpic_apply_mood_theme_from_post(array &$meta): void
 {
-    $themeFromPost = trim((string) ($_POST['theme'] ?? ''));
-    $theme = $themeFromPost !== ''
-        ? efpic_normalize_gallery_theme($themeFromPost)
-        : efpic_gallery_effective_theme($meta);
-    if ($theme !== 'efpic-mood') {
-        return;
-    }
-
     $font = trim((string) ($_POST['mood_font_family'] ?? ''));
     if ($font !== '' && array_key_exists($font, efpic_gallery_mood_font_options())) {
         $meta['mood_font_family'] = $font;
@@ -290,6 +311,31 @@ function efpic_admin_cover_preview_url(array $config, array $meta): string
     return efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1200);
 }
 
+/** @return array<string, mixed> */
+function efpic_cover_theme_preview_payload(array $config, array $formMeta, string $theme): array
+{
+    $theme = efpic_normalize_gallery_theme($theme);
+    $focal = efpic_gallery_cover_focal($formMeta);
+    $dateRaw = substr((string) ($formMeta['event_date'] ?? ''), 0, 10);
+
+    return [
+        'theme' => $theme,
+        'name' => (string) ($formMeta['name'] ?? 'Galerija'),
+        'dateRaw' => $dateRaw,
+        'dateFormatted' => efpic_client_format_event_date_for_gallery($formMeta, $dateRaw, $theme),
+        'byline' => efpic_client_gallery_byline_display($config),
+        'coverUrl' => efpic_admin_cover_preview_url($config, $formMeta),
+        'heroAccent' => efpic_client_hero_accent_color($formMeta),
+        'layout' => efpic_gallery_cover_layout($formMeta),
+        'focalX' => $focal['x'],
+        'focalY' => $focal['y'],
+        'fontFamily' => efpic_gallery_mood_font_family_key($formMeta),
+        'dateFormat' => efpic_gallery_mood_date_format_key($formMeta),
+        'titleSize' => efpic_gallery_mood_title_size_key($formMeta),
+        'dateSize' => efpic_gallery_mood_date_size_key($formMeta),
+    ];
+}
+
 function efpic_render_cover_theme_controls(
     array $config,
     array $formMeta,
@@ -303,6 +349,10 @@ function efpic_render_cover_theme_controls(
     $focal = efpic_gallery_cover_focal($formMeta);
     $coverUrl = efpic_admin_cover_preview_url($config, $formMeta);
     $hasCover = $coverUrl !== '';
+    $previewJson = json_encode(
+        efpic_cover_theme_preview_payload($config, $formMeta, $theme),
+        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+    );
 
     $html = '';
     if ($standaloneForm) {
@@ -312,26 +362,30 @@ function efpic_render_cover_theme_controls(
 
     $html .= '<div class="admin-cover-theme" id="admin-cover-theme" data-theme="' . efpic_cover_theme_esc($theme) . '">';
 
-    $html .= '<fieldset class="admin-cover-theme__block' . ($isMood ? ' is-disabled' : '') . '" id="admin-cover-layout-block"'
-        . ($isMood ? ' disabled' : '') . '>';
+    $html .= '<fieldset class="admin-cover-theme__block' . ($isMood ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
     $html .= '<legend>Vāka bildes novietojums</legend>';
     if ($isMood) {
-        $html .= '<p class="muted">Mood tēmā vāka novietojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
+        $html .= '<p class="muted" id="admin-cover-layout-mood-note">Mood tēmā vāka novietojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
     }
     $html .= '<div class="admin-cover-layout-grid" role="radiogroup" aria-label="Vāka bildes novietojums">';
     foreach (efpic_gallery_cover_layout_options() as $key => $label) {
         $checked = $key === $layout ? ' checked' : '';
-        $disabled = $isMood ? ' disabled' : '';
         $html .= '<label class="admin-cover-layout-option"><input type="radio" name="cover_layout" value="'
-            . efpic_cover_theme_esc($key) . '"' . $checked . $disabled . '><span>' . efpic_cover_theme_esc($label) . '</span></label>';
+            . efpic_cover_theme_esc($key) . '"' . $checked . '><span>' . efpic_cover_theme_esc($label) . '</span></label>';
     }
     $html .= '</div>';
-
     $html .= '<input type="hidden" name="cover_focal_x" id="cover_focal_x" value="' . efpic_cover_theme_esc((string) $focal['x']) . '">';
     $html .= '<input type="hidden" name="cover_focal_y" id="cover_focal_y" value="' . efpic_cover_theme_esc((string) $focal['y']) . '">';
+    $html .= '</fieldset>';
 
+    $html .= '<div class="admin-cover-live" id="admin-cover-live">';
+    $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā)</span></p>';
+    $html .= '<div class="admin-cover-live__shell" id="admin-cover-live-shell">';
+    $html .= '<div class="admin-cover-live__viewport" id="admin-cover-live-preview" data-preview="'
+        . efpic_cover_theme_esc($previewJson !== false ? $previewJson : '{}') . '"></div>';
+    $html .= '</div>';
     if (!$hasCover) {
-        $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu priekšskatījumu un pārkadrētu.</p>';
+        $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu bildi priekšskatījumā.</p>';
     }
     $cropHidden = $isMood || !$hasCover ? ' hidden' : '';
     $html .= '<div class="admin-cover-crop' . $cropHidden . '" id="admin-cover-crop" data-layout="' . efpic_cover_theme_esc($layout) . '">';
@@ -340,32 +394,32 @@ function efpic_render_cover_theme_controls(
     $html .= '<img src="' . efpic_cover_theme_esc($coverUrl) . '" alt="" id="admin-cover-crop-img" draggable="false"'
         . ' style="object-position:' . efpic_cover_theme_esc(efpic_gallery_cover_object_position($formMeta)) . ';">';
     $html .= '</div></div>';
-    $html .= '</fieldset>';
+    $html .= '</div>';
 
-    $moodHidden = $isMood ? '' : ' hidden';
-    $html .= '<fieldset class="admin-cover-theme__block admin-mood-theme' . $moodHidden . '" id="admin-mood-theme-block">';
-    $html .= '<legend>Mood tēmas iestatījumi</legend>';
+    $html .= '<fieldset class="admin-cover-theme__block admin-intro-typography" id="admin-intro-typography-block">';
+    $html .= '<legend>Vāka tipogrāfija</legend>';
+    $html .= '<p class="muted">Attiecas uz visām tēmām — parakstu, nosaukumu un datumu sākuma ekrānā.</p>';
     $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $moodFont = efpic_gallery_mood_font_family_key($formMeta);
-    $html .= '<label>Šrifts<select name="mood_font_family">';
+    $html .= '<label>Šrifts<select name="mood_font_family" id="mood_font_family">';
     foreach (efpic_gallery_mood_font_options() as $k => $lbl) {
         $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $moodFont ? ' selected' : '') . '>' . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
     $moodDateFmt = efpic_gallery_mood_date_format_key($formMeta);
-    $html .= '<label>Datuma formāts<select name="mood_date_format">';
+    $html .= '<label>Datuma formāts<select name="mood_date_format" id="mood_date_format">';
     foreach (efpic_gallery_mood_date_format_options() as $k => $lbl) {
         $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $moodDateFmt ? ' selected' : '') . '>' . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
     $titleSize = efpic_gallery_mood_title_size_key($formMeta);
-    $html .= '<label>Nosaukuma izmērs<select name="mood_title_font_size">';
+    $html .= '<label>Nosaukuma izmērs<select name="mood_title_font_size" id="mood_title_font_size">';
     foreach (efpic_gallery_mood_title_size_options() as $k => $lbl) {
         $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $titleSize ? ' selected' : '') . '>' . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
     $dateSize = efpic_gallery_mood_date_size_key($formMeta);
-    $html .= '<label>Datuma izmērs<select name="mood_date_font_size">';
+    $html .= '<label>Datuma izmērs<select name="mood_date_font_size" id="mood_date_font_size">';
     foreach (efpic_gallery_mood_date_size_options() as $k => $lbl) {
         $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $dateSize ? ' selected' : '') . '>' . efpic_cover_theme_esc($lbl) . '</option>';
     }

@@ -564,12 +564,13 @@ input[type="password"] {
   padding: 28px 24px 36px;
   background: var(--hero-accent);
   color: var(--hero-text);
+  font-family: var(--intro-font, inherit);
 }
 
 .gallery-intro-byline {
   margin: 0 0 14px;
   text-align: left;
-  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
+  font-family: var(--intro-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
   font-size: clamp(0.75rem, 2vw, 0.95rem);
   font-weight: 400;
   letter-spacing: 0.32em;
@@ -601,7 +602,7 @@ input[type="password"] {
 .gallery-intro-date {
   margin: 12px 0 0;
   text-align: right;
-  font-size: 1.05rem;
+  font-size: var(--intro-date-size, 1.05rem);
   font-weight: 300;
   letter-spacing: 0.04em;
   opacity: 0.9;
@@ -610,13 +611,14 @@ input[type="password"] {
 .gallery-intro-title {
   margin: auto 0 0;
   padding-top: 36px;
-  font-size: clamp(1.75rem, 5vw, 3rem);
+  font-size: var(--intro-title-size, clamp(1.75rem, 5vw, 3rem));
   font-weight: 300;
   letter-spacing: 0.14em;
   text-transform: uppercase;
   line-height: 1.15;
   max-width: min(92%, 52rem);
   align-self: flex-start;
+  font-family: var(--intro-font, inherit);
 }
 
 /* Mood: Pic-Time stila kustīgs burbulis galerijas sākumā */
@@ -631,7 +633,7 @@ input[type="password"] {
 }
 
 .gallery-intro--mood {
-  font-family: var(--mood-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
+  font-family: var(--intro-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
 }
 
 .gallery-intro--mood .gallery-intro-byline {
@@ -689,7 +691,7 @@ input[type="password"] {
   text-align: center;
   text-transform: none;
   letter-spacing: 0.06em;
-  font-size: var(--mood-title-size, clamp(1.6rem, 4.5vw, 2.4rem));
+  font-size: var(--intro-title-size, clamp(1.6rem, 4.5vw, 2.4rem));
   font-weight: 400;
   line-height: 1.2;
   max-width: none;
@@ -698,7 +700,7 @@ input[type="password"] {
 .gallery-intro--mood .gallery-intro-date {
   margin: 0;
   text-align: center;
-  font-size: var(--mood-date-size, clamp(0.95rem, 2.5vw, 1.1rem));
+  font-size: var(--intro-date-size, clamp(0.95rem, 2.5vw, 1.1rem));
   letter-spacing: 0.08em;
   opacity: 0.72;
 }
@@ -761,8 +763,8 @@ input[type="password"] {
   padding: 0;
   align-self: flex-start;
   max-width: none;
-  font-family: "Cormorant Garamond", Georgia, "Times New Roman", serif;
-  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-family: var(--intro-font, "Cormorant Garamond", Georgia, "Times New Roman", serif);
+  font-size: var(--intro-title-size, clamp(2rem, 5vw, 3.5rem));
   font-weight: 400;
   letter-spacing: 0.06em;
   text-transform: uppercase;

@@ -357,6 +357,7 @@ function efpic_portal_html(
     echo '<title>' . efpic_client_esc($title) . '</title>';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
+    echo '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">';
     echo '<!-- ' . efpic_client_esc(efpic_app_version_label()) . ' -->';
     echo '<link rel="stylesheet" href="' . efpic_client_esc(efpic_asset_url('/client/assets/client.css', $base)) . '">';
     echo '<link rel="stylesheet" href="' . efpic_client_esc(efpic_asset_url('/admin/assets/admin.css', $base)) . '">';
@@ -426,7 +427,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $date = efpic_client_format_event_date_for_gallery($meta, $dateRaw, $theme);
         if ($theme === 'efpic-mood') {
             $html = '<section class="gallery-intro gallery-intro--mood" id="galleryHero"'
-                . efpic_gallery_mood_intro_style_attr($meta) . '>';
+                . efpic_gallery_intro_typography_style_attr($meta, $theme) . '>';
             $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
             $html .= '<div class="gallery-intro-blob-wrap">';
             $html .= '<div class="gallery-intro-blob">';
@@ -447,7 +448,8 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $layout = efpic_gallery_cover_layout($meta);
         if (in_array($layout, ['half-left', 'half-right'], true)) {
             $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
-            $html = '<section class="gallery-intro gallery-intro--split ' . $layoutClass . '" id="galleryHero">';
+            $html = '<section class="gallery-intro gallery-intro--split ' . $layoutClass . '" id="galleryHero"'
+                . efpic_gallery_intro_typography_style_attr($meta, $theme) . '>';
             $html .= '<div class="gallery-intro-split">';
             $media = '<div class="gallery-intro-split-media">';
             if ($imgUrl !== '') {
@@ -466,7 +468,8 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         }
 
         $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
-        $html = '<section class="gallery-intro ' . $layoutClass . '" id="galleryHero">';
+        $html = '<section class="gallery-intro ' . $layoutClass . '" id="galleryHero"'
+            . efpic_gallery_intro_typography_style_attr($meta, $theme) . '>';
         $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
         $html .= '<div class="gallery-intro-head">';
         $html .= '<figure class="gallery-intro-figure">';

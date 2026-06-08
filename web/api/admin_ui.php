@@ -86,6 +86,7 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     echo '<title>' . efpic_admin_esc($title) . ' — EdgarsFoto</title>';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
+    echo '<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,400&display=swap" rel="stylesheet">';
     echo '<link rel="stylesheet" href="' . efpic_admin_esc(efpic_asset_url('/client/assets/client.css')) . '">';
     echo '<link rel="stylesheet" href="' . efpic_admin_esc(efpic_asset_url('/admin/assets/admin.css')) . '"></head><body class="admin-body">';
     echo '<div class="admin-shell">';
