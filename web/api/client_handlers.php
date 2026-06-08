@@ -264,6 +264,40 @@ function efpic_client_topbar(string $title, string $rightHtml, string $extraClas
         . '</h1>' . $rightHtml . '</header>';
 }
 
+function efpic_client_scene_jump_nav_links(array $config, array $meta, array $images, array $ctx = []): string
+{
+    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
+    if (count($visible) < 2) {
+        return '';
+    }
+
+    $html = '';
+    foreach ($visible as $scene) {
+        $anchor = efpic_scene_element_id($scene['id']);
+        $html .= '<a class="gallery-scene-nav__link" href="#' . efpic_client_esc($anchor) . '">'
+            . efpic_client_esc($scene['title']) . '</a>';
+    }
+
+    return $html;
+}
+
+function efpic_client_render_gallery_toolbar(
+    string $title,
+    string $rightHtml,
+    string $sceneNavLinks,
+    string $extraClass = '',
+): string {
+    $cls = 'gallery-toolbar topbar' . ($extraClass !== '' ? ' ' . efpic_client_esc($extraClass) : '');
+    $html = '<header class="' . $cls . '">';
+    $html .= '<h1 class="topbar-title gallery-toolbar__title">' . efpic_client_esc($title) . '</h1>';
+    $html .= '<nav class="gallery-scene-nav gallery-toolbar__nav" aria-label="Galerijas sadaļas">';
+    $html .= '<div class="gallery-scene-nav__inner">' . $sceneNavLinks . '</div></nav>';
+    $html .= $rightHtml;
+    $html .= '</header>';
+
+    return $html;
+}
+
 function efpic_client_navigable_images(array $meta, array $ctx): array
 {
     $out = [];
@@ -670,20 +704,13 @@ function efpic_client_scenes_for_gallery_view(array $config, array $meta, array 
 
 function efpic_client_render_scene_jump_nav(array $config, array $meta, array $images, array $ctx = []): string
 {
-    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
-    if (count($visible) < 2) {
+    $links = efpic_client_scene_jump_nav_links($config, $meta, $images, $ctx);
+    if ($links === '') {
         return '';
     }
 
-    $html = '<nav class="gallery-scene-nav" aria-label="Galerijas sadaļas"><div class="gallery-scene-nav__inner">';
-    foreach ($visible as $scene) {
-        $anchor = efpic_scene_element_id($scene['id']);
-        $html .= '<a class="gallery-scene-nav__link" href="#' . efpic_client_esc($anchor) . '">'
-            . efpic_client_esc($scene['title']) . '</a>';
-    }
-    $html .= '</div></nav>';
-
-    return $html;
+    return '<nav class="gallery-scene-nav" aria-label="Galerijas sadaļas"><div class="gallery-scene-nav__inner">'
+        . $links . '</div></nav>';
 }
 
 function efpic_client_render_scene_next_button(string $nextAnchor, string $nextTitle): string
@@ -1195,13 +1222,25 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         );
         $headExtra .= '<link rel="preload" as="video" href="' . efpic_client_esc($videoUrl) . '" fetchpriority="high">';
     }
+    $sceneNavLinks = $usesSceneMain
+        ? efpic_client_scene_jump_nav_links($config, $meta, $images, $ctx)
+        : '';
+    $toolbarExtraClass = $usesShell ? 'topbar-floating' : '';
     $body = '';
     if ($usesShell) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
         $body .= $slideshowTopHtml;
-        $body .= efpic_client_topbar($name, $right, 'topbar-floating');
+        if ($sceneNavLinks !== '') {
+            $body .= efpic_client_render_gallery_toolbar($name, $right, $sceneNavLinks, $toolbarExtraClass);
+        } else {
+            $body .= efpic_client_topbar($name, $right, $toolbarExtraClass);
+        }
     } else {
-        $body .= efpic_client_topbar($name, $right);
+        if ($sceneNavLinks !== '') {
+            $body .= efpic_client_render_gallery_toolbar($name, $right, $sceneNavLinks, $toolbarExtraClass);
+        } else {
+            $body .= efpic_client_topbar($name, $right);
+        }
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
         if (!$usesSceneMain) {
             $body .= $slideshowTopHtml;
@@ -1211,10 +1250,6 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
 
     if ($usesSceneMain) {
-        $sceneNav = efpic_client_render_scene_jump_nav($config, $meta, $images, $ctx);
-        if ($sceneNav !== '') {
-            $body .= $sceneNav;
-        }
         $body .= '<main class="gallery-main">';
         if (!$usesShell) {
             $body .= $slideshowTopHtml;
