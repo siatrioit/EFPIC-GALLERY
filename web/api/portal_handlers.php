@@ -245,6 +245,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     efpic_save_gallery_meta($config, $slug, $meta);
                 })(),
                 'save_slideshow' => (function () use ($config, $slug, &$meta) {
+                    efpic_apply_client_favorites_from_post($meta);
                     efpic_apply_slideshow_from_post($config, $slug, $meta, 'client');
                     if (!empty($_POST['slideshow_client_generate_video'])) {
                         efpic_slideshow_enqueue_render($config, $slug, $meta, 'client');
@@ -372,10 +373,12 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<p class="muted">Atzīmē, lai apmeklētājiem vairs nerādītos «lejupielādēt visas bildes» attiecīgajā izmērā. Izvēlētās bildes (izlase) joprojām var lejupielādēt, ja izmērs ir atļauts.</p>';
     $body .= '<form method="post" class="portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_download_settings">';
-    $body .= '<label class="admin-check"><input type="checkbox" name="disable_public_download_all_web" value="1"'
-        . ($disableAllWeb ? ' checked' : '') . '> Atslēgt «visas bildes» — WEB</label>';
-    $body .= '<label class="admin-check"><input type="checkbox" name="disable_public_download_all_full" value="1"'
-        . ($disableAllFull ? ' checked' : '') . '> Atslēgt «visas bildes» — PRINT</label>';
+    $body .= efpic_render_admin_toggle('Atslēgt «visas bildes» — WEB', $disableAllWeb, [
+        'name' => 'disable_public_download_all_web',
+    ]);
+    $body .= efpic_render_admin_toggle('Atslēgt «visas bildes» — PRINT', $disableAllFull, [
+        'name' => 'disable_public_download_all_full',
+    ]);
     $body .= '<button type="submit" class="btn primary">Saglabāt</button></form></section>';
     $body .= efpic_admin_tab_panel_close();
 
@@ -500,12 +503,6 @@ function efpic_portal_render_favorites_and_slideshow(
 
     $html = '<fieldset class="admin-fieldset-full"><legend>Favorīti un slideshow</legend>';
 
-    $html .= '<div class="admin-fav-columns">';
-    $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Tavi favorīti</h3>';
-    $html .= '<p class="muted">Atzīmē ★ pie bildēm cilnē Bildes vai noņem šeit.</p>';
-    $html .= efpic_admin_render_favorite_thumb_grid($config, $meta, 'client', true);
-    $html .= '</div></div>';
-
     $html .= '<div class="admin-slideshow-columns">';
     $html .= '<div class="admin-fav-col"><h3 class="admin-fav-heading">Tava slideshow</h3>';
     if ($clientSlot['enabled'] && $clientVideoReady && $adminSlot['enabled'] && $adminVideoReady) {
@@ -517,11 +514,11 @@ function efpic_portal_render_favorites_and_slideshow(
     }
     $html .= '<form method="post" enctype="multipart/form-data" class="portal-stack" id="portal-slideshow-form">';
     $html .= '<input type="hidden" name="portal_action" value="save_slideshow">';
-    $html .= '<label class="admin-check"><input type="checkbox" name="slideshow_client_enabled" value="1"'
-        . (!empty($clientSlot['enabled']) ? ' checked' : '') . '> Ieslēgt slideshow publiskajā galerijā</label>';
+    $html .= efpic_render_admin_toggle('Ieslēgt slideshow publiskajā galerijā', !empty($clientSlot['enabled']), [
+        'name' => 'slideshow_client_enabled',
+    ]);
     $html .= '<label>Intervāls (sek.)<input type="number" name="slideshow_client_interval" min="2" max="60" value="'
         . (int) ($clientSlot['interval_sec'] ?? 5) . '"></label>';
-    $html .= '<p class="muted">Tavi favorīti: <strong>' . $favCount . '</strong></p>';
     $html .= efpic_admin_render_slideshow_audio_list($config, $galleryToken, $clientSlot, 'client');
     $html .= '<label>Intro virsraksts<input type="text" name="slideshow_client_intro_title" maxlength="120" value="'
         . efpic_client_esc($clientSlot['intro_title']) . '" placeholder="piem. Jānis + Ieva"></label>';
@@ -531,7 +528,7 @@ function efpic_portal_render_favorites_and_slideshow(
     $html .= '<option value="white"' . ($clientSlot['bg_mode'] === 'white' ? ' selected' : '') . '>Balts</option>';
     $html .= '<option value="gallery"' . ($clientSlot['bg_mode'] === 'gallery' ? ' selected' : '') . '>Galerijas fons</option>';
     $html .= '</select></label>';
-    $html .= efpic_admin_render_slideshow_image_order_list($config, $meta, $clientSlot, 'client');
+    $html .= efpic_admin_render_slideshow_image_grid($config, $meta, $clientSlot, 'client');
     $html .= '<p class="muted" id="slideshow-client-render-status">Video statuss: <strong data-render-status="'
         . efpic_client_esc($renderStatus) . '">' . efpic_client_esc(efpic_render_status_label($renderStatus)) . '</strong></p>';
     if ($renderStatus === 'failed' && ($clientSlot['render_error'] ?? '') !== '') {

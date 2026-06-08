@@ -314,6 +314,28 @@ function efpic_apply_admin_favorites_from_post(array &$meta): void
     }
 }
 
+function efpic_apply_client_favorites_from_post(array &$meta): void
+{
+    if (!array_key_exists('image_fav_client', $_POST)) {
+        return;
+    }
+    $posted = $_POST['image_fav_client'] ?? [];
+    if (!is_array($posted)) {
+        $posted = [];
+    }
+    foreach ($meta['images'] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '') {
+            continue;
+        }
+        $meta['images'][$i]['favorited_client'] = isset($posted[$tok]);
+        unset($meta['images'][$i]['favorited']);
+    }
+}
+
 /** @return list<string> */
 function efpic_slideshow_slot_audio_files(array $slot): array
 {

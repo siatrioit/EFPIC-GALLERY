@@ -733,3 +733,48 @@ function efpic_record_gallery_view(array $config, string $slug, array &$meta): v
     $meta['analytics'] = $a;
     efpic_save_gallery_meta($config, $slug, $meta);
 }
+
+/** Admin on/off slēdzis (vienāds ar Tēma «Nosaukums ar lielajiem burtiem»). */
+function efpic_render_admin_toggle(string $label, bool $checked = false, array $options = []): string
+{
+    $esc = static fn (string $s): string => htmlspecialchars($s, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+    $name = (string) ($options['name'] ?? '');
+    $id = (string) ($options['id'] ?? '');
+    $value = (string) ($options['value'] ?? '1');
+    $fieldClass = 'admin-toggle-field';
+    if (!empty($options['inline'])) {
+        $fieldClass .= ' admin-toggle-field--inline';
+    }
+    $extraClass = trim((string) ($options['class'] ?? ''));
+    if ($extraClass !== '') {
+        $fieldClass .= ' ' . $extraClass;
+    }
+    $inputClass = trim((string) ($options['input_class'] ?? ''));
+    $inputAttrs = (string) ($options['input_attrs'] ?? '');
+
+    $html = '<label class="' . $esc($fieldClass) . '">';
+    $html .= '<span class="admin-toggle-field__label">' . $esc($label) . '</span>';
+    $html .= '<span class="admin-toggle">';
+    $html .= '<input type="checkbox" value="' . $esc($value) . '"';
+    if ($name !== '') {
+        $html .= ' name="' . $esc($name) . '"';
+    }
+    if ($id !== '') {
+        $html .= ' id="' . $esc($id) . '"';
+    }
+    if ($inputClass !== '') {
+        $html .= ' class="' . $esc($inputClass) . '"';
+    }
+    if ($checked) {
+        $html .= ' checked';
+    }
+    if ($inputAttrs !== '') {
+        $html .= ' ' . $inputAttrs;
+    }
+    $html .= '>';
+    $html .= '<span class="admin-toggle__track" aria-hidden="true"><span class="admin-toggle__thumb"></span></span>';
+    $html .= '</span></label>';
+
+    return $html;
+}

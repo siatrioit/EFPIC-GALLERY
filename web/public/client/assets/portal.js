@@ -551,6 +551,40 @@
     input.value = files.join(',');
   }
 
+  function insertPortalSlideshowGridDragItem(list, dragEl, clientX, clientY) {
+    var items = Array.prototype.slice.call(
+      list.querySelectorAll('.admin-slideshow-order-item:not(.dragging)')
+    );
+    var closest = null;
+    var closestDist = Infinity;
+    items.forEach(function (item) {
+      if (item === dragEl) {
+        return;
+      }
+      var box = item.getBoundingClientRect();
+      var cx = box.left + box.width / 2;
+      var cy = box.top + box.height / 2;
+      var dist = Math.hypot(clientX - cx, clientY - cy);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = item;
+      }
+    });
+    if (!closest) {
+      if (list.lastElementChild !== dragEl) {
+        list.appendChild(dragEl);
+      }
+      return;
+    }
+    var box = closest.getBoundingClientRect();
+    var after = clientX > box.left + box.width / 2;
+    if (after) {
+      list.insertBefore(dragEl, closest.nextSibling);
+    } else {
+      list.insertBefore(dragEl, closest);
+    }
+  }
+
   function initPortalSlideshowOrderDrag() {
     var list = document.getElementById('portal-slideshow-order-list');
     if (!list || list.dataset.bound === '1') return;
@@ -570,14 +604,18 @@
       li.addEventListener('dragover', function (e) {
         e.preventDefault();
         if (!dragEl || dragEl === li) return;
-        var rect = li.getBoundingClientRect();
-        var after = e.clientY > rect.top + rect.height / 2;
-        if (after) {
-          list.insertBefore(dragEl, li.nextSibling);
-        } else {
-          list.insertBefore(dragEl, li);
-        }
+        insertPortalSlideshowGridDragItem(list, dragEl, e.clientX, e.clientY);
       });
+      var checkbox = li.querySelector('input[type="checkbox"]');
+      if (checkbox) {
+        checkbox.addEventListener('change', function () {
+          var card = li.querySelector('.admin-fav-card');
+          if (card) {
+            card.classList.toggle('is-selected', checkbox.checked);
+          }
+          syncPortalSlideshowOrderField();
+        });
+      }
     });
 
     var form = document.getElementById('portal-slideshow-form');
@@ -812,16 +850,30 @@
         });
 
         var visibleLabel = document.createElement('label');
-        visibleLabel.className = 'portal-scene-visible admin-check';
+        visibleLabel.className = 'portal-scene-visible admin-toggle-field admin-toggle-field--inline';
+        var visibleLabelText = document.createElement('span');
+        visibleLabelText.className = 'admin-toggle-field__label';
+        visibleLabelText.textContent = 'Rādīt publiskajā saitē';
+        var visibleToggle = document.createElement('span');
+        visibleToggle.className = 'admin-toggle';
         var visibleCb = document.createElement('input');
         visibleCb.type = 'checkbox';
         visibleCb.className = 'portal-scene-visible-cb';
+        visibleCb.value = '1';
         visibleCb.checked = !scene.hidden_from_guests;
         visibleCb.addEventListener('change', function () {
           persistScenesJson(readScenesFromDom());
         });
-        visibleLabel.appendChild(visibleCb);
-        visibleLabel.appendChild(document.createTextNode(' Rādīt publiskajā saitē'));
+        var visibleTrack = document.createElement('span');
+        visibleTrack.className = 'admin-toggle__track';
+        visibleTrack.setAttribute('aria-hidden', 'true');
+        var visibleThumb = document.createElement('span');
+        visibleThumb.className = 'admin-toggle__thumb';
+        visibleTrack.appendChild(visibleThumb);
+        visibleToggle.appendChild(visibleCb);
+        visibleToggle.appendChild(visibleTrack);
+        visibleLabel.appendChild(visibleLabelText);
+        visibleLabel.appendChild(visibleToggle);
 
         row.appendChild(moveWrap);
         row.appendChild(titleInput);

@@ -268,15 +268,10 @@ function efpic_gallery_intro_extra_class(array $meta): string
 
 function efpic_render_intro_all_caps_toggle(array $formMeta): string
 {
-    $allCaps = efpic_gallery_intro_all_caps($formMeta);
-
-    return '<label class="admin-toggle-field">'
-        . '<span class="admin-toggle-field__label">Nosaukums ar lielajiem burtiem</span>'
-        . '<span class="admin-toggle">'
-        . '<input type="checkbox" name="intro_all_caps" id="intro_all_caps" value="1"'
-        . ($allCaps ? ' checked' : '') . '>'
-        . '<span class="admin-toggle__track" aria-hidden="true"><span class="admin-toggle__thumb"></span></span>'
-        . '</span></label>';
+    return efpic_render_admin_toggle('Nosaukums ar lielajiem burtiem', efpic_gallery_intro_all_caps($formMeta), [
+        'name' => 'intro_all_caps',
+        'id' => 'intro_all_caps',
+    ]);
 }
 
 /** @return array<string, string> */

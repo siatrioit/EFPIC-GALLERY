@@ -2140,6 +2140,40 @@
     window.setInterval(poll, 15000);
   }
 
+  function insertSlideshowGridDragItem(list, dragEl, clientX, clientY) {
+    var items = Array.prototype.slice.call(
+      list.querySelectorAll('.admin-slideshow-order-item:not(.dragging)')
+    );
+    var closest = null;
+    var closestDist = Infinity;
+    items.forEach(function (item) {
+      if (item === dragEl) {
+        return;
+      }
+      var box = item.getBoundingClientRect();
+      var cx = box.left + box.width / 2;
+      var cy = box.top + box.height / 2;
+      var dist = Math.hypot(clientX - cx, clientY - cy);
+      if (dist < closestDist) {
+        closestDist = dist;
+        closest = item;
+      }
+    });
+    if (!closest) {
+      if (list.lastElementChild !== dragEl) {
+        list.appendChild(dragEl);
+      }
+      return;
+    }
+    var box = closest.getBoundingClientRect();
+    var after = clientX > box.left + box.width / 2;
+    if (after) {
+      list.insertBefore(dragEl, closest.nextSibling);
+    } else {
+      list.insertBefore(dragEl, closest);
+    }
+  }
+
   function initAdminSlideshowOrderDrag() {
     var list = document.getElementById('admin-slideshow-order-list');
     if (!list || list.dataset.bound === '1') {
@@ -2148,22 +2182,15 @@
     list.dataset.bound = '1';
     var dragEl = null;
 
-    function syncOrder() {
-      syncSlideshowOrderField();
-    }
-
     list.querySelectorAll('.admin-slideshow-order-item').forEach(function (li) {
-      li.addEventListener('dragstart', function (evt) {
-        if (evt.target && evt.target.closest && evt.target.closest('.admin-slideshow-order-grip') === null) {
-          /* allow drag from whole row */
-        }
+      li.addEventListener('dragstart', function () {
         dragEl = li;
         li.classList.add('dragging');
       });
       li.addEventListener('dragend', function () {
         li.classList.remove('dragging');
         dragEl = null;
-        syncOrder();
+        syncSlideshowOrderField();
         markSlideshowOrderDirty();
         scheduleAdminAutoSave();
       });
@@ -2172,14 +2199,20 @@
         if (!dragEl || dragEl === li) {
           return;
         }
-        var rect = li.getBoundingClientRect();
-        var after = e.clientY > rect.top + rect.height / 2;
-        if (after) {
-          list.insertBefore(dragEl, li.nextSibling);
-        } else {
-          list.insertBefore(dragEl, li);
-        }
+        insertSlideshowGridDragItem(list, dragEl, e.clientX, e.clientY);
       });
+      var checkbox = li.querySelector('input[type="checkbox"]');
+      if (checkbox) {
+        checkbox.addEventListener('change', function () {
+          var card = li.querySelector('.admin-fav-card');
+          if (card) {
+            card.classList.toggle('is-selected', checkbox.checked);
+          }
+          syncSlideshowOrderField();
+          markSlideshowOrderDirty();
+          scheduleAdminAutoSave();
+        });
+      }
     });
   }
 
