@@ -485,7 +485,7 @@ function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, 
         }
         $order = (int) ($slot['section_order'] ?? 0);
         if ($order <= 0) {
-            $order = $owner === 'client' ? 20 : 10;
+            $order = $owner === 'client' ? 10 : 20;
         }
         $out[] = [
             'owner' => $owner,
@@ -1031,6 +1031,56 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
 
     if ($owner === 'admin') {
         $slideshow['image_source'] = !empty($_POST[$prefix . '_image_source_all']) ? 'all' : 'favorites';
+    }
+
+    $slots[$owner] = $slideshow;
+    $meta['slideshow'] = $slots;
+}
+
+/** Tikai publiskās sadaļas virsraksts, vieta un secība (admin var labot arī klienta slideshow). */
+function efpic_apply_slideshow_public_placement_from_post(array &$meta, string $owner): void
+{
+    if (!in_array($owner, ['admin', 'client'], true)) {
+        return;
+    }
+    $prefix = $owner === 'client' ? 'slideshow_client' : 'slideshow_admin';
+    if (!array_key_exists($prefix . '_placement_fields', $_POST)) {
+        return;
+    }
+
+    $slots = efpic_gallery_slideshows_struct($meta);
+    $slideshow = $slots[$owner];
+
+    $sectionTitleKey = $prefix . '_section_title';
+    if (array_key_exists($sectionTitleKey, $_POST)) {
+        $sectionTitle = trim((string) $_POST[$sectionTitleKey]);
+        if (function_exists('mb_substr')) {
+            $sectionTitle = mb_substr($sectionTitle, 0, 80);
+        } else {
+            $sectionTitle = substr($sectionTitle, 0, 80);
+        }
+        $slideshow['section_title'] = $sectionTitle;
+    }
+
+    $placementKey = $prefix . '_section_placement';
+    if (isset($_POST[$placementKey])) {
+        $placement = (string) $_POST[$placementKey];
+        if ($placement === 'after_scene') {
+            $placement = 'before_scene';
+        }
+        $slideshow['section_placement'] = in_array($placement, ['top', 'bottom', 'before_scene'], true) ? $placement : 'top';
+    }
+    $afterSceneKey = $prefix . '_section_after_scene';
+    if (array_key_exists($afterSceneKey, $_POST)) {
+        $afterScene = trim((string) $_POST[$afterSceneKey]);
+        $slideshow['section_after_scene'] = preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene) === 1 ? $afterScene : '';
+    }
+    if (($slideshow['section_placement'] ?? 'top') === 'before_scene' && ($slideshow['section_after_scene'] ?? '') === '') {
+        $slideshow['section_placement'] = 'top';
+    }
+    $orderKey = $prefix . '_section_order';
+    if (array_key_exists($orderKey, $_POST)) {
+        $slideshow['section_order'] = max(0, min(999, (int) $_POST[$orderKey]));
     }
 
     $slots[$owner] = $slideshow;
