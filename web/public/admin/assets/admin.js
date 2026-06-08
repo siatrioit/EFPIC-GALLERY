@@ -363,6 +363,15 @@
       if (t && t.name && t.name.indexOf('image_fav_admin[') === 0) {
         markFavoritesDirty();
       }
+      if (
+        t &&
+        t.name &&
+        (t.name === 'slideshow_client_enabled' ||
+          (t.name.indexOf('slideshow_item_') === 0 && t.name.slice(-8) === '_enabled'))
+      ) {
+        runAdminAutoSave();
+        return;
+      }
       if (shouldAutoSaveTarget(t)) {
         scheduleAdminAutoSave();
       }

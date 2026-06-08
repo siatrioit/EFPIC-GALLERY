@@ -184,6 +184,12 @@ function efpic_admin_render_theme_fieldset(array $config, array $formMeta): stri
         $html .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
+    $coverFromFav = efpic_gallery_cover_from_favorites($formMeta);
+    $html .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
+        'name' => 'cover_from_favorites',
+        'class' => 'admin-fieldset-full',
+    ]);
+    $html .= '<p class="muted admin-fieldset-full">Izslēgts — tiek rādīta ar «Vāks» atzīmētā bilde. Ieslēgts — ja ir favorīti, vāks tiek ņemts no tiem (admin favorīti, pēc tam klienta); ja nav favorītu, tiek rādīta izvēlētā vāka bilde.</p>';
     $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
     $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
     $html .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
@@ -595,6 +601,48 @@ function efpic_admin_slideshow_ready_sort_entries(array $meta): array
     return $entries;
 }
 
+function efpic_admin_render_slideshow_enabled_toggle(array $slot, string $prefix): string
+{
+    $html = '<input type="hidden" name="' . efpic_admin_esc($prefix . '_enabled') . '" value="0">';
+
+    return $html . efpic_render_admin_toggle('Rādīt publiskajā galerijā', !empty($slot['enabled']), [
+        'name' => $prefix . '_enabled',
+        'value' => '1',
+        'class' => 'admin-slideshow-ready__toggle',
+    ]);
+}
+
+function efpic_admin_slideshow_public_status_text(array $meta, array $slot): string
+{
+    if (!efpic_slideshow_slot_video_ready($slot)) {
+        return 'Video vēl nav gatavs publiskai rādīšanai.';
+    }
+    if (empty($slot['enabled'])) {
+        return 'Slēgts — ieslēdz «Rādīt publiskajā galerijā», lai parādītos apmeklētājiem.';
+    }
+    $placement = (string) ($slot['section_placement'] ?? 'top');
+    if ($placement === 'after_scene') {
+        $placement = 'before_scene';
+    }
+    if ($placement === 'before_scene' && ($slot['section_after_scene'] ?? '') === '') {
+        $placement = 'top';
+    }
+    if ($placement === 'top') {
+        return 'Redzams galerijā — augšā, pirms sadaļām.';
+    }
+    if ($placement === 'bottom') {
+        return 'Redzams galerijā — apakšā, pēc visām bildēm.';
+    }
+    $sceneId = (string) ($slot['section_after_scene'] ?? '');
+    foreach (efpic_gallery_scene_options($meta) as $scene) {
+        if ((string) ($scene['id'] ?? '') === $sceneId) {
+            return 'Redzams galerijā — pirms sadaļas «' . (string) ($scene['title'] ?? $sceneId) . '».';
+        }
+    }
+
+    return 'Redzams galerijā — pirms izvēlētās sadaļas.';
+}
+
 function efpic_admin_render_slideshow_order_controls(string $owner, string $itemId, int $sortIndex, int $sortCount): string
 {
     if ($sortIndex < 0 || $sortCount < 2) {
@@ -660,18 +708,21 @@ function efpic_admin_render_slideshow_image_source_options(
 
     $html .= '<div class="admin-slideshow-source__panel admin-slideshow-source__panel--scenes'
         . ($source === 'scenes' ? ' is-visible' : '') . '">';
-    $html .= '<p class="muted">Izvēlies vienu vai vairākas sadaļas. Bildes tiks ņemtas sadaļu secībā.</p>';
+    $html .= '<p class="muted">Ieslēdz vienu vai vairākas sadaļas. Bildes tiks ņemtas sadaļu secībā.</p>';
+    $html .= '<div class="admin-slideshow-scene-toggles">';
     foreach (efpic_gallery_scene_options($meta) as $scene) {
         $sid = (string) ($scene['id'] ?? '');
         if ($sid === '') {
             continue;
         }
         $checked = in_array($sid, $selectedScenes, true);
-        $html .= '<label class="admin-check admin-slideshow-scene-pick">';
-        $html .= '<input type="checkbox" name="' . efpic_admin_esc($prefix . '_scene_ids[]') . '" value="' . efpic_admin_esc($sid) . '"'
-            . ($checked ? ' checked' : '') . '> ' . efpic_admin_esc((string) ($scene['title'] ?? $sid));
-        $html .= '</label>';
+        $html .= efpic_render_admin_toggle((string) ($scene['title'] ?? $sid), $checked, [
+            'name' => $prefix . '_scene_ids[]',
+            'value' => $sid,
+            'class' => 'admin-slideshow-scene-toggle',
+        ]);
     }
+    $html .= '</div>';
     $html .= '</div>';
 
     $html .= '<div class="admin-slideshow-source__panel admin-slideshow-source__panel--all'
@@ -880,10 +931,8 @@ function efpic_admin_render_ready_slideshow_item(
     }
 
     $html .= efpic_admin_render_slideshow_video_preview($config, $galleryToken, $item);
-    $html .= efpic_render_admin_toggle('Rādīt publiskajā galerijā', $item['enabled'], [
-        'name' => $prefix . '_enabled',
-        'class' => 'admin-slideshow-ready__toggle',
-    ]);
+    $html .= efpic_admin_render_slideshow_enabled_toggle($item, $prefix);
+    $html .= '<p class="muted admin-slideshow-public-status">' . efpic_admin_esc(efpic_admin_slideshow_public_status_text($meta, $item)) . '</p>';
 
     $videoFile = (string) ($item['video_file'] ?? '');
     if ($videoFile !== '') {
@@ -953,10 +1002,8 @@ function efpic_admin_render_ready_client_slideshow_item(
     }
 
     $html .= efpic_admin_render_slideshow_video_preview($config, $galleryToken, $clientSlot);
-    $html .= efpic_render_admin_toggle('Rādīt publiskajā galerijā', $clientSlot['enabled'], [
-        'name' => $prefix . '_enabled',
-        'class' => 'admin-slideshow-ready__toggle',
-    ]);
+    $html .= efpic_admin_render_slideshow_enabled_toggle($clientSlot, $prefix);
+    $html .= '<p class="muted admin-slideshow-public-status">' . efpic_admin_esc(efpic_admin_slideshow_public_status_text($meta, $clientSlot)) . '</p>';
     $html .= efpic_admin_slideshow_block_start('Vieta publiskajā galerijā');
     $html .= '<p class="muted">Klients konfigurē slideshow savā panelī. Šeit vari ieslēgt/izslēgt un mainīt vietu publiskajā galerijā.</p>';
     $html .= efpic_admin_render_slideshow_section_settings($meta, $clientSlot, 'client', false);
@@ -1095,9 +1142,7 @@ function efpic_admin_render_media_tab(array $config, array $meta, string $galler
             );
         }
         $html .= '</div>';
-        $html .= '<div class="admin-slideshow-ready-panel__actions">';
-        $html .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt gatavos slideshow</button>';
-        $html .= '</div>';
+        $html .= '<p class="muted admin-slideshow-ready-panel__autosave">Izmaiņas saglabājas automātiski.</p>';
     }
     $html .= '</section>';
 
@@ -1931,12 +1976,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
         $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
-        $coverFromFav = efpic_gallery_cover_from_favorites($meta);
-        $body .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
-            'name' => 'cover_from_favorites',
-            'class' => 'admin-fieldset-full',
-        ]);
-        $body .= '<p class="muted admin-fieldset-full">Izslēgts — tiek rādīta ar «Vāks» atzīmētā bilde. Ieslēgts — ja ir favorīti, vāks tiek ņemts no tiem (admin favorīti, pēc tam klienta); ja nav favorītu, tiek rādīta izvēlētā vāka bilde.</p>';
         $body .= '<p class="muted">Velciet kartītes secībai. Klikšķis — atlase; <kbd>Shift</kbd> — diapazons. Sadaļu maini tieši pie bildes (var ierakstīt jaunu nosaukumu).</p>';
         $body .= efpic_admin_render_image_scene_toolbar($meta);
         $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';

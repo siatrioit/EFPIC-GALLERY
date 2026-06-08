@@ -7,6 +7,25 @@ function efpic_gallery_assets_dir(array $config, string $slug): string
     return efpic_gallery_dir($config, $slug) . DIRECTORY_SEPARATOR . 'assets';
 }
 
+function efpic_post_flag_is_on(string $key): bool
+{
+    if (!array_key_exists($key, $_POST)) {
+        return false;
+    }
+    $value = $_POST[$key];
+    if (is_array($value)) {
+        foreach ($value as $part) {
+            if ((string) $part === '1') {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    return (string) $value === '1';
+}
+
 function efpic_ensure_gallery_assets_dir(array $config, string $slug): string
 {
     $dir = efpic_gallery_assets_dir($config, $slug);
@@ -386,7 +405,7 @@ function efpic_gallery_slideshow_storage(array $meta): array
     $items = [];
     $orphans = [];
     $sourceItems = [];
-    if (isset($raw['items']) && is_array($raw['items'])) {
+    if (isset($raw['items']) && is_array($raw['items']) && $raw['items'] !== []) {
         $sourceItems = $raw['items'];
     } elseif (isset($raw['admin']) || isset($raw['client'])) {
         $adminRaw = is_array($raw['admin'] ?? null) ? $raw['admin'] : [];
@@ -395,6 +414,9 @@ function efpic_gallery_slideshow_storage(array $meta): array
         }
     } elseif ($raw !== []) {
         $sourceItems[] = $raw;
+    }
+    if ($sourceItems === [] && is_array($raw['admin'] ?? null) && $raw['admin'] !== []) {
+        $sourceItems[] = $raw['admin'];
     }
 
     $n = 0;
@@ -546,11 +568,21 @@ function efpic_slideshow_slot_video_ready(array $slot): bool
     if ($status === 'ready') {
         return true;
     }
-    if (in_array($status, ['queued', 'processing', 'failed'], true)) {
+    if (in_array($status, ['queued', 'processing'], true)) {
         return false;
     }
 
     return true;
+}
+
+function efpic_slideshow_slot_public_video_enabled(array $slot): bool
+{
+    return !empty($slot['enabled']) && efpic_slideshow_slot_video_ready($slot);
+}
+
+function efpic_slideshow_slot_owns_video_file(array $slot, string $filename): bool
+{
+    return $filename !== '' && trim((string) ($slot['video_file'] ?? '')) === $filename;
 }
 
 function efpic_slideshow_slot_public_ready(array $slot, int $favoriteCount): bool
@@ -603,7 +635,7 @@ function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config):
 {
     $storage = efpic_gallery_slideshow_storage($meta);
     $clientSlot = $storage['client'];
-    if ($clientSlot['enabled'] && efpic_slideshow_slot_video_ready($clientSlot)) {
+    if (efpic_slideshow_slot_public_video_enabled($clientSlot)) {
         return [
             'owner' => 'client',
             'slideshow_id' => 'client',
@@ -613,18 +645,16 @@ function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config):
         ];
     }
     foreach ($storage['items'] as $item) {
-        if (!$item['enabled']) {
+        if (!efpic_slideshow_slot_public_video_enabled($item)) {
             continue;
         }
-        if (efpic_slideshow_slot_video_ready($item)) {
-            return [
-                'owner' => 'admin',
-                'slideshow_id' => (string) ($item['id'] ?? ''),
-                'mode' => 'video',
-                'slideshow' => $item,
-                'images' => [],
-            ];
-        }
+        return [
+            'owner' => 'admin',
+            'slideshow_id' => (string) ($item['id'] ?? ''),
+            'mode' => 'video',
+            'slideshow' => $item,
+            'images' => [],
+        ];
     }
 
     $clientResolved = efpic_try_resolve_public_slideshow_owner(
@@ -671,7 +701,7 @@ function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, 
     $adminIndex = 0;
     foreach ($storage['items'] as $item) {
         ++$adminIndex;
-        if (!$item['enabled'] || !efpic_slideshow_slot_video_ready($item)) {
+        if (!efpic_slideshow_slot_public_video_enabled($item)) {
             continue;
         }
         $title = trim((string) ($item['section_title'] ?? ''));
@@ -701,7 +731,7 @@ function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, 
         ];
     }
     $clientSlot = $storage['client'];
-    if ($clientSlot['enabled'] && efpic_slideshow_slot_video_ready($clientSlot)) {
+    if (efpic_slideshow_slot_public_video_enabled($clientSlot)) {
         $title = trim((string) ($clientSlot['section_title'] ?? ''));
         $placement = (string) ($clientSlot['section_placement'] ?? 'top');
         if ($placement === 'after_scene') {
@@ -1180,11 +1210,16 @@ function efpic_slideshow_collect_scene_images(array $meta, array $ctx, array $co
  */
 function efpic_apply_slideshow_ready_item_from_post(array $config, string $slug, array &$item, string $prefix): void
 {
-    if (empty($_POST[$prefix . '_ready'])) {
+    $readyKey = $prefix . '_ready';
+    $enabledKey = $prefix . '_enabled';
+    if (empty($_POST[$readyKey]) && !array_key_exists($enabledKey, $_POST)) {
         return;
     }
-    if (array_key_exists($prefix . '_enabled', $_POST)) {
-        $item['enabled'] = !empty($_POST[$prefix . '_enabled']);
+    if (array_key_exists($enabledKey, $_POST)) {
+        $item['enabled'] = efpic_post_flag_is_on($enabledKey);
+    }
+    if (empty($_POST[$readyKey])) {
+        return;
     }
 
     if (array_key_exists($prefix . '_section_title', $_POST)) {
@@ -1227,8 +1262,8 @@ function efpic_apply_slideshow_item_fields_from_post(
     string $owner,
     bool $touchEnabled = false,
 ): void {
-    if ($touchEnabled) {
-        $slideshow['enabled'] = !empty($_POST[$prefix . '_enabled']);
+    if ($touchEnabled && array_key_exists($prefix . '_enabled', $_POST)) {
+        $slideshow['enabled'] = efpic_post_flag_is_on($prefix . '_enabled');
     }
     $titleKey = $prefix . '_title';
     if (array_key_exists($titleKey, $_POST)) {
@@ -1532,7 +1567,7 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
     $items = array_values(array_filter($items, 'efpic_slideshow_item_is_published'));
 
     $client = $storage['client'];
-    if (!empty($_POST['slideshow_client_ready'])) {
+    if (!empty($_POST['slideshow_client_ready']) || array_key_exists('slideshow_client_enabled', $_POST)) {
         efpic_apply_slideshow_ready_item_from_post($config, $slug, $client, 'slideshow_client');
     }
     $storage['client'] = $client;
@@ -1761,22 +1796,22 @@ function efpic_can_view_gallery_asset(array $config, array $meta, string $galler
 
     $storage = efpic_gallery_slideshow_storage($meta);
     foreach ($storage['items'] as $item) {
-        if (($item['video_file'] ?? '') === $filename) {
-            return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+        if (efpic_slideshow_slot_owns_video_file($item, $filename)) {
+            return efpic_slideshow_slot_public_video_enabled($item);
         }
         foreach (efpic_slideshow_slot_audio_files($item) as $audioFile) {
             if ($audioFile === $filename) {
-                return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+                return efpic_slideshow_slot_public_video_enabled($item);
             }
         }
     }
     $clientSlot = $storage['client'];
-    if (($clientSlot['video_file'] ?? '') === $filename) {
-        return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+    if (efpic_slideshow_slot_owns_video_file($clientSlot, $filename)) {
+        return efpic_slideshow_slot_public_video_enabled($clientSlot);
     }
     foreach (efpic_slideshow_slot_audio_files($clientSlot) as $audioFile) {
         if ($audioFile === $filename) {
-            return efpic_resolve_public_slideshow($meta, $ctx, $config) !== null;
+            return efpic_slideshow_slot_public_video_enabled($clientSlot);
         }
     }
 
