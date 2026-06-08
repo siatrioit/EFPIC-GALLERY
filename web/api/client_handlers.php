@@ -762,12 +762,15 @@ function efpic_client_render_classic_scenes(array $config, array $meta, array $i
         $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         if ($multiScene) {
             $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
-                . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+                . efpic_client_esc($sid) . '">';
         }
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= $sceneVideos;
+        if ($multiScene) {
+            $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+        }
         if ($sceneImages !== []) {
             $html .= efpic_client_classic_feed_open($meta);
             $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx, $meta);
@@ -822,12 +825,15 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
         $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         if ($multiScene) {
             $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
-                . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+                . efpic_client_esc($sid) . '">';
         }
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= $sceneVideos;
+        if ($multiScene) {
+            $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+        }
         if ($sceneImages !== []) {
             $html .= efpic_client_mosaic_feed_open($meta);
             $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx, $meta);
@@ -1073,10 +1079,11 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $sceneImages = $byScene[$sid] ?? [];
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
-            . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
+            . efpic_client_esc($sid) . '">';
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
+        $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         if ($sceneImages !== []) {
             $html .= '<div class="grid">';
             foreach ($sceneImages as $img) {
@@ -1205,10 +1212,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     if ($usesSceneMain) {
         $sceneNav = efpic_client_render_scene_jump_nav($config, $meta, $images, $ctx);
-        $body .= '<main class="gallery-main">';
         if ($sceneNav !== '') {
             $body .= $sceneNav;
         }
+        $body .= '<main class="gallery-main">';
         if (!$usesShell) {
             $body .= $slideshowTopHtml;
         }

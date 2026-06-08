@@ -1088,6 +1088,8 @@ input[type="password"] {
 }
 
 .theme-efpic-classic .classic-feed .pic-feed-link {
+  position: relative;
+  z-index: 1;
   display: block;
   width: 100%;
   height: 100%;
@@ -1133,6 +1135,8 @@ input[type="password"] {
 }
 
 .pic-feed-link {
+  position: relative;
+  z-index: 1;
   display: block;
   text-decoration: none;
   line-height: 0;
@@ -1314,6 +1318,175 @@ input[type="password"] {
   .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
     column-count: 4;
   }
+}
+
+/* Shell theme full-screen image viewer */
+.page-viewer.theme-efpic-modern,
+.page-viewer.theme-efpic-mood,
+.page-viewer.theme-efpic-forest,
+.page-viewer.theme-efpic-classic {
+  background: var(--page-bg, #ffffff);
+  color: var(--text);
+  overflow: hidden;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.page-viewer.theme-efpic-modern .modern-viewer,
+.page-viewer.theme-efpic-mood .modern-viewer,
+.page-viewer.theme-efpic-forest .modern-viewer,
+.page-viewer.theme-efpic-classic .modern-viewer {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.modern-viewer-bar {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: var(--topbar-h);
+  padding: 8px 12px;
+  background: var(--page-bg, #ffffff);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.modern-viewer-back {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--text);
+  text-decoration: none;
+  flex-shrink: 0;
+}
+
+.modern-viewer-back svg {
+  width: 24px;
+  height: 24px;
+}
+
+.modern-viewer-title {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.88rem;
+  font-weight: 500;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.92;
+}
+
+.modern-viewer-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.page-viewer.theme-efpic-modern .icon-btn,
+.page-viewer.theme-efpic-mood .icon-btn,
+.page-viewer.theme-efpic-forest .icon-btn,
+.page-viewer.theme-efpic-classic .icon-btn {
+  color: var(--text);
+}
+
+.page-viewer.theme-efpic-modern .icon-btn:hover,
+.page-viewer.theme-efpic-modern .icon-btn:focus-visible,
+.page-viewer.theme-efpic-mood .icon-btn:hover,
+.page-viewer.theme-efpic-mood .icon-btn:focus-visible,
+.page-viewer.theme-efpic-forest .icon-btn:hover,
+.page-viewer.theme-efpic-forest .icon-btn:focus-visible,
+.page-viewer.theme-efpic-classic .icon-btn:hover,
+.page-viewer.theme-efpic-classic .icon-btn:focus-visible {
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.modern-viewer-stage {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--page-bg, #ffffff);
+}
+
+.modern-viewer-figure {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.modern-viewer-figure img {
+  max-width: 100%;
+  max-height: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.modern-viewer-zone {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 22%;
+  max-width: 120px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  text-decoration: none;
+  z-index: 5;
+  transition: color 0.15s, background 0.15s;
+}
+
+.modern-viewer-zone:hover {
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.03);
+}
+
+.modern-viewer-zone.prev {
+  left: 0;
+}
+
+.modern-viewer-zone.next {
+  right: 0;
+}
+
+.modern-viewer-zone svg {
+  width: 28px;
+  height: 28px;
+}
+
+.modern-viewer-count {
+  position: absolute;
+  bottom: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.06);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  z-index: 10;
+  pointer-events: none;
 }
 
 /* Pic-Time full-screen image viewer */
@@ -1637,11 +1810,8 @@ input[type="password"] {
   position: sticky;
   top: 0;
   z-index: 90;
-  width: 100vw;
-  max-width: 100vw;
+  width: 100%;
   margin: 0 0 12px;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
   padding: 10px clamp(12px, 2vw, 20px);
   box-sizing: border-box;
   background: color-mix(in srgb, var(--bg) 92%, transparent);
@@ -1649,16 +1819,18 @@ input[type="password"] {
   border-bottom: 1px solid var(--border);
 }
 
-.theme-pic-time .gallery-scene-nav {
-  margin: 0;
-  margin-left: calc(50% - 50vw);
-  margin-right: calc(50% - 50vw);
-  background: color-mix(in srgb, var(--page-bg, #ffffff) 94%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 12%, transparent);
+.page-gallery:has(.topbar-floating.is-visible) .gallery-scene-nav {
+  top: var(--topbar-h, 52px);
 }
 
-.theme-pic-time:has(.topbar-floating.is-visible) .gallery-scene-nav {
-  top: 52px;
+.theme-efpic-modern .gallery-scene-nav,
+.theme-efpic-mood .gallery-scene-nav,
+.theme-efpic-forest .gallery-scene-nav,
+.theme-efpic-classic .gallery-scene-nav,
+.theme-pic-time .gallery-scene-nav {
+  margin: 0;
+  background: color-mix(in srgb, var(--page-bg, #ffffff) 94%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 12%, transparent);
 }
 
 .gallery-scene-nav__inner {
@@ -1707,8 +1879,8 @@ input[type="password"] {
 }
 
 .page-gallery .scene-title {
-  margin: 0;
-  padding: 14px clamp(12px, 2vw, 24px);
+  margin: 36px 0 28px;
+  padding: 18px clamp(16px, 3vw, 32px);
   background: var(--page-bg, var(--surface));
   color: var(--page-text, var(--text));
   border-top: 3px solid color-mix(in srgb, var(--page-text, var(--text)) 18%, var(--page-bg, var(--surface)));
@@ -1721,7 +1893,8 @@ input[type="password"] {
 }
 
 .scene-title {
-  margin: 0 0 12px;
+  margin: 32px 0 24px;
+  padding: 4px 12px;
   font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.03em;
@@ -1736,6 +1909,10 @@ input[type="password"] {
 
 .scene-block[id] {
   scroll-margin-top: 72px;
+}
+
+.page-gallery:has(.topbar-floating.is-visible) .scene-block[id] {
+  scroll-margin-top: 120px;
 }
 
 .theme-pic-time .scene-block[id] {
