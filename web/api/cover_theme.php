@@ -56,9 +56,14 @@ function efpic_gallery_cover_object_position(array $meta): string
     return $focal['x'] . '% ' . $focal['y'] . '%';
 }
 
-function efpic_gallery_cover_image_style_attr(array $meta): string
+function efpic_gallery_cover_image_style_attr(array $meta, bool $fill = false): string
 {
-    return ' style="object-position:' . efpic_gallery_cover_object_position($meta) . ';"';
+    $style = 'object-position:' . efpic_gallery_cover_object_position($meta);
+    if ($fill) {
+        $style .= ';object-fit:cover';
+    }
+
+    return ' style="' . $style . '"';
 }
 
 /** @return array<string, array{label: string, group: string, family: string, google: string}> */

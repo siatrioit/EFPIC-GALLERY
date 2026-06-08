@@ -118,6 +118,17 @@
     return thumb ? thumb.getAttribute('data-preview') || '' : '';
   }
 
+  function getCoverUrl(cropImg, base) {
+    return readCoverImageUrl()
+      || (cropImg && cropImg.getAttribute('src')) 
+      || (base && base.coverUrl)
+      || '';
+  }
+
+  function hasCoverImage(cropImg, base) {
+    return getCoverUrl(cropImg, base) !== '';
+  }
+
   function collectState(root, previewEl, base) {
     var themeSelect = document.getElementById('admin-gallery-theme-select');
     var theme = themeSelect ? themeSelect.value : (base.theme || 'efpic-modern');
@@ -138,7 +149,7 @@
     var dateKey = dateSizeSel ? dateSizeSel.value : (base.dateSize || 'md');
     var allCapsEl = document.getElementById('intro_all_caps');
     var heroAccent = readColorInput('hero_accent_color') || base.heroAccent || '#9a9578';
-    var coverUrl = readCoverImageUrl() || base.coverUrl || '';
+    var coverUrl = getCoverUrl(document.getElementById('admin-cover-crop-img'), base);
 
     return {
       theme: theme,
@@ -159,10 +170,12 @@
     };
   }
 
-  function photoHtml(url, focalX, focalY) {
+  function photoHtml(url, focalX, focalY, coverFill) {
     if (!url) return '';
+    var style = 'object-position:' + focalX + '% ' + focalY + '%;';
+    if (coverFill) style += 'object-fit:cover;';
     return '<img class="gallery-intro-photo" src="' + escapeHtml(url) + '" alt="" decoding="async"'
-      + ' style="object-position:' + focalX + '% ' + focalY + '%;">';
+      + ' style="' + style + '">';
   }
 
   function introStyle(state, fontMap) {
@@ -182,7 +195,7 @@
       text += '<p class="gallery-intro-date gallery-intro-date--split">' + escapeHtml(state.dateFormatted) + '</p>';
     }
     text += '</div><h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></div>';
-    var media = '<div class="gallery-intro-split-media">' + photoHtml(state.coverUrl, state.focalX, state.focalY) + '</div>';
+    var media = '<div class="gallery-intro-split-media">' + photoHtml(state.coverUrl, state.focalX, state.focalY, true) + '</div>';
     var inner = layout === 'half-left' ? media + text : text + media;
     return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">'
       + '<div class="gallery-intro-split">' + inner + '</div></section>';
@@ -192,7 +205,7 @@
     var html = '<section class="gallery-intro gallery-intro--mood' + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">';
-    html += photoHtml(state.coverUrl, state.focalX, state.focalY);
+    html += photoHtml(state.coverUrl, state.focalX, state.focalY, true);
     html += '</div></div><div class="gallery-intro-footer">';
     html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1>';
     if (state.dateFormatted) {
@@ -207,7 +220,7 @@
     var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure">';
-    html += photoHtml(state.coverUrl, state.focalX, state.focalY);
+    html += photoHtml(state.coverUrl, state.focalX, state.focalY, layout === 'full');
     if (state.dateFormatted && layout !== 'full') {
       html += '<figcaption class="gallery-intro-date">' + escapeHtml(state.dateFormatted) + '</figcaption>';
     }
@@ -253,17 +266,9 @@
       return themeSelect && themeSelect.value === 'efpic-mood';
     }
 
-    function hasCoverImage() {
-      var url = readCoverImageUrl() || (cropImg && cropImg.getAttribute('src')) || base.coverUrl;
-      return !!url;
-    }
-
-    function getCoverUrl() {
-      return readCoverImageUrl() || (cropImg && cropImg.getAttribute('src')) || base.coverUrl || '';
-    }
-
     function syncThemePanels() {
       var mood = isMood();
+      var url = getCoverUrl(cropImg, base);
       if (layoutBlock) {
         layoutBlock.classList.toggle('is-disabled', mood);
         layoutBlock.querySelectorAll('input[name="cover_layout"]').forEach(function (el) {
@@ -273,8 +278,11 @@
       if (moodNote) {
         moodNote.hidden = !mood;
       }
+      if (cropImg && url && cropImg.getAttribute('src') !== url) {
+        cropImg.setAttribute('src', url);
+      }
       if (crop) {
-        crop.hidden = mood || !hasCoverImage();
+        crop.hidden = mood || !hasCoverImage(cropImg, base);
       }
       root.dataset.theme = themeSelect ? themeSelect.value : '';
     }
@@ -299,14 +307,16 @@
 
     function applyFocal() {
       if (!cropImg || !fx || !fy) return;
+      cropImg.style.objectFit = 'cover';
       cropImg.style.objectPosition = fx.value + '% ' + fy.value + '%';
     }
 
     function refreshPreview() {
       var state = collectState(root, previewEl, base);
-      state.coverUrl = getCoverUrl();
-      if (cropImg && state.coverUrl && cropImg.getAttribute('src') !== state.coverUrl) {
-        cropImg.setAttribute('src', state.coverUrl);
+      var url = getCoverUrl(cropImg, base);
+      state.coverUrl = url;
+      if (cropImg && url && cropImg.getAttribute('src') !== url) {
+        cropImg.setAttribute('src', url);
       }
       renderLivePreview(previewEl, state, fontMap);
       syncThemePanels();
@@ -362,7 +372,7 @@
     var startFy = 50;
 
     frame.addEventListener('pointerdown', function (evt) {
-      if (isMood() || !hasCoverImage()) return;
+      if (isMood() || !hasCoverImage(cropImg, base)) return;
       dragging = true;
       startX = evt.clientX;
       startY = evt.clientY;

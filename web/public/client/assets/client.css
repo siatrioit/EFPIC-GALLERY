@@ -786,6 +786,8 @@ input[type="password"] {
   position: relative;
   overflow: hidden;
   background: #111;
+  min-height: 50vh;
+  min-height: 50dvh;
 }
 
 .gallery-intro-split-media .gallery-intro-photo {
@@ -794,6 +796,7 @@ input[type="password"] {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center;
   box-shadow: none;
   margin: 0;
   max-width: none;
@@ -1429,6 +1432,23 @@ input[type="password"] {
     width: 100%;
     max-height: min(56vh, 560px);
     object-fit: cover;
+  }
+
+  .gallery-intro-split-media {
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
+
+  .gallery-intro-split-media .gallery-intro-photo {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    max-width: none;
+    max-height: none;
+    margin: 0;
+    object-fit: cover;
+    box-shadow: none;
   }
 
   .gallery-intro--layout-left .gallery-intro-photo {

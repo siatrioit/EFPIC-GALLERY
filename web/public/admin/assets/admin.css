@@ -2728,6 +2728,8 @@
 .admin-cover-crop__frame {
   position: relative;
   width: min(100%, 420px);
+  aspect-ratio: 3 / 4;
+  min-height: 200px;
   max-height: 360px;
   overflow: hidden;
   border-radius: 10px;
