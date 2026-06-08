@@ -117,7 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
 
-        $wantedVideo = trim((string) ($_POST['slideshow_item_generate_video'] ?? '')) !== '';
+        $wantedVideo = !empty($_POST['slideshow_draft_generate_video']);
         efpic_admin_save_delivery_from_post($config, $slug);
         if (!empty($_POST['autosave'])) {
             $meta = efpic_load_gallery_meta($config, $slug);

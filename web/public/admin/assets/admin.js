@@ -483,7 +483,7 @@
     fd.delete('sync_now');
     fd.delete('create_share_set');
     fd.delete('share_set_tokens');
-    fd.delete('slideshow_item_generate_video');
+    fd.delete('slideshow_draft_generate_video');
     fd.forEach(function (_value, key) {
       if (key.indexOf('_remove_video') !== -1) fd.delete(key);
     });
