@@ -563,7 +563,7 @@ input[type="password"] {
   flex-direction: column;
   padding: 28px 24px 36px;
   background: var(--hero-accent);
-  color: var(--hero-text);
+  color: var(--intro-text-color, var(--hero-text));
   font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
 }
 
@@ -572,6 +572,7 @@ input[type="password"] {
 .gallery-intro .gallery-intro-date,
 .gallery-intro .gallery-intro-split-text {
   font-family: var(--intro-font, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
+  color: inherit;
 }
 
 .gallery-intro-byline {
@@ -689,7 +690,9 @@ input[type="password"] {
   max-width: min(92vw, 28rem);
 }
 
-.gallery-intro--all-caps .gallery-intro-title {
+.gallery-intro.gallery-intro--all-caps .gallery-intro-title,
+.gallery-intro.gallery-intro--all-caps.gallery-intro--mood .gallery-intro-title,
+.gallery-intro.gallery-intro--all-caps .gallery-intro-split-text .gallery-intro-title {
   text-transform: uppercase;
   letter-spacing: var(--intro-title-tracking-caps, 0.12em);
 }
@@ -699,7 +702,6 @@ input[type="password"] {
   padding: 0;
   align-self: center;
   text-align: center;
-  text-transform: none;
   letter-spacing: var(--intro-title-tracking, 0.04em);
   font-size: var(--intro-title-size, clamp(1.6rem, 4.5vw, 2.4rem));
   font-weight: var(--intro-title-weight, 400);
@@ -750,7 +752,7 @@ input[type="password"] {
   justify-content: space-between;
   padding: clamp(28px, 4vw, 48px);
   background: var(--hero-accent);
-  color: var(--hero-text);
+  color: var(--intro-text-color, var(--hero-text));
 }
 
 .gallery-intro-split-top {
@@ -837,27 +839,76 @@ input[type="password"] {
 }
 
 .gallery-intro--layout-full {
-  padding-bottom: 24px;
+  position: relative;
+  padding: 0;
+  overflow: hidden;
 }
 
-.gallery-intro--layout-full .gallery-intro-head {
-  justify-content: center;
+.gallery-intro-full-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: var(--hero-accent);
 }
 
-.gallery-intro--layout-full .gallery-intro-figure {
+.gallery-intro-full-bg .gallery-intro-photo {
   width: 100%;
+  height: 100%;
+  min-height: 100%;
   max-width: none;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+  box-shadow: none;
+}
+
+.gallery-intro-full-shade {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background: linear-gradient(
+    to top,
+    rgba(0, 0, 0, 0.55) 0%,
+    rgba(0, 0, 0, 0.12) 45%,
+    transparent 72%
+  );
+}
+
+.gallery-intro-full-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: inherit;
+  width: 100%;
+  padding: 28px 24px 36px;
+  box-sizing: border-box;
+}
+
+.gallery-intro--layout-full .gallery-intro-byline {
   margin: 0;
 }
 
-.gallery-intro--layout-full .gallery-intro-photo {
-  width: 100%;
-  max-height: min(52vh, 520px);
-  object-fit: cover;
+.gallery-intro-full-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.gallery-intro-date--full {
+  margin: 0;
+  text-align: left;
+  opacity: 0.92;
 }
 
 .gallery-intro--layout-full .gallery-intro-title {
-  padding-top: 24px;
+  margin: 0;
+  padding: 0;
+  align-self: flex-start;
+  max-width: min(92%, 52rem);
 }
 
 .gallery-intro-date--below {
@@ -1429,10 +1480,8 @@ input[type="password"] {
     object-fit: contain;
   }
 
-  .gallery-intro--layout-full .gallery-intro-photo {
-    width: 100%;
-    max-height: min(56vh, 560px);
-    object-fit: cover;
+  .gallery-intro--layout-full .gallery-intro-full-content {
+    padding: 40px 48px 48px;
   }
 
   .gallery-intro--split {

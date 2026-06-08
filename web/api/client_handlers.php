@@ -467,6 +467,27 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
             return $html;
         }
 
+        if ($layout === 'full') {
+            $html = '<section class="gallery-intro gallery-intro--layout-full' . efpic_gallery_intro_extra_class($meta) . '" id="galleryHero"'
+                . efpic_gallery_intro_typography_style_attr($meta, $theme) . '>';
+            $html .= '<div class="gallery-intro-full-bg">';
+            if ($imgUrl !== '') {
+                $html .= efpic_client_render_cover_photo($imgUrl, $meta, 'high', true);
+            }
+            $html .= '</div>';
+            $html .= '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
+            $html .= '<div class="gallery-intro-full-content">';
+            $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
+            $html .= '<div class="gallery-intro-full-footer">';
+            if ($date !== '') {
+                $html .= '<p class="gallery-intro-date gallery-intro-date--full">' . efpic_client_esc($date) . '</p>';
+            }
+            $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
+            $html .= '</div></div></section>';
+
+            return $html;
+        }
+
         $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
         $html = '<section class="gallery-intro ' . $layoutClass . efpic_gallery_intro_extra_class($meta) . '" id="galleryHero"'
             . efpic_gallery_intro_typography_style_attr($meta, $theme) . '>';
@@ -474,15 +495,12 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $html .= '<div class="gallery-intro-head">';
         $html .= '<figure class="gallery-intro-figure">';
         if ($imgUrl !== '') {
-            $html .= efpic_client_render_cover_photo($imgUrl, $meta, 'low', $layout === 'full');
+            $html .= efpic_client_render_cover_photo($imgUrl, $meta, 'low', false);
         }
-        if ($date !== '' && $layout !== 'full') {
+        if ($date !== '') {
             $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
         }
         $html .= '</figure></div>';
-        if ($layout === 'full' && $date !== '') {
-            $html .= '<p class="gallery-intro-date gallery-intro-date--below">' . efpic_client_esc($date) . '</p>';
-        }
         $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
         $html .= '</section>';
 

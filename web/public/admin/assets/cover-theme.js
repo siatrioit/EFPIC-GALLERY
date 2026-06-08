@@ -23,6 +23,8 @@
     standard: { sm: '0.8rem', md: '1.05rem', lg: '1.35rem' },
   };
 
+  var PREVIEW_DISPLAY_H = 280;
+
   function escapeHtml(s) {
     return String(s || '')
       .replace(/&/g, '&amp;')
@@ -204,6 +206,7 @@
     var dateKey = dateSizeSel ? dateSizeSel.value : (base.dateSize || 'md');
     var allCapsEl = document.getElementById('intro_all_caps');
     var heroAccent = readColorInput('hero_accent_color') || base.heroAccent || '#9a9578';
+    var introTextColor = readColorInput('intro_text_color') || base.introTextColor || '#1a1a1a';
     var coverUrl = getCoverUrl(document.getElementById('admin-cover-crop-img'), base);
 
     return {
@@ -215,6 +218,7 @@
       byline: base.byline || 'GALLERY',
       coverUrl: coverUrl,
       heroAccent: heroAccent,
+      introTextColor: introTextColor,
       focalX: fx ? parseFloat(fx.value) || 50 : (base.focalX || 50),
       focalY: fy ? parseFloat(fy.value) || 50 : (base.focalY || 50),
       fontFamily: fontKey,
@@ -238,7 +242,8 @@
     var title = safeStyleVar(titleSizeCss(state.theme, state.layout, state.titleSize));
     var date = safeStyleVar(dateSizeCss(state.theme, state.dateSize));
     var byline = safeStyleVar(bylineSizeCss(state.dateSize));
-    return '--hero-accent:' + state.heroAccent + ';--hero-text:#1a1a1a;--intro-font:' + font
+    return '--hero-accent:' + state.heroAccent + ';--hero-text:' + safeStyleVar(state.introTextColor)
+      + ';--intro-text-color:' + safeStyleVar(state.introTextColor) + ';--intro-font:' + font
       + ';--intro-title-size:' + title + ';--intro-date-size:' + date + ';--intro-byline-size:' + byline
       + ';--intro-title-weight:' + titleWeightCss(state.fontFamily, groupMap)
       + ';--intro-title-tracking:' + titleTrackingCss(state.fontFamily, groupMap)
@@ -273,19 +278,31 @@
     return html;
   }
 
+  function renderFull(state, fontMap, groupMap) {
+    var html = '<section class="gallery-intro gallery-intro--layout-full' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
+    html += '<div class="gallery-intro-full-bg">' + photoHtml(state.coverUrl, state.focalX, state.focalY, true) + '</div>';
+    html += '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
+    html += '<div class="gallery-intro-full-content">';
+    html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
+    html += '<div class="gallery-intro-full-footer">';
+    if (state.dateFormatted) {
+      html += '<p class="gallery-intro-date gallery-intro-date--full">' + escapeHtml(state.dateFormatted) + '</p>';
+    }
+    html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1>';
+    html += '</div></div></section>';
+    return html;
+  }
+
   function renderStandard(state, fontMap, groupMap) {
     var layout = state.layout || 'right';
     var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure">';
-    html += photoHtml(state.coverUrl, state.focalX, state.focalY, layout === 'full');
-    if (state.dateFormatted && layout !== 'full') {
+    html += photoHtml(state.coverUrl, state.focalX, state.focalY, false);
+    if (state.dateFormatted) {
       html += '<figcaption class="gallery-intro-date">' + escapeHtml(state.dateFormatted) + '</figcaption>';
     }
     html += '</figure></div>';
-    if (layout === 'full' && state.dateFormatted) {
-      html += '<p class="gallery-intro-date gallery-intro-date--below">' + escapeHtml(state.dateFormatted) + '</p>';
-    }
     html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></section>';
     return html;
   }
@@ -297,6 +314,9 @@
     if (state.layout === 'half-left' || state.layout === 'half-right') {
       return renderSplit(state, state.layout, fontMap, groupMap);
     }
+    if (state.layout === 'full') {
+      return renderFull(state, fontMap, groupMap);
+    }
     return renderStandard(state, fontMap, groupMap);
   }
 
@@ -307,12 +327,12 @@
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
     var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
     var vw = viewport.clientWidth || 1;
-    var scale = vw / designW;
+    var scale = Math.min(vw / designW, PREVIEW_DISPLAY_H / designH);
     iframe.style.width = designW + 'px';
     iframe.style.height = designH + 'px';
     iframe.style.transform = 'scale(' + scale + ')';
     iframe.style.transformOrigin = 'top left';
-    viewport.style.height = Math.ceil(designH * scale) + 'px';
+    viewport.style.height = PREVIEW_DISPLAY_H + 'px';
   }
 
   function updateAllDeviceScales(root) {
@@ -446,7 +466,7 @@
       });
     });
 
-    bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"]');
+    bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"], input[name="intro_text_color"]');
     ['#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps'].forEach(function (sel) {
       document.querySelectorAll(sel).forEach(function (el) {
         el.addEventListener('change', refreshPreview);
