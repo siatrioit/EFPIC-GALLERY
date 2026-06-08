@@ -2283,13 +2283,17 @@
     document.querySelectorAll('.admin-slideshow-source').forEach(function (fieldset) {
       if (fieldset.dataset.bound === '1') return;
       fieldset.dataset.bound = '1';
-      var picks = fieldset.querySelector('.admin-slideshow-scene-picks');
-      if (!picks) return;
-      fieldset.querySelectorAll('input[type="radio"][name$="_image_source"]').forEach(function (radio) {
-        radio.addEventListener('change', function () {
-          picks.classList.toggle('is-visible', radio.value === 'scenes' && radio.checked);
+      function syncPanels() {
+        var selected = fieldset.querySelector('input[type="radio"][name$="_image_source"]:checked');
+        var value = selected ? selected.value : 'favorites';
+        fieldset.querySelectorAll('.admin-slideshow-source__panel').forEach(function (panel) {
+          panel.classList.toggle('is-visible', panel.classList.contains('admin-slideshow-source__panel--' + value));
         });
+      }
+      fieldset.querySelectorAll('input[type="radio"][name$="_image_source"]').forEach(function (radio) {
+        radio.addEventListener('change', syncPanels);
       });
+      syncPanels();
     });
   }
 

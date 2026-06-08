@@ -1389,6 +1389,18 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
 
     efpic_apply_slideshow_item_fields_from_post($config, $slug, $meta, $draft, 'slideshow_draft', 'admin');
 
+    if (array_key_exists('slideshow_favorites_image_order', $_POST)) {
+        $orderRaw = trim((string) $_POST['slideshow_favorites_image_order']);
+        $tokens = $orderRaw === '' ? [] : array_filter(array_map('trim', explode(',', $orderRaw)));
+        $valid = [];
+        foreach ($tokens as $tok) {
+            if (preg_match('/^[a-f0-9]{48}$/', $tok) === 1) {
+                $valid[] = $tok;
+            }
+        }
+        $draft['image_order_tokens'] = $valid;
+    }
+
     foreach ($items as $i => $item) {
         $id = (string) ($item['id'] ?? '');
         if ($id === '') {
@@ -1398,6 +1410,12 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
         $items[$i] = $item;
     }
     $items = array_values(array_filter($items, 'efpic_slideshow_item_is_published'));
+
+    $client = $storage['client'];
+    if (!empty($_POST['slideshow_client_ready'])) {
+        efpic_apply_slideshow_ready_item_from_post($config, $slug, $client, 'slideshow_client');
+    }
+    $storage['client'] = $client;
 
     $storage['draft'] = $draft;
     $storage['items'] = $items;
