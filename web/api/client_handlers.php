@@ -387,7 +387,7 @@ function efpic_client_render_cover_photo(string $imgUrl, array $meta, string $fe
         . efpic_client_esc($fetchPriority) . '"' . efpic_gallery_cover_image_style_attr($meta, $coverFill) . '>';
 }
 
-function efpic_client_render_cover_split_text(string $config, string $name, string $date): string
+function efpic_client_render_cover_split_text(array $config, string $name, string $date): string
 {
     $html = '<div class="gallery-intro-split-text">';
     $html .= '<div class="gallery-intro-split-top">';
