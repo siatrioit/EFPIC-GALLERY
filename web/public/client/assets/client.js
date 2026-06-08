@@ -450,12 +450,34 @@
   function updateFloatingUi() {
     var past = scrollPastHero();
     if (floatingTopbar) {
-      floatingTopbar.classList.toggle('is-visible', past);
+      if (floatingTopbar.classList.contains('gallery-toolbar')) {
+        floatingTopbar.classList.toggle('is-scrolled', past);
+      } else {
+        floatingTopbar.classList.toggle('is-visible', past);
+      }
     }
     if (floatBar) {
       floatBar.classList.toggle('is-visible', past);
     }
   }
+
+  document.querySelectorAll('.gallery-inline-video-player').forEach(function (wrap) {
+    var video = wrap.querySelector('video');
+    var playBtn = wrap.querySelector('.gallery-inline-video-play');
+    if (!video || !playBtn) {
+      return;
+    }
+    function syncPlayOverlay() {
+      wrap.classList.toggle('is-playing', !video.paused && !video.ended);
+    }
+    playBtn.addEventListener('click', function () {
+      video.play().catch(function () {});
+    });
+    video.addEventListener('play', syncPlayOverlay);
+    video.addEventListener('pause', syncPlayOverlay);
+    video.addEventListener('ended', syncPlayOverlay);
+    syncPlayOverlay();
+  });
 
   if (hero) {
     window.addEventListener('scroll', updateFloatingUi, { passive: true });

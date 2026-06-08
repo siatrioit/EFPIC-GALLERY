@@ -77,6 +77,7 @@ function efpic_client_icon(string $name): string
         'pick' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg>',
         'pick-empty' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>',
         'zip' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+        'play' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
     ];
 
     return $icons[$name] ?? '';
@@ -883,6 +884,21 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
     return $html;
 }
 
+function efpic_client_render_inline_video_player(string $videoUrl, bool $withPlayOverlay = false, string $extraVideoAttrs = ''): string
+{
+    $html = '<div class="gallery-inline-video-player">';
+    if ($withPlayOverlay) {
+        $html .= '<button type="button" class="gallery-inline-video-play" aria-label="Atskaņot">';
+        $html .= '<span class="gallery-inline-video-play__icon">' . efpic_client_icon('play') . '</span>';
+        $html .= '</button>';
+    }
+    $html .= '<video controls playsinline preload="metadata"' . $extraVideoAttrs . ' src="'
+        . efpic_client_esc($videoUrl) . '"></video>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_client_render_single_video(array $config, array $meta, array $video, ?array $ctx = null): string
 {
     $gt = (string) ($meta['gallery_token'] ?? '');
@@ -910,7 +926,7 @@ function efpic_client_render_single_video(array $config, array $meta, array $vid
             return $html;
         }
         $url = efpic_gallery_asset_url($config, $gt, $file, $guestQ);
-        $html .= '<div class="gallery-video-file"><video controls playsinline preload="metadata" src="' . efpic_client_esc($url) . '"></video></div>';
+        $html .= '<div class="gallery-video-file">' . efpic_client_render_inline_video_player($url) . '</div>';
     }
 
     return $html;
@@ -1054,8 +1070,7 @@ function efpic_client_render_public_slideshow_video_inline(
                 . efpic_client_esc($title) . '</h2>';
         }
         $html .= '<div class="gallery-slideshow-section__player gallery-slideshow-video__player">';
-        $html .= '<video controls playsinline preload="metadata" fetchpriority="high" src="'
-            . efpic_client_esc($videoUrl) . '"></video>';
+        $html .= efpic_client_render_inline_video_player($videoUrl, true, ' fetchpriority="high"');
         $html .= '</div></section>';
     }
 
@@ -1229,12 +1244,12 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body = '';
     if ($usesShell) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
-        $body .= $slideshowTopHtml;
         if ($sceneNavLinks !== '') {
             $body .= efpic_client_render_gallery_toolbar($name, $right, $sceneNavLinks, $toolbarExtraClass);
         } else {
             $body .= efpic_client_topbar($name, $right, $toolbarExtraClass);
         }
+        $body .= $slideshowTopHtml;
     } else {
         if ($sceneNavLinks !== '') {
             $body .= efpic_client_render_gallery_toolbar($name, $right, $sceneNavLinks, $toolbarExtraClass);
