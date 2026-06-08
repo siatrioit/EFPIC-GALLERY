@@ -484,7 +484,10 @@ function efpic_admin_render_slideshow_section_settings(array $meta, array $slot,
     $prefix = efpic_slideshow_form_prefix($owner);
     $esc = $owner === 'client' ? 'efpic_client_esc' : 'efpic_admin_esc';
     $placement = (string) ($slot['section_placement'] ?? 'top');
-    if (!in_array($placement, ['top', 'bottom', 'after_scene'], true)) {
+    if ($placement === 'after_scene') {
+        $placement = 'before_scene';
+    }
+    if (!in_array($placement, ['top', 'bottom', 'before_scene'], true)) {
         $placement = 'top';
     }
     $afterScene = (string) ($slot['section_after_scene'] ?? '');
@@ -501,10 +504,10 @@ function efpic_admin_render_slideshow_section_settings(array $meta, array $slot,
     $html .= '<p class="muted">Atsevišķs nosaukums publiskajā lapā (nav tas pats, kas intro video virsraksts).</p>';
     $html .= '<label>Sadaļas vieta<select name="' . $esc($prefix . '_section_placement') . '">';
     $html .= '<option value="top"' . ($placement === 'top' ? ' selected' : '') . '>Galerijas augšā (pirms sadaļām)</option>';
-    $html .= '<option value="after_scene"' . ($placement === 'after_scene' ? ' selected' : '') . '>Pēc konkrētas sadaļas</option>';
+    $html .= '<option value="before_scene"' . ($placement === 'before_scene' ? ' selected' : '') . '>Pirms konkrētas sadaļas</option>';
     $html .= '<option value="bottom"' . ($placement === 'bottom' ? ' selected' : '') . '>Galerijas apakšā</option>';
     $html .= '</select></label>';
-    $html .= '<label>Pēc sadaļas<select name="' . $esc($prefix . '_section_after_scene') . '">';
+    $html .= '<label>Pirms sadaļas<select name="' . $esc($prefix . '_section_after_scene') . '">';
     $html .= '<option value="">— izvēlies —</option>';
     foreach (efpic_gallery_scene_options($meta) as $scene) {
         $sid = (string) ($scene['id'] ?? '');

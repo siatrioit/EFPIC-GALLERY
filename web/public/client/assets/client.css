@@ -477,6 +477,7 @@ input[type="password"] {
 
 .page-gallery .gallery-main,
 .page-gallery .pic-feed,
+.page-gallery .classic-feed,
 .page-gallery .feed {
   background: var(--page-bg, #ffffff);
 }
@@ -514,7 +515,11 @@ input[type="password"] {
   --surface: #1c1c1c;
 }
 
-.theme-classic.page-gallery,
+.theme-efpic-classic.page-gallery {
+  --surface: #ffffff;
+  background: var(--page-bg, #f0f0f0);
+}
+
 .theme-masonry.page-gallery {
   --surface: #ffffff;
 }
@@ -1061,6 +1066,61 @@ input[type="password"] {
   box-sizing: border-box;
 }
 
+/* Classic: vienāds rindas augstums, pilna platuma režģis (2→3→4 kolonnas) */
+.classic-feed {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--pic-feed-gap, 16px);
+  width: 100%;
+  padding: var(--pic-feed-gap, 16px);
+  background: var(--page-bg, #ffffff);
+  box-sizing: border-box;
+}
+
+.theme-efpic-classic .classic-feed {
+  --classic-row-h: clamp(148px, 24vw, 260px);
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-item {
+  position: relative;
+  height: var(--classic-row-h);
+  overflow: hidden;
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-item img,
+.theme-efpic-classic .classic-feed .pic-feed-link img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.theme-efpic-classic .classic-feed .pic-feed-img--deferred:not([src]) {
+  min-height: 100%;
+  height: 100%;
+}
+
+@media (min-width: 640px) {
+  .classic-feed {
+    grid-template-columns: repeat(3, 1fr);
+    gap: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+    padding: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
+  }
+}
+
+@media (min-width: 1024px) {
+  .classic-feed {
+    grid-template-columns: repeat(4, 1fr);
+    gap: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+    padding: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
+  }
+}
+
 .pic-feed-item {
   position: relative;
   display: block;
@@ -1576,36 +1636,46 @@ input[type="password"] {
 .gallery-scene-nav {
   position: sticky;
   top: 0;
-  z-index: 80;
+  z-index: 90;
+  width: 100vw;
+  max-width: 100vw;
   margin: 0 0 12px;
-  padding: 10px 0;
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
+  padding: 10px clamp(12px, 2vw, 20px);
+  box-sizing: border-box;
   background: color-mix(in srgb, var(--bg) 92%, transparent);
   backdrop-filter: blur(8px);
   border-bottom: 1px solid var(--border);
 }
 
 .theme-pic-time .gallery-scene-nav {
-  top: 52px;
   margin: 0;
-  padding: 10px clamp(12px, 2vw, 20px);
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
   background: color-mix(in srgb, var(--page-bg, #ffffff) 94%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 12%, transparent);
+}
+
+.theme-pic-time:has(.topbar-floating.is-visible) .gallery-scene-nav {
+  top: 52px;
 }
 
 .gallery-scene-nav__inner {
   display: flex;
   flex-wrap: nowrap;
+  justify-content: flex-start;
   gap: 8px;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
   scrollbar-width: thin;
-  max-width: 1100px;
-  margin: 0 auto;
-  padding: 0 16px;
+  max-width: none;
+  margin: 0;
+  padding: 0;
 }
 
 .theme-pic-time .gallery-scene-nav__inner {
-  max-width: 100%;
+  max-width: none;
   padding: 0;
 }
 
@@ -1638,24 +1708,26 @@ input[type="password"] {
 
 .page-gallery .scene-title {
   margin: 0;
-  padding: 12px clamp(12px, 2vw, 24px);
+  padding: 14px clamp(12px, 2vw, 24px);
   background: var(--page-bg, var(--surface));
   color: var(--page-text, var(--text));
   border-top: 3px solid color-mix(in srgb, var(--page-text, var(--text)) 18%, var(--page-bg, var(--surface)));
   border-bottom: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 10%, transparent);
-  font-size: 0.82rem;
+  font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  text-align: center;
 }
 
 .scene-title {
   margin: 0 0 12px;
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
   color: var(--muted);
+  text-align: center;
 }
 
 .scene-block {
@@ -2238,6 +2310,10 @@ input[type="password"] {
     max-width: 900px;
   }
 
+  .theme-efpic-modern .gallery-main,
+  .theme-efpic-mood .gallery-main,
+  .theme-efpic-forest .gallery-main,
+  .theme-efpic-classic .gallery-main,
   .theme-pic-time .gallery-main,
   .theme-pic-time .downloads {
     max-width: 100%;

@@ -756,12 +756,13 @@ function efpic_client_render_classic_scenes(array $config, array $meta, array $i
     $multiScene = count($scenesWithContent) > 1;
 
     $html = '';
-    foreach ($scenesWithContent as $i => $scene) {
+    foreach ($scenesWithContent as $scene) {
         $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
         $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         if ($multiScene) {
             $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
                 . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
@@ -773,10 +774,8 @@ function efpic_client_render_classic_scenes(array $config, array $meta, array $i
             $html .= '</div>';
         }
         if ($multiScene) {
-            $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
             $html .= '</section>';
         }
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'after_scene', $sid);
     }
 
     if ($html === '') {
@@ -817,12 +816,13 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
     $multiScene = count($scenesWithContent) > 1;
 
     $html = '';
-    foreach ($scenesWithContent as $i => $scene) {
+    foreach ($scenesWithContent as $scene) {
         $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
         $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         if ($multiScene) {
             $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
                 . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
@@ -834,10 +834,8 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
             $html .= '</div>';
         }
         if ($multiScene) {
-            $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
             $html .= '</section>';
         }
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'after_scene', $sid);
     }
 
     if ($html === '') {
@@ -992,7 +990,7 @@ function efpic_client_render_public_slideshow_video_inline(
     array $meta,
     array $ctx,
     string $placement = 'top',
-    string $afterSceneId = '',
+    string $sceneId = '',
 ): string {
     $sections = efpic_collect_public_slideshow_video_sections($meta, $ctx, $config);
     if ($sections === []) {
@@ -1008,17 +1006,20 @@ function efpic_client_render_public_slideshow_video_inline(
         if ($sectionPlacement !== $placement) {
             continue;
         }
-        if ($placement === 'after_scene' && (string) ($section['after_scene'] ?? '') !== $afterSceneId) {
+        if ($placement === 'before_scene' && (string) ($section['after_scene'] ?? '') !== $sceneId) {
             continue;
         }
         $slideshow = $section['slideshow'];
         $videoUrl = efpic_gallery_asset_url($config, $gt, (string) $slideshow['video_file'], $guestQ);
-        $title = (string) $section['title'];
+        $title = trim((string) $section['title']);
         $owner = (string) $section['owner'];
+        $ariaLabel = $title !== '' ? $title : ($owner === 'client' ? 'Klienta slideshow' : 'Slideshow');
         $html .= '<section id="slideshow-' . efpic_client_esc($owner) . '" class="gallery-slideshow-section gallery-slideshow-video" data-slideshow-owner="'
-            . efpic_client_esc($owner) . '" aria-label="' . efpic_client_esc($title) . '">';
-        $html .= '<h2 class="gallery-slideshow-section__title gallery-slideshow-video__title">'
-            . efpic_client_esc($title) . '</h2>';
+            . efpic_client_esc($owner) . '" aria-label="' . efpic_client_esc($ariaLabel) . '">';
+        if ($title !== '') {
+            $html .= '<h2 class="gallery-slideshow-section__title gallery-slideshow-video__title">'
+                . efpic_client_esc($title) . '</h2>';
+        }
         $html .= '<div class="gallery-slideshow-section__player gallery-slideshow-video__player">';
         $html .= '<video controls playsinline preload="metadata" fetchpriority="high" src="'
             . efpic_client_esc($videoUrl) . '"></video>';
@@ -1067,11 +1068,12 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
     $multiScene = count($scenesWithContent) > 1;
 
     $html = '';
-    foreach ($scenesWithContent as $i => $scene) {
+    foreach ($scenesWithContent as $scene) {
         $sid = $scene['id'];
         $sceneImages = $byScene[$sid] ?? [];
         $title = $scene['title'];
         $anchor = efpic_scene_element_id($sid);
+        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
             . efpic_client_esc($sid) . '"><h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
@@ -1091,11 +1093,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
             }
             $html .= '</div>';
         }
-        if ($multiScene) {
-            $html .= efpic_client_scene_next_button_for_index($scenesWithContent, $i);
-        }
         $html .= '</section>';
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'after_scene', $sid);
     }
 
     $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'bottom');

@@ -221,14 +221,17 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
         $sectionTitle = substr($sectionTitle, 0, 80);
     }
     $placement = (string) ($raw['section_placement'] ?? 'top');
-    if (!in_array($placement, ['top', 'bottom', 'after_scene'], true)) {
+    if ($placement === 'after_scene') {
+        $placement = 'before_scene';
+    }
+    if (!in_array($placement, ['top', 'bottom', 'before_scene'], true)) {
         $placement = 'top';
     }
     $afterScene = (string) ($raw['section_after_scene'] ?? '');
     if (!preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene)) {
         $afterScene = '';
     }
-    if ($placement === 'after_scene' && $afterScene === '') {
+    if ($placement === 'before_scene' && $afterScene === '') {
         $placement = 'top';
     }
     $sectionOrder = (int) ($raw['section_order'] ?? 0);
@@ -447,15 +450,15 @@ function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, 
             continue;
         }
         $title = trim((string) ($slot['section_title'] ?? ''));
-        if ($title === '') {
-            $title = $owner === 'client' ? 'Klienta slideshow' : 'Slideshow';
-        }
         $placement = (string) ($slot['section_placement'] ?? 'top');
-        if (!in_array($placement, ['top', 'bottom', 'after_scene'], true)) {
+        if ($placement === 'after_scene') {
+            $placement = 'before_scene';
+        }
+        if (!in_array($placement, ['top', 'bottom', 'before_scene'], true)) {
             $placement = 'top';
         }
         $afterScene = (string) ($slot['section_after_scene'] ?? '');
-        if ($placement === 'after_scene' && $afterScene === '') {
+        if ($placement === 'before_scene' && $afterScene === '') {
             $placement = 'top';
         }
         $order = (int) ($slot['section_order'] ?? 0);
@@ -964,14 +967,17 @@ function efpic_apply_slideshow_from_post(array $config, string $slug, array &$me
     $placementKey = $prefix . '_section_placement';
     if (isset($_POST[$placementKey])) {
         $placement = (string) $_POST[$placementKey];
-        $slideshow['section_placement'] = in_array($placement, ['top', 'bottom', 'after_scene'], true) ? $placement : 'top';
+        if ($placement === 'after_scene') {
+            $placement = 'before_scene';
+        }
+        $slideshow['section_placement'] = in_array($placement, ['top', 'bottom', 'before_scene'], true) ? $placement : 'top';
     }
     $afterSceneKey = $prefix . '_section_after_scene';
     if (array_key_exists($afterSceneKey, $_POST)) {
         $afterScene = trim((string) $_POST[$afterSceneKey]);
         $slideshow['section_after_scene'] = preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene) === 1 ? $afterScene : '';
     }
-    if (($slideshow['section_placement'] ?? 'top') === 'after_scene' && ($slideshow['section_after_scene'] ?? '') === '') {
+    if (($slideshow['section_placement'] ?? 'top') === 'before_scene' && ($slideshow['section_after_scene'] ?? '') === '') {
         $slideshow['section_placement'] = 'top';
     }
     $orderKey = $prefix . '_section_order';
