@@ -353,8 +353,50 @@ function efpic_slideshow_item_is_published(array $item): bool
         return true;
     }
     $status = (string) ($item['render_status'] ?? 'none');
+    if (in_array($status, ['queued', 'processing', 'failed'], true)) {
+        return true;
+    }
+    $id = (string) ($item['id'] ?? '');
 
-    return in_array($status, ['queued', 'processing', 'failed'], true);
+    return efpic_gallery_slideshow_item_id_valid($id);
+}
+
+/** Vai vecais slideshow.admin vēl jāpievieno items[] (pēc reorganizācijas). */
+function efpic_slideshow_legacy_admin_should_migrate(array $adminRaw, array $sourceItems): bool
+{
+    $adminVideo = trim((string) ($adminRaw['video_file'] ?? ''));
+    $adminId = trim((string) ($adminRaw['id'] ?? ''));
+    foreach ($sourceItems as $raw) {
+        if (!is_array($raw)) {
+            continue;
+        }
+        if ($adminId !== '' && (string) ($raw['id'] ?? '') === $adminId) {
+            return false;
+        }
+        if ($adminVideo !== '' && trim((string) ($raw['video_file'] ?? '')) === $adminVideo) {
+            return false;
+        }
+    }
+    if ($adminVideo !== '') {
+        return true;
+    }
+    if (!empty($adminRaw['enabled'])) {
+        return true;
+    }
+    $status = (string) ($adminRaw['render_status'] ?? 'none');
+
+    return in_array($status, ['queued', 'processing', 'ready', 'failed'], true);
+}
+
+/** @param array<string, mixed> $item */
+function efpic_gallery_ensure_slideshow_item_id(array $item): array
+{
+    $id = (string) ($item['id'] ?? '');
+    if (!efpic_gallery_slideshow_item_id_valid($id)) {
+        $item['id'] = efpic_random_hex(8);
+    }
+
+    return $item;
 }
 
 function efpic_gallery_slideshow_draft_is_empty(array $draft): bool
@@ -405,24 +447,28 @@ function efpic_gallery_slideshow_storage(array $meta): array
     $items = [];
     $orphans = [];
     $sourceItems = [];
-    if (isset($raw['items']) && is_array($raw['items']) && $raw['items'] !== []) {
-        $sourceItems = $raw['items'];
-    } elseif (isset($raw['admin']) || isset($raw['client'])) {
-        $adminRaw = is_array($raw['admin'] ?? null) ? $raw['admin'] : [];
-        if ($adminRaw !== []) {
-            $sourceItems[] = $adminRaw;
+    if (isset($raw['items']) && is_array($raw['items'])) {
+        foreach ($raw['items'] as $itemRaw) {
+            if (is_array($itemRaw)) {
+                $sourceItems[] = $itemRaw;
+            }
         }
-    } elseif ($raw !== []) {
-        $sourceItems[] = $raw;
     }
-    if ($sourceItems === [] && is_array($raw['admin'] ?? null) && $raw['admin'] !== []) {
-        $sourceItems[] = $raw['admin'];
+    $adminRaw = is_array($raw['admin'] ?? null) ? $raw['admin'] : [];
+    if ($adminRaw !== [] && efpic_slideshow_legacy_admin_should_migrate($adminRaw, $sourceItems)) {
+        array_unshift($sourceItems, $adminRaw);
+    } elseif ($sourceItems === [] && $adminRaw !== []) {
+        $sourceItems[] = $adminRaw;
+    } elseif ($sourceItems === [] && $raw !== [] && !isset($raw['draft']) && !isset($raw['client']) && !isset($raw['items'])) {
+        $sourceItems[] = $raw;
     }
 
     $n = 0;
     foreach ($sourceItems as $itemRaw) {
         ++$n;
-        $item = efpic_gallery_normalize_slideshow_item($itemRaw, $n);
+        $item = efpic_gallery_ensure_slideshow_item_id(
+            efpic_gallery_normalize_slideshow_item($itemRaw, $n),
+        );
         if (efpic_slideshow_item_is_published($item)) {
             $items[] = $item;
         } else {
@@ -431,10 +477,16 @@ function efpic_gallery_slideshow_storage(array $meta): array
     }
 
     if ($orphans !== [] && efpic_gallery_slideshow_draft_is_empty($draft)) {
-        $orphanRaw = $orphans[count($orphans) - 1];
-        $draft = efpic_gallery_normalize_slideshow_slot($orphanRaw);
-        $draft['id'] = '';
-        $draft['title'] = trim((string) ($orphanRaw['title'] ?? ''));
+        for ($oi = count($orphans) - 1; $oi >= 0; --$oi) {
+            $orphanRaw = $orphans[$oi];
+            if (efpic_gallery_slideshow_item_id_valid((string) ($orphanRaw['id'] ?? ''))) {
+                continue;
+            }
+            $draft = efpic_gallery_normalize_slideshow_slot($orphanRaw);
+            $draft['id'] = '';
+            $draft['title'] = trim((string) ($orphanRaw['title'] ?? ''));
+            break;
+        }
     }
 
     return [
@@ -455,7 +507,9 @@ function efpic_gallery_persist_slideshow_storage(array &$meta, array $storage): 
     $n = 0;
     foreach ($storage['items'] ?? [] as $item) {
         ++$n;
-        $items[] = efpic_gallery_normalize_slideshow_item($item, $n);
+        $items[] = efpic_gallery_ensure_slideshow_item_id(
+            efpic_gallery_normalize_slideshow_item($item, $n),
+        );
     }
     $meta['slideshow'] = [
         'draft' => $draft,
@@ -1611,6 +1665,28 @@ function efpic_slideshow_apply_ready_move_from_post(array &$meta, string $target
     efpic_slideshow_set_ready_slot_order($meta, $entries[$swapIdx]['owner'], $entries[$swapIdx]['id'], $orderA);
 }
 
+/** @param list<array<string, mixed>> $items */
+function efpic_apply_legacy_slideshow_admin_enabled_from_post(array &$items): void
+{
+    if (!array_key_exists('slideshow_admin_enabled', $_POST)) {
+        return;
+    }
+    $enabled = efpic_post_flag_is_on('slideshow_admin_enabled');
+    $targetIdx = null;
+    foreach ($items as $i => $item) {
+        if (efpic_slideshow_slot_video_ready($item)) {
+            $targetIdx = $i;
+            break;
+        }
+    }
+    if ($targetIdx === null && $items !== []) {
+        $targetIdx = 0;
+    }
+    if ($targetIdx !== null) {
+        $items[$targetIdx]['enabled'] = $enabled;
+    }
+}
+
 function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug, array &$meta): void
 {
     $moveUp = trim((string) ($_POST['slideshow_move_up'] ?? ''));
@@ -1657,6 +1733,8 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
         }
         $draft['image_order_tokens'] = $valid;
     }
+
+    efpic_apply_legacy_slideshow_admin_enabled_from_post($items);
 
     foreach ($items as $i => &$item) {
         $id = (string) ($item['id'] ?? '');

@@ -615,11 +615,11 @@ function efpic_admin_render_slideshow_enabled_toggle(array $slot, string $prefix
 {
     $name = $prefix . '_enabled';
     $enabled = !empty($slot['enabled']);
-    $html = '<input type="hidden" name="' . efpic_admin_esc($name) . '" value="' . ($enabled ? '1' : '0') . '" data-slideshow-enabled-value="1">';
+    $html = '<input type="hidden" name="' . efpic_admin_esc($name) . '" value="0">';
     $html .= efpic_render_admin_toggle('Rādīt publiskajā galerijā', $enabled, [
+        'name' => $name,
         'value' => '1',
         'class' => 'admin-slideshow-ready__toggle',
-        'input_attrs' => 'data-slideshow-enabled-toggle="1" data-slideshow-enabled-field="' . efpic_admin_esc($name) . '"',
     ]);
 
     return $html;
