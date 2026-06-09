@@ -510,6 +510,99 @@ function efpic_apply_admin_favorites_from_post(array &$meta): void
         }
         $meta['images'][$i]['favorited_admin'] = isset($posted[$tok]);
     }
+    efpic_sync_draft_favorite_order_tokens($meta);
+}
+
+function efpic_image_basename_sort_key(array $img): string
+{
+    return strtolower((string) ($img['basename'] ?? $img['filename'] ?? ''));
+}
+
+/** @param list<string> $orderTokens */
+function efpic_slideshow_insert_token_by_sort_name(array $orderTokens, string $newToken, array $meta): array
+{
+    if ($newToken === '') {
+        return $orderTokens;
+    }
+    $byToken = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $byToken[$tok] = $img;
+        }
+    }
+    $newName = efpic_image_basename_sort_key($byToken[$newToken] ?? []);
+    $insertAt = count($orderTokens);
+    foreach ($orderTokens as $i => $tok) {
+        $existingName = efpic_image_basename_sort_key($byToken[$tok] ?? []);
+        if (strnatcasecmp($newName, $existingName) < 0) {
+            $insertAt = $i;
+            break;
+        }
+    }
+    array_splice($orderTokens, $insertAt, 0, [$newToken]);
+
+    return $orderTokens;
+}
+
+/** Saglabā favorītu kārtību: esošās bildes paliek vietā, jaunas ievieto pēc faila nosaukuma. */
+function efpic_sync_draft_favorite_order_tokens(array &$meta): void
+{
+    $favorited = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        if (!efpic_image_favorited_admin($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $favorited[$tok] = true;
+        }
+    }
+
+    $storage = efpic_gallery_slideshow_storage($meta);
+    $draft = $storage['draft'];
+    $order = is_array($draft['image_order_tokens'] ?? null) ? $draft['image_order_tokens'] : [];
+
+    $newOrder = [];
+    foreach ($order as $tok) {
+        $tok = (string) $tok;
+        if ($tok !== '' && isset($favorited[$tok])) {
+            $newOrder[] = $tok;
+            unset($favorited[$tok]);
+        }
+    }
+
+    $added = array_keys($favorited);
+    usort($added, static function (string $a, string $b) use ($meta): int {
+        $byToken = [];
+        foreach ($meta['images'] ?? [] as $img) {
+            if (!is_array($img)) {
+                continue;
+            }
+            $tok = (string) ($img['token'] ?? '');
+            if ($tok !== '') {
+                $byToken[$tok] = $img;
+            }
+        }
+
+        return strnatcasecmp(
+            efpic_image_basename_sort_key($byToken[$a] ?? []),
+            efpic_image_basename_sort_key($byToken[$b] ?? []),
+        );
+    });
+    foreach ($added as $tok) {
+        $newOrder = efpic_slideshow_insert_token_by_sort_name($newOrder, $tok, $meta);
+    }
+
+    $draft['image_order_tokens'] = $newOrder;
+    $storage['draft'] = $draft;
+    efpic_gallery_persist_slideshow_storage($meta, $storage);
 }
 
 function efpic_apply_client_favorites_from_post(array &$meta): void
@@ -1580,7 +1673,12 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
         if ($id === '') {
             continue;
         }
-        efpic_apply_slideshow_ready_item_from_post($config, $slug, $item, 'slideshow_item_' . $id);
+        $prefix = 'slideshow_item_' . $id;
+        $enabledKey = $prefix . '_enabled';
+        if (array_key_exists($enabledKey, $_POST)) {
+            $item['enabled'] = efpic_post_flag_is_on($enabledKey);
+        }
+        efpic_apply_slideshow_ready_item_from_post($config, $slug, $item, $prefix);
     }
     unset($item);
     $items = array_values(array_filter($items, 'efpic_slideshow_item_is_published'));
@@ -1794,10 +1892,10 @@ function efpic_slideshow_favorite_images(array $meta, array $ctx, array $config,
     }
 
     usort($out, static function (array $a, array $b): int {
-        $na = strtolower((string) ($a['basename'] ?? $a['filename'] ?? ''));
-        $nb = strtolower((string) ($b['basename'] ?? $b['filename'] ?? ''));
-
-        return $na <=> $nb;
+        return strnatcasecmp(
+            efpic_image_basename_sort_key($a),
+            efpic_image_basename_sort_key($b),
+        );
     });
 
     return $out;

@@ -450,9 +450,16 @@ function efpic_admin_render_share_sets(array $config, array $meta): string
 function efpic_admin_render_favorite_thumb_grid(array $config, array $meta, string $who, bool $editable, bool $showNames = true): string
 {
     $ctx = ['guest_token' => '', 'share_image_tokens' => null, 'share_include_videos' => false];
-    $images = $who === 'admin'
-        ? efpic_slideshow_favorite_images($meta, $ctx, $config, 'admin')
-        : efpic_slideshow_favorite_images($meta, $ctx, $config, 'client');
+    if ($who === 'admin') {
+        $draft = efpic_gallery_slideshow_storage($meta)['draft'];
+        $order = is_array($draft['image_order_tokens'] ?? null) ? $draft['image_order_tokens'] : [];
+        $images = efpic_slideshow_sort_images_for_render(
+            efpic_slideshow_favorite_images($meta, $ctx, $config, 'admin'),
+            $order,
+        );
+    } else {
+        $images = efpic_slideshow_favorite_images($meta, $ctx, $config, 'client');
+    }
 
     $html = '<ul class="admin-fav-grid">';
     $hasAny = false;
@@ -606,11 +613,16 @@ function efpic_admin_slideshow_ready_sort_entries(array $meta): array
 
 function efpic_admin_render_slideshow_enabled_toggle(array $slot, string $prefix): string
 {
-    return efpic_render_admin_toggle('Rādīt publiskajā galerijā', !empty($slot['enabled']), [
-        'name' => $prefix . '_enabled',
+    $name = $prefix . '_enabled';
+    $enabled = !empty($slot['enabled']);
+    $html = '<input type="hidden" name="' . efpic_admin_esc($name) . '" value="' . ($enabled ? '1' : '0') . '" data-slideshow-enabled-value="1">';
+    $html .= efpic_render_admin_toggle('Rādīt publiskajā galerijā', $enabled, [
         'value' => '1',
         'class' => 'admin-slideshow-ready__toggle',
+        'input_attrs' => 'data-slideshow-enabled-toggle="1" data-slideshow-enabled-field="' . efpic_admin_esc($name) . '"',
     ]);
+
+    return $html;
 }
 
 function efpic_admin_slideshow_public_status_text(array $meta, array $slot): string
