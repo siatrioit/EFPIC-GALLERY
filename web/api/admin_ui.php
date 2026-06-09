@@ -1941,6 +1941,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<div class="admin-sticky-bar">';
     $body .= '<button type="submit" class="btn primary" name="save" value="1">Saglabāt</button>';
     if ($isEdit) {
+        $body .= '<input type="hidden" name="ready_slideshow_payload" id="ready-slideshow-payload" value="">';
         $body .= '<button type="submit" class="btn" name="sync_now" value="1">Sinhronizēt no Failiem</button>';
     }
     $body .= '</div>';

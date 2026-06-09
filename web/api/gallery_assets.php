@@ -1665,6 +1665,95 @@ function efpic_slideshow_apply_ready_move_from_post(array &$meta, string $target
     efpic_slideshow_set_ready_slot_order($meta, $entries[$swapIdx]['owner'], $entries[$swapIdx]['id'], $orderA);
 }
 
+/**
+ * Gatavo slideshow stāvoklis no JSON (formas augšā) — nepieciešams, ja POST beigas tiek nogrieztas.
+ *
+ * @param list<array<string, mixed>> $items
+ */
+function efpic_apply_ready_slideshow_payload_from_post(array &$items, array &$client): void
+{
+    $rawJson = trim((string) ($_POST['ready_slideshow_payload'] ?? ''));
+    if ($rawJson === '') {
+        return;
+    }
+    $entries = json_decode($rawJson, true);
+    if (!is_array($entries)) {
+        return;
+    }
+
+    foreach ($entries as $entry) {
+        if (!is_array($entry)) {
+            continue;
+        }
+        $owner = (string) ($entry['owner'] ?? 'admin');
+        if ($owner === 'client') {
+            $client['enabled'] = !empty($entry['enabled']);
+            if (array_key_exists('section_title', $entry)) {
+                $sectionTitle = trim((string) $entry['section_title']);
+                if (function_exists('mb_substr')) {
+                    $sectionTitle = mb_substr($sectionTitle, 0, 80);
+                } else {
+                    $sectionTitle = substr($sectionTitle, 0, 80);
+                }
+                $client['section_title'] = $sectionTitle;
+            }
+            if (array_key_exists('section_placement', $entry)) {
+                $placement = (string) $entry['section_placement'];
+                if ($placement === 'after_scene') {
+                    $placement = 'before_scene';
+                }
+                $client['section_placement'] = in_array($placement, ['top', 'bottom', 'before_scene'], true)
+                    ? $placement : 'top';
+            }
+            if (array_key_exists('section_after_scene', $entry)) {
+                $afterScene = trim((string) $entry['section_after_scene']);
+                $client['section_after_scene'] = preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene) === 1 ? $afterScene : '';
+            }
+            if (($client['section_placement'] ?? 'top') === 'before_scene' && ($client['section_after_scene'] ?? '') === '') {
+                $client['section_placement'] = 'top';
+            }
+            continue;
+        }
+
+        $id = (string) ($entry['id'] ?? '');
+        if (!efpic_gallery_slideshow_item_id_valid($id)) {
+            continue;
+        }
+        foreach ($items as $i => &$item) {
+            if ((string) ($item['id'] ?? '') !== $id) {
+                continue;
+            }
+            $item['enabled'] = !empty($entry['enabled']);
+            if (array_key_exists('section_title', $entry)) {
+                $sectionTitle = trim((string) $entry['section_title']);
+                if (function_exists('mb_substr')) {
+                    $sectionTitle = mb_substr($sectionTitle, 0, 80);
+                } else {
+                    $sectionTitle = substr($sectionTitle, 0, 80);
+                }
+                $item['section_title'] = $sectionTitle;
+            }
+            if (array_key_exists('section_placement', $entry)) {
+                $placement = (string) $entry['section_placement'];
+                if ($placement === 'after_scene') {
+                    $placement = 'before_scene';
+                }
+                $item['section_placement'] = in_array($placement, ['top', 'bottom', 'before_scene'], true)
+                    ? $placement : 'top';
+            }
+            if (array_key_exists('section_after_scene', $entry)) {
+                $afterScene = trim((string) $entry['section_after_scene']);
+                $item['section_after_scene'] = preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene) === 1 ? $afterScene : '';
+            }
+            if (($item['section_placement'] ?? 'top') === 'before_scene' && ($item['section_after_scene'] ?? '') === '') {
+                $item['section_placement'] = 'top';
+            }
+            break;
+        }
+        unset($item);
+    }
+}
+
 /** @param list<array<string, mixed>> $items */
 function efpic_apply_legacy_slideshow_admin_enabled_from_post(array &$items): void
 {
@@ -1755,8 +1844,10 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
     if (!empty($_POST['slideshow_client_ready']) || array_key_exists('slideshow_client_enabled', $_POST)) {
         efpic_apply_slideshow_ready_item_from_post($config, $slug, $client, 'slideshow_client');
     }
-    $storage['client'] = $client;
 
+    efpic_apply_ready_slideshow_payload_from_post($items, $client);
+
+    $storage['client'] = $client;
     $storage['draft'] = $draft;
     $storage['items'] = $items;
     efpic_gallery_persist_slideshow_storage($meta, $storage);
