@@ -489,7 +489,11 @@ function efpic_gallery_normalize_slideshow(array $meta): array
 
 function efpic_apply_admin_favorites_from_post(array &$meta): void
 {
-    if (!empty($_POST['autosave']) && empty($_POST['favorites_dirty'])) {
+    $hasFavPost = isset($_POST['image_fav_admin']) && is_array($_POST['image_fav_admin']);
+    if (!empty($_POST['autosave']) && empty($_POST['favorites_dirty']) && !$hasFavPost) {
+        return;
+    }
+    if (empty($_POST['autosave']) && empty($_POST['favorites_dirty']) && !$hasFavPost) {
         return;
     }
     $posted = $_POST['image_fav_admin'] ?? [];
@@ -1212,15 +1216,22 @@ function efpic_apply_slideshow_ready_item_from_post(array $config, string $slug,
 {
     $readyKey = $prefix . '_ready';
     $enabledKey = $prefix . '_enabled';
-    if (empty($_POST[$readyKey]) && !array_key_exists($enabledKey, $_POST)) {
+    $hasReady = !empty($_POST[$readyKey]);
+    $hasEnabled = array_key_exists($enabledKey, $_POST);
+    $hasPlacement = array_key_exists($prefix . '_section_title', $_POST)
+        || isset($_POST[$prefix . '_section_placement'])
+        || array_key_exists($prefix . '_section_after_scene', $_POST)
+        || array_key_exists($prefix . '_section_order', $_POST);
+
+    if (!$hasReady && !$hasEnabled && !$hasPlacement) {
         return;
     }
-    if (!empty($_POST[$readyKey])) {
-        $item['enabled'] = isset($_POST[$enabledKey]) && efpic_post_flag_is_on($enabledKey);
-    } elseif (array_key_exists($enabledKey, $_POST)) {
+
+    if ($hasEnabled) {
         $item['enabled'] = efpic_post_flag_is_on($enabledKey);
     }
-    if (empty($_POST[$readyKey])) {
+
+    if (!$hasReady && !$hasPlacement) {
         return;
     }
 
@@ -1564,14 +1575,14 @@ function efpic_apply_admin_slideshow_items_from_post(array $config, string $slug
         $draft['image_order_tokens'] = $valid;
     }
 
-    foreach ($items as $i => $item) {
+    foreach ($items as $i => &$item) {
         $id = (string) ($item['id'] ?? '');
         if ($id === '') {
             continue;
         }
         efpic_apply_slideshow_ready_item_from_post($config, $slug, $item, 'slideshow_item_' . $id);
-        $items[$i] = $item;
     }
+    unset($item);
     $items = array_values(array_filter($items, 'efpic_slideshow_item_is_published'));
 
     $client = $storage['client'];

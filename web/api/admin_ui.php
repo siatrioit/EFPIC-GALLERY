@@ -1082,9 +1082,11 @@ function efpic_admin_render_favorites_tab_grid(array $config, array $meta): stri
 
 function efpic_admin_render_composer_favorites_panel(array $config, array $meta, array $draft): string
 {
+    $favSlot = $draft;
+    $favSlot['image_source'] = 'favorites';
     $html = '<p class="muted">Favorītus atzīmē cilnē «Favorītbildes» vai Bildes cilnē. Šeit vari mainīt bilžu secību slideshow video.</p>';
 
-    return $html . efpic_admin_render_slideshow_image_grid($config, $meta, $draft, 'admin', null, 'draft', true);
+    return $html . efpic_admin_render_slideshow_image_grid($config, $meta, $favSlot, 'admin', null, 'draft', true, true);
 }
 
 /** @return array{favorites_tab_grid_html: string, composer_favorites_panel_html: string} */
@@ -1096,6 +1098,38 @@ function efpic_admin_favorites_slideshow_panels_payload(array $config, array $me
         'favorites_tab_grid_html' => efpic_admin_render_favorites_tab_grid($config, $meta),
         'composer_favorites_panel_html' => efpic_admin_render_composer_favorites_panel($config, $meta, $draft),
     ];
+}
+
+/** @return list<array{id: string, enabled: bool, public_status: string}> */
+function efpic_admin_ready_slideshow_autosave_state(array $meta): array
+{
+    $out = [];
+    $storage = efpic_gallery_slideshow_storage($meta);
+    foreach ($storage['items'] as $item) {
+        $item = efpic_slideshow_slot_with_render($item);
+        if (!efpic_slideshow_slot_video_ready($item)) {
+            continue;
+        }
+        $id = (string) ($item['id'] ?? '');
+        if ($id === '') {
+            continue;
+        }
+        $out[] = [
+            'id' => $id,
+            'enabled' => !empty($item['enabled']),
+            'public_status' => efpic_admin_slideshow_public_status_text($meta, $item),
+        ];
+    }
+    $client = efpic_slideshow_slot_with_render($storage['client']);
+    if (efpic_slideshow_slot_video_ready($client)) {
+        $out[] = [
+            'id' => 'client',
+            'enabled' => !empty($client['enabled']),
+            'public_status' => efpic_admin_slideshow_public_status_text($meta, $client),
+        ];
+    }
+
+    return $out;
 }
 
 function efpic_admin_render_favorites_fieldset(array $config, array $meta): string
