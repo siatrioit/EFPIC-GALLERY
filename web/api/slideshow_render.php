@@ -338,12 +338,7 @@ function efpic_slideshow_persist_slot_ref(array &$meta, string $owner, array $st
 function efpic_slideshow_sort_images_for_render(array $images, array $orderTokens): array
 {
     if ($orderTokens === []) {
-        usort($images, static function (array $a, array $b): int {
-            $na = strtolower((string) ($a['basename'] ?? $a['filename'] ?? ''));
-            $nb = strtolower((string) ($b['basename'] ?? $b['filename'] ?? ''));
-
-            return $na <=> $nb;
-        });
+        usort($images, 'efpic_compare_image_basenames');
 
         return $images;
     }
@@ -371,17 +366,11 @@ function efpic_slideshow_sort_images_for_render(array $images, array $orderToken
             $remaining[] = $img;
         }
     }
-    usort($remaining, static function (array $a, array $b): int {
-        return strnatcasecmp(
-            efpic_image_basename_sort_key($a),
-            efpic_image_basename_sort_key($b),
-        );
-    });
+    usort($remaining, 'efpic_compare_image_basenames');
     foreach ($remaining as $img) {
-        $newName = efpic_image_basename_sort_key($img);
         $insertAt = count($out);
         foreach ($out as $i => $existing) {
-            if (strnatcasecmp($newName, efpic_image_basename_sort_key($existing)) < 0) {
+            if (efpic_compare_image_basenames($img, $existing) < 0) {
                 $insertAt = $i;
                 break;
             }

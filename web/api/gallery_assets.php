@@ -513,11 +513,6 @@ function efpic_apply_admin_favorites_from_post(array &$meta): void
     efpic_sync_draft_favorite_order_tokens($meta);
 }
 
-function efpic_image_basename_sort_key(array $img): string
-{
-    return strtolower((string) ($img['basename'] ?? $img['filename'] ?? ''));
-}
-
 /** @param list<string> $orderTokens */
 function efpic_slideshow_insert_token_by_sort_name(array $orderTokens, string $newToken, array $meta): array
 {
@@ -534,11 +529,10 @@ function efpic_slideshow_insert_token_by_sort_name(array $orderTokens, string $n
             $byToken[$tok] = $img;
         }
     }
-    $newName = efpic_image_basename_sort_key($byToken[$newToken] ?? []);
+    $newImg = $byToken[$newToken] ?? [];
     $insertAt = count($orderTokens);
     foreach ($orderTokens as $i => $tok) {
-        $existingName = efpic_image_basename_sort_key($byToken[$tok] ?? []);
-        if (strnatcasecmp($newName, $existingName) < 0) {
+        if (efpic_compare_image_basenames($newImg, $byToken[$tok] ?? []) < 0) {
             $insertAt = $i;
             break;
         }
@@ -578,23 +572,19 @@ function efpic_sync_draft_favorite_order_tokens(array &$meta): void
         }
     }
 
-    $added = array_keys($favorited);
-    usort($added, static function (string $a, string $b) use ($meta): int {
-        $byToken = [];
-        foreach ($meta['images'] ?? [] as $img) {
-            if (!is_array($img)) {
-                continue;
-            }
-            $tok = (string) ($img['token'] ?? '');
-            if ($tok !== '') {
-                $byToken[$tok] = $img;
-            }
+    $byToken = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
         }
-
-        return strnatcasecmp(
-            efpic_image_basename_sort_key($byToken[$a] ?? []),
-            efpic_image_basename_sort_key($byToken[$b] ?? []),
-        );
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $byToken[$tok] = $img;
+        }
+    }
+    $added = array_keys($favorited);
+    usort($added, static function (string $a, string $b) use ($byToken): int {
+        return efpic_compare_image_basenames($byToken[$a] ?? [], $byToken[$b] ?? []);
     });
     foreach ($added as $tok) {
         $newOrder = efpic_slideshow_insert_token_by_sort_name($newOrder, $tok, $meta);
@@ -1891,12 +1881,7 @@ function efpic_slideshow_favorite_images(array $meta, array $ctx, array $config,
         $out[] = $img;
     }
 
-    usort($out, static function (array $a, array $b): int {
-        return strnatcasecmp(
-            efpic_image_basename_sort_key($a),
-            efpic_image_basename_sort_key($b),
-        );
-    });
+    usort($out, 'efpic_compare_image_basenames');
 
     return $out;
 }
