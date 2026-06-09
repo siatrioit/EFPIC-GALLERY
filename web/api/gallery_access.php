@@ -1128,4 +1128,9 @@ function efpic_can_download_collection_zip(array $meta, array $ctx, string $size
     return in_array($size, ['web', 'full'], true) && efpic_can_download_size($meta, $ctx, $size);
 }
 
+function efpic_can_download_scene_zip(array $meta, array $ctx, string $size): bool
+{
+    return efpic_can_download_collection_zip($meta, $ctx, $size);
+}
+
 require_once __DIR__ . '/cover_theme.php';

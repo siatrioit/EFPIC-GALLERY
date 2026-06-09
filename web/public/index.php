@@ -81,6 +81,10 @@ try {
         efpic_handle_client_collection_zip($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/scene/([a-zA-Z0-9_-]+)/zip$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_scene_zip($config, strtolower($m[1]), $m[2]);
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/collection/toggle$#i', $uri, $m) && $method === 'POST') {
         efpic_handle_client_collection_toggle($config, strtolower($m[1]));
     }

@@ -66,7 +66,7 @@
   }
 
   function showCopied() {
-    if (copiedEl) copiedEl.textContent = 'Saite nokop─ōta';
+    if (copiedEl) copiedEl.textContent = 'Saite nokopēta';
   }
 
   function tryNativeShare(evt) {
@@ -109,6 +109,7 @@
     closeZipProgress();
     closeGalleryDlModal();
     closeCollectionDlModal();
+    closeSceneDlModal();
   });
 
   var dlModal = document.getElementById('downloadModal');
@@ -156,11 +157,14 @@
 
   var gdlModal = document.getElementById('galleryDownloadModal');
   var cdlModal = document.getElementById('collectionDownloadModal');
+  var sdlModal = document.getElementById('sceneDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
   var ZIP_DONE_HINT =
-    'Skaties p─ürl┼½kprogrammas lejupiel─üd─ōs. Lieliem arh─½viem lejupiel─üde var aiz┼åemt ilg─üku laiku.';
+    'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem lejupielāde var aizņemt ilgāku laiku.';
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
   var zipFetchAbort = null;
+  var activeSceneId = '';
+  var activeSceneTitle = '';
 
   function setZipProgressUi(opts) {
     var spinner = document.getElementById('zipProgressSpinner');
@@ -184,8 +188,8 @@
     setZipProgressUi({
       loading: true,
       success: false,
-      title: title || 'Sagatavo lejupiel─üdiŌĆ”',
-      hint: hint || 'L┼½dzu uzgaidietŌĆ”',
+      title: title || 'Sagatavo lejupielādi…',
+      hint: hint || 'Lūdzu uzgaidiet…',
     });
   }
 
@@ -202,8 +206,8 @@
     setZipProgressUi({
       loading: false,
       success: false,
-      title: 'Lejupiel─üde neizdev─üs',
-      hint: hint || 'Neizdev─üs lejupiel─üd─ōt.',
+      title: 'Lejupielāde neizdevās',
+      hint: hint || 'Neizdevās lejupielādēt.',
     });
   }
 
@@ -215,7 +219,7 @@
     if (!zipProgressModal) return;
     zipProgressModal.hidden = true;
     zipProgressModal.classList.remove('is-success');
-    if ((!gdlModal || gdlModal.hidden) && (!cdlModal || cdlModal.hidden)) {
+    if ((!gdlModal || gdlModal.hidden) && (!cdlModal || cdlModal.hidden) && (!sdlModal || sdlModal.hidden)) {
       document.body.style.overflow = '';
     }
   }
@@ -249,8 +253,32 @@
     if (!cdlModal) return;
     cdlModal.hidden = true;
     if (!gdlModal || gdlModal.hidden) {
-      if (!zipProgressModal || zipProgressModal.hidden) {
-        document.body.style.overflow = '';
+      if (!sdlModal || sdlModal.hidden) {
+        if (!zipProgressModal || zipProgressModal.hidden) {
+          document.body.style.overflow = '';
+        }
+      }
+    }
+  }
+
+  function openSceneDlModal() {
+    if (!sdlModal || !activeSceneId) return;
+    var titleEl = document.getElementById('sceneDownloadModalTitle');
+    var kickerEl = document.getElementById('sceneDownloadModalKicker');
+    if (titleEl) titleEl.textContent = activeSceneTitle || 'Sadaļa';
+    if (kickerEl) kickerEl.textContent = 'Lejupielādēt visas šīs sadaļas bildes';
+    sdlModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeSceneDlModal() {
+    if (!sdlModal) return;
+    sdlModal.hidden = true;
+    if (!gdlModal || gdlModal.hidden) {
+      if (!cdlModal || cdlModal.hidden) {
+        if (!zipProgressModal || zipProgressModal.hidden) {
+          document.body.style.overflow = '';
+        }
       }
     }
   }
@@ -259,7 +287,7 @@
     var titleEl = document.getElementById('collectionDownloadModalTitle');
     if (!titleEl) return;
     titleEl.textContent =
-      count === 1 ? 'Atlas─½t─ü (1) bilde' : 'Atlas─½t─üs (' + count + ') bildes';
+      count === 1 ? 'Atlasītā (1) bilde' : 'Atlasītās (' + count + ') bildes';
   }
 
   function triggerBlobDownload(blob, filename) {
@@ -277,12 +305,12 @@
   }
 
   function humanZipError(text) {
-    if (!text) return 'Neizdev─üs lejupiel─üd─ōt.';
+    if (!text) return 'Neizdevās lejupielādēt.';
     if (text.indexOf('<') >= 0 || text.indexOf('Internal Server Error') >= 0) {
-      return 'Servera timeout ŌĆö izmanto tie┼Īo Failiem lejupiel─üdi (WEB/PRINT pogas).';
+      return 'Servera timeout — izmanto tiešo Failiem lejupielādi (WEB/PRINT pogas).';
     }
     if (text.length > 200) {
-      return text.slice(0, 200) + 'ŌĆ”';
+      return text.slice(0, 200) + '…';
     }
     return text;
   }
@@ -294,14 +322,14 @@
 
   function downloadFailiemZip(failiemUrl, hint, doneTitle) {
     if (!failiemUrl) return;
-    openZipProgressLoading('Sagatavo lejupiel─üdiŌĆ”', hint || 'Lejupiel─üde s─ükas no Failiem.lvŌĆ”');
+    openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
     triggerBrowserDownload(failiemUrl);
-    showZipProgressDone(doneTitle || 'Lejupiel─üde s─ükta', ZIP_DONE_HINT);
+    showZipProgressDone(doneTitle || 'Lejupielāde sākta', ZIP_DONE_HINT);
   }
 
   function downloadServerZip(url, filename, hint) {
     if (!url) return;
-    openZipProgressLoading('Sagatavo lejupiel─üdiŌĆ”', hint || 'Veido ZIP arh─½vuŌĆ”');
+    openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Veido ZIP arhīvu…');
     zipFetchAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var fetchOpts = { credentials: 'same-origin' };
     if (zipFetchAbort) fetchOpts.signal = zipFetchAbort.signal;
@@ -317,7 +345,7 @@
       .then(function (blob) {
         zipFetchAbort = null;
         triggerBlobDownload(blob, filename || 'galerija.zip');
-        showZipProgressDone('Lejupiel─üde gatava', 'ZIP fails saglab─üts.');
+        showZipProgressDone('Lejupielāde gatava', 'ZIP fails saglabāts.');
       })
       .catch(function (err) {
         zipFetchAbort = null;
@@ -326,26 +354,34 @@
       });
   }
 
-  function startZipDownload(scope, size) {
+  function startZipDownload(scope, size, sceneId) {
     if (!gdlBase) return;
     closeGalleryDlModal();
     closeCollectionDlModal();
-    var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
+    closeSceneDlModal();
+    var path = '/download.zip';
+    if (scope === 'collection') {
+      path = '/collection/zip';
+    } else if (scope === 'scene' && sceneId) {
+      path = '/scene/' + encodeURIComponent(sceneId) + '/zip';
+    }
     var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
-    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasiŌĆ”' : 'Sagatavo lejupiel─üdiŌĆ”';
+    var loadingTitle = 'Sagatavo lejupielādi…';
+    if (scope === 'collection') loadingTitle = 'Sagatavo izlasi…';
+    if (scope === 'scene') loadingTitle = 'Sagatavo sadaļu…';
     var usesFolderZip =
       scope === 'all' &&
       (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1');
 
     if (usesFolderZip) {
-      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIPŌĆ”');
+      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIP…');
       triggerBrowserDownload(downloadUrl);
       return;
     }
 
     openZipProgressLoading(
       loadingTitle,
-      'Failiem sagatavo ZIP no redzamaj─üm bild─ōm. Lielai galerijai tas var aiz┼åemt l─½dz 1ŌĆō2 min┼½t─ōm ŌĆö neaizveriet ┼Īo logu.'
+      'Failiem sagatavo ZIP no redzamajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — neaizveriet šo logu.'
     );
     fetch(downloadUrl + '&prepare=1', {
       credentials: 'same-origin',
@@ -354,23 +390,23 @@
       .then(function (res) {
         return res.json().then(function (data) {
           if (!res.ok || !data || !data.ok) {
-            throw new Error((data && data.error) || 'Neizdev─üs sagatavot lejupiel─üdi');
+            throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
           }
           return data;
         });
       })
       .then(function (data) {
         if (data.mode === 'failiem' && data.url) {
-          showZipProgressDone('Lejupiel─üde s─ükta', ZIP_DONE_HINT);
+          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
           triggerBrowserDownload(data.url);
           return;
         }
         if (data.mode === 'stream_ready') {
-          showZipProgressDone('Lejupiel─üde s─ükta', ZIP_DONE_HINT);
+          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
           triggerBrowserDownload(downloadUrl + '&dl=1');
           return;
         }
-        throw new Error('Neatbalst─½ts lejupiel─üdes re┼Š─½ms');
+        throw new Error('Neatbalstīts lejupielādes režīms');
       })
       .catch(function (err) {
         showZipProgressError(humanZipError(err && err.message ? err.message : ''));
@@ -405,6 +441,10 @@
     btn.addEventListener('click', closeCollectionDlModal);
   });
 
+  document.querySelectorAll('[data-sdl-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeSceneDlModal);
+  });
+
   document.querySelectorAll('[data-zip-progress-ok]').forEach(function (btn) {
     btn.addEventListener('click', closeZipProgress);
   });
@@ -421,6 +461,21 @@
     });
   }
 
+  if (sdlModal) {
+    sdlModal.addEventListener('click', function (evt) {
+      if (evt.target === sdlModal) closeSceneDlModal();
+    });
+  }
+
+  document.addEventListener('click', function (evt) {
+    var sceneBtn = evt.target && evt.target.closest ? evt.target.closest('[data-scene-dl-open]') : null;
+    if (!sceneBtn) return;
+    evt.preventDefault();
+    activeSceneId = sceneBtn.getAttribute('data-scene-id') || '';
+    activeSceneTitle = sceneBtn.getAttribute('data-scene-title') || 'Sadaļa';
+    openSceneDlModal();
+  });
+
   document.querySelectorAll('[data-gdl-scope="all"][data-gdl-size]').forEach(function (btn) {
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
@@ -435,6 +490,14 @@
       evt.preventDefault();
       var size = btn.getAttribute('data-cdl-size') || 'web';
       startZipDownload('collection', size);
+    });
+  });
+
+  document.querySelectorAll('[data-sdl-size]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      var size = btn.getAttribute('data-sdl-size') || 'web';
+      startZipDownload('scene', size, activeSceneId);
     });
   });
 
@@ -632,7 +695,7 @@
     return estimated;
   }
 
-  /** Cik kolonnu platuma bilde aiz┼åem (1ŌĆō3), mosaic layout. Span tikai kad zin─ümi patiesie izm─ōri. */
+  /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. Span tikai kad zināmi patiesie izmēri. */
   function pickColumnSpan(aspect, index, columns, img) {
     if (columns <= 1) {
       return 1;
@@ -1118,7 +1181,7 @@
         '<strong id="collectionTrayCount">' +
         count +
         '</strong> ' +
-        (count === 1 ? 'bilde izv─ōl─ōta' : 'bildes izv─ōl─ōtas');
+        (count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas');
     }
     tray.hidden = count <= 0;
     tray.classList.toggle('is-visible', count > 0);
