@@ -37,13 +37,13 @@ function efpic_portal_logged_in(string $portalToken): bool
 function efpic_portal_require_auth(array $config, string $portalToken, array $found): void
 {
     $meta = $found['meta'];
-    $hash = (string) ($meta['client_access']['password_hash'] ?? '');
-    if ($hash === '' && efpic_portal_logged_in($portalToken)) {
+    $hasPassword = efpic_client_portal_has_password($meta);
+    if (!$hasPassword && efpic_portal_logged_in($portalToken)) {
         return;
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['portal_password'])) {
-        if ($hash === '' || efpic_verify_password_hash((string) $_POST['portal_password'], $hash)) {
+        if (!$hasPassword || efpic_verify_client_portal_password($meta, (string) $_POST['portal_password'])) {
             efpic_client_session_start();
             $_SESSION[efpic_portal_session_key($portalToken)] = true;
             header('Location: ' . efpic_portal_url($config, $portalToken));
@@ -51,12 +51,13 @@ function efpic_portal_require_auth(array $config, string $portalToken, array $fo
         }
     }
 
-    if (!efpic_portal_logged_in($portalToken) && $hash !== '') {
-        efpic_portal_render_login($config, $found, true);
+    if (!efpic_portal_logged_in($portalToken) && $hasPassword) {
+        $loginFailed = $_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['portal_password']);
+        efpic_portal_render_login($config, $found, $loginFailed);
         exit;
     }
 
-    if ($hash === '') {
+    if (!$hasPassword) {
         efpic_client_session_start();
         $_SESSION[efpic_portal_session_key($portalToken)] = true;
     }
@@ -129,6 +130,9 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     if ($method === 'POST' && !empty($_POST['portal_share_api'])) {
         header('Content-Type: application/json; charset=utf-8');
+        if (!efpic_client_portal_section_enabled($meta, 'share')) {
+            efpic_json_response(403, ['ok' => false, 'error' => 'Kopīgošanas sadaļa nav pieejama.']);
+        }
         try {
             if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
                 efpic_apply_share_actions_from_post($meta, 'client');
@@ -152,6 +156,12 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if ($method === 'POST' && isset($_POST['portal_action'])) {
         $action = (string) $_POST['portal_action'];
         $imageToken = (string) ($_POST['image_token'] ?? '');
+        $actionSection = efpic_portal_action_section($action);
+        if ($actionSection !== null && !efpic_client_portal_section_enabled($meta, $actionSection)) {
+            $_SESSION['efpic_portal_flash'] = 'Šī sadaļa nav pieejama.';
+            header('Location: ' . efpic_portal_url($config, $portalToken));
+            exit;
+        }
 
         try {
             match ($action) {
@@ -222,6 +232,11 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     efpic_regenerate_gallery_public_token($meta);
                     efpic_save_gallery_meta($config, $slug, $meta);
                     $_SESSION['efpic_portal_flash'] = 'Jauna publiskā saite ir gatava. Vecā saite un ar to saistītās kopīgošanas saites vairs nedarbojas.';
+                })(),
+                'save_passwords' => (function () use ($config, $slug, &$meta) {
+                    efpic_apply_gallery_passwords_from_post($meta);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                    $_SESSION['efpic_portal_flash'] = 'Paroles saglabātas.';
                 })(),
                 'add_comment' => (function () use ($config, $slug, &$meta, $imageToken) {
                     if (!efpic_client_comments_enabled($meta)) {
@@ -314,9 +329,20 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $commentsEnabled = efpic_client_comments_enabled($meta);
     $heroAccent = efpic_client_hero_accent_color($meta);
     $pageBg = efpic_client_page_bg_color($config, $meta);
+    $portalSections = efpic_client_portal_sections($meta);
+    $firstPanelId = null;
+    foreach (efpic_client_portal_nav_items() as $navItem) {
+        if (!empty($portalSections[$navItem['section']])) {
+            $firstPanelId = $navItem['id'];
+            break;
+        }
+    }
+    if ($firstPanelId === null) {
+        $firstPanelId = 'admin-tab-settings';
+    }
 
     $body = '<div class="admin-shell admin-shell--portal">';
-    $body .= efpic_portal_render_sidebar($name, $config, $gt);
+    $body .= efpic_portal_render_sidebar($name, $config, $gt, $meta);
     $body .= '<div class="admin-workspace">';
     $body .= '<header class="admin-page-head admin-page-head--portal">';
     $body .= '<h1>' . efpic_client_esc($name) . '</h1>';
@@ -327,36 +353,46 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= '<p class="admin-flash">' . efpic_client_esc($flash) . '</p>';
     }
 
-    $body .= efpic_admin_tab_panel_open('admin-tab-images', true);
-    $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
-    $body .= '<span class="admin-share-edit-bar__label" id="admin-share-edit-bar-label"></span>';
-    $body .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-edit-save">Saglabāt izlasi</button>';
-    $body .= '<button type="button" class="btn admin-btn-sm" id="admin-share-edit-cancel">Atcelt</button>';
-    $body .= '</div>';
-    $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled);
-    $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
-    $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
-    $body .= '<img src="" alt=""></div>';
-    $body .= efpic_admin_tab_panel_close();
+    if (!empty($portalSections['images'])) {
+        $body .= efpic_admin_tab_panel_open('admin-tab-images', $firstPanelId === 'admin-tab-images');
+        $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
+        $body .= '<span class="admin-share-edit-bar__label" id="admin-share-edit-bar-label"></span>';
+        $body .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-edit-save">Saglabāt izlasi</button>';
+        $body .= '<button type="button" class="btn admin-btn-sm" id="admin-share-edit-cancel">Atcelt</button>';
+        $body .= '</div>';
+        $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled);
+        $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
+        $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
+        $body .= '<img src="" alt=""></div>';
+        $body .= efpic_admin_tab_panel_close();
+    }
 
-    $body .= efpic_admin_tab_panel_open('admin-tab-scenes');
-    $body .= efpic_portal_render_scenes_panel($meta);
-    $body .= efpic_admin_tab_panel_close();
+    if (!empty($portalSections['scenes'])) {
+        $body .= efpic_admin_tab_panel_open('admin-tab-scenes', $firstPanelId === 'admin-tab-scenes');
+        $body .= efpic_portal_render_scenes_panel($meta);
+        $body .= efpic_admin_tab_panel_close();
+    }
 
-    $body .= efpic_admin_tab_panel_open('admin-tab-theme');
-    $body .= efpic_portal_render_theme_panel($config, $meta, $theme, $heroAccent, $pageBg);
-    $body .= efpic_admin_tab_panel_close();
+    if (!empty($portalSections['theme'])) {
+        $body .= efpic_admin_tab_panel_open('admin-tab-theme', $firstPanelId === 'admin-tab-theme');
+        $body .= efpic_portal_render_theme_panel($config, $meta, $theme, $heroAccent, $pageBg);
+        $body .= efpic_admin_tab_panel_close();
+    }
 
-    $body .= efpic_admin_tab_panel_open('admin-tab-share');
-    $body .= efpic_admin_render_share_sets($config, $meta);
-    $body .= efpic_admin_tab_panel_close();
+    if (!empty($portalSections['share'])) {
+        $body .= efpic_admin_tab_panel_open('admin-tab-share', $firstPanelId === 'admin-tab-share');
+        $body .= efpic_admin_render_share_sets($config, $meta);
+        $body .= efpic_admin_tab_panel_close();
+    }
 
-    $body .= efpic_admin_tab_panel_open('admin-tab-media');
-    $body .= efpic_portal_render_favorites_and_slideshow($config, $meta, $gt, $slideshow, $favCount, $slug);
-    $body .= efpic_portal_render_videos_fieldset($config, $meta, $gt);
-    $body .= efpic_admin_tab_panel_close();
+    if (!empty($portalSections['media'])) {
+        $body .= efpic_admin_tab_panel_open('admin-tab-media', $firstPanelId === 'admin-tab-media');
+        $body .= efpic_portal_render_favorites_and_slideshow($config, $meta, $gt, $slideshow, $favCount, $slug);
+        $body .= efpic_portal_render_videos_fieldset($config, $meta, $gt);
+        $body .= efpic_admin_tab_panel_close();
+    }
 
-    $body .= efpic_admin_tab_panel_open('admin-tab-settings');
+    $body .= efpic_admin_tab_panel_open('admin-tab-settings', $firstPanelId === 'admin-tab-settings');
     $publicUrl = efpic_gallery_view_url($config, $gt);
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Publiskā galerijas saite</h2>';
     $body .= '<p class="muted">Šo saiti vari kopīgot ar viesiem. Ja tā nonāk pie nepareiziem cilvēkiem, vari izveidot jaunu — '
@@ -380,6 +416,22 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         'name' => 'disable_public_download_all_full',
     ]);
     $body .= '<button type="submit" class="btn primary">Saglabāt</button></form></section>';
+
+    $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Paroles</h2>';
+    $body .= '<p class="muted">Galerijas parole aizsargā publisko saiti apmeklētājiem. Klienta paneļa parole aizsargā šo paneli. Atstāj tukšu, lai noņemtu paroli.</p>';
+    $body .= '<form method="post" class="portal-stack">';
+    $body .= '<input type="hidden" name="portal_action" value="save_passwords">';
+    $body .= efpic_admin_render_password_field(
+        'Galerijas parole',
+        'gallery_password',
+        efpic_gallery_password_plain($meta),
+    );
+    $body .= efpic_admin_render_password_field(
+        'Klienta paneļa parole',
+        'client_password',
+        efpic_client_portal_password_plain($meta),
+    );
+    $body .= '<button type="submit" class="btn primary">Saglabāt paroles</button></form></section>';
     $body .= efpic_admin_tab_panel_close();
 
     $body .= '</main></div></div>';
@@ -596,15 +648,15 @@ function efpic_portal_render_videos_fieldset(array $config, array $meta, string 
     return $html;
 }
 
-function efpic_portal_render_sidebar(string $name, array $config, string $galleryToken): string
+function efpic_portal_render_sidebar(string $name, array $config, string $galleryToken, array $meta): string
 {
-    $nav = [
-        ['id' => 'admin-tab-images', 'label' => 'Bildes'],
-        ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas'],
-        ['id' => 'admin-tab-theme', 'label' => 'Tēma'],
-        ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
-        ['id' => 'admin-tab-media', 'label' => 'Slideshow & video'],
-    ];
+    $sections = efpic_client_portal_sections($meta);
+    $nav = [];
+    foreach (efpic_client_portal_nav_items() as $item) {
+        if (!empty($sections[$item['section']])) {
+            $nav[] = $item;
+        }
+    }
 
     $html = '<button type="button" class="admin-sidebar-reopen" id="adminSidebarReopen" hidden aria-label="Atvērt izvēlni">';
     $html .= '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>';
@@ -617,8 +669,8 @@ function efpic_portal_render_sidebar(string $name, array $config, string $galler
     $html .= '</button></div>';
     $html .= '<nav class="admin-nav admin-nav--portal" role="tablist" aria-label="Panelis">';
     foreach ($nav as $i => $item) {
-        $active = $i === 0 ? ' active' : '';
-        $selected = $i === 0 ? 'true' : 'false';
+        $active = $i === 0 && $nav !== [] ? ' active' : '';
+        $selected = $i === 0 && $nav !== [] ? 'true' : 'false';
         $html .= '<button type="button" class="admin-nav-tab' . $active . '" role="tab" id="'
             . efpic_client_esc($item['id']) . '-tab" aria-selected="' . $selected . '" aria-controls="'
             . efpic_client_esc($item['id']) . '" data-admin-tab="' . efpic_client_esc($item['id']) . '">'

@@ -481,6 +481,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'type' => $type,
         'name' => '',
         'gallery_token' => efpic_random_hex(24),
+        'password' => '',
         'password_hash' => '',
         'restrict_gallery_from_single_link' => false,
         'theme' => $type === 'delivery' ? 'efpic-modern' : 'efpic-classic',
@@ -542,6 +543,13 @@ function efpic_gallery_defaults(string $type = 'live'): array
             ],
             'disable_public_download_all_web' => false,
             'disable_public_download_all_full' => false,
+            'client_portal_sections' => [
+                'images' => true,
+                'scenes' => true,
+                'theme' => true,
+                'share' => true,
+                'media' => true,
+            ],
         ],
         'analytics' => [
             'views' => 0,
@@ -561,6 +569,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         ],
         'client_access' => [
             'email' => '',
+            'password' => '',
             'password_hash' => '',
             'portal_token' => efpic_random_hex(24),
         ],
@@ -710,6 +719,64 @@ function efpic_gallery_settings(array $meta): array
 function efpic_client_comments_enabled(array $meta): bool
 {
     return !empty(efpic_gallery_settings($meta)['client_comments_enabled']);
+}
+
+/** @return array{images: bool, scenes: bool, theme: bool, share: bool, media: bool} */
+function efpic_client_portal_section_defaults(): array
+{
+    return [
+        'images' => true,
+        'scenes' => true,
+        'theme' => true,
+        'share' => true,
+        'media' => true,
+    ];
+}
+
+/** @return array{images: bool, scenes: bool, theme: bool, share: bool, media: bool} */
+function efpic_client_portal_sections(array $meta): array
+{
+    $defaults = efpic_client_portal_section_defaults();
+    $raw = efpic_gallery_settings($meta)['client_portal_sections'] ?? [];
+    if (!is_array($raw)) {
+        return $defaults;
+    }
+    $out = [];
+    foreach ($defaults as $key => $defaultOn) {
+        $out[$key] = array_key_exists($key, $raw) ? !empty($raw[$key]) : $defaultOn;
+    }
+
+    return $out;
+}
+
+function efpic_client_portal_section_enabled(array $meta, string $section): bool
+{
+    $sections = efpic_client_portal_sections($meta);
+
+    return !empty($sections[$section]);
+}
+
+/** @return list<array{id: string, label: string, section: string}> */
+function efpic_client_portal_nav_items(): array
+{
+    return [
+        ['id' => 'admin-tab-images', 'label' => 'Bildes', 'section' => 'images'],
+        ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas', 'section' => 'scenes'],
+        ['id' => 'admin-tab-theme', 'label' => 'Tēma', 'section' => 'theme'],
+        ['id' => 'admin-tab-share', 'label' => 'Kopīgošana', 'section' => 'share'],
+        ['id' => 'admin-tab-media', 'label' => 'Slideshow & video', 'section' => 'media'],
+    ];
+}
+
+function efpic_portal_action_section(string $action): ?string
+{
+    return match ($action) {
+        'toggle_hidden', 'toggle_favorite', 'add_comment' => 'images',
+        'save_scenes' => 'scenes',
+        'set_theme', 'save_gallery_colors', 'save_cover_theme' => 'theme',
+        'save_slideshow', 'save_videos', 'upload_video', 'add_video_embed' => 'media',
+        default => null,
+    };
 }
 
 function efpic_gallery_expired(array $meta): bool

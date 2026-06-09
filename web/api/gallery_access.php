@@ -293,14 +293,134 @@ function efpic_client_session_start(): void
     }
 }
 
+function efpic_gallery_password_plain(array $meta): string
+{
+    return trim((string) ($meta['password'] ?? ''));
+}
+
 function efpic_gallery_has_password(array $meta): bool
 {
+    if (efpic_gallery_password_plain($meta) !== '') {
+        return true;
+    }
+
     return ($meta['password_hash'] ?? '') !== '';
 }
 
 function efpic_verify_gallery_password(array $meta, string $password): bool
 {
+    $plain = efpic_gallery_password_plain($meta);
+    if ($plain !== '') {
+        return hash_equals($plain, $password);
+    }
+
     return efpic_verify_password_hash($password, (string) ($meta['password_hash'] ?? ''));
+}
+
+function efpic_set_gallery_password(array &$meta, string $password): void
+{
+    $password = trim($password);
+    if ($password === '') {
+        $meta['password'] = '';
+        $meta['password_hash'] = '';
+
+        return;
+    }
+    $meta['password'] = $password;
+    $meta['password_hash'] = efpic_hash_password($password);
+}
+
+function efpic_client_portal_password_plain(array $meta): string
+{
+    $access = $meta['client_access'] ?? [];
+
+    return is_array($access) ? trim((string) ($access['password'] ?? '')) : '';
+}
+
+function efpic_client_portal_has_password(array $meta): bool
+{
+    if (efpic_client_portal_password_plain($meta) !== '') {
+        return true;
+    }
+    $access = $meta['client_access'] ?? [];
+
+    return is_array($access) && ($access['password_hash'] ?? '') !== '';
+}
+
+function efpic_verify_client_portal_password(array $meta, string $password): bool
+{
+    $plain = efpic_client_portal_password_plain($meta);
+    if ($plain !== '') {
+        return hash_equals($plain, $password);
+    }
+    $access = $meta['client_access'] ?? [];
+    $hash = is_array($access) ? (string) ($access['password_hash'] ?? '') : '';
+
+    return $hash !== '' && efpic_verify_password_hash($password, $hash);
+}
+
+function efpic_set_client_portal_password(array &$meta, string $password): void
+{
+    if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+        $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+    }
+    $password = trim($password);
+    if ($password === '') {
+        $meta['client_access']['password'] = '';
+        $meta['client_access']['password_hash'] = '';
+
+        return;
+    }
+    $meta['client_access']['password'] = $password;
+    $meta['client_access']['password_hash'] = efpic_hash_password($password);
+}
+
+/** @param array<string, mixed> $meta */
+function efpic_apply_gallery_passwords_from_post(array &$meta): void
+{
+    if (array_key_exists('gallery_password', $_POST)) {
+        efpic_set_gallery_password($meta, (string) $_POST['gallery_password']);
+    }
+    if (array_key_exists('client_password', $_POST)) {
+        efpic_set_client_portal_password($meta, (string) $_POST['client_password']);
+    }
+    if (array_key_exists('client_email', $_POST)) {
+        if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+            $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+        }
+        $meta['client_access']['email'] = trim((string) $_POST['client_email']);
+    }
+}
+
+/** @param array<string, mixed> $meta */
+function efpic_apply_client_portal_sections_from_post(array &$meta): void
+{
+    if (!array_key_exists('client_portal_section_images', $_POST)) {
+        return;
+    }
+    if (!isset($meta['settings']) || !is_array($meta['settings'])) {
+        $meta['settings'] = efpic_gallery_defaults('delivery')['settings'];
+    }
+    $sections = [];
+    foreach (efpic_client_portal_section_defaults() as $key => $_) {
+        $sections[$key] = efpic_post_flag_is_on('client_portal_section_' . $key);
+    }
+    $meta['settings']['client_portal_sections'] = $sections;
+}
+
+function efpic_admin_render_password_field(string $label, string $name, string $value, string $hint = ''): string
+{
+    $html = '<label>' . htmlspecialchars($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $html .= '<input type="text" name="' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '"'
+        . ' class="admin-password-field admin-no-autosave" value="'
+        . htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" autocomplete="off"'
+        . ' placeholder="Tukšs = bez paroles">';
+    $html .= '</label>';
+    if ($hint !== '') {
+        $html .= '<p class="muted">' . htmlspecialchars($hint, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
+    }
+
+    return $html;
 }
 
 function efpic_gallery_session_unlocked(string $galleryToken): bool

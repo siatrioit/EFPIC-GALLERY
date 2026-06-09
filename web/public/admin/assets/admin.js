@@ -520,6 +520,9 @@
     syncSlideshowAudioOrderField();
     syncReadySlideshowPayload();
     var fd = new FormData(form);
+    form.querySelectorAll('.admin-no-autosave').forEach(function (el) {
+      if (el.name) fd.delete(el.name);
+    });
 
     var toast = document.getElementById('admin-autosave-toast');
     if (toast) {

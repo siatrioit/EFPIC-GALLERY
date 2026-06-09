@@ -1791,10 +1791,10 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
         $meta['cover_from_favorites'] = !empty($_POST['cover_from_favorites']);
 
-        $gp = (string) ($_POST['gallery_password'] ?? '');
-        if ($gp !== '') {
-            $meta['password_hash'] = efpic_hash_password($gp);
+        if (empty($_POST['autosave'])) {
+            efpic_apply_gallery_passwords_from_post($meta);
         }
+        efpic_apply_client_portal_sections_from_post($meta);
 
         $meta['failiem']['folder_parent_url'] = trim((string) ($_POST['folder_parent_url'] ?? ''));
         $meta['failiem']['folder_parent_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_parent_url']);
@@ -2030,13 +2030,39 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $eventDate = date('Y-m-d');
     }
     $body .= '<label>Datums (obligāts)<input name="event_date" type="date" required value="' . efpic_admin_esc($eventDate) . '"></label>';
-    $body .= '<label>Galerijas parole (jauna)<input type="password" name="gallery_password" autocomplete="new-password"></label>';
+    $body .= efpic_admin_render_password_field(
+        'Galerijas parole',
+        'gallery_password',
+        efpic_gallery_password_plain($formMeta),
+        'Aizsargā publisko galeriju (/v/g/…). Atstāj tukšu, lai noņemtu paroli.'
+    );
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
-    $body .= '<label>Klienta parole (jauna)<input type="password" name="client_password" autocomplete="new-password"></label>';
+    $body .= efpic_admin_render_password_field(
+        'Klienta paneļa parole',
+        'client_password',
+        efpic_client_portal_password_plain($formMeta),
+        'Aizsargā klienta paneli (/c/p/…). Atstāj tukšu, lai noņemtu paroli.'
+    );
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
         $commentsOn = !empty($gallerySettings['client_comments_enabled']);
+        $portalSections = efpic_client_portal_sections($meta);
+        $sectionLabels = [
+            'images' => 'Bildes',
+            'scenes' => 'Sadaļas',
+            'theme' => 'Tēma',
+            'share' => 'Kopīgošana',
+            'media' => 'Slideshow & video',
+        ];
         $body .= '<fieldset class="admin-fieldset-full"><legend>Klienta panelis</legend>';
+        $body .= '<p class="muted">Ieslēdz vai izslēdz sadaļas, ko klients redz savā panelī. «Iestatījumi» vienmēr ir pieejami.</p>';
+        foreach ($sectionLabels as $sectionKey => $sectionLabel) {
+            $body .= '<input type="hidden" name="client_portal_section_' . efpic_admin_esc($sectionKey) . '" value="0">';
+            $body .= efpic_render_admin_toggle('Rādīt: ' . $sectionLabel, !empty($portalSections[$sectionKey]), [
+                'name' => 'client_portal_section_' . $sectionKey,
+                'value' => '1',
+            ]);
+        }
         $body .= efpic_render_admin_toggle('Atļaut klienta komentārus pie bildēm', $commentsOn, [
             'name' => 'client_comments_enabled',
         ]);

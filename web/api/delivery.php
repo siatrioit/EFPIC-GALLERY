@@ -177,10 +177,7 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta['event_date'] = trim((string) ($input['event_date'] ?? '')) ?: null;
     $meta['theme'] = efpic_normalize_gallery_theme((string) ($input['theme'] ?? 'efpic-modern'));
 
-    $pass = (string) ($input['password'] ?? '');
-    if ($pass !== '') {
-        $meta['password_hash'] = efpic_hash_password($pass);
-    }
+    efpic_set_gallery_password($meta, (string) ($input['password'] ?? ''));
 
     $meta['failiem']['folder_parent_url'] = trim((string) ($input['folder_parent_url'] ?? ''));
     $meta['failiem']['folder_parent_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_parent_url']);
@@ -191,11 +188,7 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta['failiem']['pair_suffix_strip'] = efpic_failiem_strip_suffixes($config);
 
     $meta['client_access']['email'] = trim((string) ($input['client_email'] ?? ''));
-
-    $clientPass = (string) ($input['client_password'] ?? '');
-    if ($clientPass !== '') {
-        $meta['client_access']['password_hash'] = efpic_hash_password($clientPass);
-    }
+    efpic_set_client_portal_password($meta, (string) ($input['client_password'] ?? ''));
 
     if (!empty($input['scenes']) && is_array($input['scenes'])) {
         $meta['scenes'] = $input['scenes'];
