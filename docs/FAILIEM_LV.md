@@ -92,3 +92,15 @@ Atbilde ar `stats.paired`, `warnings`.
 No `https://failiem.lv/u/q3v7u5vysz` hash ir `q3v7u5vysz`.
 
 Vecās saites ar `?hash=` arī darbojas.
+
+## 7. Izlases lejupielāde un kārtība
+
+Failiem.lv **atlasīto failu ZIP** (`download_selected_zip.php` ar `selected_items[files][]`) saglabā failus pēc **mapes / failu nosaukuma kārtības**, ne pēc tā, kādā secībā hash tiek nosūtīti POST pieprasījumā.
+
+Tāpēc **izlase** (2+ bildes) tiek lejupielādēta caur **servera ZIP**:
+
+- bildes tiek ievietotas atlasīšanas secībā (kā lietotājs atzīmēja);
+- ZIP iekšā faili ir ar prefiksu `001_`, `002_`, … lai arī pēc nosaukuma kārtošana paliek pareiza;
+- viena bilde joprojām lejupielādējas tieši no Failiem (`down.php`).
+
+Visa galerija joprojām var izmantot Failiem mapes ZIP (`upload_zip_streamer.php`), ja nav slēptu bilžu.

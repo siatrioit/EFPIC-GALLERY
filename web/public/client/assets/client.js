@@ -157,14 +157,11 @@
 
   var gdlModal = document.getElementById('galleryDownloadModal');
   var cdlModal = document.getElementById('collectionDownloadModal');
-  var sdlModal = document.getElementById('sceneDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
   var ZIP_DONE_HINT =
     'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem lejupielāde var aizņemt ilgāku laiku.';
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
   var zipFetchAbort = null;
-  var activeSceneId = '';
-  var activeSceneTitle = '';
 
   function setZipProgressUi(opts) {
     var spinner = document.getElementById('zipProgressSpinner');
@@ -219,7 +216,7 @@
     if (!zipProgressModal) return;
     zipProgressModal.hidden = true;
     zipProgressModal.classList.remove('is-success');
-    if ((!gdlModal || gdlModal.hidden) && (!cdlModal || cdlModal.hidden) && (!sdlModal || sdlModal.hidden)) {
+    if ((!gdlModal || gdlModal.hidden) && (!cdlModal || cdlModal.hidden)) {
       document.body.style.overflow = '';
     }
   }
@@ -253,32 +250,8 @@
     if (!cdlModal) return;
     cdlModal.hidden = true;
     if (!gdlModal || gdlModal.hidden) {
-      if (!sdlModal || sdlModal.hidden) {
-        if (!zipProgressModal || zipProgressModal.hidden) {
-          document.body.style.overflow = '';
-        }
-      }
-    }
-  }
-
-  function openSceneDlModal() {
-    if (!sdlModal || !activeSceneId) return;
-    var titleEl = document.getElementById('sceneDownloadModalTitle');
-    var kickerEl = document.getElementById('sceneDownloadModalKicker');
-    if (titleEl) titleEl.textContent = activeSceneTitle || 'Sadaļa';
-    if (kickerEl) kickerEl.textContent = 'Lejupielādēt visas šīs sadaļas bildes';
-    sdlModal.hidden = false;
-    document.body.style.overflow = 'hidden';
-  }
-
-  function closeSceneDlModal() {
-    if (!sdlModal) return;
-    sdlModal.hidden = true;
-    if (!gdlModal || gdlModal.hidden) {
-      if (!cdlModal || cdlModal.hidden) {
-        if (!zipProgressModal || zipProgressModal.hidden) {
-          document.body.style.overflow = '';
-        }
+      if (!zipProgressModal || zipProgressModal.hidden) {
+        document.body.style.overflow = '';
       }
     }
   }
@@ -354,21 +327,13 @@
       });
   }
 
-  function startZipDownload(scope, size, sceneId) {
+  function startZipDownload(scope, size) {
     if (!gdlBase) return;
     closeGalleryDlModal();
     closeCollectionDlModal();
-    closeSceneDlModal();
-    var path = '/download.zip';
-    if (scope === 'collection') {
-      path = '/collection/zip';
-    } else if (scope === 'scene' && sceneId) {
-      path = '/scene/' + encodeURIComponent(sceneId) + '/zip';
-    }
+    var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
-    var loadingTitle = 'Sagatavo lejupielādi…';
-    if (scope === 'collection') loadingTitle = 'Sagatavo izlasi…';
-    if (scope === 'scene') loadingTitle = 'Sagatavo sadaļu…';
+    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
     var usesFolderZip =
       scope === 'all' &&
       (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1');
@@ -406,6 +371,14 @@
           triggerBrowserDownload(downloadUrl + '&dl=1');
           return;
         }
+        if (data.mode === 'server') {
+          downloadServerZip(
+            downloadUrl + '&dl=1',
+            data.filename || zipFilenameFor(scope, size),
+            data.hint || 'Veido ZIP arhīvu…'
+          );
+          return;
+        }
         throw new Error('Neatbalstīts lejupielādes režīms');
       })
       .catch(function (err) {
@@ -441,10 +414,6 @@
     btn.addEventListener('click', closeCollectionDlModal);
   });
 
-  document.querySelectorAll('[data-sdl-close]').forEach(function (btn) {
-    btn.addEventListener('click', closeSceneDlModal);
-  });
-
   document.querySelectorAll('[data-zip-progress-ok]').forEach(function (btn) {
     btn.addEventListener('click', closeZipProgress);
   });
@@ -461,21 +430,6 @@
     });
   }
 
-  if (sdlModal) {
-    sdlModal.addEventListener('click', function (evt) {
-      if (evt.target === sdlModal) closeSceneDlModal();
-    });
-  }
-
-  document.addEventListener('click', function (evt) {
-    var sceneBtn = evt.target && evt.target.closest ? evt.target.closest('[data-scene-dl-open]') : null;
-    if (!sceneBtn) return;
-    evt.preventDefault();
-    activeSceneId = sceneBtn.getAttribute('data-scene-id') || '';
-    activeSceneTitle = sceneBtn.getAttribute('data-scene-title') || 'Sadaļa';
-    openSceneDlModal();
-  });
-
   document.querySelectorAll('[data-gdl-scope="all"][data-gdl-size]').forEach(function (btn) {
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
@@ -490,14 +444,6 @@
       evt.preventDefault();
       var size = btn.getAttribute('data-cdl-size') || 'web';
       startZipDownload('collection', size);
-    });
-  });
-
-  document.querySelectorAll('[data-sdl-size]').forEach(function (btn) {
-    btn.addEventListener('click', function (evt) {
-      evt.preventDefault();
-      var size = btn.getAttribute('data-sdl-size') || 'web';
-      startZipDownload('scene', size, activeSceneId);
     });
   });
 
@@ -1199,6 +1145,7 @@
 
   var collectionToggleUrl = window.EFPIC_COLLECTION_TOGGLE_URL || '';
   var collectionClearUrl = window.EFPIC_COLLECTION_CLEAR_URL || '';
+  var collectionSelectSceneUrl = window.EFPIC_COLLECTION_SELECT_SCENE_URL || '';
   if (typeof window.EFPIC_COLLECTION_COUNT === 'number') {
     updateCollectionTray(window.EFPIC_COLLECTION_COUNT);
   }
@@ -1258,6 +1205,45 @@
         })
         .finally(function () {
           collectionBtn.disabled = false;
+        });
+      return;
+    }
+
+    var selectSceneBtn = evt.target && evt.target.closest ? evt.target.closest('[data-scene-select-all]') : null;
+    if (selectSceneBtn && collectionSelectSceneUrl) {
+      evt.preventDefault();
+      if (selectSceneBtn.disabled) return;
+      var sceneId = selectSceneBtn.getAttribute('data-scene-id') || '';
+      if (!sceneId) return;
+      selectSceneBtn.disabled = true;
+      var body = new FormData();
+      body.append('scene_id', sceneId);
+      fetch(collectionSelectSceneUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+        body: body,
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          var tokens = data.selected_tokens || [];
+          var section = document.querySelector('.scene-block[data-scene-id="' + sceneId + '"]');
+          tokens.forEach(function (tok) {
+            var scope = section || document;
+            scope.querySelectorAll('[data-collection-toggle][data-image-token="' + tok + '"]').forEach(function (btn) {
+              setCollectionButtonState(btn, true);
+            });
+          });
+          updateCollectionTray(parseInt(data.count, 10) || 0);
+        })
+        .catch(function () {
+          /* ignore */
+        })
+        .finally(function () {
+          selectSceneBtn.disabled = false;
         });
       return;
     }
