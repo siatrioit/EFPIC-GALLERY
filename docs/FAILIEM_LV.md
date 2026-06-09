@@ -99,9 +99,9 @@ Vecās saites ar `?hash=` arī darbojas.
 
 1. `POST …/download_selected_zip.php` ar `upload_hash` (mapes hash) un `selected_items[files][]` (katra atlasītās bildes Failiem file hash).
 2. Atbilde JSON: `selected_download_key`, `file_host`.
-3. Lejupielāde: `upload_zip_streamer.php?uhash=…&selected_download_key=…` (+ `img_as_websize` web izmēram).
+3. Lejupielāde: pārlūks tiek novirzīts tieši uz Failiem `upload_zip_streamer.php?uhash=…&selected_download_key=…&PHPSESSID=…` (+ `img_as_websize` web izmēram).
 
-Mūsu serveris **neveido ZIP** — tikai reģistrē atlasītos hash Failiem un straumē gatavo arhīvu uz pārlūku (tāpat kā visa galerija ar mapes ZIP).
+Mūsu serveris **neveido ZIP** un **nestraumē caur PHP** — tikai reģistrē atlasītos hash un atdod Failiem straumes saiti (kā visa mapes lejupielāde).
 
 **Viena bilde** — tieša saite `down.php?i=…`.
 

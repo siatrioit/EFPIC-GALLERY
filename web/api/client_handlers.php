@@ -1710,12 +1710,22 @@ function efpic_client_failiem_zip_prepare_payload(
         return null;
     }
 
-    efpic_failiem_stash_prepared_zip($galleryToken, $scope, $size, $reg, $filename);
+    // Tieša pāradresācija uz Failiem (kā visa mapes ZIP) — pārlūks lejupielādē no failiem.lv,
+    // nevis caur mūsu servera dl=1 proxy (kas timeout lielām izlasēm).
+    $streamUrl = (string) ($reg['stream_url'] ?? '');
+    $cookieFile = (string) ($reg['cookie_file'] ?? '');
+    if ($cookieFile !== '') {
+        @unlink($cookieFile);
+    }
+    if ($streamUrl === '') {
+        return null;
+    }
 
     return [
-        'mode' => 'stream_ready',
+        'mode' => 'failiem',
+        'url' => $streamUrl,
         'filename' => $filename,
-        'hint' => $hintZip,
+        'hint' => 'Lejupielāde sākas no Failiem.lv…',
     ];
 }
 
