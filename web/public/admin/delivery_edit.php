@@ -182,12 +182,16 @@ if (isset($_GET['saved'])) {
     if (!empty($_GET['synced'])) {
         efpic_admin_session_start();
         if (isset($_SESSION['efpic_admin_sync_dims'])) {
-            $dimsN = (int) $_SESSION['efpic_admin_sync_dims'];
+            $syncDims = $_SESSION['efpic_admin_sync_dims'];
             unset($_SESSION['efpic_admin_sync_dims']);
-            $flash .= ' Izmēri ievākti šajā sync: ' . $dimsN . ' bildēm.';
-            if ($meta !== null) {
-                $dimStats = efpic_gallery_image_dimensions_stats($meta);
-                $flash .= ' Kopā meta.json: ' . $dimStats['with_dims'] . ' / ' . $dimStats['total'] . '.';
+            $dimsN = is_array($syncDims) ? (int) ($syncDims['backfilled'] ?? 0) : (int) $syncDims;
+            $dimStats = is_array($syncDims['stats'] ?? null)
+                ? $syncDims['stats']
+                : ($meta !== null ? efpic_gallery_image_dimensions_stats($meta) : ['with_dims' => 0, 'total' => 0, 'missing' => 0]);
+            $flash .= ' Izmēri ievākti sync laikā: ' . $dimsN . ' bildēm.';
+            $flash .= ' Kopā meta.json: ' . (int) ($dimStats['with_dims'] ?? 0) . ' / ' . (int) ($dimStats['total'] ?? 0) . '.';
+            if ((int) ($dimStats['missing'] ?? 0) > 0) {
+                $flash .= ' Palika ' . (int) $dimStats['missing'] . ' — turpinām fonā…';
             }
         }
     }

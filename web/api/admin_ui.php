@@ -1827,7 +1827,12 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
     if (!empty($_POST['sync_now'])) {
         $syncResult = efpic_sync_delivery_gallery($config, $slug);
         efpic_admin_session_start();
-        $_SESSION['efpic_admin_sync_dims'] = (int) ($syncResult['dimensions_backfilled'] ?? 0);
+        $_SESSION['efpic_admin_sync_dims'] = [
+            'backfilled' => (int) ($syncResult['dimensions_backfilled'] ?? 0),
+            'stats' => is_array($syncResult['dimensions_stats'] ?? null)
+                ? $syncResult['dimensions_stats']
+                : efpic_gallery_image_dimensions_stats(efpic_load_gallery_meta($config, $slug) ?? []),
+        ];
     }
 
     $shouldApplyImageOrder = !empty($_POST['image_order']) && is_string($_POST['image_order'])
@@ -1857,6 +1862,13 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
         return ['updated' => 0, 'stats' => ['total' => 0, 'with_dims' => 0, 'missing' => 0]];
     }
 
+    $all = !empty($_POST['backfill_all']);
+    if ($all) {
+        $result = efpic_gallery_backfill_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
+
+        return ['updated' => $result['updated'], 'stats' => $result['stats']];
+    }
+
     $updated = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, EFPIC_DIMS_BACKFILL_BATCH, true);
     $meta = efpic_load_gallery_meta($config, $slug);
     $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
@@ -1877,7 +1889,7 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     if ($stats['missing'] > 0) {
         $line .= ' — trūkst <strong id="admin-dims-missing">' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
         $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
-            . 'Ievākt izmērus (līdz ' . EFPIC_DIMS_BACKFILL_BATCH . '/reizi)</button>';
+            . 'Ievākt atlikušos izmērus</button>';
         $line .= ' <span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
     } else {
         $line .= ' — viss OK';
@@ -1965,6 +1977,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<form method="post" class="admin-form' . ($isEdit ? ' admin-form--tabbed' : '') . '" id="admin-delivery-form" enctype="multipart/form-data"';
     if ($isEdit && $slug !== null) {
         $body .= ' data-admin-edit-slug="' . efpic_admin_esc($slug) . '"';
+        if (!empty($_GET['synced'])) {
+            $body .= ' data-dims-after-sync="1"';
+        }
     }
     $body .= '>';
     $body .= '<div class="admin-sticky-bar">';

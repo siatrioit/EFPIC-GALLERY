@@ -235,6 +235,45 @@ function efpic_gallery_backfill_image_dimensions(array $config, string $slug, ar
     return $updated;
 }
 
+/**
+ * Ievāc izmērus visām bildēm, kurām tie vēl trūkst (vairākas kārtas).
+ *
+ * @return array{updated: int, stats: array{total: int, with_dims: int, missing: int}}
+ */
+function efpic_gallery_backfill_all_image_dimensions(
+    array $config,
+    string $slug,
+    bool $allowRemote = true,
+    int $batchSize = EFPIC_DIMS_SYNC_BATCH,
+): array {
+    @set_time_limit(0);
+    @ignore_user_abort(true);
+
+    $totalUpdated = 0;
+    $maxRounds = 5000;
+    for ($round = 0; $round < $maxRounds; ++$round) {
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta === null) {
+            break;
+        }
+        $stats = efpic_gallery_image_dimensions_stats($meta);
+        if ($stats['missing'] <= 0) {
+            break;
+        }
+        $limit = max(1, min($stats['missing'], max($batchSize, EFPIC_DIMS_SYNC_BATCH)));
+        $updated = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, $limit, $allowRemote);
+        $totalUpdated += $updated;
+        if ($updated <= 0) {
+            break;
+        }
+    }
+
+    $meta = efpic_load_gallery_meta($config, $slug);
+    $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
+
+    return ['updated' => $totalUpdated, 'stats' => $stats];
+}
+
 /** @return array{total: int, with_dims: int, missing: int} */
 function efpic_gallery_image_dimensions_stats(array $meta): array
 {
