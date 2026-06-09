@@ -357,6 +357,8 @@ function efpic_failiem_register_selected_zip(
         return null;
     }
 
+    // Failiem UI: POST upload_hash + selected_items[files][] ar atlasīto failu hash.
+    // Atbilde: selected_download_key + file_host → straume upload_zip_streamer.php?selected_download_key=…
     $postBody = 'upload_hash=' . rawurlencode($folderHash);
     foreach ($fileHashes as $hash) {
         $postBody .= '&selected_items%5Bfiles%5D%5B%5D=' . rawurlencode($hash);

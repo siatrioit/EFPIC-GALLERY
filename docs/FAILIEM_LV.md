@@ -93,14 +93,18 @@ No `https://failiem.lv/u/q3v7u5vysz` hash ir `q3v7u5vysz`.
 
 Vecās saites ar `?hash=` arī darbojas.
 
-## 7. Izlases lejupielāde un kārtība
+## 7. Izlases lejupielāde (atlasītās bildes)
 
-Failiem.lv **atlasīto failu ZIP** (`download_selected_zip.php` ar `selected_items[files][]`) saglabā failus pēc **mapes / failu nosaukuma kārtības**, ne pēc tā, kādā secībā hash tiek nosūtīti POST pieprasījumā.
+**2+ atlasītās bildes** — tāpat kā daļējai galerijai:
 
-Tāpēc **izlase** (2+ bildes) tiek lejupielādēta caur **servera ZIP**:
+1. `POST …/download_selected_zip.php` ar `upload_hash` (mapes hash) un `selected_items[files][]` (katra atlasītās bildes Failiem file hash).
+2. Atbilde JSON: `selected_download_key`, `file_host`.
+3. Lejupielāde: `upload_zip_streamer.php?uhash=…&selected_download_key=…` (+ `img_as_websize` web izmēram).
 
-- bildes tiek ievietotas atlasīšanas secībā (kā lietotājs atzīmēja);
-- ZIP iekšā faili ir ar prefiksu `001_`, `002_`, … lai arī pēc nosaukuma kārtošana paliek pareiza;
-- viena bilde joprojām lejupielādējas tieši no Failiem (`down.php`).
+Mūsu serveris **neveido ZIP** — tikai reģistrē atlasītos hash Failiem un straumē gatavo arhīvu uz pārlūku (tāpat kā visa galerija ar mapes ZIP).
 
-Visa galerija joprojām var izmantot Failiem mapes ZIP (`upload_zip_streamer.php`), ja nav slēptu bilžu.
+**Viena bilde** — tieša saite `down.php?i=…`.
+
+**Fallback:** ja Failiem neatgriež ZIP (vai nav delivery galerijas), maziem apjomiem (≤25 bildes) serveris var salikt ZIP pats.
+
+**Kārtība ZIP iekšā:** Failiem parasti kārto pēc failu nosaukuma mapē, ne pēc atlasīšanas secības. Lielām izlasēm tas ir apzināts kompromiss, lai izvairītos no servera timeout.

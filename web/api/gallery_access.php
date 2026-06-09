@@ -136,36 +136,6 @@ function efpic_client_collection_clear(string $galleryToken): void
     }
 }
 
-/** @return array{count: int, added: int, selected_tokens: list<string>} */
-function efpic_client_collection_add_many(string $galleryToken, array $imageTokens): array
-{
-    efpic_client_session_start();
-    if (!isset($_SESSION['efpic_collection']) || !is_array($_SESSION['efpic_collection'])) {
-        $_SESSION['efpic_collection'] = [];
-    }
-    $list = efpic_client_collection_tokens($galleryToken);
-    $added = 0;
-    $selected = [];
-    foreach ($imageTokens as $imageToken) {
-        $imageToken = (string) $imageToken;
-        if ($imageToken === '') {
-            continue;
-        }
-        if (!in_array($imageToken, $list, true)) {
-            $list[] = $imageToken;
-            $added++;
-        }
-        $selected[] = $imageToken;
-    }
-    $_SESSION['efpic_collection'][$galleryToken] = $list;
-
-    return [
-        'count' => count($list),
-        'added' => $added,
-        'selected_tokens' => $selected,
-    ];
-}
-
 function efpic_compare_images_in_scene(array $a, array $b): int
 {
     if (!is_array($a) || !is_array($b)) {

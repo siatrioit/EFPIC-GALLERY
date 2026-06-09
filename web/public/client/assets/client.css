@@ -2590,47 +2590,6 @@ input[type="password"] {
   box-sizing: border-box;
 }
 
-.scene-title-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  flex-wrap: wrap;
-  margin-bottom: 0.5rem;
-}
-
-.scene-title-row .scene-title {
-  margin: 0;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.scene-select-all-btn {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: none;
-  font: inherit;
-  font-size: 0.8125rem;
-  color: var(--muted, #6b7280);
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.scene-select-all-btn:hover,
-.scene-select-all-btn:focus-visible {
-  color: var(--text, #111);
-}
-
-.scene-select-all-btn:disabled {
-  opacity: 0.55;
-  cursor: default;
-  text-decoration: none;
-}
-
 /* —— Favorites slideshow —— */
 .efpic-slideshow {
   position: fixed;

@@ -155,24 +155,6 @@ function efpic_client_gallery_download_modal(array $meta, array $ctx): string
     return $html;
 }
 
-function efpic_client_render_scene_select_all_button(string $sceneId): string
-{
-    return '<button type="button" class="scene-select-all-btn" data-scene-select-all data-scene-id="'
-        . efpic_client_esc($sceneId) . '" aria-label="Atlasīt visas šīs sadaļas bildes">Atlasīt visas</button>';
-}
-
-function efpic_client_render_scene_title_row(string $title, string $sceneId, bool $hasImages): string
-{
-    $html = '<div class="scene-title-row">';
-    $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
-    if ($hasImages) {
-        $html .= efpic_client_render_scene_select_all_button($sceneId);
-    }
-    $html .= '</div>';
-
-    return $html;
-}
-
 function efpic_client_collection_download_modal(array $meta, array $ctx, int $collectionCount): string
 {
     $canColWeb = efpic_can_download_collection_zip($meta, $ctx, 'web');
@@ -821,7 +803,7 @@ function efpic_client_render_classic_scenes(array $config, array $meta, array $i
         $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= $sceneVideos;
         if ($multiScene) {
-            $html .= efpic_client_render_scene_title_row($title, $sid, $sceneImages !== []);
+            $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         }
         if ($sceneImages !== []) {
             $html .= efpic_client_classic_feed_open($meta);
@@ -884,7 +866,7 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
         $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= $sceneVideos;
         if ($multiScene) {
-            $html .= efpic_client_render_scene_title_row($title, $sid, $sceneImages !== []);
+            $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         }
         if ($sceneImages !== []) {
             $html .= efpic_client_mosaic_feed_open($meta);
@@ -1151,7 +1133,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
             . efpic_client_esc($sid) . '">';
         $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
         $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
-        $html .= efpic_client_render_scene_title_row($title, $sid, $sceneImages !== []);
+        $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         if ($sceneImages !== []) {
             $html .= '<div class="grid">';
             foreach ($sceneImages as $img) {
@@ -1337,7 +1319,6 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_GALLERY_DL_URL' => $galleryUrl,
         'EFPIC_COLLECTION_TOGGLE_URL' => $galleryUrl . '/collection/toggle',
         'EFPIC_COLLECTION_CLEAR_URL' => $galleryUrl . '/collection/clear',
-        'EFPIC_COLLECTION_SELECT_SCENE_URL' => $galleryUrl . '/collection/select-scene',
         'EFPIC_COLLECTION_COUNT' => $collectionCount,
         'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
@@ -1827,33 +1808,6 @@ function efpic_client_subset_zip_prepare_response(
     }
     $hint = 'Sagatavo ZIP ar ' . count($images) . ' ' . $hintLabel . '…';
 
-    // Failiem selected ZIP saglabā mapes/failu nosaukumu kārtību, nevis lietotāja atlasīšanas secību.
-    if ($scope === 'collection') {
-        if (count($images) === 1) {
-            $payload = efpic_client_failiem_zip_prepare_payload(
-                $config,
-                $meta,
-                $images,
-                $size,
-                $filename,
-                $hint,
-                $galleryToken,
-                'collection',
-            );
-            if ($payload !== null) {
-                efpic_json_response(200, ['ok' => true] + $payload);
-            }
-            efpic_json_response(500, ['ok' => false, 'error' => 'Nav lejupielādējamu failu']);
-        }
-
-        efpic_json_response(200, [
-            'ok' => true,
-            'mode' => 'server',
-            'filename' => $filename,
-            'hint' => $hint,
-        ]);
-    }
-
     $payload = efpic_client_failiem_zip_prepare_payload(
         $config,
         $meta,
@@ -2071,22 +2025,6 @@ function efpic_client_collection_images(array $meta, array $ctx, string $gallery
     return $out;
 }
 
-/** @return list<array<string, mixed>> */
-function efpic_client_scene_images(array $meta, array $ctx, string $sceneId): array
-{
-    if ($sceneId === '' || preg_match('/^[a-zA-Z0-9_-]+$/', $sceneId) !== 1) {
-        return [];
-    }
-    $out = [];
-    foreach (efpic_client_navigable_images($meta, $ctx) as $img) {
-        if ((string) ($img['scene_id'] ?? 'main') === $sceneId) {
-            $out[] = $img;
-        }
-    }
-
-    return $out;
-}
-
 function efpic_handle_client_collection_toggle(array $config, string $galleryToken): void
 {
     $found = efpic_find_gallery_by_token($config, $galleryToken);
@@ -2138,48 +2076,6 @@ function efpic_handle_client_collection_clear(array $config, string $galleryToke
     efpic_json_response(200, ['ok' => true, 'count' => 0]);
 }
 
-function efpic_handle_client_collection_select_scene(array $config, string $galleryToken): void
-{
-    $found = efpic_find_gallery_by_token($config, $galleryToken);
-    if ($found === null) {
-        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
-    }
-    $meta = $found['meta'];
-    if (efpic_gallery_has_password($meta) && !efpic_gallery_session_unlocked($galleryToken)) {
-        efpic_json_response(403, ['ok' => false, 'error' => 'locked']);
-    }
-
-    $sceneId = trim((string) ($_POST['scene_id'] ?? ''));
-    if ($sceneId === '' || preg_match('/^[a-zA-Z0-9_-]+$/', $sceneId) !== 1) {
-        efpic_json_response(400, ['ok' => false, 'error' => 'missing_scene']);
-    }
-
-    $ctx = efpic_viewer_context($config, $meta);
-    $images = efpic_client_scene_images($meta, $ctx, $sceneId);
-    if ($images === []) {
-        efpic_json_response(404, ['ok' => false, 'error' => 'no_images']);
-    }
-
-    $tokens = [];
-    foreach ($images as $img) {
-        $tok = (string) ($img['token'] ?? '');
-        if ($tok !== '') {
-            $tokens[] = $tok;
-        }
-    }
-    if ($tokens === []) {
-        efpic_json_response(404, ['ok' => false, 'error' => 'no_images']);
-    }
-
-    $result = efpic_client_collection_add_many($galleryToken, $tokens);
-    efpic_json_response(200, [
-        'ok' => true,
-        'count' => $result['count'],
-        'added' => $result['added'],
-        'selected_tokens' => $result['selected_tokens'],
-    ]);
-}
-
 function efpic_handle_client_subset_zip(
     array $config,
     string $galleryToken,
@@ -2228,10 +2124,10 @@ function efpic_handle_client_subset_zip(
     }
 
     if (isset($_GET['dl']) && (string) $_GET['dl'] === '1') {
-        if ($scope !== 'collection' && efpic_client_stream_prepared_failiem_zip($config, $galleryToken, $stashScope, $size)) {
+        if (efpic_client_stream_prepared_failiem_zip($config, $galleryToken, $stashScope, $size)) {
             exit;
         }
-        if ($scope === 'collection' || !efpic_is_delivery_gallery($meta)) {
+        if (!efpic_is_delivery_gallery($meta) || count($images) <= 25) {
             efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename, $scope === 'collection');
             exit;
         }
@@ -2240,7 +2136,7 @@ function efpic_handle_client_subset_zip(
         exit;
     }
 
-    if ($scope !== 'collection' && efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
+    if (efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
         exit;
     }
 

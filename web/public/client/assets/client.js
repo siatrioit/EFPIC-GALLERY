@@ -1145,7 +1145,6 @@
 
   var collectionToggleUrl = window.EFPIC_COLLECTION_TOGGLE_URL || '';
   var collectionClearUrl = window.EFPIC_COLLECTION_CLEAR_URL || '';
-  var collectionSelectSceneUrl = window.EFPIC_COLLECTION_SELECT_SCENE_URL || '';
   if (typeof window.EFPIC_COLLECTION_COUNT === 'number') {
     updateCollectionTray(window.EFPIC_COLLECTION_COUNT);
   }
@@ -1205,45 +1204,6 @@
         })
         .finally(function () {
           collectionBtn.disabled = false;
-        });
-      return;
-    }
-
-    var selectSceneBtn = evt.target && evt.target.closest ? evt.target.closest('[data-scene-select-all]') : null;
-    if (selectSceneBtn && collectionSelectSceneUrl) {
-      evt.preventDefault();
-      if (selectSceneBtn.disabled) return;
-      var sceneId = selectSceneBtn.getAttribute('data-scene-id') || '';
-      if (!sceneId) return;
-      selectSceneBtn.disabled = true;
-      var body = new FormData();
-      body.append('scene_id', sceneId);
-      fetch(collectionSelectSceneUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-        body: body,
-      })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (!data || !data.ok) return;
-          var tokens = data.selected_tokens || [];
-          var section = document.querySelector('.scene-block[data-scene-id="' + sceneId + '"]');
-          tokens.forEach(function (tok) {
-            var scope = section || document;
-            scope.querySelectorAll('[data-collection-toggle][data-image-token="' + tok + '"]').forEach(function (btn) {
-              setCollectionButtonState(btn, true);
-            });
-          });
-          updateCollectionTray(parseInt(data.count, 10) || 0);
-        })
-        .catch(function () {
-          /* ignore */
-        })
-        .finally(function () {
-          selectSceneBtn.disabled = false;
         });
       return;
     }
