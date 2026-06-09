@@ -1112,6 +1112,34 @@ function efpic_admin_favorites_slideshow_panels_payload(array $config, array $me
     ];
 }
 
+/** Diagnostika: kas tieši ir saglabāts meta.json slideshow.items[]. */
+function efpic_admin_slideshow_meta_diagnostic(array $meta): array
+{
+    $raw = $meta['slideshow'] ?? [];
+    if (!is_array($raw)) {
+        return ['has_legacy_admin' => false, 'items' => [], 'payload_received' => false];
+    }
+    $items = [];
+    foreach ($raw['items'] ?? [] as $itemRaw) {
+        if (!is_array($itemRaw)) {
+            continue;
+        }
+        $items[] = [
+            'id' => (string) ($itemRaw['id'] ?? ''),
+            'enabled' => array_key_exists('enabled', $itemRaw) ? !empty($itemRaw['enabled']) : null,
+            'has_enabled_key' => array_key_exists('enabled', $itemRaw),
+            'video_file' => (string) ($itemRaw['video_file'] ?? ''),
+            'render_status' => (string) ($itemRaw['render_status'] ?? ''),
+        ];
+    }
+
+    return [
+        'has_legacy_admin' => isset($raw['admin']),
+        'items' => $items,
+        'payload_received' => trim((string) ($_POST['ready_slideshow_payload'] ?? '')) !== '',
+    ];
+}
+
 /** @return list<array{id: string, enabled: bool, public_status: string}> */
 function efpic_admin_ready_slideshow_autosave_state(array $meta): array
 {
@@ -1783,6 +1811,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             $meta['settings'] = efpic_gallery_defaults('delivery')['settings'];
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
+        efpic_gallery_migrate_slideshow_meta_in_place($meta);
         efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
         if (!empty($_POST['slideshow_draft_generate_video'])) {
             efpic_slideshow_create_from_draft($config, $slug, $meta);

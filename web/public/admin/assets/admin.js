@@ -1959,6 +1959,9 @@
   }
 
   function applyAdminReadySlideshowAutosavePayload(data) {
+    if (data && data.slideshow_meta_diag && window.console && console.info) {
+      console.info('[slideshow meta.json]', data.slideshow_meta_diag);
+    }
     var items = (data && data.ready_slideshow_state) || [];
     if (!items.length) return;
     items.forEach(function (item) {

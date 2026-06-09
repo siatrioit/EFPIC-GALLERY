@@ -20,6 +20,9 @@ if ($meta === null || !efpic_is_delivery_gallery($meta)) {
     echo 'Galerija nav atrasta';
     exit;
 }
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && efpic_gallery_migrate_slideshow_meta_in_place($meta)) {
+    efpic_save_gallery_meta($config, $slug, $meta);
+}
 
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
     header('Content-Type: application/json; charset=utf-8');
@@ -141,6 +144,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $payload['slideshow_items'] = $slideshowItems;
                 $payload = array_merge($payload, efpic_admin_favorites_slideshow_panels_payload($config, $meta));
                 $payload['ready_slideshow_state'] = efpic_admin_ready_slideshow_autosave_state($meta);
+                $payload['slideshow_meta_diag'] = efpic_admin_slideshow_meta_diagnostic($meta);
             }
             header('Content-Type: application/json; charset=utf-8');
             echo json_encode($payload, JSON_UNESCAPED_UNICODE);

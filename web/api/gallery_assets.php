@@ -303,9 +303,12 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
         $title = substr($title, 0, 80);
     }
 
-    $enabled = !empty($raw['enabled']);
-    if (!array_key_exists('enabled', $raw) && $video !== '' && in_array($renderStatus, ['ready', 'none'], true)) {
+    if (array_key_exists('enabled', $raw)) {
+        $enabled = !empty($raw['enabled']);
+    } elseif ($video !== '' && in_array($renderStatus, ['ready', 'none'], true)) {
         $enabled = true;
+    } else {
+        $enabled = false;
     }
 
     return [
@@ -337,9 +340,7 @@ function efpic_gallery_normalize_slideshow_slot(mixed $raw): array
 function efpic_gallery_normalize_slideshow_item(mixed $raw, int $fallbackNumber = 1): array
 {
     $item = efpic_gallery_normalize_slideshow_slot($raw);
-    if ($item['id'] === '') {
-        $item['id'] = efpic_random_hex(8);
-    }
+    $item = efpic_gallery_ensure_slideshow_item_id($item);
     if ($item['title'] === '') {
         $item['title'] = 'Slideshow ' . max(1, $fallbackNumber);
     }
@@ -388,15 +389,48 @@ function efpic_slideshow_legacy_admin_should_migrate(array $adminRaw, array $sou
     return in_array($status, ['queued', 'processing', 'ready', 'failed'], true);
 }
 
+/** Stabils ID veciem ierakstiem bez id — lai GET un POST nesadalītu atšķirīgus ID. */
+function efpic_gallery_stable_slideshow_item_id(array $raw): string
+{
+    $id = trim((string) ($raw['id'] ?? ''));
+    if (efpic_gallery_slideshow_item_id_valid($id)) {
+        return $id;
+    }
+    $video = trim((string) ($raw['video_file'] ?? ''));
+    if ($video !== '') {
+        return substr(md5($video), 0, 8);
+    }
+    $jobId = trim((string) ($raw['render_job_id'] ?? ''));
+    if ($jobId !== '') {
+        return substr(md5($jobId), 0, 8);
+    }
+    $title = trim((string) ($raw['title'] ?? ''));
+    if ($title !== '') {
+        return substr(md5($title), 0, 8);
+    }
+
+    return efpic_random_hex(8);
+}
+
 /** @param array<string, mixed> $item */
 function efpic_gallery_ensure_slideshow_item_id(array $item): array
 {
     $id = (string) ($item['id'] ?? '');
     if (!efpic_gallery_slideshow_item_id_valid($id)) {
-        $item['id'] = efpic_random_hex(8);
+        $item['id'] = efpic_gallery_stable_slideshow_item_id($item);
     }
 
     return $item;
+}
+
+/** Normalizē slideshow struktūru meta.json un saglabā, ja mainījās (admin → items, stabili id). */
+function efpic_gallery_migrate_slideshow_meta_in_place(array &$meta): bool
+{
+    $before = json_encode($meta['slideshow'] ?? null);
+    $storage = efpic_gallery_slideshow_storage($meta);
+    efpic_gallery_persist_slideshow_storage($meta, $storage);
+
+    return json_encode($meta['slideshow'] ?? null) !== $before;
 }
 
 function efpic_gallery_slideshow_draft_is_empty(array $draft): bool
@@ -1716,39 +1750,55 @@ function efpic_apply_ready_slideshow_payload_from_post(array &$items, array &$cl
         }
 
         $id = (string) ($entry['id'] ?? '');
-        if (!efpic_gallery_slideshow_item_id_valid($id)) {
+        $targetIdx = null;
+        if (efpic_gallery_slideshow_item_id_valid($id)) {
+            foreach ($items as $i => $item) {
+                if ((string) ($item['id'] ?? '') === $id) {
+                    $targetIdx = $i;
+                    break;
+                }
+            }
+        }
+        if ($targetIdx === null) {
+            foreach ($items as $i => $item) {
+                if (!efpic_slideshow_slot_video_ready($item)) {
+                    continue;
+                }
+                $targetIdx = $i;
+                break;
+            }
+        }
+        if ($targetIdx === null && count($items) === 1) {
+            $targetIdx = 0;
+        }
+        if ($targetIdx === null) {
             continue;
         }
-        foreach ($items as $i => &$item) {
-            if ((string) ($item['id'] ?? '') !== $id) {
-                continue;
+        $item = &$items[$targetIdx];
+        $item['enabled'] = !empty($entry['enabled']);
+        if (array_key_exists('section_title', $entry)) {
+            $sectionTitle = trim((string) $entry['section_title']);
+            if (function_exists('mb_substr')) {
+                $sectionTitle = mb_substr($sectionTitle, 0, 80);
+            } else {
+                $sectionTitle = substr($sectionTitle, 0, 80);
             }
-            $item['enabled'] = !empty($entry['enabled']);
-            if (array_key_exists('section_title', $entry)) {
-                $sectionTitle = trim((string) $entry['section_title']);
-                if (function_exists('mb_substr')) {
-                    $sectionTitle = mb_substr($sectionTitle, 0, 80);
-                } else {
-                    $sectionTitle = substr($sectionTitle, 0, 80);
-                }
-                $item['section_title'] = $sectionTitle;
+            $item['section_title'] = $sectionTitle;
+        }
+        if (array_key_exists('section_placement', $entry)) {
+            $placement = (string) $entry['section_placement'];
+            if ($placement === 'after_scene') {
+                $placement = 'before_scene';
             }
-            if (array_key_exists('section_placement', $entry)) {
-                $placement = (string) $entry['section_placement'];
-                if ($placement === 'after_scene') {
-                    $placement = 'before_scene';
-                }
-                $item['section_placement'] = in_array($placement, ['top', 'bottom', 'before_scene'], true)
-                    ? $placement : 'top';
-            }
-            if (array_key_exists('section_after_scene', $entry)) {
-                $afterScene = trim((string) $entry['section_after_scene']);
-                $item['section_after_scene'] = preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene) === 1 ? $afterScene : '';
-            }
-            if (($item['section_placement'] ?? 'top') === 'before_scene' && ($item['section_after_scene'] ?? '') === '') {
-                $item['section_placement'] = 'top';
-            }
-            break;
+            $item['section_placement'] = in_array($placement, ['top', 'bottom', 'before_scene'], true)
+                ? $placement : 'top';
+        }
+        if (array_key_exists('section_after_scene', $entry)) {
+            $afterScene = trim((string) $entry['section_after_scene']);
+            $item['section_after_scene'] = preg_match('/^[a-zA-Z0-9_-]+$/', $afterScene) === 1 ? $afterScene : '';
+        }
+        if (($item['section_placement'] ?? 'top') === 'before_scene' && ($item['section_after_scene'] ?? '') === '') {
+            $item['section_placement'] = 'top';
         }
         unset($item);
     }
