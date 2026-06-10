@@ -6,6 +6,7 @@
     "client_comments_enabled": false,
     "favorites_visible_to_guests": false,
     "hide_client_hidden_from_public": true,
+    "enable_public_collection": false,
     "client_portal_sections": {
       "images": true,
       "scenes": true,

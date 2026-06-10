@@ -311,10 +311,9 @@ function efpic_failiem_cookie_phpsessid(string $cookieFile): string
 function efpic_failiem_selected_zip_prepare(
     array $config,
     string $folderHash,
-    array $fileHashes,
-    bool $webSize = false
+    array $fileHashes
 ): array {
-    $url = efpic_failiem_selected_zip_url($config, $folderHash, $fileHashes, $webSize);
+    $url = efpic_failiem_selected_zip_url($config, $folderHash, $fileHashes);
     if ($url !== null) {
         return ['ok' => true, 'url' => $url];
     }
@@ -334,8 +333,7 @@ function efpic_failiem_selected_zip_prepare(
 function efpic_failiem_register_selected_zip(
     array $config,
     string $folderHash,
-    array $fileHashes,
-    bool $webSize = false
+    array $fileHashes
 ): ?array {
     @set_time_limit(0);
     @ignore_user_abort(true);
@@ -441,9 +439,6 @@ function efpic_failiem_register_selected_zip(
             . '&selected_download_key='
             . rawurlencode($key);
         $zipUrl .= '&PHPSESSID=' . rawurlencode($phpSessId);
-        if ($webSize) {
-            $zipUrl .= '&img_as_websize';
-        }
 
         return ['stream_url' => $zipUrl, 'cookie_file' => $cookieFile];
     }
@@ -545,6 +540,8 @@ function efpic_failiem_stream_prepared_zip(array $config, array $prepared): bool
                             }
                             header('Content-Type: application/zip');
                             header('Content-Disposition: attachment; filename="' . $safeName . '"');
+                            header('Cache-Control: no-cache, no-store');
+                            header('X-Accel-Buffering: no');
                             $headersSent = true;
                         }
                         echo $chunk;
@@ -585,10 +582,9 @@ function efpic_failiem_stream_selected_zip(
     array $config,
     string $folderHash,
     array $fileHashes,
-    bool $webSize = false,
     string $filename = 'galerija.zip'
 ): bool {
-    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes, $webSize);
+    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes);
     if ($reg === null) {
         return false;
     }
@@ -607,9 +603,9 @@ function efpic_failiem_stream_selected_zip(
  *
  * @param list<string> $fileHashes
  */
-function efpic_failiem_selected_zip_url(array $config, string $folderHash, array $fileHashes, bool $webSize = false): ?string
+function efpic_failiem_selected_zip_url(array $config, string $folderHash, array $fileHashes): ?string
 {
-    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes, $webSize);
+    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $fileHashes);
     if ($reg === null) {
         return null;
     }
@@ -642,10 +638,9 @@ function efpic_can_failiem_folder_zip(array $meta, array $ctx): bool
     if (is_array($ctx['share_image_tokens'] ?? null)) {
         return false;
     }
-    foreach ($meta['images'] ?? [] as $img) {
-        if (is_array($img) && !empty($img['client_hidden'])) {
-            return false;
-        }
+    if (function_exists('efpic_gallery_has_client_content_filtering')
+        && efpic_gallery_has_client_content_filtering($meta)) {
+        return false;
     }
 
     return true;

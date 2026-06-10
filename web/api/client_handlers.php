@@ -563,17 +563,20 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
 }
 
 /** @return array{viewer_key: string, collection: array<string, true>, base: string} */
-function efpic_client_build_grid_context(array $config, string $galleryToken): array
+function efpic_client_build_grid_context(array $config, string $galleryToken, array $meta = []): array
 {
     $viewerKey = efpic_viewer_like_key();
     $collection = [];
-    foreach (efpic_client_collection_tokens($galleryToken) as $tok) {
-        $collection[$tok] = true;
+    if ($meta !== [] && efpic_can_use_public_collection($meta)) {
+        foreach (efpic_client_collection_tokens($galleryToken) as $tok) {
+            $collection[$tok] = true;
+        }
     }
 
     return [
         'viewer_key' => $viewerKey,
         'collection' => $collection,
+        'collection_enabled' => $meta !== [] && efpic_can_use_public_collection($meta),
         'base' => efpic_base_url($config),
     ];
 }
@@ -589,9 +592,11 @@ function efpic_client_render_image_grid_actions(array $gridCtx, array $img): str
     $likeUrl = $gridCtx['base'] . '/v/i/' . rawurlencode($tok) . '/like';
 
     $html = '<div class="grid-image-actions">';
-    $html .= '<button type="button" class="grid-collection-btn' . ($inCollection ? ' is-selected' : '') . '" data-collection-toggle data-image-token="'
-        . efpic_client_esc($tok) . '" aria-label="Izvēlēta lejupielādei" aria-pressed="' . ($inCollection ? 'true' : 'false') . '">';
-    $html .= ($inCollection ? efpic_client_icon('pick') : efpic_client_icon('pick-empty')) . '</button>';
+    if (!empty($gridCtx['collection_enabled'])) {
+        $html .= '<button type="button" class="grid-collection-btn' . ($inCollection ? ' is-selected' : '') . '" data-collection-toggle data-image-token="'
+            . efpic_client_esc($tok) . '" aria-label="Izvēlēta lejupielādei" aria-pressed="' . ($inCollection ? 'true' : 'false') . '">';
+        $html .= ($inCollection ? efpic_client_icon('pick') : efpic_client_icon('pick-empty')) . '</button>';
+    }
     $html .= '<button type="button" class="grid-like-btn' . ($liked ? ' is-liked' : '') . '" data-like-toggle data-like-url="'
         . efpic_client_esc($likeUrl) . '" aria-label="Patīk" aria-pressed="' . ($liked ? 'true' : 'false') . '">';
     $html .= ($liked ? efpic_client_icon('heart-fill') : efpic_client_icon('heart')) . '</button>';
@@ -602,14 +607,18 @@ function efpic_client_render_image_grid_actions(array $gridCtx, array $img): str
 
 function efpic_client_render_collection_tray(string $galleryUrl, int $count, array $meta, array $ctx): string
 {
+    $canColZip = efpic_can_download_collection_zip($meta, $ctx, 'web')
+        || efpic_can_download_collection_zip($meta, $ctx, 'full');
     $hidden = $count > 0 ? '' : ' hidden';
     $html = '<aside class="collection-tray' . ($count > 0 ? ' is-visible' : '') . '" id="collectionTray"' . $hidden . ' aria-live="polite">';
     $html .= '<p class="collection-tray-text"><strong id="collectionTrayCount">' . $count . '</strong> '
         . ($count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas') . '</p>';
     $html .= '<div class="collection-tray-actions">';
     $html .= '<button type="button" class="btn" data-collection-clear>Notīrīt</button>';
-    $html .= '<button type="button" class="btn primary" id="collectionDlBtn" data-collection-dl-open'
-        . ($count > 0 ? '' : ' hidden') . '>Lejupielādēt</button>';
+    if ($canColZip) {
+        $html .= '<button type="button" class="btn primary" id="collectionDlBtn" data-collection-dl-open'
+            . ($count > 0 ? '' : ' hidden') . '>Lejupielādēt</button>';
+    }
     $html .= '</div></aside>';
 
     return $html;
@@ -1213,7 +1222,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $ctx = efpic_viewer_context($config, $meta);
     $images = efpic_client_navigable_images($meta, $ctx);
     $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
-    $gridCtx = efpic_client_build_grid_context($config, $galleryToken);
+    $canPublicCollection = efpic_can_use_public_collection($meta);
+    $gridCtx = efpic_client_build_grid_context($config, $galleryToken, $meta);
     $collectionCount = count($gridCtx['collection']);
     $galleryDlModal = efpic_client_gallery_download_modal($meta, $ctx);
     $hasGalleryDl = $galleryDlModal !== '';
@@ -1291,9 +1301,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     $body .= efpic_client_share_modal($name);
     $body .= $galleryDlModal;
-    $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
+    if ($canPublicCollection) {
+        $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
+    }
     $body .= efpic_client_zip_progress_modal();
-    $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
+    if ($canPublicCollection) {
+        $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
+    }
     if ($usesShell) {
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
         if ($usesMosaicSlideshow) {
@@ -1317,10 +1331,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [
         'EFPIC_GALLERY_TOKEN' => $galleryToken,
         'EFPIC_GALLERY_DL_URL' => $galleryUrl,
-        'EFPIC_COLLECTION_TOGGLE_URL' => $galleryUrl . '/collection/toggle',
-        'EFPIC_COLLECTION_CLEAR_URL' => $galleryUrl . '/collection/clear',
-        'EFPIC_COLLECTION_COUNT' => $collectionCount,
+        'EFPIC_COLLECTION_ENABLED' => $canPublicCollection,
+        'EFPIC_COLLECTION_TOGGLE_URL' => $canPublicCollection ? $galleryUrl . '/collection/toggle' : '',
+        'EFPIC_COLLECTION_CLEAR_URL' => $canPublicCollection ? $galleryUrl . '/collection/clear' : '',
+        'EFPIC_COLLECTION_COUNT' => $canPublicCollection ? $collectionCount : 0,
         'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+        'EFPIC_CAN_COLLECTION_ZIP' => efpic_can_download_collection_zip($meta, $ctx, 'web')
+            || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
     ], $meta, $headExtra);
 }
@@ -1705,27 +1722,20 @@ function efpic_client_failiem_zip_prepare_payload(
         return null;
     }
 
-    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $hashes, $sizeKey === 'web');
+    $reg = efpic_failiem_register_selected_zip($config, $folderHash, $hashes);
     if ($reg === null) {
         return null;
     }
 
-    // Tieša pāradresācija uz Failiem (kā visa mapes ZIP) — pārlūks lejupielādē no failiem.lv,
-    // nevis caur mūsu servera dl=1 proxy (kas timeout lielām izlasēm).
-    $streamUrl = (string) ($reg['stream_url'] ?? '');
-    $cookieFile = (string) ($reg['cookie_file'] ?? '');
-    if ($cookieFile !== '') {
-        @unlink($cookieFile);
-    }
-    if ($streamUrl === '') {
-        return null;
-    }
+    // Atlasītajam ZIP reģistrācija notiek servera PHP sesijā (curl cookie jar).
+    // Tieša pārlūka saite uz failiem.lv dod tukšu ZIP — sesija nav derīga klienta IP/kontekstā.
+    // Straumējam caur ?dl=1 ar saglabātajām sīkdatnēm (kā Failiem UI, bet caur mūsu starpnieku).
+    efpic_failiem_stash_prepared_zip($galleryToken, $scope, $size, $reg, $filename);
 
     return [
-        'mode' => 'failiem',
-        'url' => $streamUrl,
+        'mode' => 'stream_ready',
         'filename' => $filename,
-        'hint' => 'Lejupielāde sākas no Failiem.lv…',
+        'hint' => $hintZip,
     ];
 }
 
@@ -1751,7 +1761,7 @@ function efpic_client_stream_failiem_image_zip(
         return false;
     }
 
-    return efpic_failiem_stream_selected_zip($config, $folderHash, $hashes, $sizeKey === 'web', $filename);
+    return efpic_failiem_stream_selected_zip($config, $folderHash, $hashes, $filename);
 }
 
 function efpic_client_stream_prepared_failiem_zip(
@@ -1790,7 +1800,7 @@ function efpic_client_redirect_failiem_image_zip(
     }
 
     $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
-    $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $hashes, $sizeKey === 'web');
+    $zipUrl = efpic_failiem_selected_zip_url($config, $folderHash, $hashes);
     if ($zipUrl === null) {
         return false;
     }
@@ -1989,6 +1999,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
     }
 
     if (isset($_GET['dl']) && (string) $_GET['dl'] === '1') {
+        @ignore_user_abort(true);
         if (efpic_client_stream_prepared_failiem_zip($config, $galleryToken, 'all', $size)) {
             exit;
         }
@@ -2051,6 +2062,10 @@ function efpic_handle_client_collection_toggle(array $config, string $galleryTok
         efpic_json_response(400, ['ok' => false, 'error' => 'missing_token']);
     }
 
+    if (!efpic_can_use_public_collection($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'collection_disabled']);
+    }
+
     $ctx = efpic_viewer_context($config, $meta);
     $allowed = false;
     foreach (efpic_client_navigable_images($meta, $ctx) as $img) {
@@ -2080,6 +2095,9 @@ function efpic_handle_client_collection_clear(array $config, string $galleryToke
     $meta = $found['meta'];
     if (efpic_gallery_has_password($meta) && !efpic_gallery_session_unlocked($galleryToken)) {
         efpic_json_response(403, ['ok' => false, 'error' => 'locked']);
+    }
+    if (!efpic_can_use_public_collection($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'collection_disabled']);
     }
 
     efpic_client_collection_clear($galleryToken);
@@ -2134,6 +2152,7 @@ function efpic_handle_client_subset_zip(
     }
 
     if (isset($_GET['dl']) && (string) $_GET['dl'] === '1') {
+        @ignore_user_abort(true);
         if (efpic_client_stream_prepared_failiem_zip($config, $galleryToken, $stashScope, $size)) {
             exit;
         }

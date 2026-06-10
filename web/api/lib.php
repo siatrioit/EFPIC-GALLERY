@@ -543,6 +543,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
             ],
             'disable_public_download_all_web' => false,
             'disable_public_download_all_full' => false,
+            'enable_public_collection' => false,
             'client_portal_sections' => [
                 'images' => true,
                 'scenes' => true,

@@ -1092,6 +1092,39 @@ function efpic_can_download_size(array $meta, array $ctx, string $size): bool
     return false;
 }
 
+/** Vai admin ir ieslēdzis apmeklētāju izlases atzīmēšanu (pēc noklusējuma izslēgts). */
+function efpic_gallery_public_collection_enabled(array $meta): bool
+{
+    return !empty(efpic_gallery_settings($meta)['enable_public_collection']);
+}
+
+/** Vai apmeklētāji drīkst lietot izlasi (admin ieslēdzis un klients neko nav paslēpis). */
+function efpic_can_use_public_collection(array $meta): bool
+{
+    if (!efpic_gallery_public_collection_enabled($meta)) {
+        return false;
+    }
+
+    return !efpic_gallery_has_client_content_filtering($meta);
+}
+
+/** Vai klients ir paslēpis vismaz vienu bildi vai sadaļu (tad nav bulk ZIP). */
+function efpic_gallery_has_client_content_filtering(array $meta): bool
+{
+    foreach ($meta['scenes'] ?? [] as $scene) {
+        if (is_array($scene) && !empty($scene['hidden_from_guests'])) {
+            return true;
+        }
+    }
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && !empty($img['client_hidden'])) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 /** Vai drīkst lejupielādēt visas galerijas bildes ZIP (nevis tikai izlasi). */
 function efpic_can_download_all_gallery_zip(array $meta, array $ctx, string $size): bool
 {
@@ -1101,6 +1134,9 @@ function efpic_can_download_all_gallery_zip(array $meta, array $ctx, string $siz
             && efpic_can_download_all_gallery_zip($meta, $ctx, 'full');
     }
     if (!in_array($size, ['web', 'full'], true)) {
+        return false;
+    }
+    if (efpic_gallery_has_client_content_filtering($meta)) {
         return false;
     }
     if (!efpic_can_download_size($meta, $ctx, $size)) {
@@ -1123,6 +1159,9 @@ function efpic_can_download_collection_zip(array $meta, array $ctx, string $size
     if ($size === 'both') {
         return efpic_can_download_collection_zip($meta, $ctx, 'web')
             && efpic_can_download_collection_zip($meta, $ctx, 'full');
+    }
+    if (!efpic_can_use_public_collection($meta)) {
+        return false;
     }
 
     return in_array($size, ['web', 'full'], true) && efpic_can_download_size($meta, $ctx, $size);

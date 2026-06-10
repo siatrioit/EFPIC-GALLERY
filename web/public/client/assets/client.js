@@ -1116,6 +1116,13 @@
       : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>';
   }
 
+  var collectionEnabled =
+    window.EFPIC_COLLECTION_ENABLED === true || window.EFPIC_COLLECTION_ENABLED === '1';
+  var canCollectionZip =
+    collectionEnabled &&
+    window.EFPIC_CAN_COLLECTION_ZIP !== false &&
+    window.EFPIC_CAN_COLLECTION_ZIP !== '0';
+
   function updateCollectionTray(count) {
     var tray = document.getElementById('collectionTray');
     var countEl = document.getElementById('collectionTrayCount');
@@ -1133,7 +1140,7 @@
     tray.classList.toggle('is-visible', count > 0);
     var dlBtn = document.getElementById('collectionDlBtn');
     if (dlBtn) {
-      dlBtn.hidden = count <= 0;
+      dlBtn.hidden = count <= 0 || !canCollectionZip;
     }
     updateCollectionDownloadTitle(count);
   }

@@ -1811,6 +1811,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             $meta['settings'] = efpic_gallery_defaults('delivery')['settings'];
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
+        $meta['settings']['enable_public_collection'] = isset($_POST['enable_public_collection']);
         efpic_gallery_migrate_slideshow_meta_in_place($meta);
         efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
         if (!empty($_POST['slideshow_draft_generate_video'])) {
@@ -2060,8 +2061,18 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     );
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
+        $collectionOn = !empty($gallerySettings['enable_public_collection']);
         $commentsOn = !empty($gallerySettings['client_comments_enabled']);
         $portalSections = efpic_client_portal_sections($meta);
+        $body .= '<fieldset class="admin-fieldset-full"><legend>Publiskā galerija</legend>';
+        $body .= '<input type="hidden" name="enable_public_collection" value="0">';
+        $body .= efpic_render_admin_toggle('Atļaut apmeklētājiem izvēlēties bildes izlasei', $collectionOn, [
+            'name' => 'enable_public_collection',
+            'value' => '1',
+        ]);
+        $body .= '<p class="muted">Pēc noklusējuma izslēgts. Kad ieslēgts, viesi var atzīmēt bildes un lejupielādēt izlasi. '
+            . 'Ja klients panelī kaut ko paslēpj, izlase automātiski izslēdzas.</p>';
+        $body .= '</fieldset>';
         $sectionLabels = [
             'images' => 'Bildes',
             'scenes' => 'Sadaļas',
