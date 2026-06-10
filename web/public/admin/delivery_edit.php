@@ -98,19 +98,29 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        if (!empty($_POST['send_gallery_ready_email'])) {
+        if (!empty($_POST['send_client_email'])) {
+            $group = trim((string) $_POST['send_client_email']);
+            if (!array_key_exists($group, efpic_message_template_groups())) {
+                throw new InvalidArgumentException('Nederīga ziņu grupa');
+            }
             $meta = efpic_load_gallery_meta($config, $slug);
             if ($meta === null) {
                 throw new RuntimeException('Nav atrasts');
             }
-            efpic_gallery_send_client_email($config, $meta, $slug, 'gallery_ready');
-            efpic_gallery_mark_notification_sent($meta, 'gallery_ready');
+            efpic_apply_gallery_client_messages_from_post($meta);
+            efpic_save_gallery_meta($config, $slug, $meta);
+            efpic_gallery_send_client_email($config, $meta, $slug, $group);
+            if (str_starts_with($group, 'expiry_reminder_')) {
+                efpic_gallery_mark_notification_sent($meta, $group);
+            } else {
+                efpic_gallery_mark_notification_sent($meta, 'gallery_ready');
+            }
             efpic_gallery_log_activity(
                 $config,
                 $slug,
                 $meta,
                 'gallery_ready_email',
-                'Nosūtīts «Galerija gatava» e-pasts uz ' . efpic_gallery_client_email($meta),
+                'Nosūtīts e-pasts («' . efpic_message_template_group_label($group) . '») uz ' . efpic_gallery_client_email($meta),
                 'admin',
             );
             header('Location: delivery_edit.php?slug=' . rawurlencode($slug) . '&email_sent=1');

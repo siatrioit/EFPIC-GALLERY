@@ -7,6 +7,7 @@ require_once __DIR__ . '/gallery_access.php';
 require_once __DIR__ . '/image_dimensions.php';
 require_once __DIR__ . '/delivery.php';
 require_once __DIR__ . '/gallery_activity.php';
+require_once __DIR__ . '/gallery_message_templates.php';
 require_once __DIR__ . '/gallery_notifications.php';
 
 function efpic_handle_health(array $config): void

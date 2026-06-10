@@ -1289,6 +1289,38 @@
   margin: 0 0 8px;
 }
 
+.admin-client-messages {
+  margin-top: 1rem;
+}
+
+.admin-client-msg-group {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid var(--admin-border, #e5e5e5);
+}
+
+.admin-client-msg-group:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.admin-client-msg-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 0.5rem;
+}
+
+.admin-message-templates-table textarea {
+  min-width: 220px;
+  width: 100%;
+}
+
+.admin-message-tpl-new {
+  margin-top: 1rem;
+}
+
 .admin-regenerate-link-row {
   margin: 0 0 12px;
 }

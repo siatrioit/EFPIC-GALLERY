@@ -195,15 +195,15 @@ function efpic_gallery_email_template_defaults(): array
     return [
         'gallery_ready' => [
             'subject' => 'Jūsu galerija ir gatava — {name}',
-            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» ir gatava.\n\nSaite: {url}\n\nPieejama līdz {expires}.\n\nAr cieņu,\nEdgarsFoto",
+            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» ir gatava.\n\n{gallery_block}\n\n{portal_block}\n\nPieejama līdz {expires}.\n\nAr cieņu,\nEdgarsFoto",
         ],
         'expiry_reminder_30' => [
             'subject' => 'Atgādinājums — galerija «{name}» būs pieejama vēl 30 dienas',
-            'body' => "Sveiki!\n\nAtgādinām, ka jūsu foto galerija «{name}» būs pieejama vēl apmēram 30 dienas (līdz {expires}).\n\nSaite: {url}\n\nLejupielādējiet bildes, kamēr galerija ir aktīva.\n\nAr cieņu,\nEdgarsFoto",
+            'body' => "Sveiki!\n\nAtgādinām, ka jūsu foto galerija «{name}» būs pieejama vēl apmēram 30 dienas (līdz {expires}).\n\n{gallery_block}\n\n{portal_block}\n\nLejupielādējiet bildes, kamēr galerija ir aktīva.\n\nAr cieņu,\nEdgarsFoto",
         ],
         'expiry_reminder_7' => [
             'subject' => 'Atgādinājums — galerija «{name}» drīz vairs nebūs pieejama',
-            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» būs pieejama vēl tikai apmēram 7 dienas (līdz {expires}).\n\nSaite: {url}\n\nLūdzu, lejupielādējiet vēlamās bildes pēc iespējas ātrāk.\n\nAr cieņu,\nEdgarsFoto",
+            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» būs pieejama vēl tikai apmēram 7 dienas (līdz {expires}).\n\n{gallery_block}\n\n{portal_block}\n\nLūdzu, lejupielādējiet vēlamās bildes pēc iespējas ātrāk.\n\nAr cieņu,\nEdgarsFoto",
         ],
     ];
 }
@@ -212,7 +212,7 @@ function efpic_gallery_whatsapp_template_defaults(): array
 {
     return [
         'gallery_ready' => [
-            'body' => "Sveiki! Jūsu foto galerija «{name}» ir gatava.\n{url}\nPieejama līdz {expires}.",
+            'body' => "Sveiki! Jūsu foto galerija «{name}» ir gatava.\n{gallery_block}\n{portal_block}\nPieejama līdz {expires}.",
         ],
         'expiry_reminder_30' => [
             'body' => "Sveiki! Atgādinām — galerija «{name}» būs pieejama vēl ~30 dienas (līdz {expires}).\n{url}",
@@ -340,11 +340,10 @@ function efpic_app_settings_defaults(): array
             'smtp_user' => '',
             'smtp_pass' => '',
         ],
-        'gallery_email_templates' => efpic_gallery_email_template_defaults(),
         'gallery_whatsapp' => [
             'default_country_code' => '371',
         ],
-        'gallery_whatsapp_templates' => efpic_gallery_whatsapp_template_defaults(),
+        'message_templates' => [],
         'updated_at' => null,
     ];
 }

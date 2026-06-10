@@ -147,37 +147,11 @@ function efpic_gallery_whatsapp_country_code(array $config): string
     return (string) ($gn['default_country_code'] ?? '371');
 }
 
-function efpic_gallery_whatsapp_template(array $config, string $key): string
-{
-    $defaults = efpic_gallery_whatsapp_template_defaults();
-    $default = (string) (($defaults[$key]['body'] ?? ''));
-
-    $app = efpic_load_app_settings($config);
-    $appTemplates = $app['gallery_whatsapp_templates'] ?? [];
-    if (is_array($appTemplates)) {
-        $appTpl = $appTemplates[$key] ?? [];
-        if (is_array($appTpl) && trim((string) ($appTpl['body'] ?? '')) !== '') {
-            return (string) $appTpl['body'];
-        }
-    }
-
-    $gn = efpic_gallery_notify_cfg($config);
-    $templates = $gn['whatsapp_templates'] ?? [];
-    if (is_array($templates)) {
-        $tpl = $templates[$key] ?? [];
-        if (is_array($tpl) && trim((string) ($tpl['body'] ?? '')) !== '') {
-            return (string) $tpl['body'];
-        }
-    }
-
-    return $default;
-}
-
 function efpic_gallery_whatsapp_link(
     array $config,
     array $meta,
     string $slug,
-    string $templateKey = 'gallery_ready',
+    string $group = 'gallery_ready',
 ): ?string {
     $phone = efpic_gallery_client_phone($meta);
     if ($phone === '') {
@@ -190,45 +164,35 @@ function efpic_gallery_whatsapp_link(
     }
 
     $vars = efpic_gallery_notify_vars($config, $meta, $slug);
-    $bodyTpl = efpic_gallery_whatsapp_template($config, $templateKey);
-    $text = efpic_gallery_notify_replace($bodyTpl, $vars);
+    $content = efpic_message_template_content($config, $meta, $slug, $group, 'whatsapp');
+    $text = efpic_gallery_notify_replace($content['body'], $vars);
     if (trim($text) === '') {
-        $text = 'Sveiki! Jūsu foto galerija «' . $vars['name'] . '» ir gatava.' . "\n" . $vars['url'];
+        $text = 'Sveiki! Jūsu foto galerija «' . $vars['name'] . '» ir gatava.' . "\n" . ($vars['gallery_block'] ?? $vars['url']);
     }
 
     return 'https://wa.me/' . rawurlencode($digits) . '?text=' . rawurlencode($text);
 }
 
-function efpic_gallery_notify_template(array $config, string $key): array
+function efpic_gallery_notify_template(array $config, string $key, ?array $meta = null, ?string $slug = null): array
 {
+    if ($meta !== null && $slug !== null) {
+        return efpic_message_template_content($config, $meta, $slug, $key, 'email');
+    }
+
+    $tpl = efpic_message_templates_for($config, $key, 'email')[0] ?? null;
+    if ($tpl !== null) {
+        return [
+            'subject' => (string) ($tpl['subject'] ?? ''),
+            'body' => (string) ($tpl['body'] ?? ''),
+        ];
+    }
+
     $defaults = efpic_gallery_email_template_defaults();
     $default = $defaults[$key] ?? ['subject' => '', 'body' => ''];
 
-    $app = efpic_load_app_settings($config);
-    $appTemplates = $app['gallery_email_templates'] ?? [];
-    if (is_array($appTemplates)) {
-        $appTpl = $appTemplates[$key] ?? [];
-        if (is_array($appTpl) && trim((string) ($appTpl['subject'] ?? '')) !== '') {
-            return [
-                'subject' => (string) ($appTpl['subject'] ?? $default['subject']),
-                'body' => (string) ($appTpl['body'] ?? $default['body']),
-            ];
-        }
-    }
-
-    $gn = efpic_gallery_notify_cfg($config);
-    $templates = $gn['templates'] ?? [];
-    if (!is_array($templates)) {
-        $templates = [];
-    }
-    $tpl = $templates[$key] ?? [];
-    if (!is_array($tpl)) {
-        $tpl = [];
-    }
-
     return [
-        'subject' => (string) ($tpl['subject'] ?? $default['subject']),
-        'body' => (string) ($tpl['body'] ?? $default['body']),
+        'subject' => (string) $default['subject'],
+        'body' => (string) $default['body'],
     ];
 }
 
@@ -245,7 +209,7 @@ function efpic_gallery_send_client_email(
     array $config,
     array $meta,
     string $slug,
-    string $templateKey,
+    string $group,
 ): bool {
     if (!efpic_gallery_email_ready($config)) {
         throw new RuntimeException('E-pasts nav konfigurēts. Admin → Iestatījumi → E-pasts klientam.');
@@ -255,7 +219,7 @@ function efpic_gallery_send_client_email(
         throw new RuntimeException('Klienta e-pasts nav norādīts vai nav derīgs.');
     }
 
-    $tpl = efpic_gallery_notify_template($config, $templateKey);
+    $tpl = efpic_gallery_notify_template($config, $group, $meta, $slug);
     $vars = efpic_gallery_notify_vars($config, $meta, $slug);
     $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
     $body = efpic_gallery_notify_replace($tpl['body'], $vars);
@@ -284,17 +248,62 @@ function efpic_gallery_send_client_email(
     return true;
 }
 
+/** @return array{url: string, gallery_password: string, gallery_password_line: string, gallery_block: string} */
+function efpic_gallery_notify_gallery_vars(array $config, array $meta): array
+{
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $url = $gt !== '' ? efpic_gallery_view_url($config, $gt) : '';
+    $galleryPassword = efpic_gallery_password_plain($meta);
+    $galleryPasswordLine = $galleryPassword !== '' ? 'Parole: ' . $galleryPassword : '';
+
+    $galleryBlock = '';
+    if ($url !== '') {
+        $galleryBlock = 'Publiskā galerija:' . "\n" . $url;
+        if ($galleryPasswordLine !== '') {
+            $galleryBlock .= "\n" . $galleryPasswordLine;
+        }
+    }
+
+    return [
+        'url' => $url,
+        'gallery_password' => $galleryPassword,
+        'gallery_password_line' => $galleryPasswordLine,
+        'gallery_block' => $galleryBlock,
+    ];
+}
+
+/** @return array{portal_url: string, portal_password: string, portal_password_line: string, portal_block: string} */
+function efpic_gallery_notify_portal_vars(array $config, array $meta): array
+{
+    $portalToken = (string) ($meta['client_access']['portal_token'] ?? '');
+    $portalUrl = $portalToken !== '' ? efpic_portal_url($config, $portalToken) : '';
+    $portalPassword = efpic_client_portal_password_plain($meta);
+    $portalPasswordLine = $portalPassword !== '' ? 'Parole: ' . $portalPassword : '';
+
+    $portalBlock = '';
+    if ($portalUrl !== '') {
+        $portalBlock = 'Klienta panelis: ' . $portalUrl;
+        if ($portalPasswordLine !== '') {
+            $portalBlock .= "\n" . $portalPasswordLine;
+        }
+    }
+
+    return [
+        'portal_url' => $portalUrl,
+        'portal_password' => $portalPassword,
+        'portal_password_line' => $portalPasswordLine,
+        'portal_block' => $portalBlock,
+    ];
+}
+
 /** @return array<string, string> */
 function efpic_gallery_notify_vars(array $config, array $meta, string $slug): array
 {
-    $gt = (string) ($meta['gallery_token'] ?? '');
-
-    return [
+    return array_merge([
         'name' => (string) ($meta['name'] ?? $slug),
-        'url' => $gt !== '' ? efpic_gallery_view_url($config, $gt) : '',
         'expires' => efpic_gallery_expires_display($meta),
         'slug' => $slug,
-    ];
+    ], efpic_gallery_notify_gallery_vars($config, $meta), efpic_gallery_notify_portal_vars($config, $meta));
 }
 
 function efpic_gallery_notification_sent(array $meta, string $key): bool

@@ -1813,6 +1813,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $meta['cover_from_favorites'] = !empty($_POST['cover_from_favorites']);
 
         efpic_apply_client_contact_from_post($meta);
+        efpic_apply_gallery_client_messages_from_post($meta);
         if (empty($_POST['autosave'])) {
             efpic_apply_gallery_passwords_from_post($meta);
         }
@@ -2111,17 +2112,12 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         efpic_client_portal_password_plain($formMeta),
         'Aizsargā klienta paneli (/c/p/…). Atstāj tukšu, lai noņemtu paroli.'
     );
+    $body .= '</div></fieldset>';
+
     if ($isEdit && is_array($meta) && $slug !== null) {
-        $waLink = efpic_gallery_whatsapp_link($config, $meta, $slug);
-        if ($waLink !== null) {
-            $body .= '<p class="admin-links-row"><a class="btn" href="' . efpic_admin_esc($waLink) . '" target="_blank" rel="noopener">Sūtīt WhatsApp ziņu klientam</a></p>';
-        }
-        if (efpic_gallery_email_ready($config) && efpic_gallery_client_email($meta) !== '') {
-            $body .= '<p class="admin-links-row"><button type="submit" class="btn" name="send_gallery_ready_email" value="1">Sūtīt «Galerija gatava» e-pastu</button></p>';
-        } elseif (!efpic_gallery_email_ready($config)) {
-            $body .= '<p class="muted">E-pasta sūtīšanai konfigurē <a href="settings.php">Iestatījumi → E-pasts klientam</a>.</p>';
-        }
+        $body .= efpic_admin_render_gallery_client_messages($config, $meta, $slug);
     }
+
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
         $collectionOn = !empty($gallerySettings['enable_public_collection']);
@@ -2168,7 +2164,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_activity_log($meta);
         $body .= '</fieldset>';
     }
-    $body .= '</div></fieldset>';
 
     if ($isEdit) {
         $body .= efpic_admin_tab_panel_close();
@@ -2420,34 +2415,14 @@ function efpic_admin_parse_gallery_email_settings_from_post(array $existing): ar
     ];
 }
 
-function efpic_admin_parse_gallery_email_templates_from_post(): array
-{
-    $keys = [
-        'gallery_ready' => ['gallery_email_tpl_ready_subject', 'gallery_email_tpl_ready_body'],
-        'expiry_reminder_30' => ['gallery_email_tpl_expiry30_subject', 'gallery_email_tpl_expiry30_body'],
-        'expiry_reminder_7' => ['gallery_email_tpl_expiry7_subject', 'gallery_email_tpl_expiry7_body'],
-    ];
-    $out = [];
-    foreach ($keys as $tplKey => [$subjectField, $bodyField]) {
-        $out[$tplKey] = [
-            'subject' => trim((string) ($_POST[$subjectField] ?? '')),
-            'body' => trim((string) ($_POST[$bodyField] ?? '')),
-        ];
-    }
-
-    return $out;
-}
-
 function efpic_admin_render_gallery_email_settings_fieldset(array $settings): string
 {
     $email = is_array($settings['gallery_email'] ?? null) ? $settings['gallery_email'] : [];
-    $templates = is_array($settings['gallery_email_templates'] ?? null)
-        ? $settings['gallery_email_templates']
-        : efpic_gallery_email_template_defaults();
-    $defaults = efpic_gallery_email_template_defaults();
 
     $html = '<fieldset class="admin-fieldset-full"><legend>E-pasts klientam</legend>';
-    $html .= '<p class="muted">SMTP vai servera <code>mail()</code>. Mainīgie sagatavēs: <code>{name}</code>, <code>{url}</code>, <code>{expires}</code>.</p>';
+    $html .= '<p class="muted">SMTP vai servera <code>mail()</code>. Mainīgie: <code>{name}</code>, <code>{expires}</code>, '
+        . '<code>{gallery_block}</code> (publiskā saite + parole), <code>{portal_block}</code> (klienta panelis + parole), '
+        . 'atsevišķi: <code>{url}</code>, <code>{gallery_password}</code>, <code>{portal_url}</code>, <code>{portal_password}</code>.</p>';
     $html .= '<input type="hidden" name="gallery_email_enabled" value="0">';
     $html .= efpic_render_admin_toggle('Ieslēgt e-pasta sūtīšanu klientiem', !empty($email['enabled']), [
         'name' => 'gallery_email_enabled',
@@ -2481,25 +2456,7 @@ function efpic_admin_render_gallery_email_settings_fieldset(array $settings): st
     $html .= '<label>SMTP parole<input type="password" name="gallery_email_smtp_pass" value="" autocomplete="new-password" placeholder="'
         . ((string) ($email['smtp_pass'] ?? '') !== '' ? '••••••••' : '') . '"></label>';
     $html .= '<p class="muted">Atstāj paroli tukšu, lai saglabātu esošo.</p>';
-    $html .= '</div>';
-
-    $tplBlocks = [
-        'gallery_ready' => ['Galerija gatava', 'gallery_email_tpl_ready_subject', 'gallery_email_tpl_ready_body'],
-        'expiry_reminder_30' => ['Atgādinājums 30 dienas', 'gallery_email_tpl_expiry30_subject', 'gallery_email_tpl_expiry30_body'],
-        'expiry_reminder_7' => ['Atgādinājums 7 dienas', 'gallery_email_tpl_expiry7_subject', 'gallery_email_tpl_expiry7_body'],
-    ];
-    $html .= '<fieldset class="admin-fieldset-full"><legend>E-pasta sagataves</legend>';
-    foreach ($tplBlocks as $tplKey => [$title, $subjectName, $bodyName]) {
-        $tpl = is_array($templates[$tplKey] ?? null) ? $templates[$tplKey] : ($defaults[$tplKey] ?? []);
-        $html .= '<div class="admin-email-template-block">';
-        $html .= '<h3 class="admin-share-block-title">' . efpic_admin_esc($title) . '</h3>';
-        $html .= '<label>Temats<input name="' . efpic_admin_esc($subjectName) . '" value="'
-            . efpic_admin_esc((string) ($tpl['subject'] ?? '')) . '"></label>';
-        $html .= '<label>Teksts<textarea name="' . efpic_admin_esc($bodyName) . '" rows="7">'
-            . efpic_admin_esc((string) ($tpl['body'] ?? '')) . '</textarea></label>';
-        $html .= '</div>';
-    }
-    $html .= '</fieldset></fieldset>';
+    $html .= '</div></fieldset>';
 
     return $html;
 }
@@ -2511,52 +2468,16 @@ function efpic_admin_parse_gallery_whatsapp_settings_from_post(): array
     ];
 }
 
-function efpic_admin_parse_gallery_whatsapp_templates_from_post(): array
-{
-    $keys = [
-        'gallery_ready' => 'gallery_whatsapp_tpl_ready_body',
-        'expiry_reminder_30' => 'gallery_whatsapp_tpl_expiry30_body',
-        'expiry_reminder_7' => 'gallery_whatsapp_tpl_expiry7_body',
-    ];
-    $out = [];
-    foreach ($keys as $tplKey => $bodyField) {
-        $out[$tplKey] = [
-            'body' => trim((string) ($_POST[$bodyField] ?? '')),
-        ];
-    }
-
-    return $out;
-}
-
 function efpic_admin_render_gallery_whatsapp_settings_fieldset(array $settings): string
 {
     $wa = is_array($settings['gallery_whatsapp'] ?? null) ? $settings['gallery_whatsapp'] : [];
-    $templates = is_array($settings['gallery_whatsapp_templates'] ?? null)
-        ? $settings['gallery_whatsapp_templates']
-        : efpic_gallery_whatsapp_template_defaults();
-    $defaults = efpic_gallery_whatsapp_template_defaults();
 
     $html = '<fieldset class="admin-fieldset-full"><legend>WhatsApp klientam</legend>';
-    $html .= '<p class="muted">Manuāla sūtīšana caur <code>wa.me</code> (adminā pie galerijas). Mainīgie: <code>{name}</code>, <code>{url}</code>, <code>{expires}</code>.</p>';
+    $html .= '<p class="muted">Manuāla sūtīšana caur <code>wa.me</code> (adminā pie galerijas).</p>';
     $html .= '<label>Valsts kods tālruņiem bez prefiksa<input name="gallery_whatsapp_country" value="'
         . efpic_admin_esc((string) ($wa['default_country_code'] ?? '371')) . '" placeholder="371"></label>';
     $html .= '<p class="muted">Piem. klients ievadījis <code>29123456</code> → sistēma pievieno <code>371</code>.</p>';
-
-    $tplBlocks = [
-        'gallery_ready' => ['Galerija gatava', 'gallery_whatsapp_tpl_ready_body'],
-        'expiry_reminder_30' => ['Atgādinājums 30 dienas', 'gallery_whatsapp_tpl_expiry30_body'],
-        'expiry_reminder_7' => ['Atgādinājums 7 dienas', 'gallery_whatsapp_tpl_expiry7_body'],
-    ];
-    $html .= '<fieldset class="admin-fieldset-full"><legend>WhatsApp sagataves</legend>';
-    foreach ($tplBlocks as $tplKey => [$title, $bodyName]) {
-        $tpl = is_array($templates[$tplKey] ?? null) ? $templates[$tplKey] : ($defaults[$tplKey] ?? []);
-        $html .= '<div class="admin-email-template-block">';
-        $html .= '<h3 class="admin-share-block-title">' . efpic_admin_esc($title) . '</h3>';
-        $html .= '<label>Ziņa<textarea name="' . efpic_admin_esc($bodyName) . '" rows="5">'
-            . efpic_admin_esc((string) ($tpl['body'] ?? '')) . '</textarea></label>';
-        $html .= '</div>';
-    }
-    $html .= '</fieldset></fieldset>';
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -2587,9 +2508,8 @@ function efpic_admin_save_settings_from_post(array $config): void
         'gallery_feed_gap_tablet' => $gapTablet,
         'gallery_feed_gap_desktop' => $gapDesktop,
         'gallery_email' => $email,
-        'gallery_email_templates' => efpic_admin_parse_gallery_email_templates_from_post(),
         'gallery_whatsapp' => efpic_admin_parse_gallery_whatsapp_settings_from_post(),
-        'gallery_whatsapp_templates' => efpic_admin_parse_gallery_whatsapp_templates_from_post(),
+        'message_templates' => efpic_admin_parse_message_templates_from_post(),
     ]);
 }
 
@@ -2633,6 +2553,7 @@ function efpic_admin_settings_page(array $config): void
     $body .= '</fieldset>';
     $body .= efpic_admin_render_gallery_email_settings_fieldset($settings);
     $body .= efpic_admin_render_gallery_whatsapp_settings_fieldset($settings);
+    $body .= efpic_admin_render_message_templates_fieldset($config);
     if (efpic_gallery_email_ready($config)) {
         $body .= '<p class="admin-ok">E-pasts ir konfigurēts un gatavs sūtīšanai.</p>';
     } elseif (!empty($settings['gallery_email']['enabled'])) {
