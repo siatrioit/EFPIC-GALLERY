@@ -480,6 +480,9 @@
       wrap.classList.toggle('is-playing', !video.paused && !video.ended);
     }
     playBtn.addEventListener('click', function () {
+      if (!video.controls) {
+        video.controls = true;
+      }
       video.play().catch(function () {});
     });
     video.addEventListener('play', syncPlayOverlay);
@@ -1138,6 +1141,9 @@
     }
     tray.hidden = count <= 0;
     tray.classList.toggle('is-visible', count > 0);
+    if (floatBar) {
+      floatBar.classList.toggle('is-suppressed', count > 0);
+    }
     var dlBtn = document.getElementById('collectionDlBtn');
     if (dlBtn) {
       dlBtn.hidden = count <= 0 || !canCollectionZip;

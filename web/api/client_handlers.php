@@ -907,8 +907,8 @@ function efpic_client_render_inline_video_player(string $videoUrl, bool $withPla
         $html .= '<span class="gallery-inline-video-play__icon">' . efpic_client_icon('play') . '</span>';
         $html .= '</button>';
     }
-    $html .= '<video controls playsinline preload="metadata"' . $extraVideoAttrs . ' src="'
-        . efpic_client_esc($videoUrl) . '"></video>';
+    $html .= '<video' . ($withPlayOverlay ? '' : ' controls') . ' playsinline preload="metadata"' . $extraVideoAttrs
+        . ' src="' . efpic_client_esc($videoUrl) . '"></video>';
     $html .= '</div>';
 
     return $html;

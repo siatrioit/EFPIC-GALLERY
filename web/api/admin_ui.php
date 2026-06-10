@@ -1811,7 +1811,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             $meta['settings'] = efpic_gallery_defaults('delivery')['settings'];
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
-        $meta['settings']['enable_public_collection'] = isset($_POST['enable_public_collection']);
+        $meta['settings']['enable_public_collection'] = efpic_post_flag_is_on('enable_public_collection');
         efpic_gallery_migrate_slideshow_meta_in_place($meta);
         efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
         if (!empty($_POST['slideshow_draft_generate_video'])) {
