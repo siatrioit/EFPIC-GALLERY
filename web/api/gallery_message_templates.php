@@ -302,14 +302,47 @@ function efpic_admin_parse_message_templates_from_post(): array
     return $out !== [] ? $out : efpic_message_templates_seed();
 }
 
+/** @return array<string, string> */
+function efpic_message_template_variables(): array
+{
+    return [
+        'name' => 'Galerijas nosaukums (piem. «Riharda un Annikas kāzas»)',
+        'expires' => 'Derīguma termiņš lasāmā formā (piem. «8. jūn. 2027»)',
+        'slug' => 'Galerijas iekšējais identifikators (mapes nosaukums)',
+        'url' => 'Tikai publiskās galerijas saite',
+        'gallery_password' => 'Tikai publiskās galerijas parole (tukšs, ja nav)',
+        'gallery_password_line' => 'Rinda «Parole: …» publiskajai galerijai (tukša, ja nav paroles)',
+        'gallery_block' => 'Gatavs bloks: virsraksts + publiskā saite + parole (ja ir)',
+        'portal_url' => 'Tikai klienta paneļa saite',
+        'portal_password' => 'Tikai klienta paneļa parole (tukšs, ja nav)',
+        'portal_password_line' => 'Rinda «Parole: …» klienta panelim (tukša, ja nav paroles)',
+        'portal_block' => 'Gatavs bloks: klienta panelis + saite + parole (ja ir)',
+    ];
+}
+
+function efpic_admin_render_message_template_variables_help(): string
+{
+    $html = '<div class="admin-template-vars-help">';
+    $html .= '<p class="muted">Veido sagataves un piešķiri tās grupai. Tekstā vari lietot šādus mainīgos — tie tiek aizstāti ar konkrētās galerijas datiem:</p>';
+    $html .= '<ul class="admin-template-vars-list">';
+    foreach (efpic_message_template_variables() as $var => $desc) {
+        $html .= '<li><code>{' . efpic_admin_esc($var) . '}</code> — ' . efpic_admin_esc($desc) . '</li>';
+    }
+    $html .= '</ul>';
+    $html .= '<p class="muted">Ērtāk lietot gatavos blokus <code>{gallery_block}</code> un <code>{portal_block}</code> — '
+        . 'tie automātiski iekļauj saiti un paroli, ja tāda ir.</p>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_admin_render_message_templates_fieldset(array $config): string
 {
     $templates = efpic_message_templates_all($config);
     $groups = efpic_message_template_groups();
 
     $html = '<fieldset class="admin-fieldset-full"><legend>Ziņu sagataves</legend>';
-    $html .= '<p class="muted">Veido sagataves un piešķiri tās grupai. Mainīgie: <code>{name}</code>, <code>{expires}</code>, '
-        . '<code>{gallery_block}</code>, <code>{portal_block}</code> u.c.</p>';
+    $html .= efpic_admin_render_message_template_variables_help();
 
     $html .= '<div class="admin-table-wrap"><table class="admin-table admin-message-templates-table">';
     $html .= '<thead><tr><th>Nosaukums</th><th>Grupa</th><th>Kanāls</th><th>Temats</th><th>Teksts</th><th></th></tr></thead><tbody>';

@@ -1321,6 +1321,25 @@
   margin-top: 1rem;
 }
 
+.admin-template-vars-help {
+  margin-bottom: 1rem;
+}
+
+.admin-template-vars-list {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 1.25rem;
+  font-size: 0.9rem;
+  line-height: 1.55;
+}
+
+.admin-template-vars-list li {
+  margin-bottom: 0.35rem;
+}
+
+.admin-template-vars-list code {
+  white-space: nowrap;
+}
+
 .admin-regenerate-link-row {
   margin: 0 0 12px;
 }

@@ -2420,9 +2420,7 @@ function efpic_admin_render_gallery_email_settings_fieldset(array $settings): st
     $email = is_array($settings['gallery_email'] ?? null) ? $settings['gallery_email'] : [];
 
     $html = '<fieldset class="admin-fieldset-full"><legend>E-pasts klientam</legend>';
-    $html .= '<p class="muted">SMTP vai servera <code>mail()</code>. Mainīgie: <code>{name}</code>, <code>{expires}</code>, '
-        . '<code>{gallery_block}</code> (publiskā saite + parole), <code>{portal_block}</code> (klienta panelis + parole), '
-        . 'atsevišķi: <code>{url}</code>, <code>{gallery_password}</code>, <code>{portal_url}</code>, <code>{portal_password}</code>.</p>';
+    $html .= '<p class="muted">SMTP vai servera <code>mail()</code>. Sagatavju mainīgo saraksts — sadaļā <strong>Ziņu sagataves</strong> zemāk.</p>';
     $html .= '<input type="hidden" name="gallery_email_enabled" value="0">';
     $html .= efpic_render_admin_toggle('Ieslēgt e-pasta sūtīšanu klientiem', !empty($email['enabled']), [
         'name' => 'gallery_email_enabled',
