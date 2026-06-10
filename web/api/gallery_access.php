@@ -384,16 +384,21 @@ function efpic_apply_gallery_passwords_from_post(array &$meta): void
     if (array_key_exists('client_password', $_POST)) {
         efpic_set_client_portal_password($meta, (string) $_POST['client_password']);
     }
+}
+
+/** @param array<string, mixed> $meta */
+function efpic_apply_client_contact_from_post(array &$meta): void
+{
+    if (!array_key_exists('client_email', $_POST) && !array_key_exists('client_phone', $_POST)) {
+        return;
+    }
+    if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+        $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+    }
     if (array_key_exists('client_email', $_POST)) {
-        if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
-            $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
-        }
         $meta['client_access']['email'] = trim((string) $_POST['client_email']);
     }
     if (array_key_exists('client_phone', $_POST)) {
-        if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
-            $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
-        }
         $meta['client_access']['phone'] = trim((string) $_POST['client_phone']);
     }
 }

@@ -190,7 +190,137 @@ function efpic_app_settings_path(array $config): string
     return dirname(efpic_storage_path($config)) . '/app_settings.json';
 }
 
-/** @return array{gallery_byline: string, gallery_page_bg: string, gallery_feed_gap: int, gallery_feed_gap_tablet: int, gallery_feed_gap_desktop: int, updated_at: ?string} */
+function efpic_gallery_email_template_defaults(): array
+{
+    return [
+        'gallery_ready' => [
+            'subject' => 'Jūsu galerija ir gatava — {name}',
+            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» ir gatava.\n\nSaite: {url}\n\nPieejama līdz {expires}.\n\nAr cieņu,\nEdgarsFoto",
+        ],
+        'expiry_reminder_30' => [
+            'subject' => 'Atgādinājums — galerija «{name}» būs pieejama vēl 30 dienas',
+            'body' => "Sveiki!\n\nAtgādinām, ka jūsu foto galerija «{name}» būs pieejama vēl apmēram 30 dienas (līdz {expires}).\n\nSaite: {url}\n\nLejupielādējiet bildes, kamēr galerija ir aktīva.\n\nAr cieņu,\nEdgarsFoto",
+        ],
+        'expiry_reminder_7' => [
+            'subject' => 'Atgādinājums — galerija «{name}» drīz vairs nebūs pieejama',
+            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» būs pieejama vēl tikai apmēram 7 dienas (līdz {expires}).\n\nSaite: {url}\n\nLūdzu, lejupielādējiet vēlamās bildes pēc iespējas ātrāk.\n\nAr cieņu,\nEdgarsFoto",
+        ],
+    ];
+}
+
+function efpic_gallery_whatsapp_template_defaults(): array
+{
+    return [
+        'gallery_ready' => [
+            'body' => "Sveiki! Jūsu foto galerija «{name}» ir gatava.\n{url}\nPieejama līdz {expires}.",
+        ],
+        'expiry_reminder_30' => [
+            'body' => "Sveiki! Atgādinām — galerija «{name}» būs pieejama vēl ~30 dienas (līdz {expires}).\n{url}",
+        ],
+        'expiry_reminder_7' => [
+            'body' => "Sveiki! Galerija «{name}» drīz vairs nebūs pieejama (līdz {expires}). Lūdzu lejupielādē bildes.\n{url}",
+        ],
+    ];
+}
+
+/** Cilvēkam lasāms bildes nosaukums (faila vārds). */
+function efpic_gallery_image_label(array $img): string
+{
+    $name = (string) ($img['basename'] ?? '');
+    if ($name === '' && is_array($img['failiem_full'] ?? null)) {
+        $name = (string) ($img['failiem_full']['name'] ?? '');
+    }
+    if ($name === '' && is_array($img['failiem_web'] ?? null)) {
+        $name = (string) ($img['failiem_web']['name'] ?? '');
+    }
+    if ($name === '') {
+        $tok = (string) ($img['token'] ?? '');
+
+        return $tok !== '' ? $tok : 'bilde';
+    }
+
+    return basename($name);
+}
+
+/** @return array<string, array<string, mixed>> */
+function efpic_gallery_images_by_token(array $meta): array
+{
+    $byToken = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $byToken[$tok] = $img;
+        }
+    }
+
+    return $byToken;
+}
+
+/** @return list<string> */
+function efpic_gallery_scene_image_labels(array $meta, string $sceneId): array
+{
+    $labels = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        if ((string) ($img['scene_id'] ?? 'main') !== $sceneId) {
+            continue;
+        }
+        $labels[] = efpic_gallery_image_label($img);
+    }
+
+    return $labels;
+}
+
+/**
+ * @param array<string, mixed> $meta
+ * @param array<string, mixed> $extra
+ * @return list<string>
+ */
+function efpic_gallery_resolve_activity_image_labels(array $meta, array $extra): array
+{
+    if (!empty($extra['image_labels']) && is_array($extra['image_labels'])) {
+        return array_values(array_unique(array_filter(array_map(
+            static fn ($v): string => trim((string) $v),
+            $extra['image_labels'],
+        ))));
+    }
+
+    $labels = [];
+    $single = trim((string) ($extra['image_label'] ?? ''));
+    if ($single !== '') {
+        $labels[] = $single;
+    }
+
+    $byToken = efpic_gallery_images_by_token($meta);
+    $token = trim((string) ($extra['image_token'] ?? ''));
+    if ($token !== '' && isset($byToken[$token])) {
+        $labels[] = efpic_gallery_image_label($byToken[$token]);
+    }
+
+    $tokens = $extra['image_tokens'] ?? [];
+    if (is_array($tokens)) {
+        foreach ($tokens as $tok) {
+            $tok = trim((string) $tok);
+            if ($tok !== '' && isset($byToken[$tok])) {
+                $labels[] = efpic_gallery_image_label($byToken[$tok]);
+            }
+        }
+    }
+
+    $sceneId = trim((string) ($extra['scene_id'] ?? ''));
+    if ($sceneId !== '' && $labels === []) {
+        $labels = efpic_gallery_scene_image_labels($meta, $sceneId);
+    }
+
+    return array_values(array_unique(array_filter($labels)));
+}
+
+/** @return array<string, mixed> */
 function efpic_app_settings_defaults(): array
 {
     return [
@@ -199,6 +329,22 @@ function efpic_app_settings_defaults(): array
         'gallery_feed_gap' => 16,
         'gallery_feed_gap_tablet' => 20,
         'gallery_feed_gap_desktop' => 24,
+        'gallery_email' => [
+            'enabled' => false,
+            'from' => '',
+            'from_name' => 'EdgarsFoto',
+            'use_php_mail' => true,
+            'smtp_host' => '',
+            'smtp_port' => 587,
+            'smtp_secure' => 'tls',
+            'smtp_user' => '',
+            'smtp_pass' => '',
+        ],
+        'gallery_email_templates' => efpic_gallery_email_template_defaults(),
+        'gallery_whatsapp' => [
+            'default_country_code' => '371',
+        ],
+        'gallery_whatsapp_templates' => efpic_gallery_whatsapp_template_defaults(),
         'updated_at' => null,
     ];
 }
@@ -323,7 +469,8 @@ function efpic_load_app_settings(array $config): array
 
 function efpic_save_app_settings(array $config, array $settings): void
 {
-    $merged = array_merge(efpic_app_settings_defaults(), $settings);
+    $existing = efpic_load_app_settings($config);
+    $merged = array_replace_recursive($existing, $settings);
     $merged['updated_at'] = gmdate('c');
     efpic_write_json_file(efpic_app_settings_path($config), $merged);
 }

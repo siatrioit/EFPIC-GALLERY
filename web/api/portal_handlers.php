@@ -195,6 +195,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                             continue;
                         }
                         $nowHidden = empty($img['client_hidden']);
+                        $imageLabel = efpic_gallery_image_label($img);
                         $meta['images'][$i]['client_hidden'] = $nowHidden;
                         efpic_save_gallery_meta($config, $slug, $meta);
                         efpic_gallery_log_activity(
@@ -202,9 +203,9 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                             $slug,
                             $meta,
                             $nowHidden ? 'image_hidden' : 'image_shown',
-                            $nowHidden ? 'Klients paslēpa bildi' : 'Klients atkal rāda bildi',
+                            ($nowHidden ? 'Klients paslēpa bildi' : 'Klients atkal rāda bildi') . ': ' . $imageLabel,
                             'client',
-                            ['image_token' => $imageToken],
+                            ['image_token' => $imageToken, 'image_label' => $imageLabel],
                         );
 
                         return;

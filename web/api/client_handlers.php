@@ -1185,12 +1185,18 @@ function efpic_gallery_block_if_expired(array $meta, string $name, array $config
     efpic_client_html($name, '<p class="feed-empty err">Galerijas derīguma termiņš ir beidzies.</p>', $config, 'page-auth');
 }
 
-function efpic_gallery_log_download(array $config, string $slug, array &$meta, string $type, string $detail): void
-{
+function efpic_gallery_log_download(
+    array $config,
+    string $slug,
+    array &$meta,
+    string $type,
+    string $detail,
+    array $extra = [],
+): void {
     if (!function_exists('efpic_gallery_log_activity')) {
         return;
     }
-    efpic_gallery_log_activity($config, $slug, $meta, $type, $detail, 'guest');
+    efpic_gallery_log_activity($config, $slug, $meta, $type, $detail, 'guest', $extra);
 }
 
 function efpic_handle_client_gallery(array $config, string $galleryToken, string $method): void
@@ -1666,9 +1672,18 @@ function efpic_handle_client_image_download(array $config, string $imageToken): 
         exit;
     }
 
-    efpic_gallery_log_download($config, $found['slug'], $meta, 'download_image', 'Bilde (' . $size . ')');
-
     $img = $found['image'] ?? [];
+    $imageLabel = is_array($img) ? efpic_gallery_image_label($img) : 'bilde';
+    $imageToken = is_array($img) ? (string) ($img['token'] ?? '') : '';
+    efpic_gallery_log_download(
+        $config,
+        $found['slug'],
+        $meta,
+        'download_image',
+        'Lejupielāde (' . $size . ')',
+        ['image_token' => $imageToken, 'image_label' => $imageLabel],
+    );
+
     $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
     if ($hash !== '') {
         $name = is_array($img) ? (string) ($img['basename'] ?? 'image.jpg') : 'image.jpg';

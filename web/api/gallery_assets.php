@@ -2274,7 +2274,8 @@ function efpic_log_share_set_created(array $config, string $slug, array &$meta, 
         return;
     }
     $label = (string) ($entry['label'] ?? 'Izlase');
-    $count = count($entry['image_tokens'] ?? []);
+    $tokens = is_array($entry['image_tokens'] ?? null) ? $entry['image_tokens'] : [];
+    $count = count($tokens);
     efpic_gallery_log_activity(
         $config,
         $slug,
@@ -2282,6 +2283,7 @@ function efpic_log_share_set_created(array $config, string $slug, array &$meta, 
         'share_created',
         'Kopīgojamā izlase «' . $label . '» (' . $count . ' bildes)',
         $actor,
+        ['image_tokens' => $tokens],
     );
 }
 

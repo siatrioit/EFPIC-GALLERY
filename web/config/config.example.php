@@ -54,6 +54,8 @@ return [
             'image_shown',
             'section_hidden',
             'section_shown',
+            'download_image',
+            'share_created',
             'expiry_reminder',
         ],
         'templates' => [

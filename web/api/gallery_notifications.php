@@ -20,9 +20,15 @@ function efpic_gallery_notify_enabled(array $config): bool
 
 function efpic_gallery_email_cfg(array $config): array
 {
+    $app = efpic_load_app_settings($config);
+    $fromApp = $app['gallery_email'] ?? [];
+    if (is_array($fromApp) && trim((string) ($fromApp['from'] ?? '')) !== '') {
+        return $fromApp;
+    }
+
     $gn = efpic_gallery_notify_cfg($config);
     $email = $gn['email'] ?? [];
-    if (is_array($email) && $email !== []) {
+    if (is_array($email) && trim((string) ($email['from'] ?? '')) !== '') {
         return $email;
     }
 
@@ -32,11 +38,27 @@ function efpic_gallery_email_cfg(array $config): array
     return is_array($fallback) ? $fallback : [];
 }
 
+function efpic_gallery_email_enabled(array $config): bool
+{
+    $app = efpic_load_app_settings($config);
+    $appEmail = $app['gallery_email'] ?? [];
+    if (is_array($appEmail) && !empty($appEmail['enabled'])) {
+        return true;
+    }
+
+    $gn = efpic_gallery_notify_cfg($config);
+
+    return !empty($gn['enabled']);
+}
+
 function efpic_gallery_email_ready(array $config): bool
 {
+    if (!efpic_gallery_email_enabled($config)) {
+        return false;
+    }
     $email = efpic_gallery_email_cfg($config);
 
-    return !empty($email['from'])
+    return trim((string) ($email['from'] ?? '')) !== ''
         && (!empty($email['smtp_host']) || !empty($email['use_php_mail']));
 }
 
@@ -110,25 +132,68 @@ function efpic_gallery_client_phone(array $meta): string
     return is_array($access) ? trim((string) ($access['phone'] ?? '')) : '';
 }
 
-function efpic_gallery_whatsapp_link(array $config, array $meta, string $slug): ?string
+function efpic_gallery_whatsapp_country_code(array $config): string
 {
+    $app = efpic_load_app_settings($config);
+    $wa = $app['gallery_whatsapp'] ?? [];
+    if (is_array($wa)) {
+        $code = trim((string) ($wa['default_country_code'] ?? ''));
+        if ($code !== '') {
+            return $code;
+        }
+    }
+    $gn = efpic_gallery_notify_cfg($config);
+
+    return (string) ($gn['default_country_code'] ?? '371');
+}
+
+function efpic_gallery_whatsapp_template(array $config, string $key): string
+{
+    $defaults = efpic_gallery_whatsapp_template_defaults();
+    $default = (string) (($defaults[$key]['body'] ?? ''));
+
+    $app = efpic_load_app_settings($config);
+    $appTemplates = $app['gallery_whatsapp_templates'] ?? [];
+    if (is_array($appTemplates)) {
+        $appTpl = $appTemplates[$key] ?? [];
+        if (is_array($appTpl) && trim((string) ($appTpl['body'] ?? '')) !== '') {
+            return (string) $appTpl['body'];
+        }
+    }
+
+    $gn = efpic_gallery_notify_cfg($config);
+    $templates = $gn['whatsapp_templates'] ?? [];
+    if (is_array($templates)) {
+        $tpl = $templates[$key] ?? [];
+        if (is_array($tpl) && trim((string) ($tpl['body'] ?? '')) !== '') {
+            return (string) $tpl['body'];
+        }
+    }
+
+    return $default;
+}
+
+function efpic_gallery_whatsapp_link(
+    array $config,
+    array $meta,
+    string $slug,
+    string $templateKey = 'gallery_ready',
+): ?string {
     $phone = efpic_gallery_client_phone($meta);
     if ($phone === '') {
         return null;
     }
-    $gn = efpic_gallery_notify_cfg($config);
-    $country = (string) ($gn['default_country_code'] ?? '371');
+    $country = efpic_gallery_whatsapp_country_code($config);
     $digits = efpic_normalize_phone_digits($phone, $country);
     if ($digits === '') {
         return null;
     }
 
-    $name = (string) ($meta['name'] ?? $slug);
-    $url = efpic_gallery_view_url($config, (string) ($meta['gallery_token'] ?? ''));
-    $expires = efpic_gallery_expires_display($meta);
-    $text = 'Sveiki! Jūsu foto galerija «' . $name . '» ir gatava.' . "\n" . $url;
-    if ($expires !== '') {
-        $text .= "\nPieejama līdz " . $expires . '.';
+    $vars = efpic_gallery_notify_vars($config, $meta, $slug);
+    $bodyTpl = efpic_gallery_whatsapp_template($config, $templateKey);
+    $text = efpic_gallery_notify_replace($bodyTpl, $vars);
+    if (trim($text) === '') {
+        $text = 'Sveiki! Jūsu foto galerija «' . $vars['name'] . '» ir gatava.' . "\n" . $vars['url'];
     }
 
     return 'https://wa.me/' . rawurlencode($digits) . '?text=' . rawurlencode($text);
@@ -136,6 +201,21 @@ function efpic_gallery_whatsapp_link(array $config, array $meta, string $slug): 
 
 function efpic_gallery_notify_template(array $config, string $key): array
 {
+    $defaults = efpic_gallery_email_template_defaults();
+    $default = $defaults[$key] ?? ['subject' => '', 'body' => ''];
+
+    $app = efpic_load_app_settings($config);
+    $appTemplates = $app['gallery_email_templates'] ?? [];
+    if (is_array($appTemplates)) {
+        $appTpl = $appTemplates[$key] ?? [];
+        if (is_array($appTpl) && trim((string) ($appTpl['subject'] ?? '')) !== '') {
+            return [
+                'subject' => (string) ($appTpl['subject'] ?? $default['subject']),
+                'body' => (string) ($appTpl['body'] ?? $default['body']),
+            ];
+        }
+    }
+
     $gn = efpic_gallery_notify_cfg($config);
     $templates = $gn['templates'] ?? [];
     if (!is_array($templates)) {
@@ -146,25 +226,9 @@ function efpic_gallery_notify_template(array $config, string $key): array
         $tpl = [];
     }
 
-    $defaults = match ($key) {
-        'gallery_ready' => [
-            'subject' => 'Jūsu galerija ir gatava — {name}',
-            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» ir gatava.\n\nSaite: {url}\n\nPieejama līdz {expires}.\n\nAr cieņu,\nEdgarsFoto",
-        ],
-        'expiry_reminder_30' => [
-            'subject' => 'Atgādinājums — galerija «{name}» būs pieejama vēl 30 dienas',
-            'body' => "Sveiki!\n\nAtgādinām, ka jūsu foto galerija «{name}» būs pieejama vēl apmēram 30 dienas (līdz {expires}).\n\nSaite: {url}\n\nLejupielādējiet bildes, kamēr galerija ir aktīva.\n\nAr cieņu,\nEdgarsFoto",
-        ],
-        'expiry_reminder_7' => [
-            'subject' => 'Atgādinājums — galerija «{name}» drīz vairs nebūs pieejama',
-            'body' => "Sveiki!\n\nJūsu foto galerija «{name}» būs pieejama vēl tikai apmēram 7 dienas (līdz {expires}).\n\nSaite: {url}\n\nLūdzu, lejupielādējiet vēlamās bildes pēc iespējas ātrāk.\n\nAr cieņu,\nEdgarsFoto",
-        ],
-        default => ['subject' => '', 'body' => ''],
-    };
-
     return [
-        'subject' => (string) ($tpl['subject'] ?? $defaults['subject']),
-        'body' => (string) ($tpl['body'] ?? $defaults['body']),
+        'subject' => (string) ($tpl['subject'] ?? $default['subject']),
+        'body' => (string) ($tpl['body'] ?? $default['body']),
     ];
 }
 
@@ -184,7 +248,7 @@ function efpic_gallery_send_client_email(
     string $templateKey,
 ): bool {
     if (!efpic_gallery_email_ready($config)) {
-        throw new RuntimeException('E-pasts nav konfigurēts (config.php gallery_notifications vai guest_delivery).');
+        throw new RuntimeException('E-pasts nav konfigurēts. Admin → Iestatījumi → E-pasts klientam.');
     }
     $to = efpic_gallery_client_email($meta);
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
@@ -279,7 +343,7 @@ function efpic_gallery_on_activity(
     string $actor,
     array $extra,
 ): void {
-    if (!efpic_gallery_notify_enabled($config)) {
+    if (!efpic_telegram_enabled($config)) {
         return;
     }
 
@@ -291,6 +355,8 @@ function efpic_gallery_on_activity(
         'image_shown',
         'section_hidden',
         'section_shown',
+        'download_image',
+        'share_created',
         'expiry_reminder',
     ];
     if (!is_array($telegramEvents)) {
@@ -311,6 +377,8 @@ function efpic_gallery_on_activity(
         'image_shown' => '👀',
         'section_hidden' => '📁🙈',
         'section_shown' => '📁',
+        'download_image' => '⬇️',
+        'share_created' => '🔗',
         'expiry_reminder' => '⏳',
         default => 'ℹ️',
     };
@@ -318,12 +386,26 @@ function efpic_gallery_on_activity(
     $text = $icon . ' <b>' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</b>' . "\n"
         . htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
+    $imageLabels = efpic_gallery_resolve_activity_image_labels($meta, $extra);
+    if ($imageLabels !== []) {
+        $show = array_slice($imageLabels, 0, 10);
+        $line = implode(', ', $show);
+        if (count($imageLabels) > 10) {
+            $line .= ' (+' . (count($imageLabels) - 10) . ' bildes)';
+        }
+        if (!str_contains($message, $line) && !str_contains($message, $show[0] ?? '')) {
+            $text .= "\n📷 " . htmlspecialchars($line, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+    }
+
     efpic_telegram_notify($config, $text);
 }
 
 function efpic_gallery_process_expiry_reminders(array $config): array
 {
-    if (!efpic_gallery_notify_enabled($config)) {
+    $canEmail = efpic_gallery_email_ready($config);
+    $canTelegram = efpic_gallery_notify_enabled($config) && efpic_telegram_enabled($config);
+    if (!$canEmail && !$canTelegram) {
         return ['processed' => 0, 'sent' => 0];
     }
 
