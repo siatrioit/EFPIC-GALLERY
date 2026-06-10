@@ -2781,17 +2781,12 @@ input[type="password"] {
     padding-bottom: 8px;
   }
 
-  .gallery-toolbar .gallery-toolbar__title {
-    flex: 1 1 auto;
-    min-width: 0;
-    font-size: 0.95rem;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  .gallery-toolbar.topbar-floating.is-scrolled .gallery-toolbar__title {
+    display: none;
   }
 
   .gallery-toolbar .gallery-toolbar__nav {
-    order: 3;
+    order: 2;
     flex: 1 1 100%;
     width: 100%;
     min-width: 0;

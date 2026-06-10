@@ -477,12 +477,12 @@
       return;
     }
     function syncPlayOverlay() {
-      wrap.classList.toggle('is-playing', !video.paused && !video.ended);
+      var playing = !video.paused && !video.ended;
+      wrap.classList.toggle('is-playing', playing);
+      // Viena play poga: pauzē paslēpj pārlūka kontroles, rāda tikai overlay.
+      video.controls = playing;
     }
     playBtn.addEventListener('click', function () {
-      if (!video.controls) {
-        video.controls = true;
-      }
       video.play().catch(function () {});
     });
     video.addEventListener('play', syncPlayOverlay);
@@ -952,6 +952,47 @@
       window.location.href = nextUrl;
     }
   });
+
+  if (prevUrl || nextUrl) {
+    var viewerSwipeTarget =
+      document.querySelector('[data-viewer-stage]') ||
+      document.querySelector('.viewer-stage') ||
+      document.querySelector('.viewer-wrap');
+    if (viewerSwipeTarget) {
+      var swipeStartX = 0;
+      var swipeStartY = 0;
+      var swipeTracking = false;
+      var swipeMin = 48;
+
+      viewerSwipeTarget.addEventListener(
+        'touchstart',
+        function (evt) {
+          if (!evt.touches || evt.touches.length !== 1) return;
+          swipeStartX = evt.touches[0].clientX;
+          swipeStartY = evt.touches[0].clientY;
+          swipeTracking = true;
+        },
+        { passive: true }
+      );
+
+      viewerSwipeTarget.addEventListener(
+        'touchend',
+        function (evt) {
+          if (!swipeTracking || !evt.changedTouches || evt.changedTouches.length !== 1) return;
+          swipeTracking = false;
+          var dx = evt.changedTouches[0].clientX - swipeStartX;
+          var dy = evt.changedTouches[0].clientY - swipeStartY;
+          if (Math.abs(dx) < swipeMin || Math.abs(dx) <= Math.abs(dy)) return;
+          if (dx < 0 && nextUrl) {
+            window.location.href = nextUrl;
+          } else if (dx > 0 && prevUrl) {
+            window.location.href = prevUrl;
+          }
+        },
+        { passive: true }
+      );
+    }
+  }
 
   var slideshowEl = document.getElementById('efpic-slideshow');
   var slideshowOpenBtn = document.querySelector('[data-slideshow-open]');
