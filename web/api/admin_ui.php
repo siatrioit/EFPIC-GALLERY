@@ -1665,7 +1665,15 @@ function efpic_admin_list_delivery_galleries(array $config): void
         $rows .= '<tr>';
         $rows .= '<td><input type="checkbox" name="gallery_slugs[]" value="' . efpic_admin_esc($slug) . '" class="admin-gallery-pick"></td>';
         $rows .= '<td><a href="delivery_edit.php?slug=' . rawurlencode($slug) . '">' . efpic_admin_esc($meta['name'] ?? $slug) . '</a></td>';
-        $rows .= '<td>' . efpic_admin_esc($date !== '' ? $date : '—') . '</td>';
+        $expiresShort = efpic_gallery_expires_at_value($meta) ?? '';
+        if ($expiresShort === '') {
+            $expiresCell = '<span class="muted">bez termiņa</span>';
+        } elseif (efpic_gallery_expired($meta)) {
+            $expiresCell = '<span class="err">līdz ' . efpic_admin_esc($expiresShort) . '</span>';
+        } else {
+            $expiresCell = '<span class="muted">līdz ' . efpic_admin_esc($expiresShort) . '</span>';
+        }
+        $rows .= '<td>' . efpic_admin_esc($date !== '' ? $date : '—') . '<br>' . $expiresCell . '</td>';
         $rows .= '<td>' . count($meta['images'] ?? []) . ' / ' . $paired . '</td>';
         $rows .= '<td class="muted">' . efpic_admin_esc($syncAt) . ' · skat. ' . $views . '</td>';
         $rows .= '<td>';
@@ -1685,7 +1693,7 @@ function efpic_admin_list_delivery_galleries(array $config): void
     }
 
     $body .= '<div class="admin-table-wrap"><table class="admin-table"><thead><tr>';
-    $body .= '<th></th><th>Nosaukums</th><th>Datums</th><th>Bildes</th><th>Sync</th><th></th>';
+    $body .= '<th></th><th>Nosaukums</th><th>Datums / termiņš</th><th>Bildes</th><th>Sync</th><th></th>';
     $body .= '</tr></thead><tbody>' . $rows . '</tbody></table></div></form>';
 
     efpic_admin_layout(
@@ -1719,6 +1727,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'event_date' => $eventDate,
             'password' => (string) ($_POST['gallery_password'] ?? ''),
             'client_email' => trim((string) ($_POST['client_email'] ?? '')),
+            'client_phone' => trim((string) ($_POST['client_phone'] ?? '')),
             'client_password' => (string) ($_POST['client_password'] ?? ''),
             'folder_parent_url' => trim((string) ($_POST['folder_parent_url'] ?? '')),
             'folder_full_url' => trim((string) ($_POST['folder_full_url'] ?? '')),
@@ -1727,6 +1736,9 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         ]);
         $slug = $created['slug'];
         $meta = $created['meta'];
+        if (trim((string) ($_POST['expires_at'] ?? '')) !== '') {
+            efpic_gallery_apply_expires_from_post($meta);
+        }
         $meta['scenes'] = efpic_parse_scenes_from_post();
         $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
@@ -1739,6 +1751,14 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         efpic_apply_cover_theme_from_post($meta);
         efpic_apply_mood_theme_from_post($meta);
         efpic_save_gallery_meta($config, $slug, $meta);
+        efpic_gallery_log_activity(
+            $config,
+            $slug,
+            $meta,
+            'gallery_created',
+            'Galerija izveidota',
+            'admin',
+        );
     } else {
         $meta = efpic_load_gallery_meta($config, $slug);
         if ($meta === null) {
@@ -1757,7 +1777,8 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             $label = trim((string) ($_POST['share_set_label'] ?? ''));
             $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
             $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
-            efpic_create_share_set($meta, $label, $tokens, 'admin', !empty($_POST['share_include_videos']));
+            $shareEntry = efpic_create_share_set($meta, $label, $tokens, 'admin', !empty($_POST['share_include_videos']));
+            efpic_log_share_set_created($config, $slug, $meta, $shareEntry, 'admin');
         }
 
         $meta['name'] = $name;
@@ -1812,6 +1833,17 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
         $meta['settings']['enable_public_collection'] = efpic_post_flag_is_on('enable_public_collection');
+        if (efpic_gallery_apply_expires_from_post($meta)) {
+            $expiresLabel = efpic_gallery_expires_display($meta);
+            efpic_gallery_log_activity(
+                $config,
+                $slug,
+                $meta,
+                'expiry_changed',
+                $expiresLabel !== '' ? 'Termiņš: līdz ' . $expiresLabel : 'Termiņš noņemts',
+                'admin',
+            );
+        }
         efpic_gallery_migrate_slideshow_meta_in_place($meta);
         efpic_apply_slideshow_from_post($config, $slug, $meta, 'admin');
         if (!empty($_POST['slideshow_draft_generate_video'])) {
@@ -1827,6 +1859,18 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
 
     if (!empty($_POST['sync_now'])) {
         $syncResult = efpic_sync_delivery_gallery($config, $slug);
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta !== null) {
+            $paired = (int) (($meta['failiem']['sync_stats']['paired'] ?? 0));
+            efpic_gallery_log_activity(
+                $config,
+                $slug,
+                $meta,
+                'sync',
+                'Sinhronizēts no Failiem (' . $paired . ' pāri)',
+                'admin',
+            );
+        }
         efpic_admin_session_start();
         $_SESSION['efpic_admin_sync_dims'] = [
             'backfilled' => (int) ($syncResult['dimensions_backfilled'] ?? 0),
@@ -2053,12 +2097,28 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         'Aizsargā publisko galeriju (/v/g/…). Atstāj tukšu, lai noņemtu paroli.'
     );
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
+    $body .= '<label>Klienta tālrunis (WhatsApp)<input type="tel" name="client_phone" value="' . efpic_admin_esc((string) ($formMeta['client_access']['phone'] ?? '')) . '" placeholder="29123456"></label>';
+    $expiresVal = efpic_gallery_expires_at_value($formMeta) ?? '';
+    if ($expiresVal === '' && !$isEdit) {
+        $expiresVal = efpic_gallery_default_expires_at();
+    }
+    $body .= '<label>Pieejama līdz<input type="date" name="expires_at" value="' . efpic_admin_esc($expiresVal) . '"></label>';
+    $body .= '<p class="muted">Jaunām galerijām noklusējums ir 12 mēneši. Pēc termiņa galerija vairs nav pieejama.</p>';
     $body .= efpic_admin_render_password_field(
         'Klienta paneļa parole',
         'client_password',
         efpic_client_portal_password_plain($formMeta),
         'Aizsargā klienta paneli (/c/p/…). Atstāj tukšu, lai noņemtu paroli.'
     );
+    if ($isEdit && is_array($meta) && $slug !== null) {
+        $waLink = efpic_gallery_whatsapp_link($config, $meta, $slug);
+        if ($waLink !== null) {
+            $body .= '<p class="admin-links-row"><a class="btn" href="' . efpic_admin_esc($waLink) . '" target="_blank" rel="noopener">Sūtīt WhatsApp ziņu klientam</a></p>';
+        }
+        if (efpic_gallery_email_ready($config) && efpic_gallery_client_email($meta) !== '') {
+            $body .= '<p class="admin-links-row"><button type="submit" class="btn" name="send_gallery_ready_email" value="1">Sūtīt «Galerija gatava» e-pastu</button></p>';
+        }
+    }
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
         $collectionOn = !empty($gallerySettings['enable_public_collection']);
@@ -2093,6 +2153,16 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             'name' => 'client_comments_enabled',
         ]);
         $body .= '<p class="muted">Pēc noklusējuma izslēgts. Kad ieslēgts, klients var atstāt komentāru pie katras bildes panelī.</p>';
+        $body .= '</fieldset>';
+        $expiresDisplay = efpic_gallery_expires_display($meta);
+        if ($expiresDisplay !== '') {
+            $expired = efpic_gallery_expired($meta);
+            $statusClass = $expired ? 'err' : 'muted';
+            $statusText = $expired ? 'Termiņš beidzies' : 'Pieejama līdz ' . $expiresDisplay;
+            $body .= '<p class="' . $statusClass . '"><strong>' . efpic_admin_esc($statusText) . '</strong></p>';
+        }
+        $body .= '<fieldset class="admin-fieldset-full"><legend>Aktivitāšu žurnāls</legend>';
+        $body .= efpic_admin_render_activity_log($meta);
         $body .= '</fieldset>';
     }
     $body .= '</div></fieldset>';

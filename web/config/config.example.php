@@ -27,6 +27,40 @@ return [
         'pair_suffix_strip' => ['_WEB', '_PRINT', '_web', '_print', '-web', '-small'],
     ],
 
+    /**
+     * Galeriju paziņojumi — e-pasts klientam, Telegram fotogrāfam, termiņa atgādinājumi.
+     * Cron (vienreiz dienā): POST /api/gallery-notifications/run ar Authorization: Bearer {api_token}
+     */
+    'gallery_notifications' => [
+        'enabled' => true,
+        'default_country_code' => '371',
+        'email' => [
+            'from' => 'noreply@edgarsfoto.lv',
+            'from_name' => 'EdgarsFoto',
+            'use_php_mail' => true,
+            'smtp_host' => '',
+            'smtp_port' => 587,
+            'smtp_secure' => 'tls',
+            'smtp_user' => '',
+            'smtp_pass' => '',
+        ],
+        'telegram' => [
+            'bot_token' => '',
+            'chat_id' => '',
+        ],
+        'telegram_events' => [
+            'gallery_view',
+            'image_hidden',
+            'image_shown',
+            'section_hidden',
+            'section_shown',
+            'expiry_reminder',
+        ],
+        'templates' => [
+            // 'gallery_ready' => ['subject' => '...', 'body' => '... {name} {url} {expires}'],
+        ],
+    ],
+
     'guest_delivery' => [
         'enabled' => false,
         'default_country_code' => '371',

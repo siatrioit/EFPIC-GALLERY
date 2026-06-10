@@ -1167,6 +1167,32 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
     return $html;
 }
 
+function efpic_client_render_gallery_expiry_notice(array $meta): string
+{
+    $display = efpic_gallery_expires_display($meta);
+    if ($display === '' || efpic_gallery_expired($meta)) {
+        return '';
+    }
+
+    return '<p class="gallery-expiry muted">Pieejama līdz ' . efpic_client_esc($display) . '</p>';
+}
+
+function efpic_gallery_block_if_expired(array $meta, string $name, array $config): void
+{
+    if (!efpic_gallery_expired($meta)) {
+        return;
+    }
+    efpic_client_html($name, '<p class="feed-empty err">Galerijas derīguma termiņš ir beidzies.</p>', $config, 'page-auth');
+}
+
+function efpic_gallery_log_download(array $config, string $slug, array &$meta, string $type, string $detail): void
+{
+    if (!function_exists('efpic_gallery_log_activity')) {
+        return;
+    }
+    efpic_gallery_log_activity($config, $slug, $meta, $type, $detail, 'guest');
+}
+
 function efpic_handle_client_gallery(array $config, string $galleryToken, string $method): void
 {
     $found = efpic_find_gallery_by_token($config, $galleryToken);
@@ -1182,6 +1208,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     if (efpic_gallery_expired($meta)) {
         efpic_client_html($name, '<p class="feed-empty err">Galerijas derīguma termiņš ir beidzies.</p>', $config, 'page-auth');
     }
+
+    efpic_gallery_process_expiry_reminders($config);
 
     if ($method === 'POST' && isset($_POST['gallery_password'])) {
         if (efpic_verify_gallery_password($meta, (string) $_POST['gallery_password'])) {
@@ -1308,6 +1336,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     if ($canPublicCollection) {
         $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
     }
+    $expiresNotice = efpic_client_render_gallery_expiry_notice($meta);
+    if ($expiresNotice !== '') {
+        $body .= $expiresNotice;
+    }
     if ($usesShell) {
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
         if ($usesMosaicSlideshow) {
@@ -1401,6 +1433,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
     $meta = $found['meta'];
     $gt = (string) ($meta['gallery_token'] ?? '');
     $name = (string) ($meta['name'] ?? '');
+    efpic_gallery_block_if_expired($meta, $name, $config);
     $canBrowseGallery = empty($meta['restrict_gallery_from_single_link']);
     $ctx = efpic_viewer_context($config, $meta);
     $galleryUrl = efpic_gallery_view_url($config, $gt, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
@@ -1623,11 +1656,17 @@ function efpic_handle_client_image_download(array $config, string $imageToken): 
     }
 
     $meta = $found['meta'];
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
     $ctx = efpic_viewer_context($config, $meta);
     if (!efpic_can_download_size($meta, $ctx, $size)) {
         http_response_code(403);
         exit;
     }
+
+    efpic_gallery_log_download($config, $found['slug'], $meta, 'download_image', 'Bilde (' . $size . ')');
 
     $img = $found['image'] ?? [];
     $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
@@ -1971,6 +2010,10 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
         exit;
     }
     $meta = $found['meta'];
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
     if (efpic_gallery_has_password($meta) && !efpic_gallery_session_unlocked($galleryToken)) {
         http_response_code(403);
         exit;
@@ -1995,6 +2038,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
     $filename = efpic_client_zip_filename($found['slug'], $size, 'all');
 
     if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . $size . ')');
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'all', $galleryToken);
     }
 
@@ -2123,6 +2167,10 @@ function efpic_handle_client_subset_zip(
         $found['scene_id'] = $sceneId;
     }
     $meta = $found['meta'];
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
     if (efpic_gallery_has_password($meta) && !efpic_gallery_session_unlocked($galleryToken)) {
         http_response_code(403);
         exit;
@@ -2148,6 +2196,9 @@ function efpic_handle_client_subset_zip(
     $filename = efpic_client_zip_filename($found['slug'], $size, $scope, $sceneId);
 
     if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        $zipType = $stashScope === 'collection' ? 'download_collection' : 'download_zip';
+        $zipLabel = $stashScope === 'collection' ? 'Izlase' : $scope;
+        efpic_gallery_log_download($config, $found['slug'], $meta, $zipType, $zipLabel . ' (' . $size . ')');
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, $scope, $galleryToken);
     }
 

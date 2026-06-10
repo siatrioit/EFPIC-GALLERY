@@ -390,6 +390,12 @@ function efpic_apply_gallery_passwords_from_post(array &$meta): void
         }
         $meta['client_access']['email'] = trim((string) $_POST['client_email']);
     }
+    if (array_key_exists('client_phone', $_POST)) {
+        if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+            $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+        }
+        $meta['client_access']['phone'] = trim((string) $_POST['client_phone']);
+    }
 }
 
 /** @param array<string, mixed> $meta */

@@ -112,6 +112,30 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
             $config
         );
     }
+    if (efpic_gallery_expired($meta)) {
+        efpic_client_html(
+            (string) ($meta['name'] ?? ''),
+            '<p class="feed-empty err">Galerijas derīguma termiņš ir beidzies.</p>',
+            $config,
+            'page-auth',
+        );
+    }
+
+    if ($method === 'GET' && !isset($_GET['poll'])) {
+        efpic_client_session_start();
+        $portalViewKey = 'efpic_portal_viewed_' . $portalToken;
+        if (empty($_SESSION[$portalViewKey])) {
+            $_SESSION[$portalViewKey] = true;
+            efpic_gallery_log_activity(
+                $config,
+                $slug,
+                $meta,
+                'client_portal_view',
+                'Klienta panelis atvērts',
+                'client',
+            );
+        }
+    }
 
     if ($method === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
         header('Content-Type: application/json; charset=utf-8');
@@ -135,7 +159,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         }
         try {
             if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
-                efpic_apply_share_actions_from_post($meta, 'client');
+                efpic_apply_share_actions_from_post($meta, 'client', ['config' => $config, 'slug' => $slug]);
             }
             if (!empty($_POST['delete_share_token'])) {
                 efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
@@ -170,8 +194,18 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                         if (!is_array($img) || ($img['token'] ?? '') !== $imageToken) {
                             continue;
                         }
-                        $meta['images'][$i]['client_hidden'] = empty($img['client_hidden']);
+                        $nowHidden = empty($img['client_hidden']);
+                        $meta['images'][$i]['client_hidden'] = $nowHidden;
                         efpic_save_gallery_meta($config, $slug, $meta);
+                        efpic_gallery_log_activity(
+                            $config,
+                            $slug,
+                            $meta,
+                            $nowHidden ? 'image_hidden' : 'image_shown',
+                            $nowHidden ? 'Klients paslēpa bildi' : 'Klients atkal rāda bildi',
+                            'client',
+                            ['image_token' => $imageToken],
+                        );
 
                         return;
                     }
@@ -271,9 +305,42 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                         : 'Slideshow saglabāts.';
                 })(),
                 'save_scenes' => (function () use ($config, $slug, &$meta) {
+                    $before = [];
+                    foreach ($meta['scenes'] ?? [] as $scene) {
+                        if (!is_array($scene)) {
+                            continue;
+                        }
+                        $sid = (string) ($scene['id'] ?? '');
+                        if ($sid !== '') {
+                            $before[$sid] = !empty($scene['hidden_from_guests']);
+                        }
+                    }
                     $meta['scenes'] = efpic_parse_portal_scenes_from_post($meta);
                     efpic_reassign_orphan_scene_images($meta);
                     efpic_save_gallery_meta($config, $slug, $meta);
+                    foreach ($meta['scenes'] ?? [] as $scene) {
+                        if (!is_array($scene)) {
+                            continue;
+                        }
+                        $sid = (string) ($scene['id'] ?? '');
+                        if ($sid === '' || !array_key_exists($sid, $before)) {
+                            continue;
+                        }
+                        $nowHidden = !empty($scene['hidden_from_guests']);
+                        if ($nowHidden === $before[$sid]) {
+                            continue;
+                        }
+                        $title = (string) ($scene['title'] ?? $sid);
+                        efpic_gallery_log_activity(
+                            $config,
+                            $slug,
+                            $meta,
+                            $nowHidden ? 'section_hidden' : 'section_shown',
+                            ($nowHidden ? 'Paslēpta' : 'Rāda') . ' sadaļa «' . $title . '»',
+                            'client',
+                            ['scene_id' => $sid],
+                        );
+                    }
                     $_SESSION['efpic_portal_flash'] = 'Sadaļas saglabātas.';
                 })(),
                 'save_videos' => (function () use ($config, $slug, &$meta) {

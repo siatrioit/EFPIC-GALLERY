@@ -2268,6 +2268,23 @@ function efpic_create_share_set(
     return $entry;
 }
 
+function efpic_log_share_set_created(array $config, string $slug, array &$meta, array $entry, string $actor): void
+{
+    if (!function_exists('efpic_gallery_log_activity')) {
+        return;
+    }
+    $label = (string) ($entry['label'] ?? 'Izlase');
+    $count = count($entry['image_tokens'] ?? []);
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        'share_created',
+        'Kopīgojamā izlase «' . $label . '» (' . $count . ' bildes)',
+        $actor,
+    );
+}
+
 function efpic_delete_share_set(array &$meta, string $guestToken): void
 {
     $guestToken = trim($guestToken);
@@ -2451,14 +2468,20 @@ function efpic_update_share_set_meta(array &$meta, string $guestToken, bool $inc
     throw new InvalidArgumentException('Izlase nav atrasta.');
 }
 
-function efpic_apply_share_actions_from_post(array &$meta, string $createdBy = 'admin'): void
-{
+function efpic_apply_share_actions_from_post(
+    array &$meta,
+    string $createdBy = 'admin',
+    ?array $logContext = null,
+): void {
     $action = trim((string) ($_POST['share_action'] ?? ''));
     if ($action === 'create') {
         $label = trim((string) ($_POST['share_set_label'] ?? ''));
         $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
         $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
-        efpic_create_share_set($meta, $label, $tokens, $createdBy, !empty($_POST['share_include_videos']));
+        $entry = efpic_create_share_set($meta, $label, $tokens, $createdBy, !empty($_POST['share_include_videos']));
+        if (is_array($logContext) && isset($logContext['config'], $logContext['slug'])) {
+            efpic_log_share_set_created($logContext['config'], (string) $logContext['slug'], $meta, $entry, $createdBy);
+        }
 
         return;
     }

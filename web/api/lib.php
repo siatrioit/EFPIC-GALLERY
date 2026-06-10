@@ -570,6 +570,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         ],
         'client_access' => [
             'email' => '',
+            'phone' => '',
             'password' => '',
             'password_hash' => '',
             'portal_token' => efpic_random_hex(24),
@@ -780,6 +781,42 @@ function efpic_portal_action_section(string $action): ?string
     };
 }
 
+function efpic_gallery_default_expires_at(): string
+{
+    return date('Y-m-d', strtotime('+12 months'));
+}
+
+function efpic_gallery_expires_at_value(array $meta): ?string
+{
+    $expires = efpic_gallery_settings($meta)['expires_at'] ?? null;
+    if ($expires === null || $expires === '') {
+        return null;
+    }
+
+    return substr((string) $expires, 0, 10);
+}
+
+function efpic_gallery_expires_display(array $meta): string
+{
+    $date = efpic_gallery_expires_at_value($meta);
+    if ($date === null) {
+        return '';
+    }
+    $ts = strtotime($date);
+    if ($ts === false) {
+        return $date;
+    }
+
+    $months = [
+        1 => 'janv.', 2 => 'febr.', 3 => 'marts', 4 => 'apr.',
+        5 => 'maijs', 6 => 'jūn.', 7 => 'jūl.', 8 => 'aug.',
+        9 => 'sept.', 10 => 'okt.', 11 => 'nov.', 12 => 'dec.',
+    ];
+    $m = (int) date('n', $ts);
+
+    return (int) date('j', $ts) . '. ' . ($months[$m] ?? date('m', $ts)) . ' ' . date('Y', $ts);
+}
+
 function efpic_gallery_expired(array $meta): bool
 {
     $expires = efpic_gallery_settings($meta)['expires_at'] ?? null;
@@ -787,8 +824,32 @@ function efpic_gallery_expired(array $meta): bool
         return false;
     }
     $ts = strtotime((string) $expires);
+    if ($ts === false) {
+        return false;
+    }
+    $endOfDay = strtotime(date('Y-m-d', $ts) . ' 23:59:59');
 
-    return $ts !== false && time() > $ts;
+    return time() > ($endOfDay !== false ? $endOfDay : $ts);
+}
+
+function efpic_gallery_apply_expires_from_post(array &$meta): bool
+{
+    if (!array_key_exists('expires_at', $_POST)) {
+        return false;
+    }
+    if (!isset($meta['settings']) || !is_array($meta['settings'])) {
+        $meta['settings'] = efpic_gallery_defaults('delivery')['settings'];
+    }
+    $raw = trim((string) $_POST['expires_at']);
+    $old = $meta['settings']['expires_at'] ?? null;
+    if ($raw === '') {
+        $meta['settings']['expires_at'] = null;
+    } elseif (preg_match('/^\d{4}-\d{2}-\d{2}$/', $raw) === 1) {
+        $meta['settings']['expires_at'] = $raw;
+    }
+    $new = $meta['settings']['expires_at'] ?? null;
+
+    return (string) $old !== (string) ($new ?? '');
 }
 
 function efpic_record_gallery_view(array $config, string $slug, array &$meta): void
@@ -797,9 +858,33 @@ function efpic_record_gallery_view(array $config, string $slug, array &$meta): v
     if (!is_array($a)) {
         $a = [];
     }
+    $firstView = empty($a['client_first_view_at']);
     $a['views'] = (int) ($a['views'] ?? 0) + 1;
+    if ($firstView) {
+        $a['client_first_view_at'] = gmdate('c');
+    }
     $meta['analytics'] = $a;
     efpic_save_gallery_meta($config, $slug, $meta);
+
+    if (function_exists('efpic_gallery_log_activity') && $firstView) {
+        efpic_gallery_log_activity(
+            $config,
+            $slug,
+            $meta,
+            'gallery_view',
+            'Pirmā atvēršana',
+            'guest',
+            ['first_view' => true],
+        );
+    }
+
+    if (function_exists('efpic_gallery_process_expiry_reminders')) {
+        static $remindersChecked = false;
+        if (!$remindersChecked) {
+            $remindersChecked = true;
+            efpic_gallery_process_expiry_reminders($config);
+        }
+    }
 }
 
 /** Admin on/off slēdzis (vienāds ar Tēma «Nosaukums ar lielajiem burtiem»). */

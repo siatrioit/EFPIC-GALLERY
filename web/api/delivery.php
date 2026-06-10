@@ -189,6 +189,8 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta['failiem']['pair_suffix_strip'] = efpic_failiem_strip_suffixes($config);
 
     $meta['client_access']['email'] = trim((string) ($input['client_email'] ?? ''));
+    $meta['client_access']['phone'] = trim((string) ($input['client_phone'] ?? ''));
+    $meta['settings']['expires_at'] = efpic_gallery_default_expires_at();
     efpic_set_client_portal_password($meta, (string) ($input['client_password'] ?? ''));
 
     if (!empty($input['scenes']) && is_array($input['scenes'])) {

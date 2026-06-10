@@ -65,7 +65,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) 
             throw new RuntimeException('Nav atrasts');
         }
         if (trim((string) ($_POST['share_action'] ?? '')) !== '') {
-            efpic_apply_share_actions_from_post($meta, 'admin');
+            efpic_apply_share_actions_from_post($meta, 'admin', ['config' => $config, 'slug' => $slug]);
         }
         if (!empty($_POST['delete_share_token'])) {
             efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
@@ -98,6 +98,25 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        if (!empty($_POST['send_gallery_ready_email'])) {
+            $meta = efpic_load_gallery_meta($config, $slug);
+            if ($meta === null) {
+                throw new RuntimeException('Nav atrasts');
+            }
+            efpic_gallery_send_client_email($config, $meta, $slug, 'gallery_ready');
+            efpic_gallery_mark_notification_sent($meta, 'gallery_ready');
+            efpic_gallery_log_activity(
+                $config,
+                $slug,
+                $meta,
+                'gallery_ready_email',
+                'Nosūtīts «Galerija gatava» e-pasts uz ' . efpic_gallery_client_email($meta),
+                'admin',
+            );
+            header('Location: delivery_edit.php?slug=' . rawurlencode($slug) . '&email_sent=1');
+            exit;
+        }
+
         if (!empty($_POST['regenerate_public_link'])) {
             if (empty($_POST['confirm_regenerate'])) {
                 throw new InvalidArgumentException('Apstiprini jaunas saites izveidi.');
@@ -220,5 +239,8 @@ if (isset($_GET['share_created'])) {
 }
 if (isset($_GET['link_regenerated'])) {
     $flash = 'Jauna publiskā saite izveidota. Vecā saite vairs nedarbojas.';
+}
+if (isset($_GET['email_sent'])) {
+    $flash = '«Galerija gatava» e-pasts nosūtīts klientam.';
 }
 efpic_admin_delivery_form($config, $meta, $slug, $flash);

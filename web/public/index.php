@@ -57,6 +57,10 @@ try {
         efpic_handle_guest_delivery_send($config);
     }
 
+    if ($uri === '/api/gallery-notifications/run' && $method === 'POST') {
+        efpic_handle_gallery_notifications_run($config);
+    }
+
     if ($uri === '/api/booth-events' && $method === 'GET') {
         efpic_handle_list_booth_events($config);
     }
