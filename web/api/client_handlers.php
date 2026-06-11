@@ -2129,6 +2129,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
     if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
         if ($folderHash !== '') {
+            efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . $size . ')');
             header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
             exit;
         }

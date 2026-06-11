@@ -55,6 +55,8 @@ return [
             'section_hidden',
             'section_shown',
             'download_image',
+            'download_zip',
+            'download_collection',
             'share_created',
             'expiry_reminder',
         ],

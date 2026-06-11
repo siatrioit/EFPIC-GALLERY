@@ -365,11 +365,20 @@ function efpic_gallery_on_activity(
         'section_hidden',
         'section_shown',
         'download_image',
+        'download_zip',
+        'download_collection',
         'share_created',
         'expiry_reminder',
     ];
     if (!is_array($telegramEvents)) {
         $telegramEvents = [];
+    }
+    if (in_array('download_image', $telegramEvents, true)) {
+        foreach (['download_zip', 'download_collection'] as $zipEvent) {
+            if (!in_array($zipEvent, $telegramEvents, true)) {
+                $telegramEvents[] = $zipEvent;
+            }
+        }
     }
 
     if (!in_array($type, $telegramEvents, true)) {
@@ -387,6 +396,8 @@ function efpic_gallery_on_activity(
         'section_hidden' => '📁🙈',
         'section_shown' => '📁',
         'download_image' => '⬇️',
+        'download_zip' => '📦',
+        'download_collection' => '📋',
         'share_created' => '🔗',
         'expiry_reminder' => '⏳',
         default => 'ℹ️',
