@@ -158,8 +158,6 @@
   var gdlModal = document.getElementById('galleryDownloadModal');
   var cdlModal = document.getElementById('collectionDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
-  var ZIP_DONE_HINT =
-    'Skaties pārlūkprogrammas lejupielādēs. Lieliem arhīviem lejupielāde var aizņemt ilgāku laiku.';
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
   var zipFetchAbort = null;
 
@@ -187,15 +185,6 @@
       success: false,
       title: title || 'Sagatavo lejupielādi…',
       hint: hint || 'Lūdzu uzgaidiet…',
-    });
-  }
-
-  function showZipProgressDone(title, hint) {
-    setZipProgressUi({
-      loading: false,
-      success: true,
-      title: title || 'Gatavs',
-      hint: hint || '',
     });
   }
 
@@ -293,11 +282,11 @@
     window.location.assign(url);
   }
 
-  function downloadFailiemZip(failiemUrl, hint, doneTitle) {
+  function downloadFailiemZip(failiemUrl, hint) {
     if (!failiemUrl) return;
     openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Lejupielāde sākas no Failiem.lv…');
     triggerBrowserDownload(failiemUrl);
-    showZipProgressDone(doneTitle || 'Lejupielāde sākta', ZIP_DONE_HINT);
+    closeZipProgress();
   }
 
   function downloadServerZip(url, filename, hint) {
@@ -318,7 +307,7 @@
       .then(function (blob) {
         zipFetchAbort = null;
         triggerBlobDownload(blob, filename || 'galerija.zip');
-        showZipProgressDone('Lejupielāde gatava', 'ZIP fails saglabāts.');
+        closeZipProgress();
       })
       .catch(function (err) {
         zipFetchAbort = null;
@@ -341,6 +330,7 @@
     if (usesFolderZip) {
       openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIP…');
       triggerBrowserDownload(downloadUrl);
+      closeZipProgress();
       return;
     }
 
@@ -362,13 +352,13 @@
       })
       .then(function (data) {
         if (data.mode === 'failiem' && data.url) {
-          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
           triggerBrowserDownload(data.url);
+          closeZipProgress();
           return;
         }
         if (data.mode === 'stream_ready') {
-          showZipProgressDone('Lejupielāde sākta', ZIP_DONE_HINT);
           triggerBrowserDownload(downloadUrl + '&dl=1');
+          closeZipProgress();
           return;
         }
         if (data.mode === 'server') {

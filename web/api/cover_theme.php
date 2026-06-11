@@ -511,6 +511,32 @@ function efpic_apply_mood_theme_from_post(array &$meta): void
     }
 }
 
+function efpic_gallery_social_cover_image_url(array $config, array $meta, ?array $ctx = null): string
+{
+    $images = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img) || !empty($img['client_hidden'])) {
+            continue;
+        }
+        $images[] = $img;
+    }
+    if ($images === []) {
+        return '';
+    }
+
+    $coverTok = efpic_resolve_gallery_cover_token($meta, $images);
+    if ($coverTok === '') {
+        return '';
+    }
+    foreach ($images as $img) {
+        if (($img['token'] ?? '') === $coverTok) {
+            return efpic_client_media_url($config, $img, 'web', 1200, $ctx);
+        }
+    }
+
+    return efpic_client_media_url_for_token($config, $meta, $coverTok, 'web', 1200, $ctx);
+}
+
 function efpic_admin_cover_preview_url(array $config, array $meta): string
 {
     $images = [];

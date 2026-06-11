@@ -325,6 +325,60 @@ function efpic_client_navigable_images(array $meta, array $ctx): array
     return $out;
 }
 
+function efpic_client_absolute_url(array $config, string $url): string
+{
+    if ($url === '') {
+        return efpic_base_url($config);
+    }
+    if (preg_match('/^https?:\/\//i', $url) === 1) {
+        return $url;
+    }
+    $base = efpic_base_url($config);
+
+    return $base . ($url[0] === '/' ? '' : '/') . $url;
+}
+
+function efpic_client_social_meta_tags(
+    array $config,
+    string $title,
+    string $shareUrl,
+    ?array $meta = null,
+    ?string $imageUrl = null,
+    ?array $ctx = null,
+): string {
+    $absUrl = efpic_client_absolute_url($config, $shareUrl);
+    $desc = $title;
+    if ($meta !== null) {
+        $theme = efpic_normalize_gallery_theme((string) ($meta['theme'] ?? 'efpic-modern'));
+        $dateLbl = efpic_client_format_event_date_for_gallery($meta, (string) ($meta['event_date'] ?? ''), $theme);
+        if ($dateLbl !== '') {
+            $desc = $title . ' — ' . $dateLbl;
+        }
+    }
+
+    $html = '<meta name="description" content="' . efpic_client_esc($desc) . '">';
+    $html .= '<meta property="og:type" content="website">';
+    $html .= '<meta property="og:site_name" content="' . efpic_client_esc(efpic_client_gallery_byline_display($config)) . '">';
+    $html .= '<meta property="og:title" content="' . efpic_client_esc($title) . '">';
+    $html .= '<meta property="og:description" content="' . efpic_client_esc($desc) . '">';
+    $html .= '<meta property="og:url" content="' . efpic_client_esc($absUrl) . '">';
+    $html .= '<meta property="og:locale" content="lv_LV">';
+    $html .= '<meta name="twitter:card" content="summary_large_image">';
+    $html .= '<meta name="twitter:title" content="' . efpic_client_esc($title) . '">';
+    $html .= '<meta name="twitter:description" content="' . efpic_client_esc($desc) . '">';
+
+    if ($imageUrl === null && $meta !== null) {
+        $imageUrl = efpic_gallery_social_cover_image_url($config, $meta, $ctx);
+    }
+    if ($imageUrl !== null && $imageUrl !== '') {
+        $absImage = efpic_client_absolute_url($config, $imageUrl);
+        $html .= '<meta property="og:image" content="' . efpic_client_esc($absImage) . '">';
+        $html .= '<meta name="twitter:image" content="' . efpic_client_esc($absImage) . '">';
+    }
+
+    return $html;
+}
+
 function efpic_client_html(
     string $title,
     string $body,
@@ -334,6 +388,8 @@ function efpic_client_html(
     array $extraScriptVars = [],
     ?array $meta = null,
     string $headExtra = '',
+    ?string $socialImageUrl = null,
+    ?array $socialCtx = null,
 ): void {
     $base = efpic_base_url($config);
     if ($shareUrl === '') {
@@ -349,6 +405,9 @@ function efpic_client_html(
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
     echo '<title>' . efpic_client_esc($title) . '</title>';
+    if ($meta !== null) {
+        echo efpic_client_social_meta_tags($config, $title, $shareUrl, $meta, $socialImageUrl, $socialCtx);
+    }
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="' . efpic_client_esc(efpic_gallery_intro_font_google_url_for_meta($meta)) . '" rel="stylesheet">';
     echo '<!-- ' . efpic_client_esc(efpic_app_version_label()) . ' -->';
@@ -1231,7 +1290,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= '<p class="muted">Ievadi galerijas paroli.</p><form method="post" class="stack">';
         $body .= '<label>Parole<input type="password" name="gallery_password" required autofocus></label>';
         $body .= '<button type="submit" class="btn primary">Atvērt</button></form></div></main>';
-        efpic_client_html($name, $body, $config, 'page-auth', efpic_gallery_view_url($config, $galleryToken));
+        efpic_client_html($name, $body, $config, 'page-auth', efpic_gallery_view_url($config, $galleryToken), [], $meta);
     }
 
     efpic_client_session_start();
@@ -1377,7 +1436,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_CAN_COLLECTION_ZIP' => efpic_can_download_collection_zip($meta, $ctx, 'web')
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
-    ], $meta, $headExtra);
+    ], $meta, $headExtra, null, $ctx);
 }
 
 function efpic_client_render_modern_viewer(
@@ -1502,7 +1561,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
             'EFPIC_GALLERY_RETURN' => $closeUrl,
             'EFPIC_LIKE_URL' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/like',
             'EFPIC_IMAGE_LIKED' => $liked ? '1' : '0',
-        ], $meta);
+        ], $meta, '', $mediaUrl, $ctx);
 
         return;
     }
@@ -1546,7 +1605,7 @@ function efpic_handle_client_image(array $config, string $imageToken, string $me
         'EFPIC_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/download',
         'EFPIC_LIKE_URL' => efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken) . '/like',
         'EFPIC_IMAGE_LIKED' => $liked ? '1' : '0',
-    ], $meta);
+    ], $meta, '', $mediaUrl, $ctx);
 }
 
 function efpic_handle_client_image_like(array $config, string $imageToken, string $method): void

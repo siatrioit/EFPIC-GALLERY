@@ -138,7 +138,24 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
     efpic_save_gallery_meta($config, $slug, $meta);
 
-    $dimResult = efpic_gallery_backfill_all_image_dimensions($config, $slug, true, EFPIC_DIMS_SYNC_BATCH);
+    // Tikai pirmā partija sync laikā — pārējie izmēri tiek ievākti fonā (admin JS) un skatot galeriju.
+    @set_time_limit(90);
+    $metaForDims = efpic_load_gallery_meta($config, $slug);
+    $dimUpdated = 0;
+    if ($metaForDims !== null) {
+        $dimUpdated = efpic_gallery_backfill_image_dimensions(
+            $config,
+            $slug,
+            $metaForDims,
+            EFPIC_DIMS_SYNC_BATCH,
+            true,
+        );
+    }
+    $metaAfter = efpic_load_gallery_meta($config, $slug);
+    $dimResult = [
+        'updated' => $dimUpdated,
+        'stats' => efpic_gallery_image_dimensions_stats(is_array($metaAfter) ? $metaAfter : []),
+    ];
 
     $warnings = [];
     if ($pairResult['orphans_full'] !== []) {
