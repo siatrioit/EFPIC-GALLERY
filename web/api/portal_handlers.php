@@ -371,13 +371,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $flash = (string) ($_SESSION['efpic_portal_flash'] ?? '');
     unset($_SESSION['efpic_portal_flash']);
 
-    $ctx = [
-        'role' => 'main_client',
-        'guest_token' => '',
-        'hide_client_hidden' => false,
-        'share_image_tokens' => null,
-        'share_label' => '',
-    ];
+    $ctx = efpic_portal_viewer_context();
     $images = [];
     foreach (efpic_sort_images_for_display($meta) as $img) {
         if (is_array($img)) {
@@ -415,6 +409,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<header class="admin-page-head admin-page-head--portal">';
     $body .= '<h1>' . efpic_client_esc($name) . '</h1>';
     $body .= '<p class="admin-lead">Klienta panelis — pārvaldi bildes, izlases un publisko galeriju.</p>';
+    $body .= efpic_portal_render_download_actions($config, $portalToken, $meta);
     $body .= '</header>';
     $body .= '<main class="admin-main">';
     if ($flash !== '') {
@@ -503,8 +498,12 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_tab_panel_close();
 
     $body .= '</main></div></div>';
+    $body .= efpic_client_zip_progress_modal();
 
-    efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta);
+    efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta, [
+        'EFPIC_PORTAL_DL_URL' => efpic_portal_url($config, $portalToken),
+        'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+    ]);
 }
 
 function efpic_portal_render_theme_panel(array $config, array $meta, string $theme, string $heroAccent, string $pageBg): string
@@ -712,6 +711,148 @@ function efpic_portal_render_videos_fieldset(array $config, array $meta, string 
     $html .= '<div class="admin-video-submit-row">';
     $html .= '<button type="submit" class="btn primary admin-btn-inline">Pievienot video</button>';
     $html .= '</div></form></fieldset>';
+
+    return $html;
+}
+
+function efpic_portal_handle_download_zip(array $config, string $portalToken): void
+{
+    @set_time_limit(0);
+    $found = efpic_portal_find_by_token($config, $portalToken);
+    if ($found === null) {
+        http_response_code(404);
+        exit;
+    }
+
+    $slug = $found['slug'];
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null || !efpic_gallery_is_active($meta)) {
+        http_response_code(404);
+        exit;
+    }
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
+
+    efpic_client_session_start();
+    if (!efpic_portal_logged_in($portalToken) && efpic_client_portal_has_password($meta)) {
+        http_response_code(403);
+        exit;
+    }
+    if (!efpic_portal_logged_in($portalToken)) {
+        $_SESSION[efpic_portal_session_key($portalToken)] = true;
+    }
+
+    $ctx = efpic_portal_viewer_context();
+    $size = strtolower((string) ($_GET['size'] ?? 'web'));
+    if (!in_array($size, ['web', 'full'], true)) {
+        $size = 'web';
+    }
+    if (!efpic_can_portal_download_all_gallery_zip($meta, $size)) {
+        http_response_code(403);
+        exit;
+    }
+
+    $images = efpic_portal_all_gallery_images($meta);
+    if ($images === []) {
+        http_response_code(404);
+        exit;
+    }
+
+    $galleryToken = (string) ($meta['gallery_token'] ?? '');
+    $foundZip = [
+        'slug' => $slug,
+        'meta' => $meta,
+        'dir' => efpic_gallery_dir($config, $slug),
+    ];
+    $filename = efpic_client_zip_filename($slug, $size, 'all');
+
+    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        efpic_gallery_log_activity(
+            $config,
+            $slug,
+            $meta,
+            'download_zip',
+            'Klienta panelis: visas bildes (' . $size . ')',
+            'client',
+        );
+        efpic_client_zip_prepare_response($config, $foundZip, $meta, $ctx, $size, 'portal', $galleryToken, 'portal');
+    }
+
+    if (isset($_GET['dl']) && (string) $_GET['dl'] === '1') {
+        @ignore_user_abort(true);
+        if (efpic_client_stream_prepared_failiem_zip($config, $galleryToken, 'portal', $size, 'portal')) {
+            exit;
+        }
+        if (!efpic_is_delivery_gallery($meta) || count($images) <= 25) {
+            efpic_client_build_delivery_zip($config, $foundZip, $meta, $images, $size, $filename);
+            exit;
+        }
+        http_response_code(410);
+        echo 'ZIP sagatavojums nav derīgs. Atver lejupielādi vēlreiz.';
+        exit;
+    }
+
+    if (efpic_can_failiem_folder_zip($meta, $ctx)) {
+        $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
+        if ($folderHash !== '') {
+            efpic_gallery_log_activity(
+                $config,
+                $slug,
+                $meta,
+                'download_zip',
+                'Klienta panelis: visas bildes (' . $size . ')',
+                'client',
+            );
+            header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
+            exit;
+        }
+    }
+
+    if (efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
+        efpic_gallery_log_activity(
+            $config,
+            $slug,
+            $meta,
+            'download_zip',
+            'Klienta panelis: visas bildes (' . $size . ')',
+            'client',
+        );
+        exit;
+    }
+
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        'download_zip',
+        'Klienta panelis: visas bildes (' . $size . ')',
+        'client',
+    );
+    efpic_client_build_delivery_zip($config, $foundZip, $meta, $images, $size, $filename);
+}
+
+function efpic_portal_render_download_actions(array $config, string $portalToken, array $meta): string
+{
+    if (!efpic_is_delivery_gallery($meta) || efpic_portal_all_gallery_images($meta) === []) {
+        return '';
+    }
+
+    $canWeb = efpic_can_portal_download_all_gallery_zip($meta, 'web');
+    $canFull = efpic_can_portal_download_all_gallery_zip($meta, 'full');
+    if (!$canWeb && !$canFull) {
+        return '';
+    }
+
+    $html = '<div class="portal-download-actions">';
+    if ($canWeb) {
+        $html .= '<button type="button" class="btn primary" data-portal-dl-size="web">Lejupielādēt WEB</button>';
+    }
+    if ($canFull) {
+        $html .= '<button type="button" class="btn" data-portal-dl-size="full">Lejupielādēt PRINT</button>';
+    }
+    $html .= '</div>';
 
     return $html;
 }

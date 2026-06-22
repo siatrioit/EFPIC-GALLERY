@@ -507,6 +507,59 @@ function efpic_portal_url(array $config, string $portalToken): string
     return efpic_base_url($config) . '/c/p/' . rawurlencode($portalToken);
 }
 
+function efpic_portal_download_zip_url(array $config, string $portalToken, string $size): string
+{
+    return efpic_portal_url($config, $portalToken) . '/download.zip?size=' . rawurlencode($size);
+}
+
+/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: null, share_label: string} */
+function efpic_portal_viewer_context(): array
+{
+    return [
+        'role' => 'main_client',
+        'guest_token' => '',
+        'hide_client_hidden' => false,
+        'share_image_tokens' => null,
+        'share_label' => '',
+    ];
+}
+
+/** @return list<array<string, mixed>> */
+function efpic_portal_all_gallery_images(array $meta): array
+{
+    $images = [];
+    foreach (efpic_sort_images_for_display($meta) as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '') {
+            continue;
+        }
+        if (efpic_is_delivery_gallery($meta)) {
+            if (efpic_delivery_file_hash($img, 'web') === '' && efpic_delivery_file_hash($img, 'full') === '') {
+                continue;
+            }
+        }
+        $images[] = $img;
+    }
+
+    return $images;
+}
+
+function efpic_can_portal_download_all_gallery_zip(array $meta, string $size): bool
+{
+    $size = strtolower($size);
+    if (!in_array($size, ['web', 'full'], true)) {
+        return false;
+    }
+    if (!efpic_is_delivery_gallery($meta)) {
+        return false;
+    }
+
+    return efpic_can_download_size($meta, efpic_portal_viewer_context(), $size);
+}
+
 function efpic_find_gallery_by_token(array $config, string $galleryToken): ?array
 {
     $index = efpic_load_access_index($config);

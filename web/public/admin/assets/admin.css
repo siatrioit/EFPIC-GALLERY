@@ -2843,7 +2843,15 @@
 }
 
 .admin-page-head--portal {
+  margin-bottom: 1.25rem;
   padding-top: 20px;
+}
+
+.portal-download-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  margin-top: 1rem;
 }
 
 .admin-body--portal .admin-workspace {

@@ -446,6 +446,7 @@ function efpic_portal_html(
     array $config,
     string $pageClass = '',
     ?array $meta = null,
+    array $scriptVars = [],
 ): void {
     $base = efpic_base_url($config);
     $classes = trim('admin-body admin-body--portal ' . $pageClass);
@@ -471,6 +472,13 @@ function efpic_portal_html(
     }
     echo '</head><body class="' . efpic_client_esc($classes) . '">';
     echo $body;
+    if ($scriptVars !== []) {
+        echo '<script>';
+        foreach ($scriptVars as $k => $v) {
+            echo 'window.' . $k . '=' . json_encode($v, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) . ';';
+        }
+        echo '</script>';
+    }
     echo '<script src="' . efpic_client_esc(efpic_asset_url('/admin/assets/cover-theme.js', $base)) . '" defer></script>';
     echo '<script src="' . efpic_client_esc(efpic_asset_url('/client/assets/portal.js', $base)) . '" defer></script>';
     echo '</body></html>';
@@ -1809,7 +1817,8 @@ function efpic_client_failiem_zip_prepare_payload(
     string $hintZip,
     string $galleryToken,
     string $scope,
-    string $hintSingle = 'Lejupielāde sākas no Failiem.lv…'
+    string $hintSingle = 'Lejupielāde sākas no Failiem.lv…',
+    string $viewerScope = 'public',
 ): ?array {
     if (($meta['type'] ?? '') !== 'delivery') {
         return null;
@@ -1843,7 +1852,7 @@ function efpic_client_failiem_zip_prepare_payload(
     // Atlasītajam ZIP reģistrācija notiek servera PHP sesijā (curl cookie jar).
     // Tieša pārlūka saite uz failiem.lv dod tukšu ZIP — sesija nav derīga klienta IP/kontekstā.
     // Straumējam caur ?dl=1 ar saglabātajām sīkdatnēm (kā Failiem UI, bet caur mūsu starpnieku).
-    efpic_failiem_stash_prepared_zip($galleryToken, $scope, $size, $reg, $filename);
+    efpic_failiem_stash_prepared_zip($galleryToken, $scope, $size, $reg, $filename, $viewerScope);
 
     return [
         'mode' => 'stream_ready',
@@ -1881,9 +1890,10 @@ function efpic_client_stream_prepared_failiem_zip(
     array $config,
     string $galleryToken,
     string $scope,
-    string $size
+    string $size,
+    string $viewerScope = 'public',
 ): bool {
-    $prepared = efpic_failiem_take_prepared_zip($galleryToken, $scope, $size);
+    $prepared = efpic_failiem_take_prepared_zip($galleryToken, $scope, $size, $viewerScope);
     if ($prepared === null) {
         return false;
     }
@@ -1972,10 +1982,11 @@ function efpic_client_zip_prepare_response(
     array $ctx,
     string $size,
     string $scope,
-    string $galleryToken = ''
+    string $galleryToken = '',
+    string $viewerScope = 'public',
 ): void {
     $slug = (string) ($found['slug'] ?? 'galerija');
-    $filename = efpic_client_zip_filename($slug, $size, $scope);
+    $filename = efpic_client_zip_filename($slug, $size, $scope === 'portal' ? 'all' : $scope);
     if ($scope === 'collection') {
         efpic_client_subset_zip_prepare_response(
             $config,
@@ -1989,7 +2000,7 @@ function efpic_client_zip_prepare_response(
             'atlasītajām bildēm',
         );
     }
-    if ($scope === 'all' && $size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
+    if (($scope === 'all' || $scope === 'portal') && $size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
         if ($folderHash !== '') {
             efpic_json_response(200, [
@@ -2002,20 +2013,25 @@ function efpic_client_zip_prepare_response(
         }
     }
 
-    if ($scope === 'all' && $size !== 'both') {
-        $images = efpic_client_navigable_images($meta, $ctx);
+    if (($scope === 'all' || $scope === 'portal') && $size !== 'both') {
+        $images = $scope === 'portal'
+            ? efpic_portal_all_gallery_images($meta)
+            : efpic_client_navigable_images($meta, $ctx);
         if ($images === []) {
             efpic_json_response(400, ['ok' => false, 'error' => 'Nav lejupielādējamu bildes']);
         }
+        $stashScope = $scope === 'portal' ? 'portal' : 'all';
         $payload = efpic_client_failiem_zip_prepare_payload(
             $config,
             $meta,
             $images,
             $size,
             $filename,
-            'Sagatavo ZIP ar ' . count($images) . ' redzamajām bildēm…',
+            'Sagatavo ZIP ar ' . count($images) . ' bildēm…',
             $galleryToken,
-            'all'
+            $stashScope,
+            'Lejupielāde sākas no Failiem.lv…',
+            $viewerScope,
         );
         if ($payload !== null) {
             efpic_json_response(200, ['ok' => true] + $payload);

@@ -93,6 +93,10 @@ try {
         efpic_handle_client_collection_clear($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/c/p/([a-f0-9]{48})/download\.zip$#i', $uri, $m) && $method === 'GET') {
+        efpic_portal_handle_download_zip($config, strtolower($m[1]));
+    }
+
     if (preg_match('#^/c/p/([a-f0-9]{48})$#i', $uri, $m) && ($method === 'GET' || $method === 'POST')) {
         efpic_portal_handle($config, strtolower($m[1]), $method);
     }

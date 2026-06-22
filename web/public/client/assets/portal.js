@@ -967,4 +967,186 @@
     });
 
   }
+
+  function initPortalGalleryDownload() {
+    var portalDlBase = window.EFPIC_PORTAL_DL_URL || '';
+    var zipProgressModal = document.getElementById('zipProgressModal');
+    var zipFetchAbort = null;
+
+    function setZipProgressUi(opts) {
+      var spinner = document.getElementById('zipProgressSpinner');
+      var titleEl = document.getElementById('zipProgressTitle');
+      var hintEl = document.getElementById('zipProgressHint');
+      var okBtn = document.getElementById('zipProgressOkBtn');
+      if (titleEl && opts.title) titleEl.textContent = opts.title;
+      if (hintEl && opts.hint !== undefined) hintEl.textContent = opts.hint;
+      if (spinner) spinner.hidden = !opts.loading;
+      if (okBtn) okBtn.hidden = opts.loading;
+      if (zipProgressModal) {
+        zipProgressModal.classList.toggle('is-success', !opts.loading && !!opts.success);
+        zipProgressModal.setAttribute('aria-busy', opts.loading ? 'true' : 'false');
+      }
+    }
+
+    function openZipProgressLoading(title, hint) {
+      if (!zipProgressModal) return;
+      zipProgressModal.hidden = false;
+      document.body.style.overflow = 'hidden';
+      setZipProgressUi({
+        loading: true,
+        success: false,
+        title: title || 'Sagatavo lejupielādi…',
+        hint: hint || 'Lūdzu uzgaidiet…',
+      });
+    }
+
+    function showZipProgressError(hint) {
+      setZipProgressUi({
+        loading: false,
+        success: false,
+        title: 'Lejupielāde neizdevās',
+        hint: hint || 'Neizdevās lejupielādēt.',
+      });
+    }
+
+    function closeZipProgress() {
+      if (zipFetchAbort) {
+        zipFetchAbort.abort();
+        zipFetchAbort = null;
+      }
+      if (!zipProgressModal) return;
+      zipProgressModal.hidden = true;
+      zipProgressModal.classList.remove('is-success');
+      document.body.style.overflow = '';
+    }
+
+    function humanZipError(text) {
+      if (!text) return 'Neizdevās lejupielādēt.';
+      if (text.indexOf('<') >= 0 || text.indexOf('Internal Server Error') >= 0) {
+        return 'Servera timeout — mēģini vēlreiz pēc mirkļa.';
+      }
+      if (text.length > 200) {
+        return text.slice(0, 200) + '…';
+      }
+      return text;
+    }
+
+    function triggerBrowserDownload(url) {
+      if (!url) return;
+      window.location.assign(url);
+    }
+
+    function triggerBlobDownload(blob, filename) {
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.rel = 'noopener';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(function () {
+        URL.revokeObjectURL(url);
+      }, 2000);
+    }
+
+    function downloadServerZip(url, filename, hint) {
+      if (!url) return;
+      openZipProgressLoading('Sagatavo lejupielādi…', hint || 'Veido ZIP arhīvu…');
+      zipFetchAbort = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      var fetchOpts = { credentials: 'same-origin' };
+      if (zipFetchAbort) fetchOpts.signal = zipFetchAbort.signal;
+      fetch(url, fetchOpts)
+        .then(function (res) {
+          if (!res.ok) {
+            return res.text().then(function (text) {
+              throw new Error(humanZipError(text));
+            });
+          }
+          return res.blob();
+        })
+        .then(function (blob) {
+          zipFetchAbort = null;
+          triggerBlobDownload(blob, filename || 'galerija.zip');
+          closeZipProgress();
+        })
+        .catch(function (err) {
+          zipFetchAbort = null;
+          if (err && err.name === 'AbortError') return;
+          showZipProgressError(humanZipError(err && err.message ? err.message : ''));
+        });
+    }
+
+    function startPortalZipDownload(size) {
+      if (!portalDlBase) return;
+      var downloadUrl = portalDlBase + '/download.zip?size=' + encodeURIComponent(size);
+      var usesFolderZip =
+        window.EFPIC_PORTAL_FAILIEM_FOLDER_ZIP === true || window.EFPIC_PORTAL_FAILIEM_FOLDER_ZIP === '1';
+
+      if (usesFolderZip) {
+        openZipProgressLoading('Sagatavo lejupielādi…', 'Sagatavo Failiem ZIP…');
+        triggerBrowserDownload(downloadUrl);
+        closeZipProgress();
+        return;
+      }
+
+      openZipProgressLoading(
+        'Sagatavo lejupielādi…',
+        'Sagatavo ZIP ar visām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm.'
+      );
+      fetch(downloadUrl + '&prepare=1', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) {
+          return res.json().then(function (data) {
+            if (!res.ok || !data || !data.ok) {
+              throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
+            }
+            return data;
+          });
+        })
+        .then(function (data) {
+          if (data.mode === 'failiem' && data.url) {
+            triggerBrowserDownload(data.url);
+            closeZipProgress();
+            return;
+          }
+          if (data.mode === 'stream_ready') {
+            triggerBrowserDownload(downloadUrl + '&dl=1');
+            closeZipProgress();
+            return;
+          }
+          if (data.mode === 'server') {
+            downloadServerZip(
+              downloadUrl + '&dl=1',
+              data.filename || 'galerija-' + size + '.zip',
+              data.hint || 'Veido ZIP arhīvu…'
+            );
+            return;
+          }
+          throw new Error('Neatbalstīts lejupielādes režīms');
+        })
+        .catch(function (err) {
+          showZipProgressError(humanZipError(err && err.message ? err.message : ''));
+        });
+    }
+
+    document.querySelectorAll('[data-portal-dl-size]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        startPortalZipDownload(btn.getAttribute('data-portal-dl-size') || 'web');
+      });
+    });
+
+    document.querySelectorAll('[data-zip-progress-ok]').forEach(function (btn) {
+      btn.addEventListener('click', closeZipProgress);
+    });
+
+    document.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Escape') closeZipProgress();
+    });
+  }
+
+  initPortalGalleryDownload();
 })();
