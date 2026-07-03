@@ -267,7 +267,7 @@ if (isset($_GET['saved'])) {
             $flash .= ' Izmēri ievākti sync laikā: ' . $dimsN . ' bildēm.';
             $flash .= ' Kopā meta.json: ' . (int) ($dimStats['with_dims'] ?? 0) . ' / ' . (int) ($dimStats['total'] ?? 0) . '.';
             if ((int) ($dimStats['stale'] ?? 0) > 0) {
-                $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . ' — sinhronizē vēlreiz vai «Pārprobeēt visus izmērus».';
+                $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . ' — sinhronizē vēlreiz vai «Pārrēķināt izmērus».';
             }
             if ((int) ($dimStats['missing'] ?? 0) > 0) {
                 $flash .= ' Palika ' . (int) $dimStats['missing'] . ' — turpinām fonā…';

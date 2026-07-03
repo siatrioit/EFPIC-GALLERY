@@ -3309,3 +3309,28 @@
     grid-template-columns: 1fr;
   }
 }
+
+.admin-dims-progress-wrap {
+  display: inline-block;
+  vertical-align: middle;
+  width: min(220px, 40vw);
+  height: 8px;
+  margin: 0 8px;
+  border-radius: 4px;
+  background: var(--admin-surface-2, #eee);
+  overflow: hidden;
+}
+
+.admin-dims-progress-bar {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 4px;
+  background: var(--admin-accent, #8b6914);
+  transition: width 0.35s ease;
+}
+
+.admin-dims-status {
+  display: inline-block;
+  min-width: 12em;
+}

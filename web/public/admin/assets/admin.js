@@ -2437,9 +2437,32 @@
     if (staleEl && stats.stale !== undefined) {
       staleEl.textContent = String(stats.stale);
     }
-    if (btn && (stats.missing || 0) <= 0) {
+    if (btn && (stats.missing || 0) <= 0 && (stats.stale || 0) <= 0) {
       btn.hidden = true;
     }
+  }
+
+  function adminUpdateDimsProgress(stats, startedAt) {
+    var wrap = document.getElementById('admin-dims-progress-wrap');
+    var bar = document.getElementById('admin-dims-progress-bar');
+    if (!wrap || !bar || !stats || !stats.total) return;
+    var done = stats.with_dims || 0;
+    var total = stats.total || 0;
+    var pct = total > 0 ? Math.min(100, Math.round((done / total) * 100)) : 0;
+    wrap.hidden = false;
+    bar.style.width = pct + '%';
+    bar.setAttribute('aria-valuenow', String(pct));
+    var statusEl = document.getElementById('admin-dims-status');
+    if (statusEl && startedAt) {
+      var sec = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+      statusEl.textContent =
+        'Ievācu no Failiem… ' + done + ' / ' + total + ' (' + pct + '%) · ' + sec + ' s';
+    }
+  }
+
+  function adminHideDimsProgress() {
+    var wrap = document.getElementById('admin-dims-progress-wrap');
+    if (wrap) wrap.hidden = true;
   }
 
   function adminFetchBackfillDimensions(all, force) {
@@ -2479,6 +2502,7 @@
     }
 
     adminDimsBackfillInFlight = true;
+    var startedAt = Date.now();
     var label = btn ? btn.textContent : '';
     if (btn) {
       btn.disabled = true;
@@ -2487,28 +2511,32 @@
     if (statusEl) {
       statusEl.hidden = false;
       statusEl.textContent = opts.silent
-        ? 'Ievācu izmērus fonā no Failiem…'
+        ? 'Ievācu izmērus fonā no Failiem (partijās pa ~30)…'
         : 'Savienojos ar Failiem…';
     }
     if (opts.silent) {
       showAdminAutoSaveToast('Ievācu bildes izmērus fonā…', false);
     }
 
-    function step(all, force) {
-      return adminFetchBackfillDimensions(all, force).then(function (data) {
+    function step(force, pass) {
+      pass = pass || 1;
+      return adminFetchBackfillDimensions(false, force).then(function (data) {
         var stats = data.stats || {};
         adminUpdateDimsDebugUi(stats);
-        if (((stats.missing || 0) > 0 || (stats.stale || 0) > 0) && (data.updated || 0) > 0) {
-          if (statusEl) {
-            statusEl.textContent = 'Ievākti ' + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + '…';
-          }
-          return step(false, false);
+        adminUpdateDimsProgress(stats, startedAt);
+        var needMore = (stats.missing || 0) > 0 || (stats.stale || 0) > 0;
+        if (needMore && (data.updated || 0) > 0) {
+          return step(false, pass + 1);
         }
         return data;
       });
     }
 
-    var promise = opts.force ? step(true, true) : step(!!opts.all, false);
+    var promise = opts.force
+      ? step(true, 1).then(function () {
+          return step(false, 2);
+        })
+      : step(false, 1);
 
     return promise
       .then(function (data) {
@@ -2537,6 +2565,7 @@
       })
       .finally(function () {
         adminDimsBackfillInFlight = false;
+        adminHideDimsProgress();
         if (btn) {
           btn.disabled = false;
           btn.textContent = label;
@@ -2551,6 +2580,7 @@
     if (btn && btn.dataset.bound !== '1') {
       btn.dataset.bound = '1';
       btn.addEventListener('click', function () {
+        if (adminDimsBackfillInFlight) return;
         runAdminBackfillDimensions({ all: true });
       });
     }
@@ -2559,7 +2589,7 @@
       refreshBtn.addEventListener('click', function () {
         if (
           !window.confirm(
-            'Pārprobeēt visu galerijas bildes izmērus no Failiem? Izmanto, ja pēc atkārtotas augšupielādes palikuši nepareizi izmēri.',
+            'Pārrēķināt visu galerijas bildes izmērus no Failiem? Izmanto, ja pēc atkārtotas augšupielādes palikuši nepareizi izmēri.',
           )
         ) {
           return;

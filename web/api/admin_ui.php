@@ -1918,9 +1918,20 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
     $all = !empty($_POST['backfill_all']);
     $force = !empty($_POST['backfill_force']);
     if ($force) {
-        $result = efpic_gallery_force_refresh_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta === null) {
+            return ['updated' => 0, 'stats' => ['total' => 0, 'with_dims' => 0, 'missing' => 0, 'stale' => 0]];
+        }
+        foreach ($meta['images'] ?? [] as &$img) {
+            if (is_array($img)) {
+                efpic_image_clear_dimensions($img);
+            }
+        }
+        unset($img);
+        efpic_save_gallery_meta($config, $slug, $meta);
+        $stats = efpic_gallery_image_dimensions_stats($meta);
 
-        return ['updated' => $result['updated'], 'stats' => $result['stats']];
+        return ['updated' => 0, 'stats' => $stats, 'cleared' => true];
     }
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta !== null) {
@@ -1959,13 +1970,18 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
         if ($stats['missing'] > 0) {
             $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
                 . 'Ievākt atlikušos izmērus</button>';
+        } elseif (($stats['stale'] ?? 0) > 0) {
+            $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
+                . 'Pārrēķināt novecojušos izmērus</button>';
         }
+        $line .= ' <span class="admin-dims-progress-wrap" id="admin-dims-progress-wrap" hidden>'
+            . '<span class="admin-dims-progress-bar" id="admin-dims-progress-bar"></span></span>';
         $line .= ' <span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
     } else {
         $line .= ' — viss OK';
     }
     $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
-        . 'Pārprobeēt visus izmērus</button>';
+        . 'Pārrēķināt izmērus</button>';
     $line .= ' · publiski pārbaudi lapas avotā: <code>data-aspect</code></p>';
 
     return $line;

@@ -1,12 +1,14 @@
 #!/bin/bash
-set -euo pipefail
 
+# Pirms set -o pipefail — bind-mount no Windows bieži ir CRLF (Synology).
 if [ -z "${EFPIC_WORKER_REEXECED:-}" ] && grep -q $'\r' "$0" 2>/dev/null; then
   sed 's/\r$//' "$0" > /tmp/efpic-face-worker.sh
   chmod +x /tmp/efpic-face-worker.sh
   export EFPIC_WORKER_REEXECED=1
   exec /tmp/efpic-face-worker.sh
 fi
+
+set -euo pipefail
 
 : "${EFPIC_API_BASE:?Set EFPIC_API_BASE}"
 : "${EFPIC_API_TOKEN:?Set EFPIC_API_TOKEN}"
