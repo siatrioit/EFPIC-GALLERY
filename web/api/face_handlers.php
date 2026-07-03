@@ -341,6 +341,25 @@ function efpic_admin_face_index_gallery(array $config, string $slug): array
     ];
 }
 
+/** @return array<string, mixed> */
+function efpic_admin_face_worker_test(array $config, string $slug): array
+{
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        return ['ok' => false, 'error' => 'not_found'];
+    }
+    $diag = efpic_face_worker_diagnostic($config);
+    $fs = efpic_gallery_face_search($meta);
+    $stats = efpic_face_index_stats($config, $slug, $meta);
+
+    return array_merge(['ok' => true], $diag, [
+        'checked_at' => gmdate('c'),
+        'index_status' => (string) ($fs['status'] ?? 'none'),
+        'index_stats' => $stats,
+        'face_enabled' => efpic_gallery_face_search_enabled($meta),
+    ]);
+}
+
 function efpic_admin_render_face_search_panel(array $config, array $meta, string $slug): string
 {
     $fs = efpic_gallery_face_search($meta);
@@ -375,7 +394,9 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
         $html .= '<p class="err" id="admin-face-error">' . efpic_admin_esc((string) $fs['error']) . '</p>';
     }
     $html .= '<button type="button" class="btn admin-btn-sm" id="admin-face-index-btn">Indeksēt / turpināt</button>';
+    $html .= ' <button type="button" class="btn admin-btn-sm" id="admin-face-test-btn">Pārbaudīt NAS</button>';
     $html .= ' <span class="admin-face-index-msg muted" id="admin-face-index-msg" hidden></span>';
+    $html .= '<div class="admin-face-test-result muted" id="admin-face-test-result" hidden></div>';
     $html .= '</fieldset>';
 
     return $html;

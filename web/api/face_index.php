@@ -336,6 +336,85 @@ function efpic_face_worker_status(array $config): array
         'status_label' => $statusLabel,
         'last_seen_at' => $lastSeenRaw,
         'last_seen_ago' => efpic_face_format_ago($age),
+        'last_seen_sec' => $age,
+    ];
+}
+
+/** @return array{queued: int, processing: int, total: int} */
+function efpic_face_queue_stats(array $config): array
+{
+    $dir = efpic_face_queue_dir($config);
+    $queued = 0;
+    $processing = 0;
+    if (is_dir($dir)) {
+        foreach (scandir($dir) ?: [] as $entry) {
+            if (!str_ends_with($entry, '.json')) {
+                continue;
+            }
+            $job = efpic_read_json_file($dir . DIRECTORY_SEPARATOR . $entry);
+            if (!is_array($job)) {
+                continue;
+            }
+            $st = (string) ($job['status'] ?? '');
+            if ($st === 'queued') {
+                $queued++;
+            } elseif ($st === 'processing') {
+                $processing++;
+            }
+        }
+    }
+
+    return [
+        'queued' => $queued,
+        'processing' => $processing,
+        'total' => $queued + $processing,
+    ];
+}
+
+/** @return array<string, mixed> */
+function efpic_face_worker_diagnostic(array $config): array
+{
+    $worker = efpic_face_worker_status($config);
+    $state = efpic_read_json_file(efpic_face_worker_state_path($config)) ?? [];
+    $queue = efpic_face_queue_stats($config);
+    $messages = [];
+    $hints = [];
+
+    if ($worker['last_seen_at'] === '') {
+        $messages[] = 'Serveris vēl nav saņēmis nevienu signālu no Synology face worker.';
+        $hints[] = 'NAS Container Manager: vai efpic-face-worker ir Running?';
+        $hints[] = 'Pārbaudi .env — EFPIC_API_TOKEN (tas pats kā render worker) un EFPIC_API_BASE.';
+        $hints[] = 'Serverī vajag EFPIC v1.9.128+ (api/face/ping).';
+    } elseif ($worker['status'] === 'online') {
+        $messages[] = 'NAS face worker ir redzams serverim (pēdējais signāls pirms '
+            . $worker['last_seen_ago'] . ').';
+    } elseif ($worker['status'] === 'stale') {
+        $messages[] = 'NAS pēdējo reizi sazinājās pirms ' . $worker['last_seen_ago']
+            . ' — vājš signāls, bet nesen aktīvs.';
+        $hints[] = 'Worker parasti sūta claim ik ~15 s — pagaidi un spied «Pārbaudīt» vēlreiz.';
+    } else {
+        $messages[] = 'NAS nav redzams serverim (pēdējais signāls pirms '
+            . $worker['last_seen_ago'] . ').';
+        $hints[] = 'Skaties NAS konteinera Logs — vai nav «claim failed»?';
+        $hints[] = 'Recreate konteineri pēc .env labojuma.';
+    }
+
+    if ($queue['processing'] > 0) {
+        $messages[] = 'Rindā apstrādē: ' . $queue['processing'] . ' job(s).';
+    }
+    if ($queue['queued'] > 0) {
+        $messages[] = 'Gaida rindā: ' . $queue['queued'] . ' job(s) — vajag aktīvu worker.';
+    }
+
+    return [
+        'worker' => $worker,
+        'queue' => $queue,
+        'last_ping_at' => (string) ($state['last_ping_at'] ?? ''),
+        'last_claim_at' => (string) ($state['last_claim_at'] ?? ''),
+        'nas_visible' => $worker['status'] === 'online' || $worker['status'] === 'stale',
+        'nas_online' => $worker['online'],
+        'messages' => $messages,
+        'hints' => $hints,
     ];
 }
 

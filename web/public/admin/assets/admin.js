@@ -2609,16 +2609,16 @@
   }
 
   function initAdminFaceIndex() {
-    var btn = document.getElementById('admin-face-index-btn');
+    var indexBtn = document.getElementById('admin-face-index-btn');
+    var testBtn = document.getElementById('admin-face-test-btn');
     var msg = document.getElementById('admin-face-index-msg');
+    var testResult = document.getElementById('admin-face-test-result');
     var form = document.getElementById('admin-delivery-form');
     var slug = form ? form.getAttribute('data-admin-edit-slug') || '' : '';
-    if (!btn || btn.dataset.bound === '1') return;
-    btn.dataset.bound = '1';
 
     function updateFaceUi(data) {
       if (!data || !data.ok) return;
-      var stats = data.stats || {};
+      var stats = data.stats || data.index_stats || {};
       var indexed = document.getElementById('admin-face-indexed');
       var faces = document.getElementById('admin-face-count');
       var pending = document.getElementById('admin-face-pending');
@@ -2629,10 +2629,47 @@
       if (pending) pending.textContent = String(stats.pending || 0);
       if (worker && data.worker) worker.textContent = data.worker.status_label || '';
       if (label) {
-        var st = data.status || '';
+        var st = data.status || data.index_status || '';
         label.textContent =
           st === 'ready' ? 'Gatavs' : st === 'failed' ? 'Kļūda' : st === 'indexing' || st === 'queued' ? 'Indeksē…' : 'Nav indeksēts';
       }
+    }
+
+    function renderFaceTestResult(data) {
+      if (!testResult || !data || !data.ok) return;
+      var lines = [];
+      var ok = data.nas_online;
+      var weak = !ok && data.nas_visible;
+      if (ok) {
+        lines.push('<strong class="admin-face-test-ok">✓ NAS redzams serverim</strong>');
+      } else if (weak) {
+        lines.push('<strong class="admin-face-test-warn">△ Vājš signāls no NAS</strong>');
+      } else {
+        lines.push('<strong class="admin-face-test-fail">✗ NAS nav redzams serverim</strong>');
+      }
+      (data.messages || []).forEach(function (m) {
+        lines.push('· ' + m);
+      });
+      if (data.worker && data.worker.last_seen_at) {
+        lines.push(
+          '<span class="admin-face-test-meta">Pēdējais signāls: '
+            + (data.worker.last_seen_ago || '—')
+            + (data.last_claim_at ? ' · claim: ' + data.last_claim_at : '')
+            + '</span>',
+        );
+      }
+      if (data.queue && (data.queue.total || 0) > 0) {
+        lines.push(
+          'Rinda: gaida ' + (data.queue.queued || 0) + ', apstrādē ' + (data.queue.processing || 0),
+        );
+      }
+      (data.hints || []).forEach(function (h) {
+        lines.push('<em>' + h + '</em>');
+      });
+      testResult.innerHTML = lines.join('<br>');
+      testResult.hidden = false;
+      testResult.className =
+        'admin-face-test-result ' + (ok ? 'admin-face-test-result--ok' : weak ? 'admin-face-test-result--warn' : 'admin-face-test-result--fail');
     }
 
     function pollFace() {
@@ -2653,15 +2690,17 @@
         .catch(function () {});
     }
 
-    btn.addEventListener('click', function () {
-      btn.disabled = true;
-      if (msg) {
-        msg.hidden = false;
-        msg.textContent = 'Sūtu indeksēšanu…';
+    function runFaceTest(watchSec) {
+      watchSec = watchSec || 0;
+      if (testBtn) testBtn.disabled = true;
+      if (testResult) {
+        testResult.hidden = false;
+        testResult.className = 'admin-face-test-result';
+        testResult.textContent = watchSec > 0 ? 'Gaidu signālu no NAS (~' + watchSec + ' s)…' : 'Pārbaudu…';
       }
       var fd = new FormData();
-      fd.set('face_index_api', '1');
-      fetch(window.location.pathname + window.location.search, {
+      fd.set('face_test_api', '1');
+      return fetch(window.location.pathname + window.location.search, {
         method: 'POST',
         body: fd,
         credentials: 'same-origin',
@@ -2673,16 +2712,94 @@
         .then(function (data) {
           if (!data || !data.ok) throw new Error((data && data.error) || 'Neizdevās');
           updateFaceUi(data);
-          if (msg) msg.textContent = 'Indeksēšana sākta — worker apstrādā fonā.';
-          pollFace();
-        })
-        .catch(function (err) {
-          if (msg) msg.textContent = (err && err.message) || 'Kļūda';
+          renderFaceTestResult(data);
+          if (data.nas_online || watchSec <= 0) return data;
+          var left = watchSec;
+          return new Promise(function (resolve) {
+            function tick() {
+              fetch('delivery_edit.php?slug=' + encodeURIComponent(slug) + '&poll=face', {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+              })
+                .then(function (res) {
+                  return res.json();
+                })
+                .then(function (poll) {
+                  updateFaceUi(poll);
+                  if (poll && poll.nas_online) {
+                    renderFaceTestResult(poll);
+                    resolve(poll);
+                    return;
+                  }
+                  left -= 3;
+                  if (left <= 0) {
+                    renderFaceTestResult(poll || data);
+                    resolve(poll || data);
+                    return;
+                  }
+                  if (testResult) {
+                    testResult.textContent = 'Gaidu signālu no NAS… vēl ~' + left + ' s';
+                  }
+                  setTimeout(tick, 3000);
+                })
+                .catch(function () {
+                  resolve(data);
+                });
+            }
+            setTimeout(tick, 3000);
+          });
         })
         .finally(function () {
-          btn.disabled = false;
+          if (testBtn) testBtn.disabled = false;
         });
-    });
+    }
+
+    if (indexBtn && indexBtn.dataset.bound !== '1') {
+      indexBtn.dataset.bound = '1';
+      indexBtn.addEventListener('click', function () {
+        indexBtn.disabled = true;
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = 'Sūtu indeksēšanu…';
+        }
+        var fd = new FormData();
+        fd.set('face_index_api', '1');
+        fetch(window.location.pathname + window.location.search, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error((data && data.error) || 'Neizdevās');
+            updateFaceUi(data);
+            if (msg) msg.textContent = 'Indeksēšana sākta — worker apstrādā fonā.';
+            pollFace();
+          })
+          .catch(function (err) {
+            if (msg) msg.textContent = (err && err.message) || 'Kļūda';
+          })
+          .finally(function () {
+            indexBtn.disabled = false;
+          });
+      });
+    }
+
+    if (testBtn && testBtn.dataset.bound !== '1') {
+      testBtn.dataset.bound = '1';
+      testBtn.addEventListener('click', function () {
+        runFaceTest(21).catch(function (err) {
+          if (testResult) {
+            testResult.hidden = false;
+            testResult.className = 'admin-face-test-result admin-face-test-result--fail';
+            testResult.textContent = (err && err.message) || 'Kļūda';
+          }
+        });
+      });
+    }
 
     if (document.getElementById('admin-face-pending')) {
       pollFace();

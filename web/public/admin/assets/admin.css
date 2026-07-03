@@ -3334,3 +3334,34 @@
   display: inline-block;
   min-width: 12em;
 }
+
+.admin-face-test-result {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--admin-border, #ddd);
+  font-size: 0.92rem;
+  line-height: 1.45;
+}
+
+.admin-face-test-result--ok {
+  background: #ecfdf3;
+  border-color: #abefc6;
+}
+
+.admin-face-test-result--warn {
+  background: #fffaeb;
+  border-color: #fedf89;
+}
+
+.admin-face-test-result--fail {
+  background: #fef3f2;
+  border-color: #fecdca;
+}
+
+.admin-face-test-meta {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
