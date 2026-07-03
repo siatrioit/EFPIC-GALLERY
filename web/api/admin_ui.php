@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/handlers.php';
 require_once __DIR__ . '/gallery_assets.php';
 require_once __DIR__ . '/slideshow_render.php';
+require_once __DIR__ . '/face_handlers.php';
 
 function efpic_admin_session_start(): void
 {
@@ -1835,6 +1836,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
         $meta['settings']['enable_public_collection'] = efpic_post_flag_is_on('enable_public_collection');
+        efpic_apply_face_search_from_post($meta);
         if (efpic_gallery_apply_expires_from_post($meta)) {
             $expiresLabel = efpic_gallery_expires_display($meta);
             efpic_gallery_log_activity(
@@ -1857,6 +1859,9 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             efpic_rebaseline_auto_scene_sorts($meta);
         }
         efpic_save_gallery_meta($config, $slug, $meta);
+        if (!empty($meta['face_search']['enabled'])) {
+            efpic_face_queue_gallery_index($config, $slug, $meta);
+        }
     }
 
     if (!empty($_POST['sync_now'])) {
@@ -2094,6 +2099,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
         }
         $body .= efpic_admin_render_dimensions_debug_line($meta);
+        $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
         $body .= '</div>';
     }
 

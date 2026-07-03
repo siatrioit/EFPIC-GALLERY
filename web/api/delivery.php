@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/failiem_client.php';
 require_once __DIR__ . '/image_dimensions.php';
+require_once __DIR__ . '/face_index.php';
 
 /**
  * Sinhronizē delivery galeriju no divām Failiem mapēm.
@@ -182,6 +183,11 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
     if ($pairResult['orphans_web'] !== []) {
         $warnings[] = 'Web mapē bez pāra: ' . count($pairResult['orphans_web']) . ' faili';
+    }
+
+    $metaAfterSync = efpic_load_gallery_meta($config, $slug);
+    if ($metaAfterSync !== null && efpic_gallery_face_search_enabled($metaAfterSync)) {
+        efpic_face_queue_gallery_index($config, $slug, $metaAfterSync);
     }
 
     return [

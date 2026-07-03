@@ -88,4 +88,12 @@ return [
             'graph_version' => 'v21.0',
         ],
     ],
+
+    /**
+     * Seju meklēšana — Synology face worker (InsightFace).
+     * Ping: GET /api/face/ping ar Authorization: Bearer {api_token}
+     */
+    'face_search' => [
+        'match_threshold' => 0.42,
+    ],
 ];

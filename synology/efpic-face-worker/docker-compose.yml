@@ -1,0 +1,14 @@
+services:
+  efpic-face-worker:
+    build: .
+    container_name: efpic-face-worker
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      EFPIC_API_BASE: ${EFPIC_API_BASE}
+      EFPIC_API_TOKEN: ${EFPIC_API_TOKEN}
+      EFPIC_POLL_SEC: ${EFPIC_POLL_SEC:-15}
+    volumes:
+      - ./worker.sh:/app/worker.sh:ro
+      - ./extract_faces.py:/app/extract_faces.py:ro

@@ -7,6 +7,7 @@ require_once __DIR__ . '/image_dimensions.php';
 require_once __DIR__ . '/failiem_client.php';
 require_once __DIR__ . '/zip_build.php';
 require_once __DIR__ . '/gallery_assets.php';
+require_once __DIR__ . '/face_handlers.php';
 
 function efpic_client_esc(string $s): string
 {
@@ -1437,6 +1438,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
     }
     $body .= efpic_client_zip_progress_modal();
+    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
+    if ($faceSearchReady) {
+        $body .= efpic_client_render_face_search_modal();
+        $body .= '<div class="face-search-banner" id="faceSearchBanner" hidden>'
+            . '<span id="faceSearchBannerText"></span>'
+            . '<button type="button" class="btn admin-btn-sm" id="faceSearchClear">Rādīt visas</button></div>';
+    }
     if ($canPublicCollection) {
         $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
     }
@@ -1457,6 +1465,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         }
         $body .= '<button type="button" class="float-btn" data-share-open aria-label="Dalīties">';
         $body .= efpic_client_icon('share') . '<span>Dalīties</span></button>';
+        if ($faceSearchReady) {
+            $body .= '<button type="button" class="float-btn" data-face-search-open aria-label="Atrodi sevi">';
+            $body .= '<span>☺</span><span>Atrodi sevi</span></button>';
+        }
         if ($hasGalleryDl) {
             $body .= '<button type="button" class="float-btn" data-gallery-dl-open aria-label="Lejupielādēt">';
             $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></button>';
@@ -1475,6 +1487,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_CAN_COLLECTION_ZIP' => efpic_can_download_collection_zip($meta, $ctx, 'web')
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
+        'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
+        'EFPIC_FACE_SEARCH_URL' => $faceSearchReady ? $galleryUrl . '/face-search' : '',
     ], $meta, $headExtra, null, $ctx);
 }
 

@@ -2847,3 +2847,109 @@ input[type="password"] {
     pointer-events: none;
   }
 }
+
+/* —— Face search —— */
+.face-search-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(0, 0, 0, 0.55);
+}
+
+.face-search-modal[hidden] {
+  display: none !important;
+}
+
+.face-search-dialog {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 24px;
+  border-radius: 12px;
+  background: var(--surface, #fff);
+  color: var(--text, #111);
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.25);
+}
+
+.face-search-dialog h2 {
+  margin: 0 0 8px;
+  font-size: 1.25rem;
+}
+
+.face-search-close {
+  position: absolute;
+  top: 10px;
+  right: 12px;
+  border: 0;
+  background: transparent;
+  font-size: 1.5rem;
+  line-height: 1;
+  cursor: pointer;
+  color: inherit;
+}
+
+.face-search-preview {
+  margin: 12px 0;
+  text-align: center;
+}
+
+.face-search-preview img {
+  width: 120px;
+  height: 120px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.face-search-upload input[type='file'] {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+
+.face-search-upload {
+  display: block;
+  margin: 12px 0;
+}
+
+.face-search-status.err {
+  color: #b42318;
+}
+
+.face-search-privacy {
+  margin: 12px 0 0;
+  font-size: 0.85rem;
+}
+
+body.face-search-open {
+  overflow: hidden;
+}
+
+.face-search-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 auto 16px;
+  padding: 10px 16px;
+  max-width: 960px;
+  background: color-mix(in srgb, var(--hero-accent, #c9a962) 18%, var(--page-bg, #fff));
+  border-radius: 8px;
+}
+
+.face-search-banner[hidden] {
+  display: none !important;
+}
+
+.face-search-hidden {
+  display: none !important;
+}
+
+.scene-block.face-search-scene-empty {
+  display: none !important;
+}
