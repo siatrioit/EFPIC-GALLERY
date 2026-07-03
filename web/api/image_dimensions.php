@@ -15,6 +15,11 @@ function efpic_image_has_dimensions(array $img): bool
     return ((int) ($img['width'] ?? 0)) > 0 && ((int) ($img['height'] ?? 0)) > 0;
 }
 
+function efpic_image_clear_dimensions(array &$img): void
+{
+    unset($img['width'], $img['height']);
+}
+
 /** @return array{width: int, height: int}|null */
 function efpic_image_dimensions(array $img): ?array
 {
@@ -200,8 +205,15 @@ function efpic_image_apply_dimensions(array &$img, array $config, ?string $slug,
     return true;
 }
 
-function efpic_gallery_backfill_image_dimensions(array $config, string $slug, array &$meta, int $limit = 48, bool $allowRemote = false, int $saveEvery = EFPIC_DIMS_BACKFILL_SAVE_EVERY): int
-{
+function efpic_gallery_backfill_image_dimensions(
+    array $config,
+    string $slug,
+    array &$meta,
+    int $limit = 48,
+    bool $allowRemote = false,
+    int $saveEvery = EFPIC_DIMS_BACKFILL_SAVE_EVERY,
+    array $forceTokens = [],
+): int {
     $images = $meta['images'] ?? [];
     if (!is_array($images) || $images === [] || $limit <= 0) {
         return 0;
@@ -212,6 +224,10 @@ function efpic_gallery_backfill_image_dimensions(array $config, string $slug, ar
     foreach ($images as &$img) {
         if (!is_array($img) || $updated >= $limit) {
             continue;
+        }
+        $token = (string) ($img['token'] ?? '');
+        if ($token !== '' && isset($forceTokens[$token])) {
+            efpic_image_clear_dimensions($img);
         }
         if (!efpic_image_has_dimensions($img)) {
             if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote)) {
@@ -272,6 +288,28 @@ function efpic_gallery_backfill_all_image_dimensions(
     $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
 
     return ['updated' => $totalUpdated, 'stats' => $stats];
+}
+
+/** @return array{updated: int, stats: array{total: int, with_dims: int, missing: int}} */
+function efpic_gallery_force_refresh_all_image_dimensions(
+    array $config,
+    string $slug,
+    bool $allowRemote = true,
+    int $batchSize = EFPIC_DIMS_SYNC_BATCH,
+): array {
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        return ['updated' => 0, 'stats' => ['total' => 0, 'with_dims' => 0, 'missing' => 0]];
+    }
+    foreach ($meta['images'] ?? [] as &$img) {
+        if (is_array($img)) {
+            efpic_image_clear_dimensions($img);
+        }
+    }
+    unset($img);
+    efpic_save_gallery_meta($config, $slug, $meta);
+
+    return efpic_gallery_backfill_all_image_dimensions($config, $slug, $allowRemote, $batchSize);
 }
 
 /** @return array{total: int, with_dims: int, missing: int} */

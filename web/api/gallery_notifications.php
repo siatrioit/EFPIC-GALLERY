@@ -93,7 +93,7 @@ function efpic_telegram_notify(array $config, string $message): bool
         return false;
     }
 
-    $url = 'https://api.telegram.org/bot' . rawurlencode($token) . '/sendMessage';
+    $url = 'https://api.telegram.org/bot' . $token . '/sendMessage';
     $post = http_build_query([
         'chat_id' => $chatId,
         'text' => $message,
@@ -210,6 +210,7 @@ function efpic_gallery_send_client_email(
     array $meta,
     string $slug,
     string $group,
+    array $notifyOverrides = [],
 ): bool {
     if (!efpic_gallery_email_ready($config)) {
         throw new RuntimeException('E-pasts nav konfigurēts. Admin → Iestatījumi → E-pasts klientam.');
@@ -220,7 +221,7 @@ function efpic_gallery_send_client_email(
     }
 
     $tpl = efpic_gallery_notify_template($config, $group, $meta, $slug);
-    $vars = efpic_gallery_notify_vars($config, $meta, $slug);
+    $vars = efpic_gallery_notify_vars($config, $meta, $slug, $notifyOverrides);
     $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
     $body = efpic_gallery_notify_replace($tpl['body'], $vars);
     $url = $vars['url'] ?? '';
@@ -249,11 +250,11 @@ function efpic_gallery_send_client_email(
 }
 
 /** @return array{url: string, gallery_password: string, gallery_password_line: string, gallery_block: string} */
-function efpic_gallery_notify_gallery_vars(array $config, array $meta): array
+function efpic_gallery_notify_gallery_vars(array $config, array $meta, ?string $passwordOverride = null): array
 {
     $gt = (string) ($meta['gallery_token'] ?? '');
     $url = $gt !== '' ? efpic_gallery_view_url($config, $gt) : '';
-    $galleryPassword = efpic_gallery_password_plain($meta);
+    $galleryPassword = $passwordOverride ?? '';
     $galleryPasswordLine = $galleryPassword !== '' ? 'Parole: ' . $galleryPassword : '';
 
     $galleryBlock = '';
@@ -273,11 +274,11 @@ function efpic_gallery_notify_gallery_vars(array $config, array $meta): array
 }
 
 /** @return array{portal_url: string, portal_password: string, portal_password_line: string, portal_block: string} */
-function efpic_gallery_notify_portal_vars(array $config, array $meta): array
+function efpic_gallery_notify_portal_vars(array $config, array $meta, ?string $passwordOverride = null): array
 {
     $portalToken = (string) ($meta['client_access']['portal_token'] ?? '');
     $portalUrl = $portalToken !== '' ? efpic_portal_url($config, $portalToken) : '';
-    $portalPassword = efpic_client_portal_password_plain($meta);
+    $portalPassword = $passwordOverride ?? '';
     $portalPasswordLine = $portalPassword !== '' ? 'Parole: ' . $portalPassword : '';
 
     $portalBlock = '';
@@ -297,13 +298,20 @@ function efpic_gallery_notify_portal_vars(array $config, array $meta): array
 }
 
 /** @return array<string, string> */
-function efpic_gallery_notify_vars(array $config, array $meta, string $slug): array
+function efpic_gallery_notify_vars(array $config, array $meta, string $slug, array $overrides = []): array
 {
+    $galleryPassword = array_key_exists('gallery_password', $overrides)
+        ? (string) $overrides['gallery_password']
+        : null;
+    $portalPassword = array_key_exists('portal_password', $overrides)
+        ? (string) $overrides['portal_password']
+        : null;
+
     return array_merge([
         'name' => (string) ($meta['name'] ?? $slug),
         'expires' => efpic_gallery_expires_display($meta),
         'slug' => $slug,
-    ], efpic_gallery_notify_gallery_vars($config, $meta), efpic_gallery_notify_portal_vars($config, $meta));
+    ], efpic_gallery_notify_gallery_vars($config, $meta, $galleryPassword), efpic_gallery_notify_portal_vars($config, $meta, $portalPassword));
 }
 
 function efpic_gallery_notification_sent(array $meta, string $key): bool
@@ -360,6 +368,7 @@ function efpic_gallery_on_activity(
     $name = (string) ($meta['name'] ?? $slug);
     $telegramEvents = $gn['telegram_events'] ?? [
         'gallery_view',
+        'client_portal_view',
         'image_hidden',
         'image_shown',
         'section_hidden',
@@ -380,6 +389,10 @@ function efpic_gallery_on_activity(
             }
         }
     }
+    if (in_array('gallery_view', $telegramEvents, true)
+        && !in_array('client_portal_view', $telegramEvents, true)) {
+        $telegramEvents[] = 'client_portal_view';
+    }
 
     if (!in_array($type, $telegramEvents, true)) {
         return;
@@ -391,6 +404,7 @@ function efpic_gallery_on_activity(
 
     $icon = match ($type) {
         'gallery_view' => '👁',
+        'client_portal_view' => '📲',
         'image_hidden' => '🙈',
         'image_shown' => '👀',
         'section_hidden' => '📁🙈',
@@ -463,25 +477,40 @@ function efpic_gallery_process_expiry_reminders(array $config): array
             $msg = 'Atgādinājums: galerija beigsies pēc ~' . $days . ' dienām (līdz '
                 . efpic_gallery_expires_display($meta) . ')';
 
-            try {
-                if (efpic_gallery_client_email($meta) !== '' && efpic_gallery_email_ready($config)) {
+            $emailReady = efpic_gallery_client_email($meta) !== '' && efpic_gallery_email_ready($config);
+            $emailSent = false;
+            if ($emailReady) {
+                try {
                     efpic_gallery_send_client_email($config, $meta, $slug, $templateKey);
+                    $emailSent = true;
+                } catch (Throwable) {
+                    // Atkārtos nākamajā apmeklējumā.
                 }
-            } catch (Throwable) {
-                // continue — still log and notify photographer
             }
 
-            efpic_gallery_mark_notification_sent($meta, $templateKey);
-            efpic_gallery_log_activity(
-                $config,
-                $slug,
-                $meta,
-                'expiry_reminder',
-                $msg,
-                'system',
-                ['days_left' => $days, 'template' => $templateKey],
-            );
-            ++$sent;
+            if (!$emailReady || $emailSent) {
+                efpic_gallery_mark_notification_sent($meta, $templateKey);
+                efpic_gallery_log_activity(
+                    $config,
+                    $slug,
+                    $meta,
+                    'expiry_reminder',
+                    $msg,
+                    'system',
+                    ['days_left' => $days, 'template' => $templateKey],
+                );
+                ++$sent;
+            } elseif ($canTelegram) {
+                efpic_gallery_on_activity(
+                    $config,
+                    $slug,
+                    $meta,
+                    'expiry_reminder',
+                    $msg . ' (e-pasts neizdevās — tiks mēģināts vēlreiz)',
+                    'system',
+                    ['days_left' => $days, 'template' => $templateKey],
+                );
+            }
         }
     }
 

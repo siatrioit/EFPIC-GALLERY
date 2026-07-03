@@ -50,6 +50,7 @@ return [
         ],
         'telegram_events' => [
             'gallery_view',
+            'client_portal_view',
             'image_hidden',
             'image_shown',
             'section_hidden',

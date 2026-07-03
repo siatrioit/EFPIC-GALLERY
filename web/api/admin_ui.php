@@ -1910,6 +1910,12 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
     }
 
     $all = !empty($_POST['backfill_all']);
+    $force = !empty($_POST['backfill_force']);
+    if ($force) {
+        $result = efpic_gallery_force_refresh_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
+
+        return ['updated' => $result['updated'], 'stats' => $result['stats']];
+    }
     if ($all) {
         $result = efpic_gallery_backfill_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
 
@@ -1941,6 +1947,8 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     } else {
         $line .= ' — viss OK';
     }
+    $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
+        . 'Pārprobeēt visus izmērus</button>';
     $line .= ' · publiski pārbaudi lapas avotā: <code>data-aspect</code></p>';
 
     return $line;
@@ -2095,8 +2103,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= efpic_admin_render_password_field(
         'Galerijas parole',
         'gallery_password',
-        efpic_gallery_password_plain($formMeta),
-        'Aizsargā publisko galeriju (/v/g/…). Atstāj tukšu, lai noņemtu paroli.'
+        '',
+        'Aizsargā publisko galeriju (/v/g/…). Ievadi jaunu paroli vai atzīmē «Noņemt».',
+        efpic_gallery_has_password($formMeta),
     );
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '<label>Klienta tālrunis (WhatsApp)<input type="tel" name="client_phone" value="' . efpic_admin_esc((string) ($formMeta['client_access']['phone'] ?? '')) . '" placeholder="29123456"></label>';
@@ -2109,8 +2118,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= efpic_admin_render_password_field(
         'Klienta paneļa parole',
         'client_password',
-        efpic_client_portal_password_plain($formMeta),
-        'Aizsargā klienta paneli (/c/p/…). Atstāj tukšu, lai noņemtu paroli.'
+        '',
+        'Aizsargā klienta paneli (/c/p/…). Ievadi jaunu paroli vai atzīmē «Noņemt».',
+        efpic_client_portal_has_password($formMeta),
     );
     $body .= '</div></fieldset>';
 

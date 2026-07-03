@@ -574,11 +574,20 @@ function efpic_list_gallery_slugs(array $config): array
 
 function efpic_load_gallery_meta(array $config, string $slug): ?array
 {
-    return efpic_read_json_file(efpic_gallery_meta_path($config, $slug));
+    $meta = efpic_read_json_file(efpic_gallery_meta_path($config, $slug));
+    if ($meta === null) {
+        return null;
+    }
+    if (efpic_gallery_migrate_password_storage($meta)) {
+        efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
+    }
+
+    return $meta;
 }
 
 function efpic_save_gallery_meta(array $config, string $slug, array $meta): void
 {
+    efpic_gallery_migrate_password_storage($meta);
     efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
     efpic_rebuild_access_index($config);
 }

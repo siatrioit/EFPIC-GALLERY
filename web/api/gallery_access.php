@@ -293,28 +293,49 @@ function efpic_client_session_start(): void
     }
 }
 
+function efpic_csrf_token(): string
+{
+    efpic_client_session_start();
+    if (empty($_SESSION['efpic_csrf_token']) || !is_string($_SESSION['efpic_csrf_token'])) {
+        $_SESSION['efpic_csrf_token'] = bin2hex(random_bytes(32));
+    }
+
+    return $_SESSION['efpic_csrf_token'];
+}
+
+function efpic_csrf_verify(?string $token): bool
+{
+    efpic_client_session_start();
+    $expected = $_SESSION['efpic_csrf_token'] ?? '';
+
+    return is_string($token) && $token !== '' && is_string($expected) && $expected !== ''
+        && hash_equals($expected, $token);
+}
+
+function efpic_csrf_input(): string
+{
+    return '<input type="hidden" name="csrf_token" value="'
+        . htmlspecialchars(efpic_csrf_token(), ENT_QUOTES, 'UTF-8') . '">';
+}
+
 function efpic_gallery_password_plain(array $meta): string
 {
-    return trim((string) ($meta['password'] ?? ''));
+    return '';
 }
 
 function efpic_gallery_has_password(array $meta): bool
 {
-    if (efpic_gallery_password_plain($meta) !== '') {
-        return true;
-    }
-
-    return ($meta['password_hash'] ?? '') !== '';
+    return trim((string) ($meta['password_hash'] ?? '')) !== '';
 }
 
 function efpic_verify_gallery_password(array $meta, string $password): bool
 {
-    $plain = efpic_gallery_password_plain($meta);
-    if ($plain !== '') {
-        return hash_equals($plain, $password);
+    $hash = trim((string) ($meta['password_hash'] ?? ''));
+    if ($hash === '') {
+        return $password === '';
     }
 
-    return efpic_verify_password_hash($password, (string) ($meta['password_hash'] ?? ''));
+    return efpic_verify_password_hash($password, $hash);
 }
 
 function efpic_set_gallery_password(array &$meta, string $password): void
@@ -326,37 +347,31 @@ function efpic_set_gallery_password(array &$meta, string $password): void
 
         return;
     }
-    $meta['password'] = $password;
+    $meta['password'] = '';
     $meta['password_hash'] = efpic_hash_password($password);
 }
 
 function efpic_client_portal_password_plain(array $meta): string
 {
-    $access = $meta['client_access'] ?? [];
-
-    return is_array($access) ? trim((string) ($access['password'] ?? '')) : '';
+    return '';
 }
 
 function efpic_client_portal_has_password(array $meta): bool
 {
-    if (efpic_client_portal_password_plain($meta) !== '') {
-        return true;
-    }
     $access = $meta['client_access'] ?? [];
 
-    return is_array($access) && ($access['password_hash'] ?? '') !== '';
+    return is_array($access) && trim((string) ($access['password_hash'] ?? '')) !== '';
 }
 
 function efpic_verify_client_portal_password(array $meta, string $password): bool
 {
-    $plain = efpic_client_portal_password_plain($meta);
-    if ($plain !== '') {
-        return hash_equals($plain, $password);
-    }
     $access = $meta['client_access'] ?? [];
-    $hash = is_array($access) ? (string) ($access['password_hash'] ?? '') : '';
+    $hash = is_array($access) ? trim((string) ($access['password_hash'] ?? '')) : '';
+    if ($hash === '') {
+        return $password === '';
+    }
 
-    return $hash !== '' && efpic_verify_password_hash($password, $hash);
+    return efpic_verify_password_hash($password, $hash);
 }
 
 function efpic_set_client_portal_password(array &$meta, string $password): void
@@ -371,18 +386,28 @@ function efpic_set_client_portal_password(array &$meta, string $password): void
 
         return;
     }
-    $meta['client_access']['password'] = $password;
+    $meta['client_access']['password'] = '';
     $meta['client_access']['password_hash'] = efpic_hash_password($password);
 }
 
 /** @param array<string, mixed> $meta */
-function efpic_apply_gallery_passwords_from_post(array &$meta): void
+function efpic_apply_gallery_passwords_from_post(array &$meta, bool $emptyClears = false): void
 {
     if (array_key_exists('gallery_password', $_POST)) {
-        efpic_set_gallery_password($meta, (string) $_POST['gallery_password']);
+        $pw = trim((string) $_POST['gallery_password']);
+        if ($pw !== '') {
+            efpic_set_gallery_password($meta, $pw);
+        } elseif ($emptyClears || !empty($_POST['remove_gallery_password'])) {
+            efpic_set_gallery_password($meta, '');
+        }
     }
     if (array_key_exists('client_password', $_POST)) {
-        efpic_set_client_portal_password($meta, (string) $_POST['client_password']);
+        $pw = trim((string) $_POST['client_password']);
+        if ($pw !== '') {
+            efpic_set_client_portal_password($meta, $pw);
+        } elseif ($emptyClears || !empty($_POST['remove_client_password'])) {
+            efpic_set_client_portal_password($meta, '');
+        }
     }
 }
 
@@ -419,14 +444,70 @@ function efpic_apply_client_portal_sections_from_post(array &$meta): void
     $meta['settings']['client_portal_sections'] = $sections;
 }
 
-function efpic_admin_render_password_field(string $label, string $name, string $value, string $hint = ''): string
+function efpic_gallery_migrate_password_storage(array &$meta): bool
+{
+    $changed = false;
+
+    $plain = trim((string) ($meta['password'] ?? ''));
+    if ($plain !== '') {
+        if (trim((string) ($meta['password_hash'] ?? '')) === '') {
+            $meta['password_hash'] = efpic_hash_password($plain);
+        }
+        unset($meta['password']);
+        $changed = true;
+    }
+
+    if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+        $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+    }
+    $portalPlain = trim((string) ($meta['client_access']['password'] ?? ''));
+    if ($portalPlain !== '') {
+        if (trim((string) ($meta['client_access']['password_hash'] ?? '')) === '') {
+            $meta['client_access']['password_hash'] = efpic_hash_password($portalPlain);
+        }
+        unset($meta['client_access']['password']);
+        $changed = true;
+    }
+
+    return $changed;
+}
+
+function efpic_csrf_token_from_request(): ?string
+{
+    $fromPost = $_POST['csrf_token'] ?? null;
+    if (is_string($fromPost) && $fromPost !== '') {
+        return $fromPost;
+    }
+    $fromHeader = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? null;
+    if (is_string($fromHeader) && $fromHeader !== '') {
+        return $fromHeader;
+    }
+
+    return null;
+}
+
+function efpic_csrf_require(?string $token = null): void
+{
+    if (!efpic_csrf_verify($token ?? efpic_csrf_token_from_request())) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'Sesijas derīgums beidzies — atjauno lapu.']);
+    }
+}
+
+function efpic_admin_render_password_field(string $label, string $name, string $value, string $hint = '', bool $isSet = false): string
 {
     $html = '<label>' . htmlspecialchars($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $placeholder = $isSet ? 'Parole iestatīta (ievadi jaunu, lai mainītu)' : 'Tukšs = bez paroles';
     $html .= '<input type="text" name="' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '"'
         . ' class="admin-password-field admin-no-autosave" value="'
         . htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" autocomplete="off"'
-        . ' placeholder="Tukšs = bez paroles">';
+        . ' placeholder="' . htmlspecialchars($placeholder, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '">';
     $html .= '</label>';
+    if ($isSet) {
+        $removeName = 'remove_' . $name;
+        $html .= '<label class="admin-checkbox-inline"><input type="checkbox" name="'
+            . htmlspecialchars($removeName, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+            . '" value="1"> Noņemt paroli</label>';
+    }
     if ($hint !== '') {
         $html .= '<p class="muted">' . htmlspecialchars($hint, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
     }
@@ -782,7 +863,7 @@ function efpic_gallery_password_satisfied(array $meta, string $galleryToken, ?st
         return hash_equals($single, $singleEntryToken);
     }
 
-    return true;
+    return false;
 }
 
 function efpic_find_image_row_by_token(array $meta, string $imageToken): ?array
@@ -798,6 +879,9 @@ function efpic_find_image_row_by_token(array $meta, string $imageToken): ?array
 
 function efpic_can_view_image_in_context(array $config, array $meta, string $imageToken, ?array $ctx = null): bool
 {
+    if (efpic_admin_session_active()) {
+        return efpic_find_image_row_by_token($meta, $imageToken) !== null;
+    }
     if ($ctx === null) {
         $ctx = efpic_viewer_context($config, $meta);
     }
@@ -827,6 +911,10 @@ function efpic_scene_visible_to_viewer(array $scene, array $ctx): bool
 
 function efpic_image_visible_to_viewer(array $img, array $meta, array $ctx): bool
 {
+    if (efpic_viewer_context_access_denied($ctx)) {
+        return false;
+    }
+
     $whitelist = $ctx['share_image_tokens'] ?? null;
     if (is_array($whitelist)) {
         $tok = (string) ($img['token'] ?? '');

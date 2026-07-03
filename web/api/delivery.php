@@ -57,6 +57,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     ));
 
     $newImages = [];
+    $forceDimRefresh = [];
     foreach ($paired as $pair) {
         $key = (string) $pair['key'];
         $prev = $existingByKey[$key] ?? null;
@@ -94,9 +95,19 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         if (is_array($prev)) {
             $prevW = (int) ($prev['width'] ?? 0);
             $prevH = (int) ($prev['height'] ?? 0);
-            if ($prevW > 0 && $prevH > 0) {
+            $prevWebHash = is_array($prev['failiem_web'] ?? null)
+                ? (string) ($prev['failiem_web']['file_hash'] ?? '') : '';
+            $prevFullHash = is_array($prev['failiem_full'] ?? null)
+                ? (string) ($prev['failiem_full']['file_hash'] ?? '') : '';
+            $newWebHash = (string) ($pair['web']['hash'] ?? '');
+            $newFullHash = (string) ($pair['full']['hash'] ?? '');
+            $hashesUnchanged = $prevWebHash !== '' && $prevFullHash !== ''
+                && $prevWebHash === $newWebHash && $prevFullHash === $newFullHash;
+            if ($hashesUnchanged && $prevW > 0 && $prevH > 0) {
                 $entry['width'] = $prevW;
                 $entry['height'] = $prevH;
+            } elseif (!$hashesUnchanged) {
+                $forceDimRefresh[$token] = true;
             }
         }
         $newImages[] = $entry;
@@ -149,6 +160,8 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             $metaForDims,
             EFPIC_DIMS_SYNC_BATCH,
             true,
+            EFPIC_DIMS_BACKFILL_SAVE_EVERY,
+            $forceDimRefresh,
         );
     }
     $metaAfter = efpic_load_gallery_meta($config, $slug);
@@ -225,13 +238,6 @@ function efpic_update_delivery_image_order(array $config, string $slug, array $o
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta === null) {
         throw new RuntimeException('Galerija nav atrasta');
-    }
-
-    $byToken = [];
-    foreach ($meta['images'] ?? [] as $img) {
-        if (is_array($img) && ($img['token'] ?? '') !== '') {
-            $byToken[$img['token']] = $img;
-        }
     }
 
     $byToken = [];

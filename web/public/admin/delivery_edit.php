@@ -107,9 +107,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($meta === null) {
                 throw new RuntimeException('Nav atrasts');
             }
+            $notifyOverrides = [];
+            $galleryPassword = trim((string) ($_POST['gallery_password'] ?? ''));
+            $portalPassword = trim((string) ($_POST['client_password'] ?? ''));
             efpic_apply_gallery_client_messages_from_post($meta);
+            if ($galleryPassword !== '') {
+                efpic_set_gallery_password($meta, $galleryPassword);
+                $notifyOverrides['gallery_password'] = $galleryPassword;
+            }
+            if ($portalPassword !== '') {
+                efpic_set_client_portal_password($meta, $portalPassword);
+                $notifyOverrides['portal_password'] = $portalPassword;
+            }
             efpic_save_gallery_meta($config, $slug, $meta);
-            efpic_gallery_send_client_email($config, $meta, $slug, $group);
+            efpic_gallery_send_client_email($config, $meta, $slug, $group, $notifyOverrides);
             if (str_starts_with($group, 'expiry_reminder_')) {
                 efpic_gallery_mark_notification_sent($meta, $group);
             } else {

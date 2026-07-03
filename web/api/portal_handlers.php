@@ -43,6 +43,10 @@ function efpic_portal_require_auth(array $config, string $portalToken, array $fo
     }
 
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['portal_password'])) {
+        if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
+            efpic_portal_render_login($config, $found, true);
+            exit;
+        }
         if (!$hasPassword || efpic_verify_client_portal_password($meta, (string) $_POST['portal_password'])) {
             efpic_client_session_start();
             $_SESSION[efpic_portal_session_key($portalToken)] = true;
@@ -71,7 +75,8 @@ function efpic_portal_render_login(array $config, array $found, bool $failed): v
     if ($failed) {
         $body .= '<p class="err">Nepareiza parole.</p>';
     }
-    $body .= '<form method="post" class="stack"><label>Parole<input type="password" name="portal_password" required autofocus></label>';
+    $body .= '<form method="post" class="stack">' . efpic_csrf_input();
+    $body .= '<label>Parole<input type="password" name="portal_password" required autofocus></label>';
     $body .= '<button type="submit" class="btn primary">Ieiet</button></form></div></main>';
     efpic_client_html('Klienta panelis', $body, $config, 'page-auth');
 }
@@ -154,6 +159,9 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     if ($method === 'POST' && !empty($_POST['portal_share_api'])) {
         header('Content-Type: application/json; charset=utf-8');
+        if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
+            efpic_json_response(403, ['ok' => false, 'error' => 'Sesijas derīgums beidzies — atjauno lapu.']);
+        }
         if (!efpic_client_portal_section_enabled($meta, 'share')) {
             efpic_json_response(403, ['ok' => false, 'error' => 'Kopīgošanas sadaļa nav pieejama.']);
         }
@@ -178,6 +186,11 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     }
 
     if ($method === 'POST' && isset($_POST['portal_action'])) {
+        if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
+            $_SESSION['efpic_portal_flash'] = 'Sesijas derīgums beidzies — atjauno lapu.';
+            header('Location: ' . efpic_portal_url($config, $portalToken));
+            exit;
+        }
         $action = (string) $_POST['portal_action'];
         $imageToken = (string) ($_POST['image_token'] ?? '');
         $actionSection = efpic_portal_action_section($action);
@@ -269,7 +282,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     $_SESSION['efpic_portal_flash'] = 'Jauna publiskā saite ir gatava. Vecā saite un ar to saistītās kopīgošanas saites vairs nedarbojas.';
                 })(),
                 'save_passwords' => (function () use ($config, $slug, &$meta) {
-                    efpic_apply_gallery_passwords_from_post($meta);
+                    efpic_apply_gallery_passwords_from_post($meta, true);
                     efpic_save_gallery_meta($config, $slug, $meta);
                     $_SESSION['efpic_portal_flash'] = 'Paroles saglabātas.';
                 })(),
@@ -487,12 +500,16 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_render_password_field(
         'Galerijas parole',
         'gallery_password',
-        efpic_gallery_password_plain($meta),
+        '',
+        '',
+        efpic_gallery_has_password($meta),
     );
     $body .= efpic_admin_render_password_field(
         'Klienta paneļa parole',
         'client_password',
-        efpic_client_portal_password_plain($meta),
+        '',
+        '',
+        efpic_client_portal_has_password($meta),
     );
     $body .= '<button type="submit" class="btn primary">Saglabāt paroles</button></form></section>';
     $body .= efpic_admin_tab_panel_close();
@@ -503,6 +520,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta, [
         'EFPIC_PORTAL_DL_URL' => efpic_portal_url($config, $portalToken),
         'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+        'EFPIC_CSRF_TOKEN' => efpic_csrf_token(),
     ]);
 }
 

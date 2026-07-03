@@ -2431,10 +2431,12 @@
     }
   }
 
-  function adminFetchBackfillDimensions(all) {
+  function adminFetchBackfillDimensions(all, force) {
     var fd = new FormData();
     fd.set('backfill_dimensions_api', '1');
-    if (all) {
+    if (force) {
+      fd.set('backfill_force', '1');
+    } else if (all) {
       fd.set('backfill_all', '1');
     }
     return fetch(window.location.pathname + window.location.search, {
@@ -2481,21 +2483,23 @@
       showAdminAutoSaveToast('Ievācu bildes izmērus fonā…', false);
     }
 
-    function step(all) {
-      return adminFetchBackfillDimensions(all).then(function (data) {
+    function step(all, force) {
+      return adminFetchBackfillDimensions(all, force).then(function (data) {
         var stats = data.stats || {};
         adminUpdateDimsDebugUi(stats);
         if ((stats.missing || 0) > 0 && (data.updated || 0) > 0) {
           if (statusEl) {
             statusEl.textContent = 'Ievākti ' + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + '…';
           }
-          return step(false);
+          return step(false, false);
         }
         return data;
       });
     }
 
-    return step(!!opts.all)
+    var promise = opts.force ? step(true, true) : step(!!opts.all, false);
+
+    return promise
       .then(function (data) {
         var stats = data.stats || {};
         var msg = 'Izmēri: ' + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + '.';
@@ -2531,11 +2535,25 @@
 
   function initAdminBackfillDimensions() {
     var btn = document.getElementById('admin-backfill-dimensions');
+    var refreshBtn = document.getElementById('admin-refresh-dimensions');
     var form = document.getElementById('admin-delivery-form');
     if (btn && btn.dataset.bound !== '1') {
       btn.dataset.bound = '1';
       btn.addEventListener('click', function () {
         runAdminBackfillDimensions({ all: true });
+      });
+    }
+    if (refreshBtn && refreshBtn.dataset.bound !== '1') {
+      refreshBtn.dataset.bound = '1';
+      refreshBtn.addEventListener('click', function () {
+        if (
+          !window.confirm(
+            'Pārprobeēt visu galerijas bildes izmērus no Failiem? Izmanto, ja pēc atkārtotas augšupielādes palikuši nepareizi izmēri.',
+          )
+        ) {
+          return;
+        }
+        runAdminBackfillDimensions({ force: true });
       });
     }
     if (form && form.getAttribute('data-dims-after-sync') === '1' && adminDimsMissingCount() > 0) {

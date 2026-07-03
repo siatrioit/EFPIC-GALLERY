@@ -24,6 +24,34 @@
   };
 
   var PREVIEW_DISPLAY_H = 400;
+  var previewFocusLock = null;
+
+  function lockPreviewFocus(el) {
+    if (!el || typeof el.focus !== 'function') {
+      previewFocusLock = null;
+      return;
+    }
+    previewFocusLock = {
+      el: el,
+      start: typeof el.selectionStart === 'number' ? el.selectionStart : null,
+      end: typeof el.selectionEnd === 'number' ? el.selectionEnd : null,
+    };
+  }
+
+  function restorePreviewFocus() {
+    var lock = previewFocusLock;
+    if (!lock || !lock.el || !document.body.contains(lock.el)) {
+      return;
+    }
+    lock.el.focus();
+    if (lock.start !== null && lock.end !== null && typeof lock.el.setSelectionRange === 'function') {
+      try {
+        lock.el.setSelectionRange(lock.start, lock.end);
+      } catch (e) {
+        /* ignore */
+      }
+    }
+  }
 
   function escapeHtml(s) {
     return String(s || '')
@@ -345,20 +373,30 @@
     root.querySelectorAll('.admin-cover-live-device').forEach(updateDeviceScale);
   }
 
+  function withPreservedFocus(fn) {
+    lockPreviewFocus(document.activeElement);
+    fn();
+    restorePreviewFocus();
+  }
+
   function refreshAllPreviews(root, state, fontMap, groupMap, assets) {
     if (!root) return;
-    var html = renderCoverHtml(state, fontMap, groupMap);
-    var doc = buildPreviewDocument(html, assets);
-    root.querySelectorAll('.admin-cover-live-device__iframe').forEach(function (iframe) {
-      iframe.onload = function () {
-        var deviceEl = iframe.closest('.admin-cover-live-device');
-        if (deviceEl) {
-          updateDeviceScale(deviceEl);
-        }
-      };
-      iframe.srcdoc = doc;
+    withPreservedFocus(function () {
+      var html = renderCoverHtml(state, fontMap, groupMap);
+      var doc = buildPreviewDocument(html, assets);
+      root.querySelectorAll('.admin-cover-live-device__iframe').forEach(function (iframe) {
+        iframe.setAttribute('tabindex', '-1');
+        iframe.onload = function () {
+          var deviceEl = iframe.closest('.admin-cover-live-device');
+          if (deviceEl) {
+            updateDeviceScale(deviceEl);
+          }
+          restorePreviewFocus();
+        };
+        iframe.srcdoc = doc;
+      });
+      updateAllDeviceScales(root);
     });
-    updateAllDeviceScales(root);
   }
 
   function syncFontSelectPreview(fontSel, fontMap) {
@@ -387,6 +425,20 @@
     var groupMap = readFontGroupMap(root);
     var fontSel = document.getElementById('mood_font_family');
     var layoutInputs = root.querySelectorAll('input[name="cover_layout"]');
+    var previewRefreshTimer = 0;
+
+    function schedulePreviewRefresh() {
+      if (previewRefreshTimer) {
+        clearTimeout(previewRefreshTimer);
+      }
+      previewRefreshTimer = setTimeout(function () {
+        previewRefreshTimer = 0;
+        if (previewFocusLock && previewFocusLock.el === document.activeElement) {
+          lockPreviewFocus(document.activeElement);
+        }
+        refreshPreview();
+      }, 150);
+    }
 
     function isMood() {
       return themeSelect && themeSelect.value === 'efpic-mood';
@@ -438,21 +490,26 @@
     }
 
     function refreshPreview() {
-      var state = collectState(root, base);
-      var url = getCoverUrl(cropImg, base);
-      state.coverUrl = url;
-      if (cropImg && url && cropImg.getAttribute('src') !== url) {
-        cropImg.setAttribute('src', url);
-      }
-      refreshAllPreviews(root, state, fontMap, groupMap, assets);
-      syncFontSelectPreview(fontSel, fontMap);
-      syncThemePanels();
-      updateCropAspect();
+      withPreservedFocus(function () {
+        var state = collectState(root, base);
+        var url = getCoverUrl(cropImg, base);
+        state.coverUrl = url;
+        if (cropImg && url && cropImg.getAttribute('src') !== url) {
+          cropImg.setAttribute('src', url);
+        }
+        refreshAllPreviews(root, state, fontMap, groupMap, assets);
+        syncFontSelectPreview(fontSel, fontMap);
+        syncThemePanels();
+        updateCropAspect();
+      });
     }
 
     function bindLiveInput(sel) {
       document.querySelectorAll(sel).forEach(function (el) {
-        el.addEventListener('input', refreshPreview);
+        el.addEventListener('input', function () {
+          lockPreviewFocus(el);
+          schedulePreviewRefresh();
+        });
         el.addEventListener('change', refreshPreview);
       });
     }

@@ -1132,6 +1132,15 @@
   }
 
   var likeUrl = window.EFPIC_LIKE_URL || '';
+  var csrfToken = window.EFPIC_CSRF_TOKEN || '';
+
+  function csrfFetchHeaders(extra) {
+    var headers = extra || {};
+    if (csrfToken) {
+      headers['X-CSRF-Token'] = csrfToken;
+    }
+    return headers;
+  }
   function setLikeButtonState(btn, liked) {
     if (!btn) return;
     btn.classList.toggle('is-liked', liked);
@@ -1202,7 +1211,11 @@
       evt.stopPropagation();
       if (likeBtn.disabled) return;
       likeBtn.disabled = true;
-      fetch(activeLikeUrl, { method: 'POST', credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      fetch(activeLikeUrl, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: csrfFetchHeaders({ Accept: 'application/json' }),
+      })
         .then(function (res) {
           return res.json();
         })
@@ -1231,8 +1244,14 @@
       fetch(collectionToggleUrl, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { Accept: 'application/json', 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: 'image_token=' + encodeURIComponent(imageToken),
+        headers: csrfFetchHeaders({
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }),
+        body:
+          'image_token=' +
+          encodeURIComponent(imageToken) +
+          (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : ''),
       })
         .then(function (res) {
           return res.json();
@@ -1258,7 +1277,7 @@
       fetch(collectionClearUrl, {
         method: 'POST',
         credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
+        headers: csrfFetchHeaders({ Accept: 'application/json' }),
       })
         .then(function (res) {
           return res.json();

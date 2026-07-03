@@ -713,7 +713,7 @@ function efpic_render_cover_theme_controls(
         $html .= '<div class="admin-cover-live-device__shell">';
         $html .= '<div class="admin-cover-live-device__viewport">';
         $html .= '<iframe class="admin-cover-live-device__iframe" title="Priekšskatījums: '
-            . efpic_cover_theme_esc($device['label']) . '" loading="lazy"></iframe>';
+            . efpic_cover_theme_esc($device['label']) . '" loading="lazy" tabindex="-1"></iframe>';
         $html .= '</div></div></div>';
     }
     $html .= '</div>';
