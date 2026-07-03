@@ -17,14 +17,14 @@ from insightface.app import FaceAnalysis
 
 
 def apply_thread_limits() -> None:
-    threads = str(os.environ.get("EFPIC_FACE_THREADS", "2")).strip() or "2"
+    threads = str(os.environ.get("EFPIC_FACE_THREADS", "1")).strip() or "1"
     for key in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS", "NUMEXPR_NUM_THREADS"):
         os.environ[key] = threads
 
 
 def apply_nice() -> None:
     try:
-        nice = int(os.environ.get("EFPIC_FACE_NICE", "10"))
+        nice = int(os.environ.get("EFPIC_FACE_NICE", "19"))
         os.nice(nice)
     except (TypeError, ValueError, OSError):
         pass
@@ -32,7 +32,7 @@ def apply_nice() -> None:
 
 def det_size() -> tuple[int, int]:
     try:
-        size = int(os.environ.get("EFPIC_FACE_DET_SIZE", "320"))
+        size = int(os.environ.get("EFPIC_FACE_DET_SIZE", "256"))
     except ValueError:
         size = 320
     size = max(160, min(size, 640))
@@ -40,8 +40,8 @@ def det_size() -> tuple[int, int]:
 
 
 def model_name() -> str:
-    name = str(os.environ.get("EFPIC_FACE_MODEL", "buffalo_l")).strip()
-    return name or "buffalo_l"
+    name = str(os.environ.get("EFPIC_FACE_MODEL", "buffalo_s")).strip()
+    return name or "buffalo_s"
 
 
 def create_app() -> FaceAnalysis:
@@ -57,7 +57,7 @@ def load_image(path: str) -> np.ndarray | None:
     if img is None:
         return None
     try:
-        max_edge = int(os.environ.get("EFPIC_FACE_MAX_EDGE", "960"))
+        max_edge = int(os.environ.get("EFPIC_FACE_MAX_EDGE", "640"))
     except ValueError:
         max_edge = 960
     if max_edge <= 0:

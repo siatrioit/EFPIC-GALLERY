@@ -10,13 +10,15 @@ fi
 
 set -euo pipefail
 
-WORKER_VERSION="1.9.135"
+WORKER_VERSION="1.9.137"
 
 : "${EFPIC_API_BASE:?Set EFPIC_API_BASE}"
 : "${EFPIC_API_TOKEN:?Set EFPIC_API_TOKEN}"
 
 AUTH="Authorization: Bearer ${EFPIC_API_TOKEN}"
-POLL_SEC="${EFPIC_POLL_SEC:-15}"
+POLL_SEC="${EFPIC_POLL_SEC:-60}"
+CLAIM_BACKOFF_MAX="${EFPIC_CLAIM_FAIL_MAX_SEC:-300}"
+CLAIM_BACKOFF_SEC="$POLL_SEC"
 WORKDIR="${EFPIC_WORK_DIR:-/tmp/efpic-face}"
 EXTRACT_BATCH="${EFPIC_EXTRACT_BATCH:-/app/extract_batch.py}"
 EXTRACT_SINGLE="${EFPIC_EXTRACT_PY:-/app/extract_faces.py}"
@@ -32,6 +34,14 @@ mkdir -p "$WORKDIR"
 
 log() {
   printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
+}
+
+run_python() {
+  if command -v ionice >/dev/null 2>&1; then
+    ionice -c 3 nice -n "${EFPIC_FACE_NICE:-19}" python3 "$@"
+  else
+    nice -n "${EFPIC_FACE_NICE:-19}" python3 "$@"
+  fi
 }
 
 require_worker_files() {
@@ -69,11 +79,11 @@ start_extract_daemon() {
   DAEMON_READY=
   rm -f "$DAEMON_FIFO" "$DAEMON_RESP"
   mkfifo "$DAEMON_FIFO" "$DAEMON_RESP"
-  python3 "$EXTRACT_SERVE" < "$DAEMON_FIFO" > "$DAEMON_RESP" 2>>"$DAEMON_ERR" &
+  run_python "$EXTRACT_SERVE" < "$DAEMON_FIFO" > "$DAEMON_RESP" 2>>"$DAEMON_ERR" &
   DAEMON_PID=$!
   exec 3>"$DAEMON_FIFO"
   exec 4<"$DAEMON_RESP"
-  log "InsightFace ielāde (~1–3 min)"
+  log "InsightFace ielāde (~1–3 min) — DSM var kļūt lēns, tas ir normāli"
   local waited=0
   while [ "$waited" -lt 300 ]; do
     if grep -q "face extractor ready" "$DAEMON_ERR" 2>/dev/null; then
@@ -101,7 +111,7 @@ run_extract_oneshot() {
   local results_file="$2"
   local pyerr="$3"
   log "extract one-shot (bez daemon)"
-  python3 "$EXTRACT_BATCH" < "$manifest" > "$results_file" 2>"$pyerr" &
+  run_python "$EXTRACT_BATCH" < "$manifest" > "$results_file" 2>"$pyerr" &
   local py_pid=$!
   while kill -0 "$py_pid" 2>/dev/null; do
     sleep 45
@@ -230,7 +240,7 @@ process_search_job() {
     fail_job "$job_id" "Neizdevās lejupielādēt selfiju"
     return 1
   fi
-  if ! python3 "$EXTRACT_SINGLE" "$tmp" > "$faces_file" 2>/dev/null; then
+  if ! run_python "$EXTRACT_SINGLE" "$tmp" > "$faces_file" 2>/dev/null; then
     echo '[]' > "$faces_file"
   fi
   rm -f "$tmp"
@@ -246,14 +256,21 @@ process_search_job() {
 
 require_worker_files
 log "EFPIC face worker ${WORKER_VERSION} start — ${EFPIC_API_BASE}"
+log "ekonomijas režīms: model=${EFPIC_FACE_MODEL:-buffalo_s} threads=${EFPIC_FACE_THREADS:-1} det=${EFPIC_FACE_DET_SIZE:-256}"
 
 while true; do
   resp=""
   if ! resp="$(curl -sf -X POST -H "$AUTH" "${EFPIC_API_BASE}/api/face/claim")"; then
-    log "claim failed — retry in ${POLL_SEC}s"
-    sleep "$POLL_SEC"
+    log "claim failed — gaidu ${CLAIM_BACKOFF_SEC}s (max ${CLAIM_BACKOFF_MAX}s; hosting IP bloķējums?)"
+    sleep "$CLAIM_BACKOFF_SEC"
+    next=$((CLAIM_BACKOFF_SEC * 2))
+    if [ "$next" -gt "$CLAIM_BACKOFF_MAX" ]; then
+      next="$CLAIM_BACKOFF_MAX"
+    fi
+    CLAIM_BACKOFF_SEC="$next"
     continue
   fi
+  CLAIM_BACKOFF_SEC="$POLL_SEC"
 
   job_id="$(echo "$resp" | jq -r '.job.id // empty')"
   if [ -z "$job_id" ] || [ "$job_id" = "null" ]; then

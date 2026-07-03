@@ -18,7 +18,7 @@ Periodiski izsauc `POST /api/face/claim`, lejupielādē WEB thumbnails, ievāc s
 
 Pēc koda atjaunināšanas pietiek ar **Recreate** (skripti ir bind-mount).
 
-**Svarīgi:** jāatjaunina **visa** mape uz NAS (ne tikai `worker.sh`). Vecais `docker-compose.yml` mountēja tikai 2 failus — tad konteinerī paliek **v1.9.128** loģika un `jq` kļūda.
+**Synology Build kļūda `NanoCPUs`:** noņem `cpus:` rindu no `docker-compose.yml` — daudzi NAS kerneli neatbalsta CPU CFS. Izmanto tikai `mem_limit` + env `EFPIC_FACE_THREADS=1`.
 
 ### Pārbaude pēc atjaunināšanas
 
@@ -51,15 +51,14 @@ Publiskajā galerijā (kad statuss «Gatavs») parādās **Atrodi sevi**.
 
 ## NAS lēnums / DSM neatsaucas
 
-InsightFace **pilnā slodzē** var aizņemt visu CPU. Ja DSM ir ļoti lēns:
+InsightFace **patērē CPU** — DSM kļūst lēns, kamēr worker strādā. Tas **nav kļūda**, bet NAS ierobežojums.
 
-1. **Stop** (ne Restart) `efpic-face-worker` Container Manager.
-2. Vai SSH: `sudo docker stop efpic-face-worker`
-3. Pagaidi 1–2 min, kamēr CPU atbrīvojas.
+**Ekonomijas režīms (v1.9.136):** 0.75 CPU, `buffalo_s`, 1 threads, det 256, partija 3 bildes, 90 s pauze.
 
-**Lite režīms** (v1.9.133+): CPU limits 1.5, 2 threads, det 320px, partija 5 bildes, 45 s pauze starp partijām, modelis ielādēts **vienreiz** (daemon).
-
-Indeksēšanu **1432 bildēm** labāk likt **naktī** — uz NAS CPU tas ir stundas.
+1. **Stop** face worker, kad vajag lietot DSM.
+2. Indeksē **tikai naktī** (1432 bildes = daudzas stundas).
+3. Laikā indeksēšanai **apturi arī** `efpic-render-worker`.
+4. Alternatīva: palaid `efpic-face-worker` uz **Windows PC** (Docker Desktop) ar to pašu `.env` — NAS netiek noslogots.
 
 ## Plūsma
 

@@ -5,19 +5,22 @@ services:
     working_dir: /app
     entrypoint: ["/bin/bash", "/app/worker.sh"]
     restart: unless-stopped
-    # Ierobežo CPU/RAM, lai DSM un render worker paliek lietojami.
-    cpus: 1.5
-    mem_limit: 2g
+    # Synology: NEIZMANTO cpus: — kernel bieži neatbalsta CPU CFS (NanoCPUs error).
+    # Slodzi ierobežo caur EFPIC_FACE_THREADS / EFPIC_FACE_NICE worker.sh.
+    mem_limit: 1536m
     env_file:
       - .env
     environment:
       EFPIC_API_BASE: https://www.klientiem.edgarsfoto.lv
       EFPIC_API_TOKEN: ${EFPIC_API_TOKEN}
-      EFPIC_POLL_SEC: 15
-      EFPIC_FACE_THREADS: 2
-      EFPIC_FACE_DET_SIZE: 320
-      EFPIC_FACE_MAX_EDGE: 960
-      EFPIC_BATCH_COOLDOWN_SEC: 45
+      EFPIC_POLL_SEC: 60
+      EFPIC_CLAIM_FAIL_MAX_SEC: 300
+      EFPIC_FACE_MODEL: buffalo_s
+      EFPIC_FACE_THREADS: 1
+      EFPIC_FACE_DET_SIZE: 256
+      EFPIC_FACE_MAX_EDGE: 640
+      EFPIC_FACE_NICE: 19
+      EFPIC_BATCH_COOLDOWN_SEC: 90
     stop_grace_period: 45s
     volumes:
       - ./worker.sh:/app/worker.sh:ro

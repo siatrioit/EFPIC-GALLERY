@@ -8,7 +8,8 @@ require_once __DIR__ . '/failiem_client.php';
 
 const EFPIC_FACE_EMBED_DIM = 512;
 const EFPIC_FACE_MATCH_THRESHOLD = 0.42;
-const EFPIC_FACE_INDEX_BATCH = 5;
+const EFPIC_FACE_INDEX_BATCH = 3;
+const EFPIC_FACE_THUMB_WIDTH = 640;
 const EFPIC_FACE_RECLAIM_SEC = 600;
 const EFPIC_FACE_SEARCH_TIMEOUT_SEC = 120;
 const EFPIC_FACE_SEARCH_POLL_MS = 800;
@@ -217,7 +218,7 @@ function efpic_face_pending_images(array $config, string $slug, array $meta, int
         if (!$needs) {
             continue;
         }
-        $url = efpic_failiem_thumb_url($config, $webHash, 960);
+        $url = efpic_failiem_thumb_url($config, $webHash, EFPIC_FACE_THUMB_WIDTH);
         $out[] = ['token' => $token, 'url' => $url];
         if (count($out) >= $limit) {
             break;
@@ -466,7 +467,8 @@ function efpic_face_worker_diagnostic(array $config, ?string $slug = null): arra
             . $worker['last_seen_ago'] . ').';
         $hints[] = 'Skaties NAS konteinera Logs — vai nav «claim failed»?';
         $hints[] = 'Recreate konteineri pēc .env labojuma.';
-        $hints[] = 'Ja DSM ir ļoti lēns: apturi efpic-face-worker (Stop), nevis Restart.';
+        $hints[] = 'Ja DSM kļūst neizmantojams: Stop face worker, indeksē tikai naktī; ekonomijas režīms (v1.9.136+) — 1 CPU, buffalo_s.';
+        $hints[] = 'Laikā indeksēšanai apturi arī efpic-render-worker, ja tas darbojas uz tā paša NAS.';
     }
 
     if ($queue['processing'] > 1) {
