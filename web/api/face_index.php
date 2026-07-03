@@ -372,14 +372,76 @@ function efpic_face_queue_stats(array $config): array
     ];
 }
 
+/** @return array{queued: int, processing: int, total: int} */
+function efpic_face_queue_stats_for_slug(array $config, string $slug): array
+{
+    $dir = efpic_face_queue_dir($config);
+    $queued = 0;
+    $processing = 0;
+    if (!is_dir($dir)) {
+        return ['queued' => 0, 'processing' => 0, 'total' => 0];
+    }
+    foreach (scandir($dir) ?: [] as $entry) {
+        if (!str_ends_with($entry, '.json')) {
+            continue;
+        }
+        $job = efpic_read_json_file($dir . DIRECTORY_SEPARATOR . $entry);
+        if (!is_array($job) || (string) ($job['slug'] ?? '') !== $slug) {
+            continue;
+        }
+        $st = (string) ($job['status'] ?? '');
+        if ($st === 'queued') {
+            $queued++;
+        } elseif ($st === 'processing') {
+            $processing++;
+        }
+    }
+
+    return [
+        'queued' => $queued,
+        'processing' => $processing,
+        'total' => $queued + $processing,
+    ];
+}
+
+function efpic_face_purge_queue_for_slug(array $config, string $slug): int
+{
+    $dir = efpic_face_queue_dir($config);
+    if (!is_dir($dir)) {
+        return 0;
+    }
+    $removed = 0;
+    foreach (scandir($dir) ?: [] as $entry) {
+        if (!str_ends_with($entry, '.json')) {
+            continue;
+        }
+        $path = $dir . DIRECTORY_SEPARATOR . $entry;
+        $job = efpic_read_json_file($path);
+        if (!is_array($job) || (string) ($job['slug'] ?? '') !== $slug) {
+            continue;
+        }
+        $jobId = (string) ($job['id'] ?? substr($entry, 0, -5));
+        @unlink($path);
+        @unlink(efpic_face_job_selfie_path($config, $jobId));
+        $removed++;
+    }
+
+    return $removed;
+}
+
 /** @return array<string, mixed> */
-function efpic_face_worker_diagnostic(array $config): array
+function efpic_face_worker_diagnostic(array $config, ?string $slug = null): array
 {
     $worker = efpic_face_worker_status($config);
     $state = efpic_read_json_file(efpic_face_worker_state_path($config)) ?? [];
-    $queue = efpic_face_queue_stats($config);
+    $queue = $slug !== null && $slug !== ''
+        ? efpic_face_queue_stats_for_slug($config, $slug)
+        : efpic_face_queue_stats($config);
     $messages = [];
     $hints = [];
+    $recentlyActive = ($worker['last_seen_sec'] ?? null) !== null && $worker['last_seen_sec'] <= 300;
+    $nasBusy = $queue['processing'] > 0 && $recentlyActive && $worker['status'] !== 'offline';
+    $nasStalled = $queue['total'] > 0 && $worker['status'] === 'offline';
 
     if ($worker['last_seen_at'] === '') {
         $messages[] = 'Serveris vēl nav saņēmis nevienu signālu no Synology face worker.';
@@ -390,7 +452,7 @@ function efpic_face_worker_diagnostic(array $config): array
         $messages[] = 'NAS face worker ir redzams serverim (pēdējais signāls pirms '
             . $worker['last_seen_ago'] . ').';
     } elseif ($worker['status'] === 'stale') {
-        if ($queue['processing'] > 0 && ($worker['last_seen_sec'] ?? null) !== null && $worker['last_seen_sec'] <= 1800) {
+        if ($nasBusy) {
             $messages[] = 'NAS apstrādā indeksēšanu (pēdējais signāls pirms ' . $worker['last_seen_ago']
                 . ') — viena partija var aizņemt 5–15 min CPU.';
             $hints[] = 'Tas ir normāli: worker claim sūta tikai starp partijām, ne katru sekundi.';
@@ -416,7 +478,17 @@ function efpic_face_worker_diagnostic(array $config): array
         $messages[] = 'Rindā apstrādē: ' . $queue['processing'] . ' job(s).';
     }
     if ($queue['queued'] > 0) {
-        $messages[] = 'Gaida rindā: ' . $queue['queued'] . ' job(s) — vajag aktīvu worker.';
+        if ($nasStalled) {
+            $messages[] = 'Gaida rindā: ' . $queue['queued'] . ' job(s) — worker izslēgts, rinda nestrādā.';
+        } else {
+            $messages[] = 'Gaida rindā: ' . $queue['queued'] . ' job(s) — vajag aktīvu worker.';
+        }
+    }
+
+    if ($nasStalled) {
+        $messages[] = 'Indeksēšanas rinda ir apturēta (NAS worker nav aktīvs).';
+        $hints[] = 'Spied «Notīrīt rindu», lai dzēstu neapstrādātos jobus — jau indeksētās bildes paliek.';
+        $hints[] = '«Gaida N bildes» = vēl nav indeksa; tas nav bloķējums, ja rinda ir tukša.';
     }
 
     return [
@@ -426,7 +498,8 @@ function efpic_face_worker_diagnostic(array $config): array
         'last_claim_at' => (string) ($state['last_claim_at'] ?? ''),
         'nas_visible' => $worker['status'] === 'online' || $worker['status'] === 'stale',
         'nas_online' => $worker['online'],
-        'nas_busy' => $queue['processing'] > 0 && ($worker['last_seen_sec'] ?? null) !== null && $worker['last_seen_sec'] <= 1800,
+        'nas_busy' => $nasBusy,
+        'nas_stalled' => $nasStalled,
         'messages' => $messages,
         'hints' => $hints,
     ];

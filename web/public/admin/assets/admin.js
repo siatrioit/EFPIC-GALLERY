@@ -2611,6 +2611,7 @@
   function initAdminFaceIndex() {
     var indexBtn = document.getElementById('admin-face-index-btn');
     var testBtn = document.getElementById('admin-face-test-btn');
+    var clearBtn = document.getElementById('admin-face-clear-btn');
     var msg = document.getElementById('admin-face-index-msg');
     var testResult = document.getElementById('admin-face-test-result');
     var form = document.getElementById('admin-delivery-form');
@@ -2622,11 +2623,14 @@
       var indexed = document.getElementById('admin-face-indexed');
       var faces = document.getElementById('admin-face-count');
       var pending = document.getElementById('admin-face-pending');
+      var queueEl = document.getElementById('admin-face-queue');
       var worker = document.getElementById('admin-face-worker');
       var label = document.getElementById('admin-face-status-label');
       if (indexed) indexed.textContent = String(stats.indexed || 0);
       if (faces) faces.textContent = String(stats.total_faces || 0);
       if (pending) pending.textContent = String(stats.pending || 0);
+      if (queueEl && data.queue) queueEl.textContent = String(data.queue.total || 0);
+      else if (queueEl && !data.queue) queueEl.textContent = '0';
       if (worker && data.worker) worker.textContent = data.worker.status_label || '';
       if (label) {
         var st = data.status || data.index_status || '';
@@ -2641,8 +2645,11 @@
       var ok = data.nas_online;
       var weak = !ok && data.nas_visible;
       var busy = !!data.nas_busy;
+      var stalled = !!data.nas_stalled;
       if (ok) {
         lines.push('<strong class="admin-face-test-ok">✓ NAS redzams serverim</strong>');
+      } else if (stalled) {
+        lines.push('<strong class="admin-face-test-fail">■ Rinda apturēta (worker izslēgts)</strong>');
       } else if (busy) {
         lines.push('<strong class="admin-face-test-warn">⏳ NAS apstrādā partiju (normāli ilgi)</strong>');
       } else if (weak) {
@@ -2672,7 +2679,8 @@
       testResult.innerHTML = lines.join('<br>');
       testResult.hidden = false;
       testResult.className =
-        'admin-face-test-result ' + (ok ? 'admin-face-test-result--ok' : weak ? 'admin-face-test-result--warn' : 'admin-face-test-result--fail');
+        'admin-face-test-result ' +
+        (ok ? 'admin-face-test-result--ok' : stalled ? 'admin-face-test-result--fail' : weak || busy ? 'admin-face-test-result--warn' : 'admin-face-test-result--fail');
     }
 
     function pollFace() {
@@ -2686,7 +2694,7 @@
         })
         .then(function (data) {
           updateFaceUi(data);
-          if (data && data.ok && data.stats && (data.stats.pending || 0) > 0) {
+          if (data && data.ok && data.stats && (data.stats.pending || 0) > 0 && data.queue && (data.queue.total || 0) > 0) {
             setTimeout(pollFace, 4000);
           }
         })
@@ -2801,6 +2809,54 @@
             testResult.textContent = (err && err.message) || 'Kļūda';
           }
         });
+      });
+    }
+
+    if (clearBtn && clearBtn.dataset.bound !== '1') {
+      clearBtn.dataset.bound = '1';
+      clearBtn.addEventListener('click', function () {
+        if (
+          !window.confirm(
+            'Notīrīt indeksēšanas rindu šai galerijai? Neapstrādātie jobi tiks dzēsti. Jau indeksētās bildes paliek.',
+          )
+        ) {
+          return;
+        }
+        clearBtn.disabled = true;
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = 'Notīru rindu…';
+        }
+        var fd = new FormData();
+        fd.set('face_clear_api', '1');
+        fetch(window.location.pathname + window.location.search, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error((data && data.error) || 'Neizdevās');
+            updateFaceUi(data);
+            renderFaceTestResult(data);
+            if (msg) {
+              msg.hidden = false;
+              msg.textContent =
+                'Rinda notīrīta (' + String(data.removed || 0) + ' jobi). Var droši turpināt citu darbu.';
+            }
+          })
+          .catch(function (err) {
+            if (msg) {
+              msg.hidden = false;
+              msg.textContent = (err && err.message) || 'Kļūda';
+            }
+          })
+          .finally(function () {
+            clearBtn.disabled = false;
+          });
       });
     }
 

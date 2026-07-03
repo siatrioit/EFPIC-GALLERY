@@ -342,13 +342,51 @@ function efpic_admin_face_index_gallery(array $config, string $slug): array
 }
 
 /** @return array<string, mixed> */
+function efpic_admin_face_clear_queue(array $config, string $slug): array
+{
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        return ['ok' => false, 'error' => 'not_found'];
+    }
+    $removed = efpic_face_purge_queue_for_slug($config, $slug);
+    if (!isset($meta['face_search']) || !is_array($meta['face_search'])) {
+        $meta['face_search'] = efpic_gallery_face_search_defaults();
+    }
+    $stats = efpic_face_index_stats($config, $slug, $meta);
+    if (!efpic_gallery_face_search_enabled($meta)) {
+        $meta['face_search']['status'] = 'none';
+    } elseif ($stats['pending'] <= 0) {
+        $meta['face_search']['status'] = 'ready';
+        $meta['face_search']['error'] = '';
+    } elseif ($stats['indexed'] > 0) {
+        $meta['face_search']['status'] = 'queued';
+        $meta['face_search']['error'] = '';
+    } else {
+        $meta['face_search']['status'] = 'none';
+        $meta['face_search']['error'] = '';
+    }
+    efpic_save_gallery_meta($config, $slug, $meta);
+    $meta = efpic_load_gallery_meta($config, $slug) ?? $meta;
+    $fs = efpic_gallery_face_search($meta);
+
+    return [
+        'ok' => true,
+        'removed' => $removed,
+        'status' => (string) ($fs['status'] ?? 'none'),
+        'stats' => $stats,
+        'queue' => efpic_face_queue_stats_for_slug($config, $slug),
+        'worker' => efpic_face_worker_status($config),
+    ];
+}
+
+/** @return array<string, mixed> */
 function efpic_admin_face_worker_test(array $config, string $slug): array
 {
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta === null) {
         return ['ok' => false, 'error' => 'not_found'];
     }
-    $diag = efpic_face_worker_diagnostic($config);
+    $diag = efpic_face_worker_diagnostic($config, $slug);
     $fs = efpic_gallery_face_search($meta);
     $stats = efpic_face_index_stats($config, $slug, $meta);
 
@@ -366,6 +404,7 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
     $enabled = !empty($fs['enabled']);
     $stats = efpic_face_index_stats($config, $slug, $meta);
     $worker = efpic_face_worker_status($config);
+    $queue = efpic_face_queue_stats_for_slug($config, $slug);
     $status = (string) ($fs['status'] ?? 'none');
     $statusLabel = match ($status) {
         'ready' => 'Gatavs',
@@ -387,14 +426,16 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
     $html .= ' · indeksētas <strong id="admin-face-indexed">' . (int) $stats['indexed'] . '</strong>';
     $html .= ' · sejas <strong id="admin-face-count">' . (int) $stats['total_faces'] . '</strong>';
     if ($stats['pending'] > 0) {
-        $html .= ' · gaida <strong id="admin-face-pending">' . (int) $stats['pending'] . '</strong>';
+        $html .= ' · gaida <strong id="admin-face-pending">' . (int) $stats['pending'] . '</strong> bildes';
     }
+    $html .= ' · rindā <strong id="admin-face-queue">' . (int) $queue['total'] . '</strong> jobi';
     $html .= ' · worker: <strong id="admin-face-worker">' . efpic_admin_esc($worker['status_label']) . '</strong></p>';
     if (($fs['error'] ?? '') !== '') {
         $html .= '<p class="err" id="admin-face-error">' . efpic_admin_esc((string) $fs['error']) . '</p>';
     }
     $html .= '<button type="button" class="btn admin-btn-sm" id="admin-face-index-btn">Indeksēt / turpināt</button>';
     $html .= ' <button type="button" class="btn admin-btn-sm" id="admin-face-test-btn">Pārbaudīt NAS</button>';
+    $html .= ' <button type="button" class="btn admin-btn-sm admin-btn-danger" id="admin-face-clear-btn">Notīrīt rindu</button>';
     $html .= ' <span class="admin-face-index-msg muted" id="admin-face-index-msg" hidden></span>';
     $html .= '<div class="admin-face-test-result muted" id="admin-face-test-result" hidden></div>';
     $html .= '</fieldset>';

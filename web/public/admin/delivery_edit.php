@@ -122,6 +122,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_test_api'])) {
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_clear_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $info = efpic_admin_face_clear_queue($config, $slug);
+        echo json_encode(array_merge($info, efpic_face_worker_diagnostic($config, $slug)), JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
     header('Content-Type: application/json; charset=utf-8');
     $meta = efpic_load_gallery_meta($config, $slug);
@@ -137,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
         'stats' => $stats,
         'worker' => efpic_face_worker_status($config),
         'error' => (string) ($fs['error'] ?? ''),
-    ], efpic_face_worker_diagnostic($config)), JSON_UNESCAPED_UNICODE);
+    ], efpic_face_worker_diagnostic($config, $slug)), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
