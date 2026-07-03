@@ -7,8 +7,8 @@ RUN apt-get update \
 RUN pip install --no-cache-dir insightface onnxruntime opencv-python-headless numpy
 
 WORKDIR /app
-COPY extract_faces.py extract_batch.py extract_serve.py face_engine.py worker.sh ./
-RUN chmod +x worker.sh \
+COPY extract_faces.py extract_batch.py extract_serve.py face_engine.py face_api.py nas-verify.sh worker.sh ./
+RUN chmod +x worker.sh nas-verify.sh \
     && EFPIC_FACE_THREADS=2 EFPIC_FACE_DET_SIZE=320 python3 -c "from face_engine import create_app; create_app()"
 
 ENV EFPIC_WORK_DIR=/tmp/efpic-face

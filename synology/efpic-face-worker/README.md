@@ -18,6 +18,27 @@ Periodiski izsauc `POST /api/face/claim`, lejupielādē WEB thumbnails, ievāc s
 
 Pēc koda atjaunināšanas pietiek ar **Recreate** (skripti ir bind-mount).
 
+**Svarīgi:** jāatjaunina **visa** mape uz NAS (ne tikai `worker.sh`). Vecais `docker-compose.yml` mountēja tikai 2 failus — tad konteinerī paliek **v1.9.128** loģika un `jq` kļūda.
+
+### Pārbaude pēc atjaunināšanas
+
+SSH uz NAS (ceļš var atšķirties):
+
+```bash
+docker exec efpic-face-worker sh /app/nas-verify.sh
+```
+
+Jāredz tikai `OK` rindiņas. Logs startā:
+
+```
+EFPIC face worker 1.9.135 start — …
+face extractor ready
+extracting … (5 images)
+index job … done (5 images)
+```
+
+Ja logs rāda tikai `index job` un `jq: invalid JSON` — **NAS vēl izmanto veco worker.sh**.
+
 ## Pārbaude
 
 ```bash

@@ -10,6 +10,8 @@ fi
 
 set -euo pipefail
 
+WORKER_VERSION="1.9.135"
+
 : "${EFPIC_API_BASE:?Set EFPIC_API_BASE}"
 : "${EFPIC_API_TOKEN:?Set EFPIC_API_TOKEN}"
 
@@ -19,6 +21,7 @@ WORKDIR="${EFPIC_WORK_DIR:-/tmp/efpic-face}"
 EXTRACT_BATCH="${EFPIC_EXTRACT_BATCH:-/app/extract_batch.py}"
 EXTRACT_SINGLE="${EFPIC_EXTRACT_PY:-/app/extract_faces.py}"
 EXTRACT_SERVE="${EFPIC_EXTRACT_SERVE:-/app/extract_serve.py}"
+FACE_API="${EFPIC_FACE_API_PY:-/app/face_api.py}"
 COOLDOWN_SEC="${EFPIC_BATCH_COOLDOWN_SEC:-45}"
 EXTRACT_TIMEOUT_SEC="${EFPIC_EXTRACT_TIMEOUT_SEC:-900}"
 DAEMON_FIFO="${WORKDIR}/extract.req"
@@ -31,34 +34,35 @@ log() {
   printf '[%s] %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"
 }
 
+require_worker_files() {
+  local missing=""
+  for f in "$EXTRACT_BATCH" "$EXTRACT_SINGLE" /app/face_engine.py "$FACE_API"; do
+    if [ ! -f "$f" ]; then
+      missing="$missing $f"
+    fi
+  done
+  if [ -n "$missing" ]; then
+    log "TRŪKST failu:$missing"
+    log "Nokopē VISU synology/efpic-face-worker/ uz NAS + atjaunini docker-compose.yml + Recreate"
+    log "Pārbaude: docker exec efpic-face-worker sh /app/nas-verify.sh"
+    exit 1
+  fi
+}
+
 fail_job() {
   local job_id="$1"
   local message="$2"
-  curl -sf -X POST \
-    -H "$AUTH" \
-    -H "Content-Type: application/json" \
-    -d "$(jq -n --arg err "$message" '{error: $err}')" \
-    "${EFPIC_API_BASE}/api/face/jobs/${job_id}/fail" >/dev/null || true
+  python3 "$FACE_API" fail "$EFPIC_API_BASE" "$EFPIC_API_TOKEN" "$job_id" "$message" >/dev/null 2>&1 || true
 }
 
 ping_server() {
   curl -sf -H "$AUTH" "${EFPIC_API_BASE}/api/face/ping" >/dev/null || true
 }
 
-safe_face_json() {
-  local raw="$1"
-  if [ -z "$raw" ]; then
-    echo '[]'
-    return
-  fi
-  if echo "$raw" | jq -e 'type == "array"' >/dev/null 2>&1; then
-    echo "$raw"
-    return
-  fi
-  echo '[]'
-}
-
 start_extract_daemon() {
+  if [ ! -f "$EXTRACT_SERVE" ]; then
+    return 1
+  fi
   if [ -n "${DAEMON_READY:-}" ] && kill -0 "${DAEMON_PID:-0}" 2>/dev/null; then
     return 0
   fi
@@ -69,7 +73,7 @@ start_extract_daemon() {
   DAEMON_PID=$!
   exec 3>"$DAEMON_FIFO"
   exec 4<"$DAEMON_RESP"
-  log "InsightFace ielāde (~1–3 min) — NAS var kļūt lēns; modelis tiek ielādēts tikai vienreiz"
+  log "InsightFace ielāde (~1–3 min)"
   local waited=0
   while [ "$waited" -lt 300 ]; do
     if grep -q "face extractor ready" "$DAEMON_ERR" 2>/dev/null; then
@@ -92,7 +96,24 @@ start_extract_daemon() {
   return 1
 }
 
-run_extract() {
+run_extract_oneshot() {
+  local manifest="$1"
+  local results_file="$2"
+  local pyerr="$3"
+  log "extract one-shot (bez daemon)"
+  python3 "$EXTRACT_BATCH" < "$manifest" > "$results_file" 2>"$pyerr" &
+  local py_pid=$!
+  while kill -0 "$py_pid" 2>/dev/null; do
+    sleep 45
+    if kill -0 "$py_pid" 2>/dev/null; then
+      ping_server
+      log "still extracting…"
+    fi
+  done
+  wait "$py_pid"
+}
+
+run_extract_daemon() {
   local manifest="$1"
   local results_file="$2"
   local pyerr="$3"
@@ -117,6 +138,17 @@ run_extract() {
       return 1
       ;;
   esac
+}
+
+run_extract() {
+  local manifest="$1"
+  local results_file="$2"
+  local pyerr="$3"
+  if [ -f "$EXTRACT_SERVE" ]; then
+    run_extract_daemon "$manifest" "$results_file" "$pyerr"
+  else
+    run_extract_oneshot "$manifest" "$results_file" "$pyerr"
+  fi
 }
 
 process_index_job() {
@@ -145,19 +177,16 @@ process_index_job() {
 
   if [ "$(echo "$items" | jq 'length')" -eq 0 ]; then
     log "index job ${job_id} — no images"
-    curl -sf -X POST \
-      -H "$AUTH" \
-      -H "Content-Type: application/json" \
-      -d '{"results":[]}' \
-      "${EFPIC_API_BASE}/api/face/jobs/${job_id}/batch" >/dev/null || true
-    curl -sf -X POST -H "$AUTH" "${EFPIC_API_BASE}/api/face/jobs/${job_id}/complete" >/dev/null || true
+    echo '[]' > "$results_file"
+    python3 "$FACE_API" batch "$EFPIC_API_BASE" "$EFPIC_API_TOKEN" "$job_id" "$results_file" >/dev/null
+    python3 "$FACE_API" complete "$EFPIC_API_BASE" "$EFPIC_API_TOKEN" "$job_id" >/dev/null
     return 0
   fi
 
   echo "$items" > "$manifest"
   local count
   count="$(echo "$items" | jq 'length')"
-  log "extracting ${job_id} (${count} images) — max ${EXTRACT_TIMEOUT_SEC}s"
+  log "extracting ${job_id} (${count} images)"
   ping_server
   : >"$pyerr"
 
@@ -168,52 +197,55 @@ process_index_job() {
     return 1
   fi
 
-  local results
-  results="$(cat "$results_file")"
-  if ! echo "$results" | jq -e 'type == "array"' >/dev/null 2>&1; then
-    log "invalid results json job ${job_id}"
+  if ! python3 -c "import json,sys; json.load(open(sys.argv[1]))" "$results_file" 2>/dev/null; then
+    log "invalid results json job ${job_id}: $(head -c 120 "$results_file" 2>/dev/null | tr '\n' ' ')"
     fail_job "$job_id" "Invalid face extract output"
     rm -f "$manifest" "$results_file" "$pyerr" "${WORKDIR}/${job_id}"-*.jpg
     return 1
   fi
 
-  curl -sf -X POST \
-    -H "$AUTH" \
-    -H "Content-Type: application/json" \
-    -d "$(jq -n --argjson r "$results" '{results: $r}')" \
-    "${EFPIC_API_BASE}/api/face/jobs/${job_id}/batch" >/dev/null
+  if ! python3 "$FACE_API" batch "$EFPIC_API_BASE" "$EFPIC_API_TOKEN" "$job_id" "$results_file"; then
+    log "batch upload failed job ${job_id}"
+    fail_job "$job_id" "Face batch upload failed"
+    rm -f "$manifest" "$results_file" "$pyerr" "${WORKDIR}/${job_id}"-*.jpg
+    return 1
+  fi
 
-  curl -sf -X POST -H "$AUTH" "${EFPIC_API_BASE}/api/face/jobs/${job_id}/complete" >/dev/null
+  python3 "$FACE_API" complete "$EFPIC_API_BASE" "$EFPIC_API_TOKEN" "$job_id" >/dev/null
+  local done_count
+  done_count="$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))))" "$results_file")"
   rm -f "$manifest" "$results_file" "$pyerr" "${WORKDIR}/${job_id}"-*.jpg
-  log "index job ${job_id} done ($(echo "$results" | jq 'length') images)"
+  log "index job ${job_id} done (${done_count} images)"
 }
 
 process_search_job() {
   local job_json="$1"
-  local job_id selfie_url tmp faces
+  local job_id selfie_url tmp faces_file
   job_id="$(echo "$job_json" | jq -r '.job.id')"
   selfie_url="$(echo "$job_json" | jq -r '.job.selfie_url')"
   log "search job ${job_id}"
   tmp="${WORKDIR}/${job_id}-selfie.jpg"
+  faces_file="${WORKDIR}/${job_id}-faces.json"
   if ! curl -sf -H "$AUTH" -o "$tmp" "$selfie_url"; then
     fail_job "$job_id" "Neizdevās lejupielādēt selfiju"
     return 1
   fi
-  faces="$(safe_face_json "$(python3 "$EXTRACT_SINGLE" "$tmp" 2>/dev/null || echo '[]')")"
+  if ! python3 "$EXTRACT_SINGLE" "$tmp" > "$faces_file" 2>/dev/null; then
+    echo '[]' > "$faces_file"
+  fi
   rm -f "$tmp"
-  if [ "$(echo "$faces" | jq 'length')" -eq 0 ]; then
+  if ! python3 -c "import json,sys; f=json.load(open(sys.argv[1])); sys.exit(0 if isinstance(f,list) and len(f)>0 else 1)" "$faces_file"; then
     fail_job "$job_id" "Seja selfijā nav atrasta"
+    rm -f "$faces_file"
     return 1
   fi
-  curl -sf -X POST \
-    -H "$AUTH" \
-    -H "Content-Type: application/json" \
-    -d "$(jq -n --argjson f "$faces" '{faces: $f}')" \
-    "${EFPIC_API_BASE}/api/face/jobs/${job_id}/complete" >/dev/null
+  python3 "$FACE_API" search-complete "$EFPIC_API_BASE" "$EFPIC_API_TOKEN" "$job_id" "$faces_file" >/dev/null
+  rm -f "$faces_file"
   log "search job ${job_id} done"
 }
 
-log "EFPIC face worker start — ${EFPIC_API_BASE}"
+require_worker_files
+log "EFPIC face worker ${WORKER_VERSION} start — ${EFPIC_API_BASE}"
 
 while true; do
   resp=""

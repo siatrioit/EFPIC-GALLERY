@@ -25,3 +25,5 @@ services:
       - ./extract_faces.py:/app/extract_faces.py:ro
       - ./extract_batch.py:/app/extract_batch.py:ro
       - ./extract_serve.py:/app/extract_serve.py:ro
+      - ./face_api.py:/app/face_api.py:ro
+      - ./nas-verify.sh:/app/nas-verify.sh:ro
