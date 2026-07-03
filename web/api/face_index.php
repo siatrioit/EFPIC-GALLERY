@@ -8,7 +8,7 @@ require_once __DIR__ . '/failiem_client.php';
 
 const EFPIC_FACE_EMBED_DIM = 512;
 const EFPIC_FACE_MATCH_THRESHOLD = 0.42;
-const EFPIC_FACE_INDEX_BATCH = 3;
+const EFPIC_FACE_INDEX_BATCH = 1;
 const EFPIC_FACE_THUMB_WIDTH = 640;
 const EFPIC_FACE_RECLAIM_SEC = 600;
 const EFPIC_FACE_SEARCH_TIMEOUT_SEC = 120;
@@ -295,6 +295,9 @@ function efpic_face_queue_gallery_index(array $config, string $slug, ?array $met
 
         return;
     }
+    if (efpic_face_slug_index_busy($config, $slug)) {
+        return;
+    }
     efpic_face_enqueue_index_batch($config, $slug, $meta);
 }
 
@@ -405,6 +408,18 @@ function efpic_face_queue_stats_for_slug(array $config, string $slug): array
     ];
 }
 
+function efpic_face_slug_has_queued_job(array $config, string $slug): bool
+{
+    return efpic_face_queue_stats_for_slug($config, $slug)['queued'] > 0;
+}
+
+function efpic_face_slug_index_busy(array $config, string $slug): bool
+{
+    $q = efpic_face_queue_stats_for_slug($config, $slug);
+
+    return $q['queued'] > 0 || $q['processing'] > 0;
+}
+
 function efpic_face_purge_queue_for_slug(array $config, string $slug): int
 {
     $dir = efpic_face_queue_dir($config);
@@ -455,8 +470,8 @@ function efpic_face_worker_diagnostic(array $config, ?string $slug = null): arra
     } elseif ($worker['status'] === 'stale') {
         if ($nasBusy) {
             $messages[] = 'NAS apstrādā indeksēšanu (pēdējais signāls pirms ' . $worker['last_seen_ago']
-                . ') — viena partija var aizņemt 5–15 min CPU.';
-            $hints[] = 'Tas ir normāli: worker claim sūta tikai starp partijām, ne katru sekundi.';
+                . ') — viena bilde var aizņemt 2–8 min CPU.';
+            $hints[] = 'Worker ņem tikai vienu bildi, pabeidz, tad nākamo. Claim tikai starp bildēm.';
         } else {
             $messages[] = 'NAS pēdējo reizi sazinājās pirms ' . $worker['last_seen_ago']
                 . ' — vājš signāls, bet nesen aktīvs.';

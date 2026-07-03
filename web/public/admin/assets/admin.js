@@ -2695,7 +2695,7 @@
         .then(function (data) {
           updateFaceUi(data);
           if (data && data.ok && data.stats && (data.stats.pending || 0) > 0 && data.queue && (data.queue.total || 0) > 0) {
-            setTimeout(pollFace, 4000);
+            setTimeout(pollFace, 15000);
           }
         })
         .catch(function () {});
@@ -2860,9 +2860,7 @@
       });
     }
 
-    if (document.getElementById('admin-face-pending')) {
-      pollFace();
-    }
+    // Poll tikai pēc «Indeksēt» — ne automātiski pie lapas ielādes (1432 bildes stats = smags pieprasījums).
   }
 
   function initAdminRegeneratePublicLink() {

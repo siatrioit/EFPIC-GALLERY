@@ -1859,9 +1859,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             efpic_rebaseline_auto_scene_sorts($meta);
         }
         efpic_save_gallery_meta($config, $slug, $meta);
-        if (!empty($meta['face_search']['enabled'])) {
-            efpic_face_queue_gallery_index($config, $slug, $meta);
-        }
+        // Indeksēšanu sāk tikai ar «Indeksēt / turpināt» — ne automātiski pie Saglabāt (mazāk hosting slodzes).
     }
 
     if (!empty($_POST['sync_now'])) {

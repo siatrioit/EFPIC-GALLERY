@@ -283,7 +283,7 @@ while true; do
     process_search_job "$resp" || true
   else
     process_index_job "$resp" || fail_job "$job_id" "Index batch failed"
-    log "cooldown ${COOLDOWN_SEC}s pirms nākamās partijas"
+    log "cooldown ${COOLDOWN_SEC}s pirms nākamās bildes"
     sleep "$COOLDOWN_SEC"
   fi
 done

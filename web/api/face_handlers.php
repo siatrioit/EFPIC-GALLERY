@@ -171,7 +171,7 @@ function efpic_handle_face_job_complete(array $config, string $jobId): void
         efpic_save_gallery_meta($config, $slug, $meta);
         if (efpic_gallery_face_search_enabled($meta)) {
             $stats = efpic_face_index_stats($config, $slug, $meta);
-            if ($stats['pending'] > 0) {
+            if ($stats['pending'] > 0 && !efpic_face_slug_has_queued_job($config, $slug)) {
                 efpic_face_enqueue_index_batch($config, $slug, $meta);
             }
         }
