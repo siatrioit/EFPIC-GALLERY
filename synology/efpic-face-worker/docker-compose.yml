@@ -5,12 +5,23 @@ services:
     working_dir: /app
     entrypoint: ["/bin/bash", "/app/worker.sh"]
     restart: unless-stopped
+    # Ierobežo CPU/RAM, lai DSM un render worker paliek lietojami.
+    cpus: 1.5
+    mem_limit: 2g
     env_file:
       - .env
     environment:
       EFPIC_API_BASE: https://www.klientiem.edgarsfoto.lv
       EFPIC_API_TOKEN: ${EFPIC_API_TOKEN}
       EFPIC_POLL_SEC: 15
+      EFPIC_FACE_THREADS: 2
+      EFPIC_FACE_DET_SIZE: 320
+      EFPIC_FACE_MAX_EDGE: 960
+      EFPIC_BATCH_COOLDOWN_SEC: 45
+    stop_grace_period: 45s
     volumes:
       - ./worker.sh:/app/worker.sh:ro
+      - ./face_engine.py:/app/face_engine.py:ro
       - ./extract_faces.py:/app/extract_faces.py:ro
+      - ./extract_batch.py:/app/extract_batch.py:ro
+      - ./extract_serve.py:/app/extract_serve.py:ro

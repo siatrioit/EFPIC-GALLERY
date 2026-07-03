@@ -2640,8 +2640,11 @@
       var lines = [];
       var ok = data.nas_online;
       var weak = !ok && data.nas_visible;
+      var busy = !!data.nas_busy;
       if (ok) {
         lines.push('<strong class="admin-face-test-ok">✓ NAS redzams serverim</strong>');
+      } else if (busy) {
+        lines.push('<strong class="admin-face-test-warn">⏳ NAS apstrādā partiju (normāli ilgi)</strong>');
       } else if (weak) {
         lines.push('<strong class="admin-face-test-warn">△ Vājš signāls no NAS</strong>');
       } else {

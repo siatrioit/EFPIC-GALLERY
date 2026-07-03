@@ -28,9 +28,21 @@ Admin panelī: galerija → **Seju meklēšana** → ieslēdz → **Indeksēt / 
 
 Publiskajā galerijā (kad statuss «Gatavs») parādās **Atrodi sevi**.
 
+## NAS lēnums / DSM neatsaucas
+
+InsightFace **pilnā slodzē** var aizņemt visu CPU. Ja DSM ir ļoti lēns:
+
+1. **Stop** (ne Restart) `efpic-face-worker` Container Manager.
+2. Vai SSH: `sudo docker stop efpic-face-worker`
+3. Pagaidi 1–2 min, kamēr CPU atbrīvojas.
+
+**Lite režīms** (v1.9.133+): CPU limits 1.5, 2 threads, det 320px, partija 5 bildes, 45 s pauze starp partijām, modelis ielādēts **vienreiz** (daemon).
+
+Indeksēšanu **1432 bildēm** labāk likt **naktī** — uz NAS CPU tas ir stundas.
+
 ## Plūsma
 
-1. **Indeksēšana** — pēc sync vai pogas; pa 20 bildēm partijā.
+1. **Indeksēšana** — pēc sync vai pogas; pa **5 bildēm** partijā.
 2. **Meklēšana** — viesis augšupielādē selfiju; search job prioritāte pār index.
 3. **Selfijs netiek glabāts** pēc meklēšanas (dzēsts no queue mapes).
 

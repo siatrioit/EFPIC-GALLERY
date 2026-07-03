@@ -8,7 +8,8 @@ require_once __DIR__ . '/failiem_client.php';
 
 const EFPIC_FACE_EMBED_DIM = 512;
 const EFPIC_FACE_MATCH_THRESHOLD = 0.42;
-const EFPIC_FACE_INDEX_BATCH = 20;
+const EFPIC_FACE_INDEX_BATCH = 5;
+const EFPIC_FACE_RECLAIM_SEC = 600;
 const EFPIC_FACE_SEARCH_TIMEOUT_SEC = 120;
 const EFPIC_FACE_SEARCH_POLL_MS = 800;
 
@@ -389,14 +390,26 @@ function efpic_face_worker_diagnostic(array $config): array
         $messages[] = 'NAS face worker ir redzams serverim (pēdējais signāls pirms '
             . $worker['last_seen_ago'] . ').';
     } elseif ($worker['status'] === 'stale') {
-        $messages[] = 'NAS pēdējo reizi sazinājās pirms ' . $worker['last_seen_ago']
-            . ' — vājš signāls, bet nesen aktīvs.';
-        $hints[] = 'Worker parasti sūta claim ik ~15 s — pagaidi un spied «Pārbaudīt» vēlreiz.';
+        if ($queue['processing'] > 0 && ($worker['last_seen_sec'] ?? null) !== null && $worker['last_seen_sec'] <= 1800) {
+            $messages[] = 'NAS apstrādā indeksēšanu (pēdējais signāls pirms ' . $worker['last_seen_ago']
+                . ') — viena partija var aizņemt 5–15 min CPU.';
+            $hints[] = 'Tas ir normāli: worker claim sūta tikai starp partijām, ne katru sekundi.';
+        } else {
+            $messages[] = 'NAS pēdējo reizi sazinājās pirms ' . $worker['last_seen_ago']
+                . ' — vājš signāls, bet nesen aktīvs.';
+            $hints[] = 'Worker parasti sūta claim ik ~15 s — pagaidi un spied «Pārbaudīt» vēlreiz.';
+        }
     } else {
         $messages[] = 'NAS nav redzams serverim (pēdējais signāls pirms '
             . $worker['last_seen_ago'] . ').';
         $hints[] = 'Skaties NAS konteinera Logs — vai nav «claim failed»?';
         $hints[] = 'Recreate konteineri pēc .env labojuma.';
+        $hints[] = 'Ja DSM ir ļoti lēns: apturi efpic-face-worker (Stop), nevis Restart.';
+    }
+
+    if ($queue['processing'] > 1) {
+        $hints[] = 'Vairāki «apstrādē» jobi = vecie iestrēgušie — tiks atgriezti rindā pēc '
+            . intdiv(EFPIC_FACE_RECLAIM_SEC, 60) . ' min vai pēc claim.';
     }
 
     if ($queue['processing'] > 0) {
@@ -413,6 +426,7 @@ function efpic_face_worker_diagnostic(array $config): array
         'last_claim_at' => (string) ($state['last_claim_at'] ?? ''),
         'nas_visible' => $worker['status'] === 'online' || $worker['status'] === 'stale',
         'nas_online' => $worker['online'],
+        'nas_busy' => $queue['processing'] > 0 && ($worker['last_seen_sec'] ?? null) !== null && $worker['last_seen_sec'] <= 1800,
         'messages' => $messages,
         'hints' => $hints,
     ];
@@ -455,9 +469,41 @@ function efpic_face_list_queued_job_ids(array $config): array
     return $ids;
 }
 
+function efpic_face_reclaim_stuck_jobs(array $config, int $maxAgeSec = 1800): int
+{
+    $dir = efpic_face_queue_dir($config);
+    if (!is_dir($dir)) {
+        return 0;
+    }
+    $reclaimed = 0;
+    $now = time();
+    foreach (scandir($dir) ?: [] as $entry) {
+        if (!str_ends_with($entry, '.json')) {
+            continue;
+        }
+        $path = $dir . DIRECTORY_SEPARATOR . $entry;
+        $job = efpic_read_json_file($path);
+        if (!is_array($job) || ($job['status'] ?? '') !== 'processing') {
+            continue;
+        }
+        $claimedAt = strtotime((string) ($job['claimed_at'] ?? '')) ?: 0;
+        if ($claimedAt <= 0 || ($now - $claimedAt) < $maxAgeSec) {
+            continue;
+        }
+        $job['status'] = 'queued';
+        unset($job['claimed_at']);
+        $job['attempts'] = (int) ($job['attempts'] ?? 0) + 1;
+        efpic_face_save_job($config, $job);
+        $reclaimed++;
+    }
+
+    return $reclaimed;
+}
+
 /** @return array<string, mixed>|null */
 function efpic_face_claim_next_job(array $config): ?array
 {
+    efpic_face_reclaim_stuck_jobs($config, EFPIC_FACE_RECLAIM_SEC);
     $candidates = [];
     foreach (efpic_face_list_queued_job_ids($config) as $jobId) {
         $job = efpic_face_load_job($config, $jobId);
