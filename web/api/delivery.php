@@ -93,20 +93,15 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             'like_voters' => is_array($prev) && is_array($prev['like_voters'] ?? null) ? $prev['like_voters'] : [],
         ];
         if (is_array($prev)) {
-            $prevW = (int) ($prev['width'] ?? 0);
-            $prevH = (int) ($prev['height'] ?? 0);
-            $prevWebHash = is_array($prev['failiem_web'] ?? null)
-                ? (string) ($prev['failiem_web']['file_hash'] ?? '') : '';
-            $prevFullHash = is_array($prev['failiem_full'] ?? null)
-                ? (string) ($prev['failiem_full']['file_hash'] ?? '') : '';
             $newWebHash = (string) ($pair['web']['hash'] ?? '');
             $newFullHash = (string) ($pair['full']['hash'] ?? '');
-            $hashesUnchanged = $prevWebHash !== '' && $prevFullHash !== ''
-                && $prevWebHash === $newWebHash && $prevFullHash === $newFullHash;
-            if ($hashesUnchanged && $prevW > 0 && $prevH > 0) {
-                $entry['width'] = $prevW;
-                $entry['height'] = $prevH;
-            } elseif (!$hashesUnchanged) {
+            $newWebSize = (int) ($pair['web']['size_bytes'] ?? 0);
+            $newFullSize = (int) ($pair['full']['size_bytes'] ?? 0);
+            if (efpic_image_should_preserve_dimensions($prev, $newWebHash, $newFullHash, $newWebSize, $newFullSize)) {
+                $entry['width'] = (int) ($prev['width'] ?? 0);
+                $entry['height'] = (int) ($prev['height'] ?? 0);
+                $entry['dimensions_source_key'] = $newWebHash . '|' . $newFullHash . '|' . $newWebSize . '|' . $newFullSize;
+            } else {
                 $forceDimRefresh[$token] = true;
             }
         }
@@ -149,11 +144,20 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
     efpic_save_gallery_meta($config, $slug, $meta);
 
-    // Tikai pirmā partija sync laikā — pārējie izmēri tiek ievākti fonā (admin JS) un skatot galeriju.
-    @set_time_limit(90);
+    // Pārrēķina izmērus visām bildēm, kur Failiem fails ir mainījies (bez partijas limita).
+    @set_time_limit(180);
     $metaForDims = efpic_load_gallery_meta($config, $slug);
+    $dimReprobed = 0;
     $dimUpdated = 0;
     if ($metaForDims !== null) {
+        $dimReprobed = efpic_gallery_reprobe_changed_image_dimensions(
+            $config,
+            $slug,
+            $metaForDims,
+            $forceDimRefresh,
+            true,
+        );
+        $metaForDims = efpic_load_gallery_meta($config, $slug) ?? $metaForDims;
         $dimUpdated = efpic_gallery_backfill_image_dimensions(
             $config,
             $slug,
@@ -161,12 +165,14 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             EFPIC_DIMS_SYNC_BATCH,
             true,
             EFPIC_DIMS_BACKFILL_SAVE_EVERY,
-            $forceDimRefresh,
+            [],
         );
     }
     $metaAfter = efpic_load_gallery_meta($config, $slug);
     $dimResult = [
-        'updated' => $dimUpdated,
+        'updated' => $dimReprobed + $dimUpdated,
+        'reprobed' => $dimReprobed,
+        'backfilled' => $dimUpdated,
         'stats' => efpic_gallery_image_dimensions_stats(is_array($metaAfter) ? $metaAfter : []),
     ];
 
@@ -183,6 +189,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         'stats' => $meta['failiem']['sync_stats'],
         'warnings' => $warnings,
         'dimensions_backfilled' => $dimResult['updated'],
+        'dimensions_reprobed' => $dimResult['reprobed'],
         'dimensions_stats' => $dimResult['stats'],
     ];
 }

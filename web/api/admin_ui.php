@@ -1876,6 +1876,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         efpic_admin_session_start();
         $_SESSION['efpic_admin_sync_dims'] = [
             'backfilled' => (int) ($syncResult['dimensions_backfilled'] ?? 0),
+            'reprobed' => (int) ($syncResult['dimensions_reprobed'] ?? 0),
             'stats' => is_array($syncResult['dimensions_stats'] ?? null)
                 ? $syncResult['dimensions_stats']
                 : efpic_gallery_image_dimensions_stats(efpic_load_gallery_meta($config, $slug) ?? []),
@@ -1916,6 +1917,10 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
 
         return ['updated' => $result['updated'], 'stats' => $result['stats']];
     }
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta !== null) {
+        efpic_gallery_reprobe_changed_image_dimensions($config, $slug, $meta, [], true);
+    }
     if ($all) {
         $result = efpic_gallery_backfill_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
 
@@ -1939,10 +1944,17 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     $line = '<p class="muted admin-dims-debug" id="admin-dims-debug"><strong>Diag (pagaidu):</strong> '
         . efpic_app_version_label()
         . ' · izmēri meta.json: <strong id="admin-dims-count">' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
-    if ($stats['missing'] > 0) {
-        $line .= ' — trūkst <strong id="admin-dims-missing">' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
-        $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
-            . 'Ievākt atlikušos izmērus</button>';
+    if ($stats['missing'] > 0 || ($stats['stale'] ?? 0) > 0) {
+        if ($stats['missing'] > 0) {
+            $line .= ' — trūkst <strong id="admin-dims-missing">' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
+        }
+        if (($stats['stale'] ?? 0) > 0) {
+            $line .= ' — novecojuši <strong id="admin-dims-stale">' . (int) $stats['stale'] . '</strong> (Failiem fails mainīts, vajag sync/pārprobe)';
+        }
+        if ($stats['missing'] > 0) {
+            $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
+                . 'Ievākt atlikušos izmērus</button>';
+        }
         $line .= ' <span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
     } else {
         $line .= ' — viss OK';

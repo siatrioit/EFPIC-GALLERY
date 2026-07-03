@@ -17,7 +17,117 @@ function efpic_image_has_dimensions(array $img): bool
 
 function efpic_image_clear_dimensions(array &$img): void
 {
-    unset($img['width'], $img['height']);
+    unset($img['width'], $img['height'], $img['dimensions_source_key']);
+}
+
+function efpic_image_failiem_web_hash(array $img): string
+{
+    $web = $img['failiem_web'] ?? null;
+
+    return is_array($web) ? trim((string) ($web['file_hash'] ?? '')) : '';
+}
+
+function efpic_image_failiem_full_hash(array $img): string
+{
+    $full = $img['failiem_full'] ?? null;
+
+    return is_array($full) ? trim((string) ($full['file_hash'] ?? '')) : '';
+}
+
+function efpic_image_failiem_web_size(array $img): int
+{
+    $web = $img['failiem_web'] ?? null;
+
+    return is_array($web) ? (int) ($web['size_bytes'] ?? 0) : 0;
+}
+
+function efpic_image_failiem_full_size(array $img): int
+{
+    $full = $img['failiem_full'] ?? null;
+
+    return is_array($full) ? (int) ($full['size_bytes'] ?? 0) : 0;
+}
+
+function efpic_image_dimensions_source_key(array $img): string
+{
+    $webHash = efpic_image_failiem_web_hash($img);
+    if ($webHash === '') {
+        return '';
+    }
+
+    return $webHash
+        . '|' . efpic_image_failiem_full_hash($img)
+        . '|' . efpic_image_failiem_web_size($img)
+        . '|' . efpic_image_failiem_full_size($img);
+}
+
+function efpic_image_assign_dimensions(array &$img, int $width, int $height): void
+{
+    $img['width'] = $width;
+    $img['height'] = $height;
+    $sourceKey = efpic_image_dimensions_source_key($img);
+    if ($sourceKey !== '') {
+        $img['dimensions_source_key'] = $sourceKey;
+    }
+}
+
+function efpic_image_dimensions_stale(array $img): bool
+{
+    if (!efpic_image_has_dimensions($img)) {
+        return false;
+    }
+    $stored = trim((string) ($img['dimensions_source_key'] ?? ''));
+    $current = efpic_image_dimensions_source_key($img);
+    if ($current === '') {
+        return false;
+    }
+    if ($stored === '') {
+        // Vecā meta — izmēri bez saites uz Failiem fingerprint; pārrēķinām reizi.
+        return true;
+    }
+
+    return $stored !== $current;
+}
+
+/** Vai drīkst saglabāt iepriekšējos izmērus pēc Failiem sync (hash + izmērs nemainījās). */
+function efpic_image_should_preserve_dimensions(
+    array $prev,
+    string $newWebHash,
+    string $newFullHash,
+    int $newWebSize,
+    int $newFullSize,
+): bool {
+    if (!efpic_image_has_dimensions($prev)) {
+        return false;
+    }
+    $prevWebHash = efpic_image_failiem_web_hash($prev);
+    $prevFullHash = efpic_image_failiem_full_hash($prev);
+    $prevWebSize = efpic_image_failiem_web_size($prev);
+    $prevFullSize = efpic_image_failiem_full_size($prev);
+
+    if ($newWebHash === '' || $prevWebHash === '' || $newWebHash !== $prevWebHash) {
+        return false;
+    }
+    if ($newFullHash !== '' && $prevFullHash !== '' && $newFullHash !== $prevFullHash) {
+        return false;
+    }
+    if ($newWebSize > 0 && $prevWebSize > 0 && $newWebSize !== $prevWebSize) {
+        return false;
+    }
+    if ($newFullSize > 0 && $prevFullSize > 0 && $newFullSize !== $prevFullSize) {
+        return false;
+    }
+
+    $newSource = $newWebHash . '|' . $newFullHash . '|' . $newWebSize . '|' . $newFullSize;
+    $storedSource = trim((string) ($prev['dimensions_source_key'] ?? ''));
+    if ($storedSource === '') {
+        return false;
+    }
+    if ($storedSource !== $newSource) {
+        return false;
+    }
+
+    return true;
 }
 
 /** @return array{width: int, height: int}|null */
@@ -167,11 +277,13 @@ function efpic_probe_image_dimensions_remote(array $config, array $img): ?array
 }
 
 /** @return array{width: int, height: int}|null */
-function efpic_probe_image_dimensions(array $config, array $img, ?string $slug = null, bool $allowRemote = false): ?array
+function efpic_probe_image_dimensions(array $config, array $img, ?string $slug = null, bool $allowRemote = false, bool $ignoreExisting = false): ?array
 {
-    $existing = efpic_image_dimensions($img);
-    if ($existing !== null) {
-        return $existing;
+    if (!$ignoreExisting) {
+        $existing = efpic_image_dimensions($img);
+        if ($existing !== null) {
+            return $existing;
+        }
     }
 
     $file = trim((string) ($img['file'] ?? ''));
@@ -190,17 +302,19 @@ function efpic_probe_image_dimensions(array $config, array $img, ?string $slug =
     return efpic_probe_image_dimensions_remote($config, $img);
 }
 
-function efpic_image_apply_dimensions(array &$img, array $config, ?string $slug, bool $allowRemote = false): bool
+function efpic_image_apply_dimensions(array &$img, array $config, ?string $slug, bool $allowRemote = false, bool $force = false): bool
 {
-    if (efpic_image_has_dimensions($img)) {
+    if (!$force && efpic_image_has_dimensions($img) && !efpic_image_dimensions_stale($img)) {
         return false;
     }
-    $dims = efpic_probe_image_dimensions($config, $img, $slug, $allowRemote);
+    if ($force || efpic_image_dimensions_stale($img)) {
+        efpic_image_clear_dimensions($img);
+    }
+    $dims = efpic_probe_image_dimensions($config, $img, $slug, $allowRemote, true);
     if ($dims === null) {
         return false;
     }
-    $img['width'] = $dims['width'];
-    $img['height'] = $dims['height'];
+    efpic_image_assign_dimensions($img, $dims['width'], $dims['height']);
 
     return true;
 }
@@ -219,18 +333,39 @@ function efpic_gallery_backfill_image_dimensions(
         return 0;
     }
 
-    $updated = 0;
-    $dirty = false;
-    foreach ($images as &$img) {
-        if (!is_array($img) || $updated >= $limit) {
+    $priority = [];
+    $normal = [];
+    foreach ($images as $index => $img) {
+        if (!is_array($img)) {
             continue;
         }
         $token = (string) ($img['token'] ?? '');
         if ($token !== '' && isset($forceTokens[$token])) {
+            $priority[] = $index;
+            continue;
+        }
+        if (efpic_image_dimensions_stale($img) || !efpic_image_has_dimensions($img)) {
+            $normal[] = $index;
+        }
+    }
+
+    $updated = 0;
+    $dirty = false;
+    foreach (array_merge($priority, $normal) as $index) {
+        if ($updated >= $limit) {
+            break;
+        }
+        if (!isset($images[$index]) || !is_array($images[$index])) {
+            continue;
+        }
+        $img = &$images[$index];
+        $token = (string) ($img['token'] ?? '');
+        $force = $token !== '' && isset($forceTokens[$token]);
+        if ($force || efpic_image_dimensions_stale($img)) {
             efpic_image_clear_dimensions($img);
         }
         if (!efpic_image_has_dimensions($img)) {
-            if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote)) {
+            if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote, $force)) {
                 $updated++;
                 $dirty = true;
                 if ($saveEvery > 0 && $updated % $saveEvery === 0) {
@@ -239,6 +374,46 @@ function efpic_gallery_backfill_image_dimensions(
                     $dirty = false;
                 }
             }
+        }
+        unset($img);
+    }
+
+    if ($dirty) {
+        $meta['images'] = $images;
+        efpic_save_gallery_meta($config, $slug, $meta);
+    }
+
+    return $updated;
+}
+
+/** Pārrēķina izmērus visām bildēm, kur Failiem fails ir mainījies vai sync prasa piespiedu atjaunošanu. */
+function efpic_gallery_reprobe_changed_image_dimensions(
+    array $config,
+    string $slug,
+    array &$meta,
+    array $forceTokens = [],
+    bool $allowRemote = true,
+): int {
+    $images = $meta['images'] ?? [];
+    if (!is_array($images) || $images === []) {
+        return 0;
+    }
+
+    @set_time_limit(180);
+    $updated = 0;
+    $dirty = false;
+    foreach ($images as &$img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $token = (string) ($img['token'] ?? '');
+        $force = $token !== '' && isset($forceTokens[$token]);
+        if (!$force && !efpic_image_dimensions_stale($img)) {
+            continue;
+        }
+        if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote, true)) {
+            $updated++;
+            $dirty = true;
         }
     }
     unset($img);
@@ -273,7 +448,7 @@ function efpic_gallery_backfill_all_image_dimensions(
             break;
         }
         $stats = efpic_gallery_image_dimensions_stats($meta);
-        if ($stats['missing'] <= 0) {
+        if ($stats['missing'] <= 0 && ($stats['stale'] ?? 0) <= 0) {
             break;
         }
         $limit = max(1, min($stats['missing'], max($batchSize, EFPIC_DIMS_SYNC_BATCH)));
@@ -312,11 +487,12 @@ function efpic_gallery_force_refresh_all_image_dimensions(
     return efpic_gallery_backfill_all_image_dimensions($config, $slug, $allowRemote, $batchSize);
 }
 
-/** @return array{total: int, with_dims: int, missing: int} */
+/** @return array{total: int, with_dims: int, missing: int, stale: int} */
 function efpic_gallery_image_dimensions_stats(array $meta): array
 {
     $total = 0;
     $withDims = 0;
+    $stale = 0;
     foreach ($meta['images'] ?? [] as $img) {
         if (!is_array($img)) {
             continue;
@@ -324,6 +500,9 @@ function efpic_gallery_image_dimensions_stats(array $meta): array
         $total++;
         if (efpic_image_has_dimensions($img)) {
             $withDims++;
+            if (efpic_image_dimensions_stale($img)) {
+                $stale++;
+            }
         }
     }
 
@@ -331,5 +510,6 @@ function efpic_gallery_image_dimensions_stats(array $meta): array
         'total' => $total,
         'with_dims' => $withDims,
         'missing' => max(0, $total - $withDims),
+        'stale' => $stale,
     ];
 }

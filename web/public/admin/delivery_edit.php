@@ -225,11 +225,18 @@ if (isset($_GET['saved'])) {
             $syncDims = $_SESSION['efpic_admin_sync_dims'];
             unset($_SESSION['efpic_admin_sync_dims']);
             $dimsN = is_array($syncDims) ? (int) ($syncDims['backfilled'] ?? 0) : (int) $syncDims;
+            $reprobedN = is_array($syncDims) ? (int) ($syncDims['reprobed'] ?? 0) : 0;
             $dimStats = is_array($syncDims['stats'] ?? null)
                 ? $syncDims['stats']
                 : ($meta !== null ? efpic_gallery_image_dimensions_stats($meta) : ['with_dims' => 0, 'total' => 0, 'missing' => 0]);
+            if ($reprobedN > 0) {
+                $flash .= ' Izmēri pārrēķināti (mainīts Failiem): ' . $reprobedN . ' bildēm.';
+            }
             $flash .= ' Izmēri ievākti sync laikā: ' . $dimsN . ' bildēm.';
             $flash .= ' Kopā meta.json: ' . (int) ($dimStats['with_dims'] ?? 0) . ' / ' . (int) ($dimStats['total'] ?? 0) . '.';
+            if ((int) ($dimStats['stale'] ?? 0) > 0) {
+                $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . ' — sinhronizē vēlreiz vai «Pārprobeēt visus izmērus».';
+            }
             if ((int) ($dimStats['missing'] ?? 0) > 0) {
                 $flash .= ' Palika ' . (int) $dimStats['missing'] . ' — turpinām fonā…';
             }

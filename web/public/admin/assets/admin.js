@@ -2416,15 +2416,25 @@
     return parseInt(missingEl.textContent, 10) || 0;
   }
 
+  function adminDimsStaleCount() {
+    var staleEl = document.getElementById('admin-dims-stale');
+    if (!staleEl) return 0;
+    return parseInt(staleEl.textContent, 10) || 0;
+  }
+
   function adminUpdateDimsDebugUi(stats) {
     var countEl = document.getElementById('admin-dims-count');
     var missingEl = document.getElementById('admin-dims-missing');
+    var staleEl = document.getElementById('admin-dims-stale');
     var btn = document.getElementById('admin-backfill-dimensions');
     if (countEl && stats.with_dims !== undefined && stats.total !== undefined) {
       countEl.textContent = stats.with_dims + ' / ' + stats.total;
     }
     if (missingEl && stats.missing !== undefined) {
       missingEl.textContent = String(stats.missing);
+    }
+    if (staleEl && stats.stale !== undefined) {
+      staleEl.textContent = String(stats.stale);
     }
     if (btn && (stats.missing || 0) <= 0) {
       btn.hidden = true;
@@ -2463,7 +2473,7 @@
     if (adminDimsBackfillInFlight) {
       return Promise.resolve();
     }
-    if (!opts.force && adminDimsMissingCount() <= 0) {
+    if (!opts.force && adminDimsMissingCount() <= 0 && adminDimsStaleCount() <= 0) {
       return Promise.resolve();
     }
 
@@ -2487,7 +2497,7 @@
       return adminFetchBackfillDimensions(all, force).then(function (data) {
         var stats = data.stats || {};
         adminUpdateDimsDebugUi(stats);
-        if ((stats.missing || 0) > 0 && (data.updated || 0) > 0) {
+        if (((stats.missing || 0) > 0 || (stats.stale || 0) > 0) && (data.updated || 0) > 0) {
           if (statusEl) {
             statusEl.textContent = 'Ievākti ' + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + '…';
           }
@@ -2556,7 +2566,11 @@
         runAdminBackfillDimensions({ force: true });
       });
     }
-    if (form && form.getAttribute('data-dims-after-sync') === '1' && adminDimsMissingCount() > 0) {
+    if (
+      form &&
+      form.getAttribute('data-dims-after-sync') === '1' &&
+      (adminDimsMissingCount() > 0 || adminDimsStaleCount() > 0)
+    ) {
       setTimeout(function () {
         runAdminBackfillDimensions({ all: true, silent: true });
       }, 400);

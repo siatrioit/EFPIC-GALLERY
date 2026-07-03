@@ -130,8 +130,7 @@ function efpic_handle_upload_image(array $config, string $slug): void
     ];
     $dims = efpic_probe_image_dimensions_from_path($dest);
     if ($dims !== null) {
-        $entry['width'] = $dims['width'];
-        $entry['height'] = $dims['height'];
+        efpic_image_assign_dimensions($entry, $dims['width'], $dims['height']);
     }
     $images[] = $entry;
     $meta['images'] = $images;

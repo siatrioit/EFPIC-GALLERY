@@ -1331,17 +1331,25 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
 
     $theme = efpic_client_effective_theme($meta);
     $dimStats = efpic_gallery_image_dimensions_stats($meta);
-    if (efpic_uses_mosaic_feed_theme($theme) && $dimStats['missing'] > 0) {
+    $dimsNeedWork = $dimStats['missing'] + ($dimStats['stale'] ?? 0);
+    if (efpic_uses_mosaic_feed_theme($theme) && $dimsNeedWork > 0) {
         @set_time_limit(120);
-        efpic_gallery_backfill_image_dimensions(
-            $config,
-            $slug,
-            $meta,
-            min(EFPIC_DIMS_VIEW_BATCH, $dimStats['missing']),
-            true,
-        );
-        $meta = efpic_load_gallery_meta($config, $slug) ?? $meta;
-        $dimStats = efpic_gallery_image_dimensions_stats($meta);
+        if (($dimStats['stale'] ?? 0) > 0) {
+            efpic_gallery_reprobe_changed_image_dimensions($config, $slug, $meta, [], true);
+            $meta = efpic_load_gallery_meta($config, $slug) ?? $meta;
+            $dimStats = efpic_gallery_image_dimensions_stats($meta);
+        }
+        if ($dimStats['missing'] > 0) {
+            efpic_gallery_backfill_image_dimensions(
+                $config,
+                $slug,
+                $meta,
+                min(EFPIC_DIMS_VIEW_BATCH, $dimStats['missing']),
+                true,
+            );
+            $meta = efpic_load_gallery_meta($config, $slug) ?? $meta;
+            $dimStats = efpic_gallery_image_dimensions_stats($meta);
+        }
     }
 
     $images = efpic_client_navigable_images($meta, $ctx);
