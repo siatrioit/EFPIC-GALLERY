@@ -274,6 +274,44 @@ function efpic_visitor_create_collection_record(array &$data, string $visitorId,
 }
 
 /**
+ * @return array{collection: array<string, mixed>}
+ */
+function efpic_visitor_collection_rename(
+    array $config,
+    string $slug,
+    array &$meta,
+    string $visitorId,
+    string $collectionId,
+    string $name,
+): array {
+    $name = trim($name);
+    if ($name === '') {
+        throw new InvalidArgumentException('Izlases nosaukums nedrīkst būt tukšs');
+    }
+    $data = efpic_visitor_collections_load($config, $slug);
+    $collection = efpic_visitor_get_collection($data, $collectionId);
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    if ($collection === null || $visitor === null || (string) ($collection['visitor_id'] ?? '') !== $visitorId) {
+        throw new RuntimeException('Izlase nav atrasta');
+    }
+    $oldName = (string) ($collection['name'] ?? '');
+    $data['collections'][$collectionId]['name'] = $name;
+    $data['collections'][$collectionId]['updated_at'] = gmdate('c');
+    efpic_visitor_collections_save($config, $slug, $data);
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        'visitor_collection_rename',
+        ($visitor['name'] ?? '') . ' pārsauca izlasi «' . $oldName . '» par «' . $name . '»',
+        'visitor:' . ($visitor['email'] ?? ''),
+        ['visitor_id' => $visitorId, 'collection_id' => $collectionId],
+    );
+
+    return ['collection' => $data['collections'][$collectionId]];
+}
+
+/**
  * @return array{collection: array<string, mixed>, in_collection: bool, count: int}
  */
 function efpic_visitor_collection_toggle(

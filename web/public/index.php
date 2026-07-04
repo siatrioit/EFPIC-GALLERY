@@ -122,6 +122,10 @@ try {
         efpic_handle_visitor_collection_download_request($config, strtolower($m[1]), $m[2]);
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/rename$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_rename($config, strtolower($m[1]), $m[2]);
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/download/([a-f0-9]{40})$#i', $uri, $m) && $method === 'GET') {
         efpic_handle_visitor_collection_download($config, strtolower($m[1]), strtolower($m[2]));
     }

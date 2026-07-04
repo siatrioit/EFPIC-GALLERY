@@ -62,6 +62,7 @@ function efpic_gallery_activity_type_label(string $type): string
         'download_collection' => 'Izlases lejupielāde',
         'visitor_collection_identify' => 'Apmeklētāja izlase',
         'visitor_collection_create' => 'Jauna izlase',
+        'visitor_collection_rename' => 'Izlases pārsaukšana',
         'visitor_collection_add' => 'Izlasei pievienota bilde',
         'visitor_collection_remove' => 'No izlases noņemta bilde',
         'visitor_collection_download' => 'Izlases ZIP pieprasījums',

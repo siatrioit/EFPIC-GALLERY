@@ -1186,6 +1186,7 @@
   var visitorManageModal = document.getElementById('visitorManageModal');
   var visitorIdentifyMode = 'resume';
   var pendingCollectionImageToken = '';
+  var visitorRenameEditingId = '';
 
   var visitorState = {
     authenticated:
@@ -1314,6 +1315,7 @@
 
   function openVisitorManageModal() {
     if (!visitorManageModal) return;
+    visitorRenameEditingId = '';
     var greeting = document.getElementById('visitorManageGreeting');
     if (greeting) {
       greeting.textContent = visitorState.name
@@ -1345,26 +1347,102 @@
     var activeId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
     (visitorState.collections || []).forEach(function (coll) {
       var li = document.createElement('li');
-      li.className = 'visitor-collection-item' + (coll.id === activeId ? ' is-active' : '');
-      var label = document.createElement('span');
-      label.className = 'visitor-collection-item-label';
-      label.textContent = (coll.name || 'Izlase') + ' (' + (coll.count || 0) + ')';
-      li.appendChild(label);
+      li.className =
+        'visitor-collection-item' +
+        (coll.id === activeId ? ' is-active' : '') +
+        (visitorRenameEditingId === coll.id ? ' is-editing' : '');
+      var main = document.createElement('div');
+      main.className = 'visitor-collection-item-main';
+
+      if (visitorRenameEditingId === coll.id) {
+        var row = document.createElement('div');
+        row.className = 'visitor-collection-rename-row';
+        var input = document.createElement('input');
+        input.type = 'text';
+        input.className = 'visitor-collection-rename-input';
+        input.value = coll.name || '';
+        input.setAttribute('aria-label', 'Izlases nosaukums');
+        var saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.className = 'btn visitor-collection-rename-save';
+        saveBtn.textContent = 'Saglabāt';
+        saveBtn.setAttribute('data-visitor-rename-save', coll.id);
+        var cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'btn visitor-collection-rename-cancel';
+        cancelBtn.textContent = 'Atcelt';
+        cancelBtn.setAttribute('data-visitor-rename-cancel', '1');
+        row.appendChild(input);
+        row.appendChild(saveBtn);
+        row.appendChild(cancelBtn);
+        main.appendChild(row);
+      } else {
+        var label = document.createElement('span');
+        label.className = 'visitor-collection-item-label';
+        label.textContent = (coll.name || 'Izlase') + ' (' + (coll.count || 0) + ')';
+        main.appendChild(label);
+        var renameBtn = document.createElement('button');
+        renameBtn.type = 'button';
+        renameBtn.className = 'btn visitor-collection-rename-btn';
+        renameBtn.textContent = 'Pārsaukt';
+        renameBtn.setAttribute('data-visitor-rename', coll.id);
+        main.appendChild(renameBtn);
+      }
+
+      li.appendChild(main);
+
+      var actions = document.createElement('div');
+      actions.className = 'visitor-collection-item-actions';
       if (coll.id !== activeId) {
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'btn';
         btn.textContent = 'Aktivizēt';
         btn.setAttribute('data-visitor-activate', coll.id);
-        li.appendChild(btn);
+        actions.appendChild(btn);
       } else {
         var tag = document.createElement('span');
         tag.className = 'visitor-collection-active-tag';
         tag.textContent = 'Aktīva';
-        li.appendChild(tag);
+        actions.appendChild(tag);
       }
+      li.appendChild(actions);
       list.appendChild(li);
     });
+  }
+
+  function renameVisitorCollection(collectionId, newName) {
+    if (!visitorBaseUrl || !collectionId || !newName) return Promise.resolve(null);
+    var body =
+      'name=' +
+      encodeURIComponent(newName) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    return fetch(visitorUrl('/collections/' + encodeURIComponent(collectionId) + '/rename'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          visitorRenameEditingId = '';
+          applyVisitorState({
+            authenticated: true,
+            visitor: { name: visitorState.name, email: visitorState.email },
+            active_collection: data.active_collection,
+            collections: data.collections,
+            active_tokens: visitorState.activeTokens,
+          });
+          renderVisitorCollectionList();
+        }
+        return data;
+      });
   }
 
   function submitVisitorIdentify() {
@@ -1627,6 +1705,9 @@
   document.querySelectorAll('[data-visitor-manage-close]').forEach(function (btn) {
     btn.addEventListener('click', closeVisitorManageModal);
   });
+  document.querySelectorAll('[data-visitor-manage-save]').forEach(function (btn) {
+    btn.addEventListener('click', closeVisitorManageModal);
+  });
   document.querySelectorAll('[data-visitor-mode]').forEach(function (btn) {
     btn.addEventListener('click', function () {
       visitorIdentifyMode = btn.getAttribute('data-visitor-mode') || 'resume';
@@ -1670,12 +1751,53 @@
   if (logoutBtn) {
     logoutBtn.addEventListener('click', visitorLogout);
   }
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key !== 'Enter') return;
+    var renameInput =
+      evt.target && evt.target.closest ? evt.target.closest('.visitor-collection-rename-input') : null;
+    if (!renameInput) return;
+    evt.preventDefault();
+    var row = renameInput.closest('.visitor-collection-rename-row');
+    var saveBtn = row ? row.querySelector('[data-visitor-rename-save]') : null;
+    if (saveBtn) saveBtn.click();
+  });
+
   document.addEventListener('click', function (evt) {
     var activateBtn =
       evt.target && evt.target.closest ? evt.target.closest('[data-visitor-activate]') : null;
     if (activateBtn) {
       evt.preventDefault();
       activateVisitorCollection(activateBtn.getAttribute('data-visitor-activate') || '');
+      return;
+    }
+    var renameBtn =
+      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-rename]') : null;
+    if (renameBtn) {
+      evt.preventDefault();
+      visitorRenameEditingId = renameBtn.getAttribute('data-visitor-rename') || '';
+      renderVisitorCollectionList();
+      var editInput = document.querySelector('.visitor-collection-rename-input');
+      if (editInput) editInput.focus();
+      return;
+    }
+    var renameSaveBtn =
+      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-rename-save]') : null;
+    if (renameSaveBtn) {
+      evt.preventDefault();
+      var collId = renameSaveBtn.getAttribute('data-visitor-rename-save') || '';
+      var row = renameSaveBtn.closest('.visitor-collection-rename-row');
+      var inputEl = row ? row.querySelector('.visitor-collection-rename-input') : null;
+      var newName = inputEl ? inputEl.value.trim() : '';
+      if (newName) renameVisitorCollection(collId, newName);
+      return;
+    }
+    var renameCancelBtn =
+      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-rename-cancel]') : null;
+    if (renameCancelBtn) {
+      evt.preventDefault();
+      visitorRenameEditingId = '';
+      renderVisitorCollectionList();
+      return;
     }
     var manageOpen =
       evt.target && evt.target.closest ? evt.target.closest('[data-visitor-manage-open]') : null;

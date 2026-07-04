@@ -196,17 +196,17 @@ function efpic_client_render_visitor_collection_modal(): string
     $html .= '<h2 id="visitorCollectionModalTitle">Mana izlase</h2>';
     $html .= '<p class="muted">Ievadi vārdu un e-pastu, lai atlasītu bildes. Saņemsi saiti, ar kuru vari turpināt vēlāk.</p>';
     $html .= '<form class="stack visitor-collection-form" id="visitorCollectionForm">';
-    $html .= '<label>Vārds<input type="text" name="name" id="visitorNameInput" required autocomplete="name"></label>';
-    $html .= '<label>E-pasts<input type="email" name="email" id="visitorEmailInput" required autocomplete="email"></label>';
+    $html .= '<label class="field">Vārds<input type="text" name="name" id="visitorNameInput" required autocomplete="name"></label>';
+    $html .= '<label class="field">E-pasts<input type="email" name="email" id="visitorEmailInput" required autocomplete="email"></label>';
     $html .= '<div class="visitor-mode-row" id="visitorNewCollectionBlock" hidden>';
-    $html .= '<label>Jaunas izlases nosaukums<input type="text" name="collection_name" id="visitorCollectionNameInput" placeholder="Mana izlase"></label>';
+    $html .= '<label class="field">Jaunas izlases nosaukums<input type="text" name="collection_name" id="visitorCollectionNameInput" placeholder="Mana izlase"></label>';
     $html .= '</div>';
     $html .= '<div class="visitor-mode-tabs" role="tablist" aria-label="Izlases režīms">';
     $html .= '<button type="button" class="btn visitor-mode-btn is-active" data-visitor-mode="resume" role="tab" aria-selected="true">Turpināt</button>';
     $html .= '<button type="button" class="btn visitor-mode-btn" data-visitor-mode="new" role="tab" aria-selected="false">Jauna izlase</button>';
     $html .= '</div>';
     $html .= '<p class="visitor-form-error err" id="visitorFormError" hidden></p>';
-    $html .= '<button type="submit" class="btn primary" id="visitorCollectionSubmit">Sākt</button>';
+    $html .= '<button type="submit" class="btn primary visitor-submit-btn" id="visitorCollectionSubmit">Sākt</button>';
     $html .= '</form></div></div>';
 
     return $html;
@@ -219,12 +219,16 @@ function efpic_client_render_visitor_manage_modal(): string
     $html .= efpic_client_icon('close') . '</button>';
     $html .= '<h2 id="visitorManageModalTitle">Manas izlases</h2>';
     $html .= '<p class="muted" id="visitorManageGreeting"></p>';
+    $html .= '<p class="muted visitor-manage-hint">Aktivizē izlasi, lai atlasītu bildes. «Saglabāt» aizver logu — izlase paliek aktīva.</p>';
     $html .= '<ul class="visitor-collection-list" id="visitorCollectionList"></ul>';
     $html .= '<form class="stack visitor-new-collection-form" id="visitorNewCollectionForm">';
-    $html .= '<label>Jauna izlase<input type="text" name="name" id="visitorNewCollectionInput" required placeholder="Izlases nosaukums"></label>';
-    $html .= '<button type="submit" class="btn">Izveidot</button>';
+    $html .= '<label class="field">Jauna izlase<input type="text" name="name" id="visitorNewCollectionInput" required placeholder="Izlases nosaukums"></label>';
+    $html .= '<button type="submit" class="btn visitor-submit-btn">Izveidot</button>';
     $html .= '</form>';
-    $html .= '<button type="button" class="btn visitor-logout-btn" id="visitorLogoutBtn">Iziet</button>';
+    $html .= '<div class="visitor-modal-actions">';
+    $html .= '<button type="button" class="btn primary visitor-submit-btn" id="visitorManageSaveBtn" data-visitor-manage-save>Saglabāt</button>';
+    $html .= '<button type="button" class="btn visitor-submit-btn" id="visitorLogoutBtn">Iziet no Izlases</button>';
+    $html .= '</div>';
     $html .= '</div></div>';
 
     return $html;

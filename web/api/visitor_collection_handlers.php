@@ -300,6 +300,58 @@ function efpic_handle_visitor_collection_download_request(array $config, string 
     ]);
 }
 
+function efpic_handle_visitor_collection_rename(array $config, string $galleryToken, string $collectionId): void
+{
+    efpic_csrf_require();
+    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    if ($ctxPack === null) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+    $session = efpic_visitor_session_state($galleryToken);
+    if ($session === null) {
+        efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
+    }
+    $name = trim((string) ($_POST['name'] ?? ''));
+    if ($name === '') {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_name']);
+    }
+
+    try {
+        $result = efpic_visitor_collection_rename(
+            $config,
+            $ctxPack['slug'],
+            $ctxPack['meta'],
+            $session['visitor_id'],
+            $collectionId,
+            $name,
+        );
+    } catch (InvalidArgumentException $e) {
+        efpic_json_response(400, ['ok' => false, 'error' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        efpic_json_response(500, ['ok' => false, 'error' => $e->getMessage()]);
+    }
+
+    $data = efpic_visitor_collections_load($config, $ctxPack['slug']);
+    if ($session['active_collection_id'] === $collectionId) {
+        efpic_visitor_set_session($galleryToken, $session['visitor_id'], $collectionId);
+    }
+    $activeCollection = $data['collections'][$session['active_collection_id']] ?? null;
+
+    efpic_json_response(200, [
+        'ok' => true,
+        'active_collection' => efpic_visitor_collection_public_summary($activeCollection),
+        'collections' => array_map(static function (array $collection): array {
+            $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
+
+            return [
+                'id' => (string) ($collection['id'] ?? ''),
+                'name' => (string) ($collection['name'] ?? ''),
+                'count' => count($tokens),
+            ];
+        }, efpic_visitor_collections_for_visitor($data, $session['visitor_id'])),
+    ]);
+}
+
 function efpic_handle_visitor_collection_download(array $config, string $galleryToken, string $downloadToken): void
 {
     $found = efpic_find_gallery_by_token($config, $galleryToken);
