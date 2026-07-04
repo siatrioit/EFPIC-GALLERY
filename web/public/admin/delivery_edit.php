@@ -163,7 +163,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
         'error' => (string) ($fs['error'] ?? ''),
     ];
     if (efpic_gallery_face_search_uses_failiem($meta)) {
-        $payload = array_merge($payload, efpic_failiem_face_admin_status($config, $slug, $meta));
+        try {
+            $payload = array_merge($payload, efpic_failiem_face_admin_status($config, $slug, $meta));
+        } catch (Throwable $e) {
+            $payload = array_merge(
+                $payload,
+                efpic_failiem_face_cached_status($config, $slug, $meta),
+                ['error' => $e->getMessage()]
+            );
+        }
     } else {
         $stats = efpic_face_index_stats($config, $slug, $meta);
         $payload = array_merge($payload, [

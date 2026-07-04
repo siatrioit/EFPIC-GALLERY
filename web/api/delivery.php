@@ -186,7 +186,9 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
 
     $metaAfterSync = efpic_load_gallery_meta($config, $slug);
-    if ($metaAfterSync !== null && efpic_gallery_face_search_enabled($metaAfterSync)) {
+    if ($metaAfterSync !== null
+        && efpic_gallery_face_search_enabled($metaAfterSync)
+        && !efpic_gallery_face_search_uses_failiem($metaAfterSync)) {
         efpic_face_queue_gallery_index($config, $slug, $metaAfterSync);
     }
 

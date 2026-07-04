@@ -72,7 +72,36 @@ function efpic_failiem_face_ajax_get(array $config, string $uploadHash, string $
     $query = array_merge(['upload_hash' => $uploadHash, 'action' => $action], $extra);
     $url = efpic_failiem_face_site_base($config) . '/ajax/face_search.php?' . http_build_query($query);
 
-    $data = efpic_failiem_http_get($config, $url);
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('curl nav pieejams');
+    }
+
+    $ch = curl_init($url);
+    if ($ch === false) {
+        throw new RuntimeException('curl init failed');
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_TIMEOUT => 45,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_HTTPHEADER => [
+            'Accept: application/json',
+            'User-Agent: EFPIC-Gallery/1.0',
+        ],
+    ]);
+
+    $body = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($body === false || $code < 200 || $code >= 300) {
+        throw new RuntimeException('Failiem sejas HTTP ' . $code . ($err !== '' ? ': ' . $err : ''));
+    }
+
+    $data = json_decode($body, true);
     if (!is_array($data)) {
         throw new RuntimeException('Failiem seju atbilde nav JSON');
     }
@@ -178,42 +207,114 @@ function efpic_failiem_face_fetch_bundle(
         }
     }
 
-    $status = efpic_failiem_face_check_status($config, $uploadHash);
-    $processingDone = !empty($status['processing_done']);
-    $processingError = !empty($status['processing_error']);
+    try {
+        $status = efpic_failiem_face_check_status($config, $uploadHash);
+        $processingDone = !empty($status['processing_done']);
+        $processingError = !empty($status['processing_error']);
 
-    $persons = [];
-    $personImages = [];
-    $personImagesIdsHashes = [];
+        $persons = [];
+        $personImages = [];
+        $personImagesIdsHashes = [];
 
-    if ($processingDone && !$processingError) {
-        $results = efpic_failiem_face_get_results($config, $uploadHash);
-        if (!empty($results['success']) && empty($results['no_persons_detected'])) {
-            $persons = is_array($results['persons'] ?? null) ? $results['persons'] : [];
-            $personImages = is_array($results['person_images'] ?? null) ? $results['person_images'] : [];
-            $personImagesIdsHashes = is_array($results['person_images_ids_hashes'] ?? null)
-                ? $results['person_images_ids_hashes'] : [];
+        if ($processingDone && !$processingError) {
+            $results = efpic_failiem_face_get_results($config, $uploadHash);
+            if (!empty($results['success']) && empty($results['no_persons_detected'])) {
+                $persons = is_array($results['persons'] ?? null) ? $results['persons'] : [];
+                $personImages = is_array($results['person_images'] ?? null) ? $results['person_images'] : [];
+                $personImagesIdsHashes = is_array($results['person_images_ids_hashes'] ?? null)
+                    ? $results['person_images_ids_hashes'] : [];
+            }
+        }
+
+        efpic_failiem_face_save_cache($config, $slug, [
+            'upload_hash' => $uploadHash,
+            'processing_done' => $processingDone,
+            'processing_error' => $processingError,
+            'persons' => $persons,
+            'person_images' => $personImages,
+            'person_images_ids_hashes' => $personImagesIdsHashes,
+        ]);
+
+        return [
+            'ok' => true,
+            'upload_hash' => $uploadHash,
+            'processing_done' => $processingDone,
+            'processing_error' => $processingError,
+            'persons' => $persons,
+            'person_images' => $personImages,
+            'person_images_ids_hashes' => $personImagesIdsHashes,
+            'from_cache' => false,
+        ];
+    } catch (Throwable $e) {
+        $cached = efpic_read_json_file(efpic_failiem_face_cache_path($config, $slug));
+        if (is_array($cached) && (string) ($cached['upload_hash'] ?? '') === $uploadHash) {
+            return [
+                'ok' => true,
+                'upload_hash' => $uploadHash,
+                'processing_done' => !empty($cached['processing_done']),
+                'processing_error' => !empty($cached['processing_error']),
+                'persons' => is_array($cached['persons'] ?? null) ? $cached['persons'] : [],
+                'person_images' => is_array($cached['person_images'] ?? null) ? $cached['person_images'] : [],
+                'person_images_ids_hashes' => is_array($cached['person_images_ids_hashes'] ?? null)
+                    ? $cached['person_images_ids_hashes'] : [],
+                'from_cache' => true,
+                'error' => $e->getMessage(),
+            ];
+        }
+
+        return [
+            'ok' => false,
+            'upload_hash' => $uploadHash,
+            'processing_done' => false,
+            'processing_error' => true,
+            'persons' => [],
+            'person_images' => [],
+            'person_images_ids_hashes' => [],
+            'from_cache' => false,
+            'error' => $e->getMessage(),
+        ];
+    }
+}
+
+/** @return array<string, mixed> */
+function efpic_failiem_face_cached_status(array $config, string $slug, array $meta): array
+{
+    $uploadHash = efpic_failiem_face_upload_hash($meta);
+    if ($uploadHash === '') {
+        return [
+            'provider' => 'failiem',
+            'upload_hash' => '',
+            'processing_done' => false,
+            'processing_error' => false,
+            'person_count' => 0,
+            'from_cache' => false,
+            'ready' => false,
+            'error' => 'Nav norādīta Failiem web mape',
+        ];
+    }
+
+    $cached = efpic_failiem_face_load_cache($config, $slug);
+    if ($cached === null || (string) ($cached['upload_hash'] ?? '') !== $uploadHash) {
+        $stale = efpic_read_json_file(efpic_failiem_face_cache_path($config, $slug));
+        if (is_array($stale) && (string) ($stale['upload_hash'] ?? '') === $uploadHash) {
+            $cached = $stale;
         }
     }
 
-    efpic_failiem_face_save_cache($config, $slug, [
-        'upload_hash' => $uploadHash,
-        'processing_done' => $processingDone,
-        'processing_error' => $processingError,
-        'persons' => $persons,
-        'person_images' => $personImages,
-        'person_images_ids_hashes' => $personImagesIdsHashes,
-    ]);
+    $personCount = is_array($cached) && is_array($cached['persons'] ?? null) ? count($cached['persons']) : 0;
 
     return [
-        'ok' => true,
+        'provider' => 'failiem',
         'upload_hash' => $uploadHash,
-        'processing_done' => $processingDone,
-        'processing_error' => $processingError,
-        'persons' => $persons,
-        'person_images' => $personImages,
-        'person_images_ids_hashes' => $personImagesIdsHashes,
-        'from_cache' => false,
+        'processing_done' => is_array($cached) && !empty($cached['processing_done']),
+        'processing_error' => is_array($cached) && !empty($cached['processing_error']),
+        'person_count' => $personCount,
+        'from_cache' => true,
+        'ready' => is_array($cached)
+            && !empty($cached['processing_done'])
+            && $personCount > 0
+            && empty($cached['processing_error']),
+        'error' => is_array($cached) ? '' : 'Vēl nav ielādēts — spied «Atsvaidzināt no Failiem»',
     ];
 }
 

@@ -488,9 +488,13 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
     $worker = efpic_face_worker_status($config);
     $queue = efpic_face_queue_stats_for_slug($config, $slug);
     $status = (string) ($fs['status'] ?? 'none');
-    $failiemStatus = $failiem ? efpic_failiem_face_admin_status($config, $slug, $meta) : null;
+    $failiemStatus = $failiem ? efpic_failiem_face_cached_status($config, $slug, $meta) : null;
     $statusLabel = $failiem
-        ? (($failiemStatus['ready'] ?? false) ? 'Gatavs (Failiem)' : 'Gaida Failiem')
+        ? (($failiemStatus['ready'] ?? false)
+            ? 'Gatavs (Failiem)'
+            : (($failiemStatus['error'] ?? '') !== ''
+                ? 'Nav ielādēts'
+                : (($failiemStatus['processing_error'] ?? false) ? 'Failiem kļūda' : 'Gaida Failiem')))
         : match ($status) {
             'ready' => 'Gatavs',
             'indexing', 'queued' => 'Indeksē…',
@@ -520,6 +524,9 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
     } else {
         $html .= '<p class="muted">Viesi var augšupielādēt selfiju un redzēt bildes, kurās viņi atrodas. '
             . 'Indeksēšana notiek fonā caur Synology face worker (InsightFace).</p>';
+    }
+    if ($failiem && is_array($failiemStatus) && ($failiemStatus['error'] ?? '') !== '') {
+        $html .= '<p class="muted" id="admin-face-failiem-hint">' . efpic_admin_esc((string) $failiemStatus['error']) . '</p>';
     }
     $html .= '<p class="muted admin-face-status" id="admin-face-status">Statuss: <strong id="admin-face-status-label">'
         . efpic_admin_esc($statusLabel) . '</strong>';

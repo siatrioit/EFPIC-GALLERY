@@ -286,6 +286,9 @@ function efpic_face_queue_gallery_index(array $config, string $slug, ?array $met
     if ($meta === null || !efpic_gallery_face_search_enabled($meta)) {
         return;
     }
+    if (efpic_gallery_face_search_uses_failiem($meta)) {
+        return;
+    }
     if (!isset($meta['face_search']) || !is_array($meta['face_search'])) {
         $meta['face_search'] = efpic_gallery_face_search_defaults();
         $meta['face_search']['enabled'] = true;
