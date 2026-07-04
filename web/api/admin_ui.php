@@ -2114,7 +2114,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
         }
         $body .= efpic_admin_render_dimensions_debug_line($meta);
-        $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
         $body .= '</div>';
     }
 
@@ -2215,7 +2214,11 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
     }
 
-    $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
+    if ($isEdit && is_array($meta) && $slug !== null) {
+        $body .= '<div class="admin-tab-panel-grid">';
+    }
+
+    $body .= '<fieldset class="admin-fieldset-full' . ($isEdit ? ' admin-fieldset-compact' : '') . '" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
     $body .= '<div class="admin-form-layout admin-form-layout--failiem admin-form-layout--pairs">';
     $body .= '<p class="muted admin-fieldset-full">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
     $body .= '<label class="admin-fieldset-full">Galvenā mape (AI meklēšanai, opcija)<input name="folder_parent_url" value="'
@@ -2223,6 +2226,11 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Mapes pilns<input name="folder_full_url" value="' . efpic_admin_esc((string) ($failiem['folder_full_url'] ?? '')) . '"></label>';
     $body .= '<label>Mapes web<input name="folder_web_url" value="' . efpic_admin_esc((string) ($failiem['folder_web_url'] ?? '')) . '"></label>';
     $body .= '</div></fieldset>';
+
+    if ($isEdit && is_array($meta) && $slug !== null) {
+        $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
+        $body .= '</div>';
+    }
 
     if ($isEdit) {
         $body .= efpic_admin_tab_panel_close();
