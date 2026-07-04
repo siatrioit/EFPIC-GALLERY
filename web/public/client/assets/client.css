@@ -2954,6 +2954,20 @@ body.face-search-open {
   display: none !important;
 }
 
+body.face-search-filter-active .pic-feed.face-search-feed-inactive {
+  display: none !important;
+}
+
+body.face-search-filter-active .gallery-videos-inline,
+body.face-search-filter-active .gallery-inline-video-player,
+body.face-search-filter-active .slideshow-inline-video {
+  display: none !important;
+}
+
+body.face-search-filter-active .scene-title {
+  display: none !important;
+}
+
 .face-person-dialog {
   max-width: min(520px, 94vw);
 }
