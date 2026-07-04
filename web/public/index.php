@@ -94,6 +94,38 @@ try {
         efpic_handle_client_collection_clear($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/identify$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_identify($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/status$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_visitor_status($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/logout$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_logout($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_create($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/activate$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_activate($config, strtolower($m[1]), $m[2]);
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/toggle$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_toggle($config, strtolower($m[1]), $m[2]);
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/download$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_download_request($config, strtolower($m[1]), $m[2]);
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/download/([a-f0-9]{40})$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_visitor_collection_download($config, strtolower($m[1]), strtolower($m[2]));
+    }
+
     if (preg_match('#^/c/p/([a-f0-9]{48})/download\.zip$#i', $uri, $m) && $method === 'GET') {
         efpic_portal_handle_download_zip($config, strtolower($m[1]));
     }

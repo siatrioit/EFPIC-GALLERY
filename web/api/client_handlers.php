@@ -172,17 +172,60 @@ function efpic_client_collection_download_modal(array $meta, array $ctx, int $co
     $html .= '<div class="modal"><button type="button" class="icon-btn modal-close" data-cdl-close aria-label="Aizvērt">';
     $html .= efpic_client_icon('close') . '</button>';
     $html .= '<h2 id="collectionDownloadModalTitle">' . efpic_client_esc($colLabel) . '</h2>';
+    $html .= '<p class="muted visitor-dl-hint">ZIP arhīvu sagatavosim un nosūtīsim uz tavu e-pastu.</p>';
     $html .= '<div class="dl-size-row" id="collectionDownloadModalActions">';
     if ($canColWeb) {
-        $html .= '<a class="btn primary cdl-btn" href="#" data-cdl-size="web">WEB</a>';
+        $html .= '<button type="button" class="btn primary cdl-btn" data-cdl-size="web">WEB</button>';
     }
     if ($canColFull) {
-        $html .= '<a class="btn cdl-btn" href="#" data-cdl-size="full">PRINT</a>';
+        $html .= '<button type="button" class="btn cdl-btn" data-cdl-size="full">PRINT</button>';
     }
     if (!$canColWeb && !$canColFull) {
         $html .= '<p class="muted">Lejupielāde šim izmēram nav atļauta.</p>';
     }
     $html .= '</div></div></div>';
+
+    return $html;
+}
+
+function efpic_client_render_visitor_collection_modal(): string
+{
+    $html = '<div class="modal-backdrop" id="visitorCollectionModal" hidden role="dialog" aria-labelledby="visitorCollectionModalTitle">';
+    $html .= '<div class="modal visitor-collection-modal"><button type="button" class="icon-btn modal-close" data-visitor-modal-close aria-label="Aizvērt">';
+    $html .= efpic_client_icon('close') . '</button>';
+    $html .= '<h2 id="visitorCollectionModalTitle">Mana izlase</h2>';
+    $html .= '<p class="muted">Ievadi vārdu un e-pastu, lai atlasītu bildes. Saņemsi saiti, ar kuru vari turpināt vēlāk.</p>';
+    $html .= '<form class="stack visitor-collection-form" id="visitorCollectionForm">';
+    $html .= '<label>Vārds<input type="text" name="name" id="visitorNameInput" required autocomplete="name"></label>';
+    $html .= '<label>E-pasts<input type="email" name="email" id="visitorEmailInput" required autocomplete="email"></label>';
+    $html .= '<div class="visitor-mode-row" id="visitorNewCollectionBlock" hidden>';
+    $html .= '<label>Jaunas izlases nosaukums<input type="text" name="collection_name" id="visitorCollectionNameInput" placeholder="Mana izlase"></label>';
+    $html .= '</div>';
+    $html .= '<div class="visitor-mode-tabs" role="tablist" aria-label="Izlases režīms">';
+    $html .= '<button type="button" class="btn visitor-mode-btn is-active" data-visitor-mode="resume" role="tab" aria-selected="true">Turpināt</button>';
+    $html .= '<button type="button" class="btn visitor-mode-btn" data-visitor-mode="new" role="tab" aria-selected="false">Jauna izlase</button>';
+    $html .= '</div>';
+    $html .= '<p class="visitor-form-error err" id="visitorFormError" hidden></p>';
+    $html .= '<button type="submit" class="btn primary" id="visitorCollectionSubmit">Sākt</button>';
+    $html .= '</form></div></div>';
+
+    return $html;
+}
+
+function efpic_client_render_visitor_manage_modal(): string
+{
+    $html = '<div class="modal-backdrop" id="visitorManageModal" hidden role="dialog" aria-labelledby="visitorManageModalTitle">';
+    $html .= '<div class="modal visitor-manage-modal"><button type="button" class="icon-btn modal-close" data-visitor-manage-close aria-label="Aizvērt">';
+    $html .= efpic_client_icon('close') . '</button>';
+    $html .= '<h2 id="visitorManageModalTitle">Manas izlases</h2>';
+    $html .= '<p class="muted" id="visitorManageGreeting"></p>';
+    $html .= '<ul class="visitor-collection-list" id="visitorCollectionList"></ul>';
+    $html .= '<form class="stack visitor-new-collection-form" id="visitorNewCollectionForm">';
+    $html .= '<label>Jauna izlase<input type="text" name="name" id="visitorNewCollectionInput" required placeholder="Izlases nosaukums"></label>';
+    $html .= '<button type="submit" class="btn">Izveidot</button>';
+    $html .= '</form>';
+    $html .= '<button type="button" class="btn visitor-logout-btn" id="visitorLogoutBtn">Iziet</button>';
+    $html .= '</div></div>';
 
     return $html;
 }
@@ -645,14 +688,23 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     return $html;
 }
 
-/** @return array{viewer_key: string, collection: array<string, true>, base: string} */
-function efpic_client_build_grid_context(array $config, string $galleryToken, array $meta = []): array
-{
+/** @return array{viewer_key: string, collection: array<string, true>, collection_enabled: bool, base: string} */
+function efpic_client_build_grid_context(
+    array $config,
+    string $galleryToken,
+    array $meta = [],
+    array $ctx = [],
+    string $slug = '',
+): array {
     $viewerKey = efpic_viewer_like_key();
     $collection = [];
     if ($meta !== [] && efpic_can_use_public_collection($meta)) {
-        foreach (efpic_client_collection_tokens($galleryToken) as $tok) {
-            $collection[$tok] = true;
+        if ($slug === '') {
+            $found = efpic_find_gallery_by_token($config, $galleryToken);
+            $slug = is_array($found) ? (string) ($found['slug'] ?? '') : '';
+        }
+        if ($slug !== '' && $ctx !== []) {
+            $collection = efpic_visitor_active_collection_token_map($config, $slug, $galleryToken, $meta, $ctx);
         }
     }
 
@@ -688,19 +740,36 @@ function efpic_client_render_image_grid_actions(array $gridCtx, array $img): str
     return $html;
 }
 
-function efpic_client_render_collection_tray(string $galleryUrl, int $count, array $meta, array $ctx): string
-{
+function efpic_client_render_collection_tray(
+    string $galleryUrl,
+    int $count,
+    array $meta,
+    array $ctx,
+    ?array $visitorStatus = null,
+): string {
     $canColZip = efpic_can_download_collection_zip($meta, $ctx, 'web')
         || efpic_can_download_collection_zip($meta, $ctx, 'full');
-    $hidden = $count > 0 ? '' : ' hidden';
-    $html = '<aside class="collection-tray' . ($count > 0 ? ' is-visible' : '') . '" id="collectionTray"' . $hidden . ' aria-live="polite">';
-    $html .= '<p class="collection-tray-text"><strong id="collectionTrayCount">' . $count . '</strong> '
+    $hidden = $count > 0 || $visitorStatus !== null ? '' : ' hidden';
+    $visible = $count > 0 || $visitorStatus !== null;
+    $collName = '';
+    if ($visitorStatus !== null && is_array($visitorStatus['active_collection'] ?? null)) {
+        $collName = (string) ($visitorStatus['active_collection']['name'] ?? '');
+    }
+    $html = '<aside class="collection-tray' . ($visible ? ' is-visible' : '') . '" id="collectionTray"' . $hidden . ' aria-live="polite">';
+    $html .= '<p class="collection-tray-text">';
+    if ($collName !== '') {
+        $html .= '<span class="collection-tray-label" id="collectionTrayLabel">' . efpic_client_esc($collName) . ' · </span>';
+    } else {
+        $html .= '<span class="collection-tray-label" id="collectionTrayLabel" hidden></span>';
+    }
+    $html .= '<strong id="collectionTrayCount">' . $count . '</strong> '
         . ($count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas') . '</p>';
     $html .= '<div class="collection-tray-actions">';
-    $html .= '<button type="button" class="btn" data-collection-clear>Notīrīt</button>';
+    $html .= '<button type="button" class="btn" id="visitorManageBtn" data-visitor-manage-open'
+        . ($visitorStatus !== null ? '' : ' hidden') . '>Pārvaldīt</button>';
     if ($canColZip) {
         $html .= '<button type="button" class="btn primary" id="collectionDlBtn" data-collection-dl-open'
-            . ($count > 0 ? '' : ' hidden') . '>Lejupielādēt</button>';
+            . ($count > 0 ? '' : ' hidden') . '>Lejupielādēt uz e-pastu</button>';
     }
     $html .= '</div></aside>';
 
@@ -1323,6 +1392,14 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         efpic_client_html($name, $body, $config, 'page-auth', efpic_gallery_view_url($config, $galleryToken), [], $meta);
     }
 
+    $vcAccess = trim((string) ($_GET['vc_access'] ?? ''));
+    if ($vcAccess !== '') {
+        efpic_visitor_apply_access_token($config, $galleryToken, $vcAccess);
+        $guest = trim((string) ($_GET['g'] ?? ''));
+        header('Location: ' . efpic_gallery_view_url($config, $galleryToken, $guest !== '' ? $guest : null));
+        exit;
+    }
+
     $ctx = efpic_viewer_context($config, $meta);
     if (efpic_viewer_context_access_denied($ctx)) {
         efpic_client_html(
@@ -1366,7 +1443,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $images = efpic_client_navigable_images($meta, $ctx);
     $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
     $canPublicCollection = efpic_can_use_public_collection($meta);
-    $gridCtx = efpic_client_build_grid_context($config, $galleryToken, $meta);
+    $visitorStatus = $canPublicCollection
+        ? efpic_visitor_public_status($config, $slug, $meta, $galleryToken, $ctx)
+        : null;
+    $gridCtx = efpic_client_build_grid_context($config, $galleryToken, $meta, $ctx, $slug);
     $collectionCount = count($gridCtx['collection']);
     $galleryDlModal = efpic_client_gallery_download_modal($meta, $ctx);
     $hasGalleryDl = $galleryDlModal !== '';
@@ -1460,13 +1540,15 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body .= $galleryDlModal;
     if ($canPublicCollection) {
         $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
+        $body .= efpic_client_render_visitor_collection_modal();
+        $body .= efpic_client_render_visitor_manage_modal();
     }
     $body .= efpic_client_zip_progress_modal();
     if ($faceSearchReady) {
         $body .= efpic_client_render_face_person_modal();
     }
     if ($canPublicCollection) {
-        $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
+        $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx, $visitorStatus);
     }
     $expiresNotice = efpic_client_render_gallery_expiry_notice($meta);
     if ($expiresNotice !== '') {
@@ -1502,9 +1584,15 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_GALLERY_TOKEN' => $galleryToken,
         'EFPIC_GALLERY_DL_URL' => $galleryUrl,
         'EFPIC_COLLECTION_ENABLED' => $canPublicCollection,
-        'EFPIC_COLLECTION_TOGGLE_URL' => $canPublicCollection ? $galleryUrl . '/collection/toggle' : '',
-        'EFPIC_COLLECTION_CLEAR_URL' => $canPublicCollection ? $galleryUrl . '/collection/clear' : '',
         'EFPIC_COLLECTION_COUNT' => $canPublicCollection ? $collectionCount : 0,
+        'EFPIC_VISITOR_BASE_URL' => $canPublicCollection ? $galleryUrl . '/visitor' : '',
+        'EFPIC_VISITOR_AUTHENTICATED' => $visitorStatus !== null,
+        'EFPIC_VISITOR_NAME' => $visitorStatus !== null ? (string) ($visitorStatus['visitor']['name'] ?? '') : '',
+        'EFPIC_VISITOR_EMAIL' => $visitorStatus !== null ? (string) ($visitorStatus['visitor']['email'] ?? '') : '',
+        'EFPIC_VISITOR_ACTIVE_COLLECTION' => $visitorStatus !== null
+            ? efpic_visitor_collection_public_summary($visitorStatus['active_collection'])
+            : ['id' => '', 'name' => '', 'count' => 0],
+        'EFPIC_VISITOR_COLLECTIONS' => $visitorStatus !== null ? ($visitorStatus['collections'] ?? []) : [],
         'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
         'EFPIC_CAN_COLLECTION_ZIP' => efpic_can_download_collection_zip($meta, $ctx, 'web')
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),

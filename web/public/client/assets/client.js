@@ -433,7 +433,11 @@
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
       var size = btn.getAttribute('data-cdl-size') || 'web';
-      startZipDownload('collection', size);
+      if (collectionEnabled && visitorBaseUrl) {
+        requestVisitorCollectionEmail(size);
+      } else {
+        startZipDownload('collection', size);
+      }
     });
   });
 
@@ -1177,6 +1181,46 @@
     collectionEnabled &&
     window.EFPIC_CAN_COLLECTION_ZIP !== false &&
     window.EFPIC_CAN_COLLECTION_ZIP !== '0';
+  var visitorBaseUrl = window.EFPIC_VISITOR_BASE_URL || '';
+  var visitorModal = document.getElementById('visitorCollectionModal');
+  var visitorManageModal = document.getElementById('visitorManageModal');
+  var visitorIdentifyMode = 'resume';
+  var pendingCollectionImageToken = '';
+
+  var visitorState = {
+    authenticated:
+      window.EFPIC_VISITOR_AUTHENTICATED === true || window.EFPIC_VISITOR_AUTHENTICATED === '1',
+    name: window.EFPIC_VISITOR_NAME || '',
+    email: window.EFPIC_VISITOR_EMAIL || '',
+    activeCollection: window.EFPIC_VISITOR_ACTIVE_COLLECTION || { id: '', name: '', count: 0 },
+    collections: window.EFPIC_VISITOR_COLLECTIONS || [],
+    activeTokens: {},
+  };
+
+  function visitorUrl(path) {
+    if (!visitorBaseUrl) return '';
+    return visitorBaseUrl + path;
+  }
+
+  function applyActiveTokensFromMap(tokenMap) {
+    var tokens = tokenMap || {};
+    document.querySelectorAll('[data-collection-toggle]').forEach(function (btn) {
+      var tok = btn.getAttribute('data-image-token') || '';
+      setCollectionButtonState(btn, !!tokens[tok]);
+    });
+  }
+
+  function updateCollectionTrayLabel(name) {
+    var labelEl = document.getElementById('collectionTrayLabel');
+    if (!labelEl) return;
+    if (name) {
+      labelEl.textContent = name + ' · ';
+      labelEl.hidden = false;
+    } else {
+      labelEl.textContent = '';
+      labelEl.hidden = true;
+    }
+  }
 
   function updateCollectionTray(count) {
     var tray = document.getElementById('collectionTray');
@@ -1184,15 +1228,27 @@
     if (!tray) return;
     if (countEl) countEl.textContent = String(count);
     var textEl = tray.querySelector('.collection-tray-text');
+    var collName = visitorState.activeCollection && visitorState.activeCollection.name
+      ? visitorState.activeCollection.name
+      : '';
     if (textEl && countEl) {
+      var labelHtml = collName
+        ? '<span class="collection-tray-label" id="collectionTrayLabel">' +
+          collName.replace(/</g, '&lt;') +
+          ' · </span>'
+        : '<span class="collection-tray-label" id="collectionTrayLabel" hidden></span>';
       textEl.innerHTML =
+        labelHtml +
         '<strong id="collectionTrayCount">' +
         count +
         '</strong> ' +
         (count === 1 ? 'bilde izvēlēta' : 'bildes izvēlētas');
+    } else {
+      updateCollectionTrayLabel(collName);
     }
-    tray.hidden = count <= 0;
-    tray.classList.toggle('is-visible', count > 0);
+    var showTray = count > 0 || visitorState.authenticated;
+    tray.hidden = !showTray;
+    tray.classList.toggle('is-visible', showTray);
     if (floatBar) {
       floatBar.classList.toggle('is-suppressed', count > 0);
     }
@@ -1200,7 +1256,354 @@
     if (dlBtn) {
       dlBtn.hidden = count <= 0 || !canCollectionZip;
     }
+    var manageBtn = document.getElementById('visitorManageBtn');
+    if (manageBtn) {
+      manageBtn.hidden = !visitorState.authenticated;
+    }
     updateCollectionDownloadTitle(count);
+  }
+
+  function applyVisitorState(data) {
+    if (!data) return;
+    visitorState.authenticated = !!data.authenticated;
+    if (data.visitor) {
+      visitorState.name = data.visitor.name || '';
+      visitorState.email = data.visitor.email || '';
+    }
+    if (data.active_collection) {
+      visitorState.activeCollection = data.active_collection;
+    }
+    if (data.collections) {
+      visitorState.collections = data.collections;
+    }
+    if (data.active_tokens) {
+      visitorState.activeTokens = data.active_tokens;
+      applyActiveTokensFromMap(data.active_tokens);
+    }
+    var count =
+      (visitorState.activeCollection && visitorState.activeCollection.count) ||
+      (data.active_collection && data.active_collection.count) ||
+      0;
+    updateCollectionTray(count);
+  }
+
+  function openVisitorModal() {
+    if (!visitorModal) return;
+    var nameInput = document.getElementById('visitorNameInput');
+    var emailInput = document.getElementById('visitorEmailInput');
+    if (nameInput && visitorState.name) nameInput.value = visitorState.name;
+    if (emailInput && visitorState.email) emailInput.value = visitorState.email;
+    visitorModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeVisitorModal() {
+    if (!visitorModal) return;
+    visitorModal.hidden = true;
+    var errEl = document.getElementById('visitorFormError');
+    if (errEl) errEl.hidden = true;
+    if (
+      (!cdlModal || cdlModal.hidden) &&
+      (!gdlModal || gdlModal.hidden) &&
+      (!visitorManageModal || visitorManageModal.hidden) &&
+      (!zipProgressModal || zipProgressModal.hidden)
+    ) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  function openVisitorManageModal() {
+    if (!visitorManageModal) return;
+    var greeting = document.getElementById('visitorManageGreeting');
+    if (greeting) {
+      greeting.textContent = visitorState.name
+        ? 'Sveiki, ' + visitorState.name + '!'
+        : '';
+    }
+    renderVisitorCollectionList();
+    visitorManageModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeVisitorManageModal() {
+    if (!visitorManageModal) return;
+    visitorManageModal.hidden = true;
+    if (
+      (!cdlModal || cdlModal.hidden) &&
+      (!gdlModal || gdlModal.hidden) &&
+      (!visitorModal || visitorModal.hidden) &&
+      (!zipProgressModal || zipProgressModal.hidden)
+    ) {
+      document.body.style.overflow = '';
+    }
+  }
+
+  function renderVisitorCollectionList() {
+    var list = document.getElementById('visitorCollectionList');
+    if (!list) return;
+    list.innerHTML = '';
+    var activeId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
+    (visitorState.collections || []).forEach(function (coll) {
+      var li = document.createElement('li');
+      li.className = 'visitor-collection-item' + (coll.id === activeId ? ' is-active' : '');
+      var label = document.createElement('span');
+      label.className = 'visitor-collection-item-label';
+      label.textContent = (coll.name || 'Izlase') + ' (' + (coll.count || 0) + ')';
+      li.appendChild(label);
+      if (coll.id !== activeId) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn';
+        btn.textContent = 'Aktivizēt';
+        btn.setAttribute('data-visitor-activate', coll.id);
+        li.appendChild(btn);
+      } else {
+        var tag = document.createElement('span');
+        tag.className = 'visitor-collection-active-tag';
+        tag.textContent = 'Aktīva';
+        li.appendChild(tag);
+      }
+      list.appendChild(li);
+    });
+  }
+
+  function submitVisitorIdentify() {
+    if (!visitorBaseUrl) return Promise.resolve(null);
+    var nameInput = document.getElementById('visitorNameInput');
+    var emailInput = document.getElementById('visitorEmailInput');
+    var collInput = document.getElementById('visitorCollectionNameInput');
+    var errEl = document.getElementById('visitorFormError');
+    var submitBtn = document.getElementById('visitorCollectionSubmit');
+    var name = nameInput ? nameInput.value.trim() : '';
+    var email = emailInput ? emailInput.value.trim() : '';
+    var collectionName = collInput ? collInput.value.trim() : '';
+    if (submitBtn) submitBtn.disabled = true;
+    if (errEl) errEl.hidden = true;
+    var body =
+      'name=' +
+      encodeURIComponent(name) +
+      '&email=' +
+      encodeURIComponent(email) +
+      '&mode=' +
+      encodeURIComponent(visitorIdentifyMode);
+    if (collectionName) {
+      body += '&collection_name=' + encodeURIComponent(collectionName);
+    }
+    if (csrfToken) {
+      body += '&csrf_token=' + encodeURIComponent(csrfToken);
+    }
+    return fetch(visitorUrl('/identify'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data || !data.ok) {
+          if (errEl) {
+            errEl.textContent = (data && data.error) || 'Neizdevās reģistrēties.';
+            errEl.hidden = false;
+          }
+          return null;
+        }
+        applyVisitorState({
+          authenticated: true,
+          visitor: data.visitor,
+          active_collection: data.active_collection,
+          collections: data.collections,
+          active_tokens: data.active_tokens,
+        });
+        closeVisitorModal();
+        return data;
+      })
+      .catch(function () {
+        if (errEl) {
+          errEl.textContent = 'Neizdevās sazināties ar serveri.';
+          errEl.hidden = false;
+        }
+        return null;
+      })
+      .finally(function () {
+        if (submitBtn) submitBtn.disabled = false;
+      });
+  }
+
+  function toggleVisitorCollectionImage(imageToken) {
+    if (!visitorBaseUrl || !visitorState.authenticated) return Promise.resolve(null);
+    var collId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
+    if (!collId) return Promise.resolve(null);
+    var body =
+      'image_token=' +
+      encodeURIComponent(imageToken) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    return fetch(visitorUrl('/collections/' + encodeURIComponent(collId) + '/toggle'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          if (data.active_collection) {
+            visitorState.activeCollection = data.active_collection;
+            visitorState.collections = (visitorState.collections || []).map(function (c) {
+              return c.id === data.active_collection.id ? data.active_collection : c;
+            });
+          }
+          if (data.in_collection) {
+            visitorState.activeTokens[imageToken] = true;
+          } else {
+            delete visitorState.activeTokens[imageToken];
+          }
+          applyActiveTokensFromMap(visitorState.activeTokens);
+          updateCollectionTray(parseInt(data.count, 10) || 0);
+        }
+        return data;
+      });
+  }
+
+  function activateVisitorCollection(collectionId) {
+    if (!visitorBaseUrl || !collectionId) return;
+    fetch(visitorUrl('/collections/' + encodeURIComponent(collectionId) + '/activate'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({ Accept: 'application/json' }),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          applyVisitorState({
+            authenticated: true,
+            visitor: { name: visitorState.name, email: visitorState.email },
+            active_collection: data.active_collection,
+            collections: visitorState.collections,
+            active_tokens: data.active_tokens,
+          });
+          renderVisitorCollectionList();
+        }
+      });
+  }
+
+  function createVisitorCollection(name) {
+    if (!visitorBaseUrl || !name) return Promise.resolve(null);
+    var body =
+      'name=' +
+      encodeURIComponent(name) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    return fetch(visitorUrl('/collections'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          applyVisitorState({
+            authenticated: true,
+            visitor: { name: visitorState.name, email: visitorState.email },
+            active_collection: data.active_collection,
+            collections: data.collections,
+            active_tokens: data.active_tokens || {},
+          });
+          renderVisitorCollectionList();
+        }
+        return data;
+      });
+  }
+
+  function requestVisitorCollectionEmail(size) {
+    if (!visitorBaseUrl || !visitorState.authenticated) {
+      openVisitorModal();
+      return;
+    }
+    var collId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
+    if (!collId) return;
+    closeCollectionDlModal();
+    openZipProgressLoading('Sagatavo izlasi…', 'Veido ZIP un nosūta uz e-pastu…');
+    var body =
+      'size=' +
+      encodeURIComponent(size) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    fetch(visitorUrl('/collections/' + encodeURIComponent(collId) + '/download'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setZipProgressUi({
+            loading: false,
+            success: true,
+            title: 'Nosūtīts!',
+            hint: data.message || 'Lejupielādes saite nosūtīta uz tavu e-pastu.',
+          });
+        } else {
+          showZipProgressError((data && data.error) || 'Neizdevās sagatavot lejupielādi.');
+        }
+      })
+      .catch(function () {
+        showZipProgressError('Neizdevās sazināties ar serveri.');
+      });
+  }
+
+  function visitorLogout() {
+    if (!visitorBaseUrl) return;
+    fetch(visitorUrl('/logout'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({ Accept: 'application/json' }),
+    })
+      .then(function () {
+        visitorState = {
+          authenticated: false,
+          name: '',
+          email: '',
+          activeCollection: { id: '', name: '', count: 0 },
+          collections: [],
+          activeTokens: {},
+        };
+        applyActiveTokensFromMap({});
+        updateCollectionTray(0);
+        closeVisitorManageModal();
+      });
+  }
+
+  if (typeof window.EFPIC_COLLECTION_COUNT === 'number') {
+    updateCollectionTray(window.EFPIC_COLLECTION_COUNT);
+  }
+  if (visitorState.authenticated && visitorState.activeCollection) {
+    updateCollectionTray(visitorState.activeCollection.count || window.EFPIC_COLLECTION_COUNT || 0);
+    document.querySelectorAll('[data-collection-toggle].is-selected').forEach(function (btn) {
+      var tok = btn.getAttribute('data-image-token') || '';
+      if (tok) visitorState.activeTokens[tok] = true;
+    });
   }
 
   document.querySelectorAll('[data-like-toggle]').forEach(function (btn) {
@@ -1208,11 +1611,79 @@
     setLikeButtonState(btn, window.EFPIC_IMAGE_LIKED === '1');
   });
 
-  var collectionToggleUrl = window.EFPIC_COLLECTION_TOGGLE_URL || '';
-  var collectionClearUrl = window.EFPIC_COLLECTION_CLEAR_URL || '';
-  if (typeof window.EFPIC_COLLECTION_COUNT === 'number') {
-    updateCollectionTray(window.EFPIC_COLLECTION_COUNT);
+  if (visitorModal) {
+    visitorModal.addEventListener('click', function (evt) {
+      if (evt.target === visitorModal) closeVisitorModal();
+    });
   }
+  if (visitorManageModal) {
+    visitorManageModal.addEventListener('click', function (evt) {
+      if (evt.target === visitorManageModal) closeVisitorManageModal();
+    });
+  }
+  document.querySelectorAll('[data-visitor-modal-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeVisitorModal);
+  });
+  document.querySelectorAll('[data-visitor-manage-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeVisitorManageModal);
+  });
+  document.querySelectorAll('[data-visitor-mode]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      visitorIdentifyMode = btn.getAttribute('data-visitor-mode') || 'resume';
+      document.querySelectorAll('[data-visitor-mode]').forEach(function (b) {
+        var active = b === btn;
+        b.classList.toggle('is-active', active);
+        b.setAttribute('aria-selected', active ? 'true' : 'false');
+      });
+      var newBlock = document.getElementById('visitorNewCollectionBlock');
+      if (newBlock) {
+        newBlock.hidden = visitorIdentifyMode !== 'new';
+      }
+    });
+  });
+  var visitorForm = document.getElementById('visitorCollectionForm');
+  if (visitorForm) {
+    visitorForm.addEventListener('submit', function (evt) {
+      evt.preventDefault();
+      submitVisitorIdentify().then(function (data) {
+        if (data && pendingCollectionImageToken) {
+          var tok = pendingCollectionImageToken;
+          pendingCollectionImageToken = '';
+          toggleVisitorCollectionImage(tok);
+        }
+      });
+    });
+  }
+  var newCollForm = document.getElementById('visitorNewCollectionForm');
+  if (newCollForm) {
+    newCollForm.addEventListener('submit', function (evt) {
+      evt.preventDefault();
+      var input = document.getElementById('visitorNewCollectionInput');
+      var name = input ? input.value.trim() : '';
+      if (!name) return;
+      createVisitorCollection(name).then(function () {
+        if (input) input.value = '';
+      });
+    });
+  }
+  var logoutBtn = document.getElementById('visitorLogoutBtn');
+  if (logoutBtn) {
+    logoutBtn.addEventListener('click', visitorLogout);
+  }
+  document.addEventListener('click', function (evt) {
+    var activateBtn =
+      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-activate]') : null;
+    if (activateBtn) {
+      evt.preventDefault();
+      activateVisitorCollection(activateBtn.getAttribute('data-visitor-activate') || '');
+    }
+    var manageOpen =
+      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-manage-open]') : null;
+    if (manageOpen) {
+      evt.preventDefault();
+      openVisitorManageModal();
+    }
+  });
 
   document.addEventListener('click', function (evt) {
     var likeBtn = evt.target && evt.target.closest ? evt.target.closest('[data-like-toggle]') : null;
@@ -1246,34 +1717,19 @@
     }
 
     var collectionBtn = evt.target && evt.target.closest ? evt.target.closest('[data-collection-toggle]') : null;
-    if (collectionBtn && collectionToggleUrl) {
+    if (collectionBtn && collectionEnabled) {
       evt.preventDefault();
       evt.stopPropagation();
       if (collectionBtn.disabled) return;
       var imageToken = collectionBtn.getAttribute('data-image-token') || '';
       if (imageToken === '') return;
+      if (!visitorState.authenticated) {
+        pendingCollectionImageToken = imageToken;
+        openVisitorModal();
+        return;
+      }
       collectionBtn.disabled = true;
-      fetch(collectionToggleUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: csrfFetchHeaders({
-          Accept: 'application/json',
-          'Content-Type': 'application/x-www-form-urlencoded',
-        }),
-        body:
-          'image_token=' +
-          encodeURIComponent(imageToken) +
-          (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : ''),
-      })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data && data.ok) {
-            setCollectionButtonState(collectionBtn, !!data.in_collection);
-            updateCollectionTray(parseInt(data.count, 10) || 0);
-          }
-        })
+      toggleVisitorCollectionImage(imageToken)
         .catch(function () {
           /* ignore */
         })
@@ -1281,30 +1737,6 @@
           collectionBtn.disabled = false;
         });
       return;
-    }
-
-    var clearBtn = evt.target && evt.target.closest ? evt.target.closest('[data-collection-clear]') : null;
-    if (clearBtn && collectionClearUrl) {
-      evt.preventDefault();
-      fetch(collectionClearUrl, {
-        method: 'POST',
-        credentials: 'same-origin',
-        headers: csrfFetchHeaders({ Accept: 'application/json' }),
-      })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data && data.ok) {
-            document.querySelectorAll('[data-collection-toggle]').forEach(function (btn) {
-              setCollectionButtonState(btn, false);
-            });
-            updateCollectionTray(0);
-          }
-        })
-        .catch(function () {
-          /* ignore */
-        });
     }
   });
 

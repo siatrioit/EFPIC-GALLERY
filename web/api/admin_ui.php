@@ -2147,7 +2147,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $expiresVal = efpic_gallery_default_expires_at();
     }
     $body .= '<label>Pieejama līdz<input type="date" name="expires_at" value="' . efpic_admin_esc($expiresVal) . '"></label>';
-    $body .= '<p class="muted">Jaunām galerijām noklusējums ir 12 mēneši. Pēc termiņa galerija vairs nav pieejama.</p>';
+    $body .= '<p class="admin-field-hint admin-fieldset-full">Jaunām galerijām noklusējums ir 12 mēneši. Pēc termiņa galerija vairs nav pieejama.</p>';
     $body .= efpic_admin_render_password_field(
         'Klienta paneļa parole',
         'client_password',
@@ -2169,7 +2169,8 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             'name' => 'enable_public_collection',
             'value' => '1',
         ]);
-        $body .= '<p class="muted">Pēc noklusējuma izslēgts. Kad ieslēgts, viesi var atzīmēt bildes un lejupielādēt izlasi. '
+        $body .= '<p class="admin-field-hint">Pēc noklusējuma izslēgts. Kad ieslēgts, apmeklētāji ar vārdu un e-pastu var veidot vairākas izlases, '
+            . 'saņemt saiti turpināšanai un pieprasīt ZIP lejupielādi uz e-pastu. '
             . 'Ja klients panelī kaut ko paslēpj, izlase automātiski izslēdzas.</p>';
         $body .= '</fieldset>';
         $sectionLabels = [
@@ -2180,7 +2181,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             'media' => 'Slideshow & video',
         ];
         $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact" id="admin-fs-client-portal"><legend>Klienta panelis</legend>';
-        $body .= '<p class="muted">Ieslēdz vai izslēdz sadaļas, ko klients redz savā panelī. «Iestatījumi» vienmēr ir pieejami.</p>';
+        $body .= '<p class="admin-field-hint">Ieslēdz vai izslēdz sadaļas, ko klients redz savā panelī. «Iestatījumi» vienmēr ir pieejami.</p>';
         foreach ($sectionLabels as $sectionKey => $sectionLabel) {
             $body .= '<input type="hidden" name="client_portal_section_' . efpic_admin_esc($sectionKey) . '" value="0">';
             $body .= efpic_render_admin_toggle('Rādīt: ' . $sectionLabel, !empty($portalSections[$sectionKey]), [
@@ -2191,16 +2192,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_render_admin_toggle('Atļaut klienta komentārus pie bildēm', $commentsOn, [
             'name' => 'client_comments_enabled',
         ]);
-        $body .= '<p class="muted">Pēc noklusējuma izslēgts. Kad ieslēgts, klients var atstāt komentāru pie katras bildes panelī.</p>';
+        $body .= '<p class="admin-field-hint">Pēc noklusējuma izslēgts. Kad ieslēgts, klients var atstāt komentāru pie katras bildes panelī.</p>';
         $body .= '</fieldset>';
         $body .= '</div>';
-        $expiresDisplay = efpic_gallery_expires_display($meta);
-        if ($expiresDisplay !== '') {
-            $expired = efpic_gallery_expired($meta);
-            $statusClass = $expired ? 'err' : 'muted';
-            $statusText = $expired ? 'Termiņš beidzies' : 'Pieejama līdz ' . $expiresDisplay;
-            $body .= '<p class="' . $statusClass . '"><strong>' . efpic_admin_esc($statusText) . '</strong></p>';
-        }
         $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-activity-log"><legend>Aktivitāšu žurnāls</legend>';
         $body .= efpic_admin_render_activity_log($meta);
         $body .= '</fieldset>';

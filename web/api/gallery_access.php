@@ -495,7 +495,8 @@ function efpic_csrf_require(?string $token = null): void
 
 function efpic_admin_render_password_field(string $label, string $name, string $value, string $hint = '', bool $isSet = false): string
 {
-    $html = '<label>' . htmlspecialchars($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $html = '<div class="admin-field-block">';
+    $html .= '<label>' . htmlspecialchars($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $placeholder = $isSet ? 'Parole iestatīta (ievadi jaunu, lai mainītu)' : 'Tukšs = bez paroles';
     $html .= '<input type="text" name="' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '"'
         . ' class="admin-password-field admin-no-autosave" value="'
@@ -509,8 +510,9 @@ function efpic_admin_render_password_field(string $label, string $name, string $
             . '" value="1"> Noņemt paroli</label>';
     }
     if ($hint !== '') {
-        $html .= '<p class="muted">' . htmlspecialchars($hint, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
+        $html .= '<p class="admin-field-hint">' . htmlspecialchars($hint, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
     }
+    $html .= '</div>';
 
     return $html;
 }
