@@ -198,13 +198,6 @@ function efpic_client_render_visitor_collection_modal(): string
     $html .= '<form class="stack visitor-collection-form" id="visitorCollectionForm">';
     $html .= '<label class="field">Vārds<input type="text" name="name" id="visitorNameInput" required autocomplete="name"></label>';
     $html .= '<label class="field">E-pasts<input type="email" name="email" id="visitorEmailInput" required autocomplete="email"></label>';
-    $html .= '<div class="visitor-mode-row" id="visitorNewCollectionBlock" hidden>';
-    $html .= '<label class="field">Jaunas izlases nosaukums<input type="text" name="collection_name" id="visitorCollectionNameInput" placeholder="Mana izlase"></label>';
-    $html .= '</div>';
-    $html .= '<div class="visitor-mode-tabs" role="tablist" aria-label="Izlases režīms">';
-    $html .= '<button type="button" class="btn visitor-mode-btn is-active" data-visitor-mode="resume" role="tab" aria-selected="true">Turpināt</button>';
-    $html .= '<button type="button" class="btn visitor-mode-btn" data-visitor-mode="new" role="tab" aria-selected="false">Jauna izlase</button>';
-    $html .= '</div>';
     $html .= '<p class="visitor-form-error err" id="visitorFormError" hidden></p>';
     $html .= '<button type="submit" class="btn primary visitor-submit-btn" id="visitorCollectionSubmit">Sākt</button>';
     $html .= '</form></div></div>';
@@ -466,6 +459,7 @@ function efpic_client_html(
     header('Content-Type: text/html; charset=utf-8');
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo efpic_client_favicon_tags($config);
     echo '<title>' . efpic_client_esc($title) . '</title>';
     if ($meta !== null) {
         echo efpic_client_social_meta_tags($config, $title, $shareUrl, $meta, $socialImageUrl, $socialCtx);
@@ -518,6 +512,7 @@ function efpic_portal_html(
     header('Content-Type: text/html; charset=utf-8');
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">';
     echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo efpic_client_favicon_tags($config);
     echo '<title>' . efpic_client_esc($title) . '</title>';
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';

@@ -85,6 +85,7 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     $heading = $pageHeading ?? $title;
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
     echo '<title>' . efpic_admin_esc($title) . ' — EdgarsFoto</title>';
+    echo efpic_client_favicon_tags($config);
     echo '<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>';
     echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
     echo efpic_gallery_intro_fonts_google_link_tags();
@@ -2552,6 +2553,23 @@ function efpic_admin_save_settings_from_post(array $config): void
         throw new InvalidArgumentException('SMTP serveris obligāts, ja PHP mail() ir izslēgts');
     }
 
+    $siteLogo = trim((string) ($existing['site_logo'] ?? ''));
+    if (!empty($_FILES['site_logo']['tmp_name']) && is_uploaded_file((string) $_FILES['site_logo']['tmp_name'])) {
+        $siteLogo = efpic_store_site_asset($config, $_FILES['site_logo'], ['png', 'jpg', 'jpeg', 'webp', 'ico', 'gif'], 'logo');
+    }
+    $sigImage = trim((string) ($existing['gallery_email_signature_image'] ?? ''));
+    if (
+        !empty($_FILES['gallery_email_signature_image']['tmp_name'])
+        && is_uploaded_file((string) $_FILES['gallery_email_signature_image']['tmp_name'])
+    ) {
+        $sigImage = efpic_store_site_asset(
+            $config,
+            $_FILES['gallery_email_signature_image'],
+            ['png', 'jpg', 'jpeg', 'webp', 'gif'],
+            'signature',
+        );
+    }
+
     efpic_save_app_settings($config, [
         'gallery_byline' => $byline,
         'gallery_feed_gap' => $gapMobile,
@@ -2560,6 +2578,9 @@ function efpic_admin_save_settings_from_post(array $config): void
         'gallery_email' => $email,
         'gallery_whatsapp' => efpic_admin_parse_gallery_whatsapp_settings_from_post(),
         'message_templates' => efpic_admin_parse_message_templates_from_post(),
+        'site_logo' => $siteLogo,
+        'gallery_email_signature' => trim((string) ($_POST['gallery_email_signature'] ?? '')),
+        'gallery_email_signature_image' => $sigImage,
     ]);
 }
 
@@ -2581,13 +2602,20 @@ function efpic_admin_settings_page(array $config): void
         $body .= '<p class="err">' . efpic_admin_esc($error) . '</p>';
     }
 
-    $body .= '<form method="post" class="admin-form">';
+    $body .= '<form method="post" class="admin-form" enctype="multipart/form-data">';
     $body .= '<div class="admin-sticky-bar"><button type="submit" class="btn primary" name="save" value="1">Saglabāt</button></div>';
     $body .= '<div class="admin-form-layout">';
     $body .= '<fieldset><legend>Galerijas izskats</legend>';
     $body .= '<label>Galerijas paraksts (virs vāka)<input name="gallery_byline" required value="'
         . efpic_admin_esc((string) ($settings['gallery_byline'] ?? '')) . '" placeholder="Gallery by EdgarsFoto"></label>';
     $body .= '<p class="muted">Parādās visu galeriju sākuma ekrānā, piem. «Gallery by EdgarsFoto». Pamatkrāsu katra galerija nosaka pati (adminā vai klienta panelī).</p>';
+    $logoUrl = efpic_site_logo_url($config);
+    $body .= '<label>Lapas ikona (logo pārlūka cilnē)<input type="file" name="site_logo" accept="image/png,image/jpeg,image/webp,image/gif,image/x-icon,.ico"></label>';
+    if ($logoUrl !== '') {
+        $body .= '<p class="muted">Pašreizējā ikona: <img src="' . efpic_admin_esc($logoUrl) . '" alt="" style="height:32px;vertical-align:middle;"></p>';
+    } else {
+        $body .= '<p class="muted">PNG, JPG, WEBP vai ICO. Parādās pārlūka cilnē visās lapās.</p>';
+    }
     $body .= '</fieldset>';
     $gapMobile = (int) ($settings['gallery_feed_gap'] ?? 16);
     $gapTablet = (int) ($settings['gallery_feed_gap_tablet'] ?? 20);
@@ -2602,6 +2630,17 @@ function efpic_admin_settings_page(array $config): void
     $body .= '<p class="muted">Attiecas uz visām tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
     $body .= '</fieldset>';
     $body .= efpic_admin_render_gallery_email_settings_fieldset($settings);
+    $sigText = (string) ($settings['gallery_email_signature'] ?? '');
+    $sigImageUrl = efpic_site_signature_image_url($config);
+    $body .= '<fieldset class="admin-fieldset-full"><legend>E-pasta paraksts</legend>';
+    $body .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem (izlases saites, ZIP, klientu paziņojumi).</p>';
+    $body .= '<label>Paraksta teksts<textarea name="gallery_email_signature" rows="5" placeholder="Ar cieņu,' . "\n" . 'Edgars Pohevics">'
+        . efpic_admin_esc($sigText) . '</textarea></label>';
+    $body .= '<label>Paraksta bilde (neobligāta)<input type="file" name="gallery_email_signature_image" accept="image/png,image/jpeg,image/webp,image/gif"></label>';
+    if ($sigImageUrl !== '') {
+        $body .= '<p class="muted">Pašreizējā bilde: <img src="' . efpic_admin_esc($sigImageUrl) . '" alt="" style="max-height:80px;"></p>';
+    }
+    $body .= '</fieldset>';
     $body .= efpic_admin_render_gallery_whatsapp_settings_fieldset($settings);
     $body .= efpic_admin_render_message_templates_fieldset($config);
     if (efpic_gallery_email_ready($config)) {

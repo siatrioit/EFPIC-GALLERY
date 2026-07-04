@@ -42,9 +42,7 @@ function efpic_handle_visitor_identify(array $config, string $galleryToken): voi
     }
     $name = trim((string) ($_POST['name'] ?? ''));
     $email = trim((string) ($_POST['email'] ?? ''));
-    $collectionName = trim((string) ($_POST['collection_name'] ?? ''));
-    $mode = trim((string) ($_POST['mode'] ?? 'resume'));
-    $createCollection = $mode === 'new' || $collectionName !== '';
+    $createCollection = false;
 
     try {
         $result = efpic_visitor_identify(
@@ -54,7 +52,7 @@ function efpic_handle_visitor_identify(array $config, string $galleryToken): voi
             $galleryToken,
             $name,
             $email,
-            $collectionName !== '' ? $collectionName : null,
+            null,
             $createCollection,
         );
     } catch (InvalidArgumentException $e) {
@@ -256,6 +254,12 @@ function efpic_handle_visitor_collection_toggle(array $config, string $galleryTo
 
 function efpic_handle_visitor_collection_download_request(array $config, string $galleryToken, string $collectionId): void
 {
+    unset($collectionId);
+    efpic_handle_visitor_all_collections_download_request($config, $galleryToken);
+}
+
+function efpic_handle_visitor_all_collections_download_request(array $config, string $galleryToken): void
+{
     efpic_csrf_require();
     @set_time_limit(0);
     $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
@@ -266,22 +270,18 @@ function efpic_handle_visitor_collection_download_request(array $config, string 
     if ($session === null) {
         efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
     }
-    if ($collectionId !== $session['active_collection_id']) {
-        efpic_json_response(409, ['ok' => false, 'error' => 'inactive_collection']);
-    }
     $size = strtolower(trim((string) ($_POST['size'] ?? 'web')));
     if (!in_array($size, ['web', 'full'], true)) {
         efpic_json_response(400, ['ok' => false, 'error' => 'invalid_size']);
     }
 
-    $result = efpic_visitor_request_collection_zip_email(
+    $result = efpic_visitor_request_all_collections_zip_email(
         $config,
         $ctxPack['slug'],
         $ctxPack['meta'],
         $ctxPack['ctx'],
         $galleryToken,
         $session['visitor_id'],
-        $collectionId,
         $size,
     );
     if (empty($result['ok'])) {
@@ -294,9 +294,15 @@ function efpic_handle_visitor_collection_download_request(array $config, string 
         efpic_json_response($code, ['ok' => false, 'error' => $err]);
     }
 
+    $count = (int) ($result['collections_prepared'] ?? 1);
+    $message = $count === 1
+        ? 'Lejupielādes saite nosūtīta uz tavu e-pastu.'
+        : 'Lejupielādes saites (' . $count . ' izlases) nosūtītas uz tavu e-pastu.';
+
     efpic_json_response(200, [
         'ok' => true,
-        'message' => 'Lejupielādes saite nosūtīta uz tavu e-pastu.',
+        'message' => $message,
+        'collections_prepared' => $count,
     ]);
 }
 

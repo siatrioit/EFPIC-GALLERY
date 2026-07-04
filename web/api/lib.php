@@ -344,6 +344,9 @@ function efpic_app_settings_defaults(): array
             'default_country_code' => '371',
         ],
         'message_templates' => [],
+        'site_logo' => '',
+        'gallery_email_signature' => '',
+        'gallery_email_signature_image' => '',
         'updated_at' => null,
     ];
 }
@@ -472,6 +475,109 @@ function efpic_save_app_settings(array $config, array $settings): void
     $merged = array_replace_recursive($existing, $settings);
     $merged['updated_at'] = gmdate('c');
     efpic_write_json_file(efpic_app_settings_path($config), $merged);
+}
+
+function efpic_site_assets_dir(array $config): string
+{
+    return dirname(efpic_storage_path($config)) . DIRECTORY_SEPARATOR . 'site_assets';
+}
+
+/** @param list<string> $allowedExt */
+function efpic_store_site_asset(array $config, array $file, array $allowedExt, string $basename): string
+{
+    if (($file['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK) {
+        throw new InvalidArgumentException('Augšupielādes kļūda');
+    }
+    $tmp = (string) ($file['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        throw new InvalidArgumentException('Nederīgs fails');
+    }
+    $orig = (string) ($file['name'] ?? '');
+    $ext = strtolower(pathinfo($orig, PATHINFO_EXTENSION));
+    if (!in_array($ext, $allowedExt, true)) {
+        throw new InvalidArgumentException('Nederīgs faila formāts');
+    }
+    $dir = efpic_site_assets_dir($config);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $filename = $basename . '.' . $ext;
+    $dest = $dir . DIRECTORY_SEPARATOR . $filename;
+    if (!move_uploaded_file($tmp, $dest)) {
+        throw new RuntimeException('Neizdevās saglabāt failu');
+    }
+
+    return $filename;
+}
+
+function efpic_site_asset_path(array $config, string $filename): string
+{
+    $filename = basename($filename);
+    if ($filename === '') {
+        return '';
+    }
+
+    return efpic_site_assets_dir($config) . DIRECTORY_SEPARATOR . $filename;
+}
+
+function efpic_site_logo_url(array $config): string
+{
+    $settings = efpic_load_app_settings($config);
+    $file = trim((string) ($settings['site_logo'] ?? ''));
+    if ($file === '' || !is_file(efpic_site_asset_path($config, $file))) {
+        return '';
+    }
+
+    return efpic_base_url($config) . '/site/logo';
+}
+
+function efpic_site_signature_image_url(array $config): string
+{
+    $settings = efpic_load_app_settings($config);
+    $file = trim((string) ($settings['gallery_email_signature_image'] ?? ''));
+    if ($file === '' || !is_file(efpic_site_asset_path($config, $file))) {
+        return '';
+    }
+
+    return efpic_base_url($config) . '/site/signature';
+}
+
+function efpic_client_favicon_tags(array $config): string
+{
+    $logoUrl = efpic_site_logo_url($config);
+    if ($logoUrl === '') {
+        return '';
+    }
+
+    return '<link rel="icon" href="' . htmlspecialchars($logoUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '">';
+}
+
+function efpic_handle_site_asset(array $config, string $kind): void
+{
+    $settings = efpic_load_app_settings($config);
+    $file = match ($kind) {
+        'logo' => trim((string) ($settings['site_logo'] ?? '')),
+        'signature' => trim((string) ($settings['gallery_email_signature_image'] ?? '')),
+        default => '',
+    };
+    $path = efpic_site_asset_path($config, $file);
+    if ($file === '' || !is_file($path)) {
+        http_response_code(404);
+        exit;
+    }
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    $mime = match ($ext) {
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        'ico' => 'image/x-icon',
+        default => 'application/octet-stream',
+    };
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: public, max-age=86400');
+    readfile($path);
+    exit;
 }
 
 function efpic_json_response(int $code, array $data): void

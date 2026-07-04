@@ -62,6 +62,85 @@ function efpic_gallery_email_ready(array $config): bool
         && (!empty($email['smtp_host']) || !empty($email['use_php_mail']));
 }
 
+function efpic_gallery_email_signature_text(array $config): string
+{
+    $settings = efpic_load_app_settings($config);
+
+    return trim((string) ($settings['gallery_email_signature'] ?? ''));
+}
+
+function efpic_gallery_email_with_signature(array $config, string $body): string
+{
+    $signature = efpic_gallery_email_signature_text($config);
+    if ($signature === '') {
+        return $body;
+    }
+
+    return rtrim($body) . "\n\n--\n" . $signature;
+}
+
+function efpic_gallery_email_html_with_signature(array $config, string $plainBody, string $signatureImageUrl): string
+{
+    $escaped = htmlspecialchars($plainBody, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.5;">'
+        . nl2br($escaped, false) . '</div>';
+    $signature = efpic_gallery_email_signature_text($config);
+    $html .= '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-family:sans-serif;font-size:14px;">';
+    if ($signatureImageUrl !== '') {
+        $img = htmlspecialchars($signatureImageUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $html .= '<p style="margin:0 0 12px;"><img src="' . $img . '" alt="" style="max-width:320px;height:auto;"></p>';
+    }
+    if ($signature !== '') {
+        $html .= '<div>' . nl2br(htmlspecialchars($signature, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+function efpic_gallery_deliver_email(array $config, string $to, string $subject, string $body): void
+{
+    $plainBody = efpic_gallery_email_with_signature($config, $body);
+    $emailCfg = efpic_gallery_email_cfg($config);
+    $sigImageUrl = efpic_site_signature_image_url($config);
+    $htmlBody = $sigImageUrl !== '' ? efpic_gallery_email_html_with_signature($config, $body, $sigImageUrl) : null;
+
+    if (!empty($emailCfg['use_php_mail'])) {
+        $from = (string) ($emailCfg['from'] ?? '');
+        $fromName = (string) ($emailCfg['from_name'] ?? 'EdgarsFoto');
+        $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+        if ($htmlBody !== null) {
+            $boundary = 'efpic_' . bin2hex(random_bytes(8));
+            $headers = [
+                'From: ' . $fromName . ' <' . $from . '>',
+                'Reply-To: ' . $from,
+                'MIME-Version: 1.0',
+                'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
+            ];
+            $message = "--{$boundary}\r\n"
+                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
+                . $plainBody . "\r\n"
+                . "--{$boundary}\r\n"
+                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+                . $htmlBody . "\r\n"
+                . "--{$boundary}--";
+            @mail($to, $encodedSubject, $message, implode("\r\n", $headers));
+        } else {
+            $headers = [
+                'From: ' . $fromName . ' <' . $from . '>',
+                'Reply-To: ' . $from,
+                'Content-Type: text/plain; charset=UTF-8',
+                'MIME-Version: 1.0',
+            ];
+            @mail($to, $encodedSubject, $plainBody, implode("\r\n", $headers));
+        }
+
+        return;
+    }
+
+    efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, $htmlBody);
+}
+
 function efpic_telegram_cfg(array $config): array
 {
     $gn = efpic_gallery_notify_cfg($config);
@@ -224,27 +303,12 @@ function efpic_gallery_send_client_email(
     $vars = efpic_gallery_notify_vars($config, $meta, $slug, $notifyOverrides);
     $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
     $body = efpic_gallery_notify_replace($tpl['body'], $vars);
-    $url = $vars['url'] ?? '';
 
-    $emailCfg = efpic_gallery_email_cfg($config);
-    if (!empty($emailCfg['use_php_mail'])) {
-        $from = (string) ($emailCfg['from'] ?? '');
-        $fromName = (string) ($emailCfg['from_name'] ?? 'EdgarsFoto');
-        $headers = [
-            'From: ' . $fromName . ' <' . $from . '>',
-            'Reply-To: ' . $from,
-            'Content-Type: text/plain; charset=UTF-8',
-            'MIME-Version: 1.0',
-        ];
-        $ok = @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $body, implode("\r\n", $headers));
-        if (!$ok) {
-            throw new RuntimeException('E-pasts: mail() neizdevās');
-        }
-
-        return true;
+    try {
+        efpic_gallery_deliver_email($config, $to, $subject, $body);
+    } catch (Throwable $e) {
+        throw new RuntimeException('E-pasts: ' . $e->getMessage(), 0, $e);
     }
-
-    efpic_guest_send_smtp($emailCfg, $to, $subject, $body);
 
     return true;
 }

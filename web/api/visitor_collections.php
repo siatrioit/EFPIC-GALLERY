@@ -239,7 +239,14 @@ function efpic_visitor_identify(
 
     efpic_visitor_collections_save($config, $slug, $data);
     efpic_visitor_set_session($galleryToken, $visitorId, $activeCollectionId);
-    efpic_visitor_send_continue_email($config, $meta, $slug, $galleryToken, $data['visitors'][$visitorId], $isNew);
+
+    $visitor = $data['visitors'][$visitorId];
+    if (empty($visitor['continue_email_sent'])) {
+        efpic_visitor_send_continue_email($config, $meta, $slug, $galleryToken, $visitor, $isNew);
+        $data['visitors'][$visitorId]['continue_email_sent'] = true;
+        $data['visitors'][$visitorId]['updated_at'] = gmdate('c');
+        efpic_visitor_collections_save($config, $slug, $data);
+    }
 
     $message = $isNew
         ? 'Apmeklētājs reģistrēts: ' . $name . ' (' . $emailNorm . ')'
@@ -464,29 +471,57 @@ function efpic_visitor_send_continue_email(
     $body .= "Saiti vari izmantot arī citā ierīcē.\n";
 
     try {
-        $emailCfg = efpic_gallery_email_cfg($config);
-        if (!empty($emailCfg['use_php_mail'])) {
-            $from = (string) ($emailCfg['from'] ?? '');
-            $fromName = (string) ($emailCfg['from_name'] ?? 'EdgarsFoto');
-            $headers = [
-                'From: ' . $fromName . ' <' . $from . '>',
-                'Reply-To: ' . $from,
-                'Content-Type: text/plain; charset=UTF-8',
-                'MIME-Version: 1.0',
-            ];
-            @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $body, implode("\r\n", $headers));
-        } else {
-            efpic_guest_send_smtp($emailCfg, $to, $subject, $body);
-        }
+        efpic_gallery_deliver_email($config, $to, $subject, $body);
     } catch (Throwable) {
         /* ignore mail errors */
     }
 }
 
+/** @param array<string, mixed> $collection */
+function efpic_visitor_collection_zip_fingerprint(array $collection, string $size): string
+{
+    $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
+    $tokens = array_map('strval', $tokens);
+    sort($tokens);
+
+    return hash(
+        'sha256',
+        (string) ($collection['id'] ?? '') . '|' . $size . '|' . implode(',', $tokens),
+    );
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @return array<string, mixed>|null
+ */
+function efpic_visitor_find_reusable_zip(array $data, string $fingerprint, string $zipDir): ?array
+{
+    foreach ($data['zip_downloads'] ?? [] as $token => $job) {
+        if (!is_array($job)) {
+            continue;
+        }
+        if ((string) ($job['fingerprint'] ?? '') !== $fingerprint) {
+            continue;
+        }
+        $expiresAt = strtotime((string) ($job['expires_at'] ?? ''));
+        if ($expiresAt !== false && $expiresAt < time()) {
+            continue;
+        }
+        $file = (string) ($job['file'] ?? '');
+        if ($file === '' || !is_file($zipDir . DIRECTORY_SEPARATOR . $file)) {
+            continue;
+        }
+
+        return array_merge($job, ['id' => (string) $token]);
+    }
+
+    return null;
+}
+
 /**
  * @return array{ok: bool, download_token?: string, error?: string}
  */
-function efpic_visitor_request_collection_zip_email(
+function efpic_visitor_ensure_collection_zip(
     array $config,
     string $slug,
     array $meta,
@@ -515,11 +550,18 @@ function efpic_visitor_request_collection_zip_email(
         return ['ok' => false, 'error' => 'not_found'];
     }
 
-    $filename = efpic_client_zip_filename($slug, $size, 'collection');
     $zipDir = efpic_visitor_zips_dir($config, $slug);
     if (!is_dir($zipDir)) {
         mkdir($zipDir, 0755, true);
     }
+
+    $fingerprint = efpic_visitor_collection_zip_fingerprint($collection, $size);
+    $existing = efpic_visitor_find_reusable_zip($data, $fingerprint, $zipDir);
+    if ($existing !== null) {
+        return ['ok' => true, 'download_token' => (string) ($existing['id'] ?? '')];
+    }
+
+    $filename = efpic_client_zip_filename($slug, $size, 'collection');
     $downloadToken = efpic_random_hex(20);
     $zipPath = $zipDir . DIRECTORY_SEPARATOR . $downloadToken . '.zip';
 
@@ -546,26 +588,156 @@ function efpic_visitor_request_collection_zip_email(
         'size' => $size,
         'filename' => $filename,
         'file' => $downloadToken . '.zip',
+        'fingerprint' => $fingerprint,
         'expires_at' => $expiresAt,
         'created_at' => gmdate('c'),
     ];
     efpic_visitor_collections_save($config, $slug, $data);
 
-    $downloadUrl = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken)
-        . '/visitor/download/' . rawurlencode($downloadToken);
-    efpic_visitor_send_zip_ready_email($config, $meta, $visitor, $collection, $downloadUrl, $size);
+    return ['ok' => true, 'download_token' => $downloadToken];
+}
+
+/**
+ * @return array{ok: bool, collections_prepared?: int, error?: string}
+ */
+function efpic_visitor_request_all_collections_zip_email(
+    array $config,
+    string $slug,
+    array $meta,
+    array $ctx,
+    string $galleryToken,
+    string $visitorId,
+    string $size,
+): array {
+    $data = efpic_visitor_collections_load($config, $slug);
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    if ($visitor === null) {
+        return ['ok' => false, 'error' => 'not_found'];
+    }
+
+    $collections = efpic_visitor_collections_for_visitor($data, $visitorId);
+    $prepared = [];
+    foreach ($collections as $collection) {
+        $collectionId = (string) ($collection['id'] ?? '');
+        if ($collectionId === '') {
+            continue;
+        }
+        $result = efpic_visitor_ensure_collection_zip(
+            $config,
+            $slug,
+            $meta,
+            $ctx,
+            $galleryToken,
+            $visitorId,
+            $collectionId,
+            $size,
+        );
+        if (empty($result['ok'])) {
+            if (($result['error'] ?? '') === 'empty_collection') {
+                continue;
+            }
+
+            return ['ok' => false, 'error' => (string) ($result['error'] ?? 'error')];
+        }
+        $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
+        if ($tokens === []) {
+            continue;
+        }
+        $downloadToken = (string) ($result['download_token'] ?? '');
+        if ($downloadToken === '') {
+            continue;
+        }
+        $downloadUrl = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken)
+            . '/visitor/download/' . rawurlencode($downloadToken);
+        $prepared[] = [
+            'collection' => $collection,
+            'download_url' => $downloadUrl,
+            'count' => count($tokens),
+        ];
+    }
+
+    if ($prepared === []) {
+        return ['ok' => false, 'error' => 'empty_collection'];
+    }
+
+    efpic_visitor_send_all_zips_ready_email($config, $meta, $visitor, $prepared, $size);
     efpic_gallery_log_activity(
         $config,
         $slug,
         $meta,
         'visitor_collection_download',
-        ($visitor['name'] ?? '') . ' pieprasīja izlases ZIP (' . count($images) . ' bildes, ' . $size . ')',
+        ($visitor['name'] ?? '') . ' pieprasīja visas izlases ZIP (' . count($prepared) . ' izlases, ' . $size . ')',
         'visitor:' . ($visitor['email'] ?? ''),
-        ['visitor_id' => $visitorId, 'collection_id' => $collectionId, 'size' => $size],
+        ['visitor_id' => $visitorId, 'size' => $size, 'collection_count' => count($prepared)],
     );
-    efpic_gallery_log_download($config, $slug, $meta, 'download_collection', 'Izlase (' . $size . ')');
+    efpic_gallery_log_download($config, $slug, $meta, 'download_collection', 'Izlases (' . $size . ')');
 
-    return ['ok' => true, 'download_token' => $downloadToken];
+    return ['ok' => true, 'collections_prepared' => count($prepared)];
+}
+
+/**
+ * @return array{ok: bool, download_token?: string, error?: string}
+ */
+function efpic_visitor_request_collection_zip_email(
+    array $config,
+    string $slug,
+    array $meta,
+    array $ctx,
+    string $galleryToken,
+    string $visitorId,
+    string $collectionId,
+    string $size,
+): array {
+    unset($collectionId);
+
+    return efpic_visitor_request_all_collections_zip_email(
+        $config,
+        $slug,
+        $meta,
+        $ctx,
+        $galleryToken,
+        $visitorId,
+        $size,
+    );
+}
+
+/** @param list<array{collection: array<string, mixed>, download_url: string, count: int}> $prepared */
+function efpic_visitor_send_all_zips_ready_email(
+    array $config,
+    array $meta,
+    array $visitor,
+    array $prepared,
+    string $size,
+): void {
+    if (!efpic_gallery_email_ready($config)) {
+        return;
+    }
+    $to = (string) ($visitor['email'] ?? '');
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        return;
+    }
+    $galleryName = (string) ($meta['name'] ?? 'Galerija');
+    $subject = 'Izlases lejupielāde — ' . $galleryName;
+    $body = 'Sveiki, ' . (string) ($visitor['name'] ?? '') . "!\n\n";
+    if (count($prepared) === 1) {
+        $item = $prepared[0];
+        $collectionName = (string) ($item['collection']['name'] ?? 'Izlase');
+        $body .= "Tava izlase «{$collectionName}» ({$item['count']} bildes, {$size}) ir gatava lejupielādei.\n\n";
+        $body .= "Lejupielādēt:\n{$item['download_url']}\n";
+    } else {
+        $body .= "Tavas izlases ({$size}) ir gatavas lejupielādei:\n\n";
+        foreach ($prepared as $item) {
+            $collectionName = (string) ($item['collection']['name'] ?? 'Izlase');
+            $body .= "«{$collectionName}» ({$item['count']} bildes):\n{$item['download_url']}\n\n";
+        }
+    }
+    $body .= "\nSaites ir derīgas 72 stundas.\n";
+
+    try {
+        efpic_gallery_deliver_email($config, $to, $subject, $body);
+    } catch (Throwable) {
+        /* ignore */
+    }
 }
 
 /** @param array<string, mixed> $visitor @param array<string, mixed> $collection */
@@ -594,20 +766,7 @@ function efpic_visitor_send_zip_ready_email(
     $body .= "Saite ir derīga 72 stundas.\n";
 
     try {
-        $emailCfg = efpic_gallery_email_cfg($config);
-        if (!empty($emailCfg['use_php_mail'])) {
-            $from = (string) ($emailCfg['from'] ?? '');
-            $fromName = (string) ($emailCfg['from_name'] ?? 'EdgarsFoto');
-            $headers = [
-                'From: ' . $fromName . ' <' . $from . '>',
-                'Reply-To: ' . $from,
-                'Content-Type: text/plain; charset=UTF-8',
-                'MIME-Version: 1.0',
-            ];
-            @mail($to, '=?UTF-8?B?' . base64_encode($subject) . '?=', $body, implode("\r\n", $headers));
-        } else {
-            efpic_guest_send_smtp($emailCfg, $to, $subject, $body);
-        }
+        efpic_gallery_deliver_email($config, $to, $subject, $body);
     } catch (Throwable) {
         /* ignore */
     }

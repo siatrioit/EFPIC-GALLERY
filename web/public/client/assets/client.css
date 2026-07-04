@@ -1475,6 +1475,22 @@ input[type="password"],
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--text);
+  text-align: left;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: default;
+}
+
+.visitor-collection-item-label.is-editable {
+  cursor: text;
+  border-radius: 6px;
+  padding: 2px 4px;
+  margin: -2px -4px;
+}
+
+.visitor-collection-item-label.is-editable:hover {
+  background: rgba(0, 0, 0, 0.04);
 }
 
 .visitor-collection-item-actions {

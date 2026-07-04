@@ -34,6 +34,14 @@ try {
         efpic_handle_health($config);
     }
 
+    if ($uri === '/site/logo' && $method === 'GET') {
+        efpic_handle_site_asset($config, 'logo');
+    }
+
+    if ($uri === '/site/signature' && $method === 'GET') {
+        efpic_handle_site_asset($config, 'signature');
+    }
+
     if ($uri === '/api/galleries' && $method === 'POST') {
         efpic_handle_create_gallery($config);
     }
@@ -116,6 +124,10 @@ try {
 
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/toggle$#i', $uri, $m) && $method === 'POST') {
         efpic_handle_visitor_collection_toggle($config, strtolower($m[1]), $m[2]);
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/download-all$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_all_collections_download_request($config, strtolower($m[1]));
     }
 
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/download$#i', $uri, $m) && $method === 'POST') {

@@ -205,6 +205,11 @@ function efpic_guest_send_email(
 
 function efpic_guest_send_smtp(array $email, string $to, string $subject, string $body): void
 {
+    efpic_guest_send_email_message($email, $to, $subject, $body, null);
+}
+
+function efpic_guest_send_email_message(array $email, string $to, string $subject, string $body, ?string $htmlBody = null): void
+{
     $host = (string) ($email['smtp_host'] ?? '');
     $port = (int) ($email['smtp_port'] ?? 587);
     $user = (string) ($email['smtp_user'] ?? '');
@@ -271,9 +276,21 @@ function efpic_guest_send_smtp(array $email, string $to, string $subject, string
     $msg .= "To: <{$to}>\r\n";
     $msg .= 'Subject: =?UTF-8?B?' . base64_encode($subject) . "?=\r\n";
     $msg .= "MIME-Version: 1.0\r\n";
-    $msg .= "Content-Type: text/plain; charset=UTF-8\r\n";
-    $msg .= "\r\n";
-    $msg .= $body;
+    if ($htmlBody !== null && $htmlBody !== '') {
+        $boundary = 'efpic_' . bin2hex(random_bytes(8));
+        $msg .= 'Content-Type: multipart/alternative; boundary="' . $boundary . '"' . "\r\n\r\n";
+        $msg .= '--' . $boundary . "\r\n";
+        $msg .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+        $msg .= $body . "\r\n";
+        $msg .= '--' . $boundary . "\r\n";
+        $msg .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
+        $msg .= $htmlBody . "\r\n";
+        $msg .= '--' . $boundary . "--\r\n";
+    } else {
+        $msg .= "Content-Type: text/plain; charset=UTF-8\r\n";
+        $msg .= "\r\n";
+        $msg .= $body;
+    }
     $msg .= "\r\n.\r\n";
     $write($msg);
     $read();

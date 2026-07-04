@@ -1184,7 +1184,6 @@
   var visitorBaseUrl = window.EFPIC_VISITOR_BASE_URL || '';
   var visitorModal = document.getElementById('visitorCollectionModal');
   var visitorManageModal = document.getElementById('visitorManageModal');
-  var visitorIdentifyMode = 'resume';
   var pendingCollectionImageToken = '';
   var visitorRenameEditingId = '';
 
@@ -1362,31 +1361,16 @@
         input.className = 'visitor-collection-rename-input';
         input.value = coll.name || '';
         input.setAttribute('aria-label', 'Izlases nosaukums');
-        var saveBtn = document.createElement('button');
-        saveBtn.type = 'button';
-        saveBtn.className = 'btn visitor-collection-rename-save';
-        saveBtn.textContent = 'Saglabāt';
-        saveBtn.setAttribute('data-visitor-rename-save', coll.id);
-        var cancelBtn = document.createElement('button');
-        cancelBtn.type = 'button';
-        cancelBtn.className = 'btn visitor-collection-rename-cancel';
-        cancelBtn.textContent = 'Atcelt';
-        cancelBtn.setAttribute('data-visitor-rename-cancel', '1');
         row.appendChild(input);
-        row.appendChild(saveBtn);
-        row.appendChild(cancelBtn);
         main.appendChild(row);
       } else {
-        var label = document.createElement('span');
-        label.className = 'visitor-collection-item-label';
+        var label = document.createElement('button');
+        label.type = 'button';
+        label.className = 'visitor-collection-item-label is-editable';
         label.textContent = (coll.name || 'Izlase') + ' (' + (coll.count || 0) + ')';
+        label.setAttribute('data-visitor-rename', coll.id);
+        label.setAttribute('aria-label', 'Pārsaukt izlasi');
         main.appendChild(label);
-        var renameBtn = document.createElement('button');
-        renameBtn.type = 'button';
-        renameBtn.className = 'btn visitor-collection-rename-btn';
-        renameBtn.textContent = 'Pārsaukt';
-        renameBtn.setAttribute('data-visitor-rename', coll.id);
-        main.appendChild(renameBtn);
       }
 
       li.appendChild(main);
@@ -1449,24 +1433,17 @@
     if (!visitorBaseUrl) return Promise.resolve(null);
     var nameInput = document.getElementById('visitorNameInput');
     var emailInput = document.getElementById('visitorEmailInput');
-    var collInput = document.getElementById('visitorCollectionNameInput');
     var errEl = document.getElementById('visitorFormError');
     var submitBtn = document.getElementById('visitorCollectionSubmit');
     var name = nameInput ? nameInput.value.trim() : '';
     var email = emailInput ? emailInput.value.trim() : '';
-    var collectionName = collInput ? collInput.value.trim() : '';
     if (submitBtn) submitBtn.disabled = true;
     if (errEl) errEl.hidden = true;
     var body =
       'name=' +
       encodeURIComponent(name) +
       '&email=' +
-      encodeURIComponent(email) +
-      '&mode=' +
-      encodeURIComponent(visitorIdentifyMode);
-    if (collectionName) {
-      body += '&collection_name=' + encodeURIComponent(collectionName);
-    }
+      encodeURIComponent(email);
     if (csrfToken) {
       body += '&csrf_token=' + encodeURIComponent(csrfToken);
     }
@@ -1614,15 +1591,13 @@
       openVisitorModal();
       return;
     }
-    var collId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
-    if (!collId) return;
     closeCollectionDlModal();
-    openZipProgressLoading('Sagatavo izlasi…', 'Veido ZIP un nosūta uz e-pastu…');
+    openZipProgressLoading('Sagatavo izlases…', 'Veido ZIP failus un nosūta uz e-pastu…');
     var body =
       'size=' +
       encodeURIComponent(size) +
       (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
-    fetch(visitorUrl('/collections/' + encodeURIComponent(collId) + '/download'), {
+    fetch(visitorUrl('/download-all'), {
       method: 'POST',
       credentials: 'same-origin',
       headers: csrfFetchHeaders({
@@ -1708,20 +1683,6 @@
   document.querySelectorAll('[data-visitor-manage-save]').forEach(function (btn) {
     btn.addEventListener('click', closeVisitorManageModal);
   });
-  document.querySelectorAll('[data-visitor-mode]').forEach(function (btn) {
-    btn.addEventListener('click', function () {
-      visitorIdentifyMode = btn.getAttribute('data-visitor-mode') || 'resume';
-      document.querySelectorAll('[data-visitor-mode]').forEach(function (b) {
-        var active = b === btn;
-        b.classList.toggle('is-active', active);
-        b.setAttribute('aria-selected', active ? 'true' : 'false');
-      });
-      var newBlock = document.getElementById('visitorNewCollectionBlock');
-      if (newBlock) {
-        newBlock.hidden = visitorIdentifyMode !== 'new';
-      }
-    });
-  });
   var visitorForm = document.getElementById('visitorCollectionForm');
   if (visitorForm) {
     visitorForm.addEventListener('submit', function (evt) {
@@ -1752,15 +1713,51 @@
     logoutBtn.addEventListener('click', visitorLogout);
   }
   document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape') {
+      var renameInput =
+        evt.target && evt.target.closest ? evt.target.closest('.visitor-collection-rename-input') : null;
+      if (renameInput) {
+        evt.preventDefault();
+        visitorRenameEditingId = '';
+        renderVisitorCollectionList();
+      }
+      return;
+    }
     if (evt.key !== 'Enter') return;
-    var renameInput =
+    var renameInputEnter =
       evt.target && evt.target.closest ? evt.target.closest('.visitor-collection-rename-input') : null;
-    if (!renameInput) return;
+    if (!renameInputEnter) return;
     evt.preventDefault();
-    var row = renameInput.closest('.visitor-collection-rename-row');
-    var saveBtn = row ? row.querySelector('[data-visitor-rename-save]') : null;
-    if (saveBtn) saveBtn.click();
+    renameInputEnter.blur();
   });
+
+  document.addEventListener(
+    'blur',
+    function (evt) {
+      var renameInput =
+        evt.target && evt.target.classList && evt.target.classList.contains('visitor-collection-rename-input')
+          ? evt.target
+          : null;
+      if (!renameInput) return;
+      var row = renameInput.closest('.visitor-collection-rename-row');
+      var li = renameInput.closest('.visitor-collection-item');
+      if (!li) return;
+      var collId = visitorRenameEditingId;
+      var newName = renameInput.value.trim();
+      var collections = visitorState.collections || [];
+      var prevName = '';
+      collections.forEach(function (c) {
+        if (c.id === collId) prevName = c.name || '';
+      });
+      visitorRenameEditingId = '';
+      if (!newName || newName === prevName) {
+        renderVisitorCollectionList();
+        return;
+      }
+      renameVisitorCollection(collId, newName);
+    },
+    true
+  );
 
   document.addEventListener('click', function (evt) {
     var activateBtn =
@@ -1777,26 +1774,10 @@
       visitorRenameEditingId = renameBtn.getAttribute('data-visitor-rename') || '';
       renderVisitorCollectionList();
       var editInput = document.querySelector('.visitor-collection-rename-input');
-      if (editInput) editInput.focus();
-      return;
-    }
-    var renameSaveBtn =
-      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-rename-save]') : null;
-    if (renameSaveBtn) {
-      evt.preventDefault();
-      var collId = renameSaveBtn.getAttribute('data-visitor-rename-save') || '';
-      var row = renameSaveBtn.closest('.visitor-collection-rename-row');
-      var inputEl = row ? row.querySelector('.visitor-collection-rename-input') : null;
-      var newName = inputEl ? inputEl.value.trim() : '';
-      if (newName) renameVisitorCollection(collId, newName);
-      return;
-    }
-    var renameCancelBtn =
-      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-rename-cancel]') : null;
-    if (renameCancelBtn) {
-      evt.preventDefault();
-      visitorRenameEditingId = '';
-      renderVisitorCollectionList();
+      if (editInput) {
+        editInput.focus();
+        editInput.select();
+      }
       return;
     }
     var manageOpen =
