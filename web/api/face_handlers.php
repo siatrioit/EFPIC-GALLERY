@@ -175,7 +175,7 @@ function efpic_client_render_face_person_modal(): string
         . '<p class="face-search-status muted" id="facePersonStatus" hidden></p>'
         . '<div class="face-person-actions">'
         . '<button type="button" class="btn" id="facePersonDeselect" disabled>Noņemt izvēli</button>'
-        . '<button type="button" class="btn primary" id="facePersonApply" disabled>Rādīt bildes</button>'
+        . '<button type="button" class="btn primary" id="facePersonApply">Rādīt bildes</button>'
         . '</div></div></div>';
 }
 

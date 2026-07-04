@@ -73,6 +73,7 @@ function efpic_client_icon(string $name): string
         'chev-left' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>',
         'chev-right' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>',
         'chev-down' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>',
+        'chev-up' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="18 15 12 9 6 15"/></svg>',
         'heart' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
         'heart-fill' => '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg>',
         'pick' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M8 12l2.5 2.5L16 9"/></svg>',
@@ -1414,11 +1415,17 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
+    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
 
     if ($usesSceneMain) {
         $body .= '<main class="gallery-main">';
         if (!$usesShell) {
             $body .= $slideshowTopHtml;
+        }
+        if ($faceSearchReady) {
+            $body .= '<div class="face-search-banner" id="faceSearchBanner" hidden>'
+                . '<span id="faceSearchBannerText"></span>'
+                . '<button type="button" class="btn admin-btn-sm" id="faceSearchClear">Rādīt visas</button></div>';
         }
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
         $body .= '</main>';
@@ -1438,12 +1445,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
     }
     $body .= efpic_client_zip_progress_modal();
-    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
     if ($faceSearchReady) {
         $body .= efpic_client_render_face_person_modal();
-        $body .= '<div class="face-search-banner" id="faceSearchBanner" hidden>'
-            . '<span id="faceSearchBannerText"></span>'
-            . '<button type="button" class="btn admin-btn-sm" id="faceSearchClear">Rādīt visas</button></div>';
     }
     if ($canPublicCollection) {
         $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx);
@@ -1475,6 +1478,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         }
         $body .= '</nav>';
     }
+    $body .= '<button type="button" class="gallery-scroll-top" id="galleryScrollTop" aria-label="Uz augšu" hidden>'
+        . efpic_client_icon('chev-up') . '</button>';
     $pageClass = 'page-gallery theme-' . preg_replace('/[^a-z0-9-]/', '', efpic_normalize_gallery_theme($theme));
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [
         'EFPIC_GALLERY_TOKEN' => $galleryToken,

@@ -379,16 +379,38 @@ function efpic_failiem_face_tokens_for_persons(
     $tokens = [];
 
     foreach ($personIds as $personId) {
-        $pid = (string) $personId;
-        $imageIds = $personImages[$pid] ?? null;
-        if (!is_array($imageIds)) {
-            continue;
+        foreach (efpic_failiem_face_navigable_tokens_for_person(
+            (string) $personId,
+            $personImages,
+            $personImagesIdsHashes,
+            $hashMap
+        ) as $tok) {
+            $tokens[$tok] = true;
         }
-        foreach ($imageIds as $imageId) {
-            $hash = (string) ($personImagesIdsHashes[(string) $imageId] ?? '');
-            if ($hash !== '' && isset($hashMap[$hash])) {
-                $tokens[$hashMap[$hash]] = true;
-            }
+    }
+
+    return array_keys($tokens);
+}
+
+/**
+ * @param array<string, string> $hashMap failiem file hash => efpic image token
+ * @return list<string>
+ */
+function efpic_failiem_face_navigable_tokens_for_person(
+    string $personId,
+    array $personImages,
+    array $personImagesIdsHashes,
+    array $hashMap
+): array {
+    $tokens = [];
+    $imageIds = $personImages[$personId] ?? null;
+    if (!is_array($imageIds)) {
+        return [];
+    }
+    foreach ($imageIds as $imageId) {
+        $hash = (string) ($personImagesIdsHashes[(string) $imageId] ?? '');
+        if ($hash !== '' && isset($hashMap[$hash])) {
+            $tokens[$hashMap[$hash]] = true;
         }
     }
 
@@ -422,12 +444,25 @@ function efpic_failiem_face_public_persons(
     }
 
     $out = [];
+    $hashMap = efpic_failiem_face_hash_to_token_map($meta, $ctx);
+    $personImages = is_array($bundle['person_images'] ?? null) ? $bundle['person_images'] : [];
+    $personImagesIdsHashes = is_array($bundle['person_images_ids_hashes'] ?? null)
+        ? $bundle['person_images_ids_hashes'] : [];
     foreach ($bundle['persons'] as $person) {
         if (!is_array($person)) {
             continue;
         }
         $personId = (string) ($person['person_id'] ?? '');
         if ($personId === '') {
+            continue;
+        }
+        $navigableCount = count(efpic_failiem_face_navigable_tokens_for_person(
+            $personId,
+            $personImages,
+            $personImagesIdsHashes,
+            $hashMap
+        ));
+        if ($navigableCount === 0) {
             continue;
         }
         $out[] = [
@@ -438,7 +473,7 @@ function efpic_failiem_face_public_persons(
                 (string) ($person['face_id'] ?? ''),
                 (string) ($person['file_name'] ?? '')
             ),
-            'photo_count' => (int) ($person['face_count'] ?? 0),
+            'photo_count' => $navigableCount,
             'sample_file' => (string) ($person['file_name'] ?? ''),
         ];
     }

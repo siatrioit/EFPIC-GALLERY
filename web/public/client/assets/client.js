@@ -440,6 +440,7 @@
   var hero = document.getElementById('galleryHero');
   var floatingTopbar = document.querySelector('.topbar-floating');
   var floatBar = document.querySelector('.gallery-float-bar');
+  var scrollTopBtn = document.getElementById('galleryScrollTop');
 
   function scrollPastHero() {
     if (!hero) return false;
@@ -458,6 +459,17 @@
     if (floatBar) {
       floatBar.classList.toggle('is-visible', past);
     }
+    if (scrollTopBtn) {
+      var scrolled = window.scrollY > 320;
+      scrollTopBtn.classList.toggle('is-visible', scrolled);
+      scrollTopBtn.hidden = !scrolled;
+    }
+  }
+
+  if (scrollTopBtn) {
+    scrollTopBtn.addEventListener('click', function () {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   }
 
   document.querySelectorAll('.gallery-inline-video-player').forEach(function (wrap) {
@@ -1326,6 +1338,17 @@
       );
     }
 
+    function getDomGalleryTokenSet() {
+      var set = {};
+      getFaceFilterGalleryItems().forEach(function (el) {
+        var tok = el.getAttribute('data-token') || '';
+        if (tok) {
+          set[tok] = true;
+        }
+      });
+      return set;
+    }
+
     function updateSceneVisibility() {
       document.querySelectorAll('.scene-block').forEach(function (scene) {
         var hasVisible = scene.querySelector(
@@ -1374,11 +1397,44 @@
       });
     }
 
-    function scrollToFaceResults() {
-      var anchor = banner && !banner.hidden ? banner : document.querySelector('.gallery-main');
-      if (anchor) {
-        anchor.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    function applyFaceFilter(tokens) {
+      restoreFaceFilterDom();
+
+      var domTokens = getDomGalleryTokenSet();
+      var allowed = tokens.filter(function (t) {
+        return !!domTokens[t];
+      });
+      var set = {};
+      allowed.forEach(function (t) {
+        set[t] = true;
+      });
+
+      var visible = [];
+      getFaceFilterGalleryItems().forEach(function (el) {
+        var tok = el.getAttribute('data-token') || '';
+        if (tok === '') {
+          return;
+        }
+        var show = !!set[tok];
+        el.classList.toggle('face-search-hidden', !show);
+        if (show) {
+          visible.push(el);
+        }
+      });
+
+      document.body.classList.add('face-search-filter-active');
+      consolidateVisibleMosaicItems(visible);
+      updateSceneVisibility();
+
+      if (banner && bannerText) {
+        bannerText.textContent = 'Rāda ' + allowed.length + ' bildes ar izvēlētajām sejām';
+        banner.hidden = allowed.length === 0;
       }
+      closeModal();
+      scheduleMosaicRelayout();
+      window.requestAnimationFrame(function () {
+        scheduleMosaicRelayout();
+      });
     }
 
     function openModal() {
@@ -1406,7 +1462,6 @@
 
     function updateSelectionUi() {
       var count = Object.keys(selected).length;
-      if (applyBtn) applyBtn.disabled = count === 0;
       if (deselectBtn) deselectBtn.disabled = count === 0;
       if (!grid) return;
       grid.querySelectorAll('[data-person-id]').forEach(function (el) {
@@ -1472,43 +1527,6 @@
         });
     }
 
-    function applyFaceFilter(tokens) {
-      restoreFaceFilterDom();
-
-      var set = {};
-      tokens.forEach(function (t) {
-        set[t] = true;
-      });
-
-      var visible = [];
-      getFaceFilterGalleryItems().forEach(function (el) {
-        var tok = el.getAttribute('data-token') || '';
-        if (tok === '') {
-          return;
-        }
-        var show = !!set[tok];
-        el.classList.toggle('face-search-hidden', !show);
-        if (show) {
-          visible.push(el);
-        }
-      });
-
-      document.body.classList.add('face-search-filter-active');
-      consolidateVisibleMosaicItems(visible);
-      updateSceneVisibility();
-
-      if (banner && bannerText) {
-        bannerText.textContent = 'Rāda ' + tokens.length + ' bildes ar izvēlētajām sejām';
-        banner.hidden = tokens.length === 0;
-      }
-      closeModal();
-      scheduleMosaicRelayout();
-      window.requestAnimationFrame(function () {
-        scheduleMosaicRelayout();
-        scrollToFaceResults();
-      });
-    }
-
     function clearFaceFilter() {
       document.body.classList.remove('face-search-filter-active');
       restoreFaceFilterDom();
@@ -1536,7 +1554,11 @@
     if (applyBtn) {
       applyBtn.addEventListener('click', function () {
         var ids = Object.keys(selected);
-        if (ids.length === 0) return;
+        if (ids.length === 0) {
+          clearFaceFilter();
+          closeModal();
+          return;
+        }
         applyBtn.disabled = true;
         if (statusEl) {
           statusEl.hidden = false;
@@ -1563,7 +1585,7 @@
             if (statusEl) statusEl.textContent = (err && err.message) || 'Kļūda';
           })
           .finally(function () {
-            applyBtn.disabled = Object.keys(selected).length === 0;
+            applyBtn.disabled = false;
           });
       });
     }

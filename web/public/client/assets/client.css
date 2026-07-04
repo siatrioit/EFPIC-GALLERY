@@ -1066,6 +1066,47 @@ input[type="password"] {
   pointer-events: none;
 }
 
+.gallery-scroll-top {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--text);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(10px);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.25s ease;
+}
+
+.gallery-scroll-top.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.gallery-scroll-top[hidden] {
+  display: none !important;
+}
+
+.gallery-scroll-top svg {
+  width: 20px;
+  height: 20px;
+}
+
+.page-gallery:has(.gallery-float-bar.is-visible) .gallery-scroll-top {
+  bottom: 88px;
+}
+
 .gallery-expiry {
   text-align: center;
   font-size: 0.85rem;
@@ -2938,8 +2979,13 @@ body.face-search-open {
   margin: 0 auto 16px;
   padding: 10px 16px;
   max-width: 960px;
+  width: calc(100% - 32px);
   background: color-mix(in srgb, var(--hero-accent, #c9a962) 18%, var(--page-bg, #fff));
   border-radius: 8px;
+}
+
+.theme-pic-time .gallery-main .face-search-banner {
+  margin-top: 16px;
 }
 
 .face-search-banner[hidden] {
