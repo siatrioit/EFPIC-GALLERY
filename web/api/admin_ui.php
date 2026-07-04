@@ -2574,7 +2574,9 @@ function efpic_admin_save_settings_from_post(array $config): void
         $siteLogo = efpic_store_site_asset($config, $_FILES['site_logo'], ['png', 'jpg', 'jpeg', 'webp', 'ico', 'gif'], 'logo');
     }
     $sigImage = trim((string) ($existing['gallery_email_signature_image'] ?? ''));
-    $signatureHtml = efpic_sanitize_email_signature_html((string) ($_POST['gallery_email_signature'] ?? ''));
+    $signatureHtml = efpic_sanitize_email_signature_html(
+        efpic_signature_host_embedded_images($config, (string) ($_POST['gallery_email_signature'] ?? '')),
+    );
     if ($signatureHtml === '' && $sigImage !== '' && is_file(efpic_site_asset_path($config, $sigImage))) {
         $signatureHtml = '<p><img src="'
             . htmlspecialchars(efpic_site_signature_image_url($config), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
@@ -2603,9 +2605,40 @@ function efpic_admin_render_email_signature_editor(array $config, array $setting
     }
 
     $html = '<fieldset class="admin-fieldset-full"><legend>E-pasta paraksts</legend>';
-    $html .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem. Formatējiet kā Gmail — fonts, krāsas, saites, bildes.</p>';
+    $html .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem. Vari nokopēt parakstu no Gmail — izkārtojums tiek saglabāts.</p>';
     $html .= '<div class="admin-signature-editor-wrap">';
-    $html .= '<div id="signatureEditor" class="admin-signature-editor"></div>';
+    $html .= '<div id="signatureEditorToolbar" class="admin-signature-toolbar" role="toolbar" aria-label="Paraksta formatēšana">';
+    $html .= '<select data-cmd="fontName" class="admin-signature-select" title="Fonts" aria-label="Fonts">';
+    $html .= '<option value="sans-serif">Sans Serif</option>';
+    $html .= '<option value="Arial">Arial</option>';
+    $html .= '<option value="Helvetica">Helvetica</option>';
+    $html .= '<option value="Georgia">Georgia</option>';
+    $html .= '<option value="Times New Roman">Times New Roman</option>';
+    $html .= '<option value="Verdana">Verdana</option>';
+    $html .= '</select>';
+    $html .= '<select data-cmd="fontSize" class="admin-signature-select admin-signature-select-size" title="Izmērs" aria-label="Izmērs">';
+    $html .= '<option value="2">Mazs</option>';
+    $html .= '<option value="3" selected>Parasts</option>';
+    $html .= '<option value="4">Liels</option>';
+    $html .= '<option value="5">Ļoti liels</option>';
+    $html .= '</select>';
+    $html .= '<span class="admin-signature-toolbar-sep" aria-hidden="true"></span>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="bold" title="Treknraksts"><b>B</b></button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="italic" title="Kursīvs"><i>I</i></button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="underline" title="Pasvītrojums"><u>U</u></button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="foreColor" title="Krāsa">A</button>';
+    $html .= '<span class="admin-signature-toolbar-sep" aria-hidden="true"></span>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="link" title="Saite">Saite</button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="image" title="Bilde">Bilde</button>';
+    $html .= '<span class="admin-signature-toolbar-sep" aria-hidden="true"></span>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="justifyLeft" title="Pa kreisi" aria-label="Pa kreisi">◧</button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="justifyCenter" title="Centrā" aria-label="Centrā">◫</button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="justifyRight" title="Pa labi" aria-label="Pa labi">◨</button>';
+    $html .= '<span class="admin-signature-toolbar-sep" aria-hidden="true"></span>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="insertOrderedList" title="Numurēts saraksts">1.</button>';
+    $html .= '<button type="button" class="admin-signature-btn" data-cmd="insertUnorderedList" title="Aizzīmju saraksts">•</button>';
+    $html .= '</div>';
+    $html .= '<div id="signatureEditorContent" class="admin-signature-editor" contenteditable="true" role="textbox" aria-label="E-pasta paraksts"></div>';
     $html .= '<input type="hidden" name="gallery_email_signature" id="galleryEmailSignatureInput" value="">';
     $html .= '<script type="application/json" id="signatureEditorInitial">'
         . json_encode($signature, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)
@@ -2673,9 +2706,7 @@ function efpic_admin_settings_page(array $config): void
     $body .= efpic_admin_render_render_queue_panel($config);
     $body .= '</div></form>';
 
-    $quillCss = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">';
-    $quillJs = '<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>';
-    $quillJs .= '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/signature-editor.js')) . '"></script>';
+    $sigJs = '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/signature-editor.js')) . '"></script>';
 
     efpic_admin_layout(
         'Iestatījumi',
@@ -2684,7 +2715,7 @@ function efpic_admin_settings_page(array $config): void
         'Iestatījumi',
         'Globālie iestatījumi visām publiskajām galerijām (paraksts, režģa atstarpes, render rinda).',
         $config,
-        $quillCss,
-        $quillJs
+        '',
+        $sigJs
     );
 }

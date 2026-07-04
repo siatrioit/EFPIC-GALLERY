@@ -580,16 +580,56 @@ function efpic_handle_site_asset(array $config, string $kind): void
     exit;
 }
 
+function efpic_signature_host_embedded_images(array $config, string $html): string
+{
+    if ($html === '' || stripos($html, 'data:image') === false) {
+        return $html;
+    }
+
+    return preg_replace_callback(
+        '/<img\b([^>]*)\bsrc=(["\'])data:image\/([^;]+);base64,([^"\']+)\2([^>]*)>/i',
+        static function (array $m) use ($config): string {
+            $ext = strtolower($m[3]);
+            if ($ext === 'jpeg') {
+                $ext = 'jpg';
+            }
+            if (!in_array($ext, ['png', 'jpg', 'gif', 'webp'], true)) {
+                return $m[0];
+            }
+            $bin = base64_decode($m[4], true);
+            if ($bin === false || $bin === '') {
+                return $m[0];
+            }
+            $dir = efpic_site_assets_dir($config);
+            if (!is_dir($dir)) {
+                mkdir($dir, 0755, true);
+            }
+            $name = 'sig_' . bin2hex(random_bytes(8)) . '.' . $ext;
+            $path = $dir . DIRECTORY_SEPARATOR . $name;
+            if (file_put_contents($path, $bin) === false) {
+                return $m[0];
+            }
+            $url = htmlspecialchars(efpic_site_asset_public_url($config, $name), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+            return '<img' . $m[1] . ' src="' . $url . '"' . $m[5] . '>';
+        },
+        $html,
+    ) ?? $html;
+}
+
 function efpic_sanitize_email_signature_html(string $html): string
 {
     $html = trim($html);
-    if ($html === '' || $html === '<p><br></p>' || $html === '<p></p>') {
+    if ($html === '' || $html === '<br>' || $html === '<p><br></p>' || $html === '<p></p>') {
         return '';
     }
-    $allowed = '<p><br><b><strong><i><em><u><a><img><span><div><ul><ol><li><h1><h2><h3>';
-    $html = strip_tags($html, $allowed);
+
+    $html = preg_replace('/<\s*(script|iframe|object|embed|form|input|button|textarea|select)\b[^>]*>.*?<\s*\/\s*\1\s*>/is', '', $html) ?? $html;
+    $html = preg_replace('/<\s*(script|iframe|object|embed|form|input|button|textarea|select)\b[^>]*\/?>/i', '', $html) ?? $html;
     $html = preg_replace('/\s+on\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html) ?? $html;
     $html = preg_replace('/javascript:/i', '', $html) ?? $html;
+    $html = preg_replace('/expression\s*\(/i', '', $html) ?? $html;
+    $html = preg_replace('/@import\b/i', '', $html) ?? $html;
 
     return trim($html);
 }
