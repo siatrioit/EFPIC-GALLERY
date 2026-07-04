@@ -96,50 +96,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_
     }
 }
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_index_api'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    try {
-        $info = efpic_admin_face_index_gallery($config, $slug);
-        echo json_encode($info, JSON_UNESCAPED_UNICODE);
-        exit;
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_test_api'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    try {
-        $info = efpic_admin_face_worker_test($config, $slug);
-        echo json_encode($info, JSON_UNESCAPED_UNICODE);
-        exit;
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-}
-
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_failiem_refresh_api'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
         $info = efpic_admin_face_failiem_refresh($config, $slug);
         echo json_encode($info, JSON_UNESCAPED_UNICODE);
-        exit;
-    } catch (Throwable $e) {
-        http_response_code(500);
-        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
-        exit;
-    }
-}
-
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_clear_api'])) {
-    header('Content-Type: application/json; charset=utf-8');
-    try {
-        $info = efpic_admin_face_clear_queue($config, $slug);
-        echo json_encode(array_merge($info, efpic_face_worker_diagnostic($config, $slug)), JSON_UNESCAPED_UNICODE);
         exit;
     } catch (Throwable $e) {
         http_response_code(500);
@@ -159,10 +120,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
     $payload = [
         'ok' => true,
         'status' => (string) ($fs['status'] ?? 'none'),
-        'provider' => (string) ($fs['provider'] ?? 'local'),
+        'provider' => 'failiem',
         'error' => (string) ($fs['error'] ?? ''),
     ];
-    if (efpic_gallery_face_search_uses_failiem($meta)) {
+    if (efpic_gallery_face_search_enabled($meta)) {
         try {
             $payload = array_merge($payload, efpic_failiem_face_admin_status($config, $slug, $meta));
         } catch (Throwable $e) {
@@ -172,12 +133,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
                 ['error' => $e->getMessage()]
             );
         }
-    } else {
-        $stats = efpic_face_index_stats($config, $slug, $meta);
-        $payload = array_merge($payload, [
-            'stats' => $stats,
-            'worker' => efpic_face_worker_status($config),
-        ], efpic_face_worker_diagnostic($config, $slug));
     }
     echo json_encode($payload, JSON_UNESCAPED_UNICODE);
     exit;

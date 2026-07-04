@@ -90,10 +90,7 @@ return [
     ],
 
     /**
-     * Seju meklēšana — Synology face worker (InsightFace).
-     * Ping: GET /api/face/ping ar Authorization: Bearer {api_token}
+     * Seju meklēšana — Failiem.lv (personu saraksts).
      */
-    'face_search' => [
-        'match_threshold' => 0.42,
-    ],
+    'face_search' => [],
 ];

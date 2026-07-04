@@ -178,42 +178,6 @@ try {
         efpic_handle_render_job_fail($config, $m[1]);
     }
 
-    if ($uri === '/api/face/ping' && $method === 'GET') {
-        efpic_handle_face_ping($config);
-    }
-
-    if ($uri === '/api/face/claim' && $method === 'POST') {
-        efpic_handle_face_claim_job($config);
-    }
-
-    if (preg_match('#^/api/face/jobs/([a-f0-9]{32})/selfie$#', $uri, $m) && $method === 'GET') {
-        efpic_handle_face_job_selfie($config, $m[1]);
-    }
-
-    if (preg_match('#^/api/face/jobs/([a-f0-9]{32})/image/([a-f0-9]{48})$#', $uri, $m) && $method === 'GET') {
-        efpic_handle_face_job_image($config, $m[1], $m[2]);
-    }
-
-    if (preg_match('#^/api/face/jobs/([a-f0-9]{32})/batch$#', $uri, $m) && $method === 'POST') {
-        efpic_handle_face_job_batch($config, $m[1]);
-    }
-
-    if (preg_match('#^/api/face/jobs/([a-f0-9]{32})/complete$#', $uri, $m) && $method === 'POST') {
-        efpic_handle_face_job_complete($config, $m[1]);
-    }
-
-    if (preg_match('#^/api/face/jobs/([a-f0-9]{32})/fail$#', $uri, $m) && $method === 'POST') {
-        efpic_handle_face_job_fail($config, $m[1]);
-    }
-
-    if (preg_match('#^/v/g/([a-f0-9]{48})/face-search$#i', $uri, $m) && $method === 'POST') {
-        efpic_handle_client_face_search_start($config, strtolower($m[1]));
-    }
-
-    if (preg_match('#^/v/g/([a-f0-9]{48})/face-search/([a-f0-9]{32})$#i', $uri, $m) && $method === 'GET') {
-        efpic_handle_client_face_search_poll($config, strtolower($m[1]), $m[2]);
-    }
-
     if (preg_match('#^/v/g/([a-f0-9]{48})/face-status$#i', $uri, $m) && $method === 'GET') {
         efpic_handle_client_face_status($config, strtolower($m[1]));
     }

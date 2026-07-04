@@ -2,11 +2,64 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/lib.php';
 require_once __DIR__ . '/failiem_client.php';
-require_once __DIR__ . '/face_index.php';
 require_once __DIR__ . '/gallery_access.php';
 
 const EFPIC_FAILIEM_FACE_CACHE_SEC = 3600;
+
+/** @return array<string, mixed> */
+function efpic_gallery_face_search_defaults(): array
+{
+    return [
+        'enabled' => false,
+        'provider' => 'failiem',
+        'failiem_upload_hash' => '',
+        'status' => 'none',
+        'error' => '',
+    ];
+}
+
+/** @return array<string, mixed> */
+function efpic_gallery_face_search(array $meta): array
+{
+    $fs = $meta['face_search'] ?? null;
+    $merged = is_array($fs) ? array_merge(efpic_gallery_face_search_defaults(), $fs) : efpic_gallery_face_search_defaults();
+    $merged['provider'] = 'failiem';
+
+    return $merged;
+}
+
+function efpic_gallery_face_search_enabled(array $meta): bool
+{
+    return !empty(efpic_gallery_face_search($meta)['enabled']);
+}
+
+function efpic_gallery_face_search_uses_failiem(array $meta): bool
+{
+    return efpic_gallery_face_search_enabled($meta);
+}
+
+/** Notīra vecās Synology face worker rindas (vairs netiek izmantotas). */
+function efpic_face_legacy_queue_purge(array $config): int
+{
+    $base = dirname(efpic_storage_path($config)) . DIRECTORY_SEPARATOR . 'face_queue';
+    if (!is_dir($base)) {
+        return 0;
+    }
+    $removed = 0;
+    foreach (glob($base . DIRECTORY_SEPARATOR . '*.json') ?: [] as $path) {
+        if (@unlink($path)) {
+            $removed++;
+        }
+    }
+    foreach (glob($base . DIRECTORY_SEPARATOR . '*.selfie.jpg') ?: [] as $path) {
+        @unlink($path);
+    }
+    @unlink(dirname(efpic_storage_path($config)) . DIRECTORY_SEPARATOR . 'face_worker_state.json');
+
+    return $removed;
+}
 
 function efpic_failiem_face_site_base(array $config): string
 {
@@ -14,13 +67,6 @@ function efpic_failiem_face_site_base(array $config): string
     $base = (string) ($f['face_site_base'] ?? $f['cdn_base'] ?? 'https://failiem.lv');
 
     return rtrim($base, '/');
-}
-
-function efpic_gallery_face_search_uses_failiem(array $meta): bool
-{
-    $fs = efpic_gallery_face_search($meta);
-
-    return (string) ($fs['provider'] ?? 'local') === 'failiem';
 }
 
 function efpic_failiem_face_upload_hash(array $meta): string

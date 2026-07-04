@@ -1836,7 +1836,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
         $meta['settings']['enable_public_collection'] = efpic_post_flag_is_on('enable_public_collection');
-        efpic_apply_face_search_from_post($meta);
+        efpic_apply_face_search_from_post($meta, $config);
         if (efpic_gallery_apply_expires_from_post($meta)) {
             $expiresLabel = efpic_gallery_expires_display($meta);
             efpic_gallery_log_activity(
