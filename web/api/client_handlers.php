@@ -295,12 +295,21 @@ function efpic_client_render_gallery_toolbar(
     string $rightHtml,
     string $sceneNavLinks,
     string $extraClass = '',
+    bool $faceSearchReady = false,
 ): string {
     $cls = 'gallery-toolbar topbar' . ($extraClass !== '' ? ' ' . efpic_client_esc($extraClass) : '');
     $html = '<header class="' . $cls . '">';
     $html .= '<h1 class="topbar-title gallery-toolbar__title">' . efpic_client_esc($title) . '</h1>';
-    $html .= '<nav class="gallery-scene-nav gallery-toolbar__nav" aria-label="Galerijas sadaļas">';
-    $html .= '<div class="gallery-scene-nav__inner">' . $sceneNavLinks . '</div></nav>';
+    if ($sceneNavLinks !== '' || $faceSearchReady) {
+        $html .= '<nav class="gallery-scene-nav gallery-toolbar__nav" aria-label="Galerijas sadaļas">';
+        if ($sceneNavLinks !== '') {
+            $html .= '<div class="gallery-scene-nav__inner gallery-scene-nav__sections">' . $sceneNavLinks . '</div>';
+        }
+        if ($faceSearchReady) {
+            $html .= efpic_client_render_face_filter_toolbar_panel();
+        }
+        $html .= '</nav>';
+    }
     $html .= $rightHtml;
     $html .= '</header>';
 
@@ -1392,19 +1401,33 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $sceneNavLinks = $usesSceneMain
         ? efpic_client_scene_jump_nav_links($config, $meta, $images, $ctx)
         : '';
+    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
+    $useGalleryToolbar = $sceneNavLinks !== '' || $faceSearchReady;
     $toolbarExtraClass = $usesShell ? 'topbar-floating' : '';
     $body = '';
     if ($usesShell) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
-        if ($sceneNavLinks !== '') {
-            $body .= efpic_client_render_gallery_toolbar($name, $right, $sceneNavLinks, $toolbarExtraClass);
+        if ($useGalleryToolbar) {
+            $body .= efpic_client_render_gallery_toolbar(
+                $name,
+                $right,
+                $sceneNavLinks,
+                $toolbarExtraClass,
+                $faceSearchReady,
+            );
         } else {
             $body .= efpic_client_topbar($name, $right, $toolbarExtraClass);
         }
         $body .= $slideshowTopHtml;
     } else {
-        if ($sceneNavLinks !== '') {
-            $body .= efpic_client_render_gallery_toolbar($name, $right, $sceneNavLinks, $toolbarExtraClass);
+        if ($useGalleryToolbar) {
+            $body .= efpic_client_render_gallery_toolbar(
+                $name,
+                $right,
+                $sceneNavLinks,
+                $toolbarExtraClass,
+                $faceSearchReady,
+            );
         } else {
             $body .= efpic_client_topbar($name, $right);
         }
@@ -1415,17 +1438,11 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     $failiemParent = (string) ($meta['failiem']['folder_parent_hash'] ?? '');
-    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
 
     if ($usesSceneMain) {
         $body .= '<main class="gallery-main">';
         if (!$usesShell) {
             $body .= $slideshowTopHtml;
-        }
-        if ($faceSearchReady) {
-            $body .= '<div class="face-search-banner" id="faceSearchBanner" hidden>'
-                . '<span id="faceSearchBannerText"></span>'
-                . '<button type="button" class="btn admin-btn-sm" id="faceSearchClear">Rādīt visas</button></div>';
         }
         $body .= efpic_client_render_gallery_grid($config, $meta, $images, $theme, $gridCtx, $ctx);
         $body .= '</main>';

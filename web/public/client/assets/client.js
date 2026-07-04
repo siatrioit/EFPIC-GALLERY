@@ -1324,11 +1324,14 @@
     var statusEl = document.getElementById('facePersonStatus');
     var applyBtn = document.getElementById('facePersonApply');
     var deselectBtn = document.getElementById('facePersonDeselect');
-    var banner = document.getElementById('faceSearchBanner');
-    var bannerText = document.getElementById('faceSearchBannerText');
+    var faceFilterToolbar = document.getElementById('faceSearchToolbar');
+    var faceFilterToolbarFaces = document.getElementById('faceSearchToolbarFaces');
+    var faceFilterToolbarText = document.getElementById('faceSearchToolbarText');
+    var sceneNavSections = document.querySelector('.gallery-scene-nav__sections');
     var clearBtn = document.getElementById('faceSearchClear');
     var persons = [];
     var selected = {};
+    var activeFilterPersonIds = [];
     var loaded = false;
     var faceFilterRestore = [];
 
@@ -1347,6 +1350,52 @@
         }
       });
       return set;
+    }
+
+    function getPersonById(id) {
+      for (var i = 0; i < persons.length; i++) {
+        if (persons[i].id === id) {
+          return persons[i];
+        }
+      }
+      return null;
+    }
+
+    function updateFaceFilterToolbar(personIds, imageCount) {
+      activeFilterPersonIds = personIds.slice();
+      if (!faceFilterToolbar) {
+        return;
+      }
+      var active = personIds.length > 0 && imageCount > 0;
+      faceFilterToolbar.hidden = !active;
+      if (sceneNavSections) {
+        sceneNavSections.hidden = active;
+      }
+      if (!active) {
+        if (faceFilterToolbarFaces) {
+          faceFilterToolbarFaces.innerHTML = '';
+        }
+        return;
+      }
+      if (faceFilterToolbarFaces) {
+        faceFilterToolbarFaces.innerHTML = '';
+        personIds.forEach(function (id) {
+          var person = getPersonById(id);
+          if (!person) {
+            return;
+          }
+          var thumb = document.createElement('img');
+          thumb.className = 'gallery-face-filter-face';
+          thumb.src = person.thumb_url || '';
+          thumb.alt = '';
+          thumb.loading = 'lazy';
+          faceFilterToolbarFaces.appendChild(thumb);
+        });
+      }
+      if (faceFilterToolbarText) {
+        faceFilterToolbarText.textContent =
+          'Rāda ' + imageCount + ' bildes no izvēlētajām sejām';
+      }
     }
 
     function updateSceneVisibility() {
@@ -1397,7 +1446,7 @@
       });
     }
 
-    function applyFaceFilter(tokens) {
+    function applyFaceFilter(tokens, personIds) {
       restoreFaceFilterDom();
 
       var domTokens = getDomGalleryTokenSet();
@@ -1425,11 +1474,7 @@
       document.body.classList.add('face-search-filter-active');
       consolidateVisibleMosaicItems(visible);
       updateSceneVisibility();
-
-      if (banner && bannerText) {
-        bannerText.textContent = 'Rāda ' + allowed.length + ' bildes ar izvēlētajām sejām';
-        banner.hidden = allowed.length === 0;
-      }
+      updateFaceFilterToolbar(personIds || [], allowed.length);
       closeModal();
       scheduleMosaicRelayout();
       window.requestAnimationFrame(function () {
@@ -1536,10 +1581,9 @@
       document.querySelectorAll('.face-search-scene-empty').forEach(function (el) {
         el.classList.remove('face-search-scene-empty');
       });
-      if (banner) {
-        banner.hidden = true;
-      }
+      updateFaceFilterToolbar([], 0);
       selected = {};
+      activeFilterPersonIds = [];
       updateSelectionUi();
       scheduleMosaicRelayout();
     }
@@ -1560,6 +1604,7 @@
           return;
         }
         applyBtn.disabled = true;
+        var appliedPersonIds = ids.slice();
         if (statusEl) {
           statusEl.hidden = false;
           statusEl.textContent = 'Atlasu bildes…';
@@ -1579,7 +1624,7 @@
               return;
             }
             if (statusEl) statusEl.hidden = true;
-            applyFaceFilter(tokens);
+            applyFaceFilter(tokens, appliedPersonIds);
           })
           .catch(function (err) {
             if (statusEl) statusEl.textContent = (err && err.message) || 'Kļūda';

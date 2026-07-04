@@ -1103,10 +1103,6 @@ input[type="password"] {
   height: 20px;
 }
 
-.page-gallery:has(.gallery-float-bar.is-visible) .gallery-scroll-top {
-  bottom: 88px;
-}
-
 .gallery-expiry {
   text-align: center;
   font-size: 0.85rem;
@@ -1936,6 +1932,53 @@ input[type="password"] {
   background: transparent;
   border-bottom: none;
   backdrop-filter: none;
+}
+
+.gallery-toolbar__nav:has(#faceSearchToolbar[hidden]):not(:has(.gallery-scene-nav__sections .gallery-scene-nav__link)) {
+  display: none;
+}
+
+.gallery-face-filter-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  padding: 0;
+}
+
+.gallery-face-filter-status[hidden] {
+  display: none !important;
+}
+
+.gallery-face-filter-faces {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+}
+
+.gallery-face-filter-face {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--hero-accent, #c9a962);
+  flex: 0 0 auto;
+}
+
+.gallery-face-filter-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.gallery-scene-nav__sections[hidden] {
+  display: none !important;
 }
 
 .gallery-scene-nav__inner {
@@ -2968,28 +3011,6 @@ input[type="password"] {
 
 body.face-search-open {
   overflow: hidden;
-}
-
-.face-search-banner {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  flex-wrap: wrap;
-  margin: 0 auto 16px;
-  padding: 10px 16px;
-  max-width: 960px;
-  width: calc(100% - 32px);
-  background: color-mix(in srgb, var(--hero-accent, #c9a962) 18%, var(--page-bg, #fff));
-  border-radius: 8px;
-}
-
-.theme-pic-time .gallery-main .face-search-banner {
-  margin-top: 16px;
-}
-
-.face-search-banner[hidden] {
-  display: none !important;
 }
 
 .face-search-hidden {

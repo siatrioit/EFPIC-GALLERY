@@ -164,6 +164,15 @@ function efpic_apply_face_search_from_post(array &$meta, ?array $config = null):
     }
 }
 
+function efpic_client_render_face_filter_toolbar_panel(): string
+{
+    return '<div class="gallery-face-filter-status" id="faceSearchToolbar" hidden>'
+        . '<div class="gallery-face-filter-faces" id="faceSearchToolbarFaces" aria-hidden="true"></div>'
+        . '<span class="gallery-face-filter-text" id="faceSearchToolbarText"></span>'
+        . '<button type="button" class="btn admin-btn-sm" id="faceSearchClear">Rādīt visas</button>'
+        . '</div>';
+}
+
 function efpic_client_render_face_person_modal(): string
 {
     return '<div class="face-search-modal" id="facePersonModal" hidden>'
