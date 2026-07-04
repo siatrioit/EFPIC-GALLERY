@@ -396,9 +396,10 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
     $hasEmail = efpic_gallery_email_ready($config);
     $hasPhone = efpic_gallery_client_phone($meta) !== '';
 
-    $html = '<fieldset class="admin-fieldset-full admin-client-messages"><legend>Ziņojumi klientam</legend>';
+    $html = '<fieldset class="admin-fieldset-full admin-client-messages" id="admin-fs-client-messages"><legend>Ziņojumi klientam</legend>';
     $html .= '<p class="muted">Izvēlies sagatavi katrai grupai. Sagataves veido <a href="settings.php">Iestatījumi → Ziņu sagataves</a>. '
         . 'Pēc sagatavju izvēles maiņas saglabā galeriju — WhatsApp saite atjaunojas pēc saglabāšanas.</p>';
+    $html .= '<div class="admin-client-msg-groups">';
 
     foreach ($groups as $group => $label) {
         $html .= '<div class="admin-client-msg-group">';
@@ -438,6 +439,8 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
         }
         $html .= '</div></div>';
     }
+
+    $html .= '</div>';
 
     if (!$hasEmail) {
         $html .= '<p class="muted">E-pasta sūtīšanai ieslēdz SMTP <a href="settings.php">Iestatījumos</a>.</p>';
