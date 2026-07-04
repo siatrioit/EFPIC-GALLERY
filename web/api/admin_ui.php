@@ -2094,7 +2094,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         }
         $gt = (string) ($meta['gallery_token'] ?? '');
         $portal = (string) ($meta['client_access']['portal_token'] ?? '');
-        $body .= '<div class="admin-links">';
+        $body .= '<div class="admin-tab-panel-grid admin-tab-panel-grid--pamati-top">';
+        $body .= '<div class="admin-links admin-links-panel">';
+        $body .= '<h3 class="admin-panel-box-title">Saites</h3>';
         $body .= '<p class="admin-links-row" id="admin-public-link-row" data-gallery-token="' . efpic_admin_esc($gt) . '"><strong>Publiska saite:</strong> '
             . efpic_admin_render_link_row(efpic_gallery_view_url($config, $gt)) . '</p>';
         $body .= '<p class="admin-regenerate-link-row"><button type="button" class="btn admin-btn-sm" id="admin-regenerate-public-link" data-confirm="'
@@ -2116,6 +2118,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_dimensions_debug_line($meta);
         $body .= '</div>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
+        $body .= '</div>';
     }
 
     if (!$isEdit) {

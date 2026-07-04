@@ -601,7 +601,6 @@
 }
 
 .admin-tab-panel-grid > .admin-fieldset-full,
-.admin-tab-panel-grid > .admin-links,
 .admin-tab-panel-grid > .admin-warn,
 .admin-tab-panel-grid > p {
   grid-column: 1 / -1;
@@ -612,7 +611,8 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .admin-tab-panel-grid > .admin-fieldset-compact {
+  .admin-tab-panel-grid > .admin-fieldset-compact,
+  .admin-tab-panel-grid > .admin-links-panel {
     grid-column: span 1;
   }
 }
@@ -899,8 +899,18 @@
   font-size: 0.88rem;
 }
 
-.admin-links + #admin-face-search-panel {
-  margin-top: 0;
+.admin-links-panel {
+  margin-bottom: 0;
+  min-width: 0;
+}
+
+.admin-panel-box-title {
+  margin: 0 0 12px;
+  padding: 0 0 12px;
+  border-bottom: 1px solid var(--admin-border);
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--admin-text);
 }
 
 .admin-links {
