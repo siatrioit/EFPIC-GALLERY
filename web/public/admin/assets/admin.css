@@ -548,6 +548,52 @@
   grid-column: 1 / -1;
 }
 
+.admin-form-layout--pamati {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-form-layout--pamati > .admin-field-full {
+  width: 100%;
+}
+
+.admin-form-row {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.admin-form-row label,
+.admin-form-row .admin-field-block {
+  margin-bottom: 0;
+}
+
+@media (min-width: 800px) {
+  .admin-form-row--2 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .admin-form-row--3 {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 12.5rem) minmax(0, 12.5rem);
+  }
+}
+
+.admin-form-row .admin-field-block {
+  min-width: 0;
+}
+
+.admin-form-row .admin-field-date {
+  max-width: 12.5rem;
+}
+
+@media (min-width: 800px) {
+  .admin-form-row--3 .admin-field-date {
+    max-width: none;
+  }
+}
+
 .admin-tab-panel-grid {
   display: grid;
   gap: 16px;
@@ -750,6 +796,7 @@
 .admin-form fieldset > .admin-field-hint,
 .admin-form .admin-fieldset-body > .admin-field-hint,
 .admin-form-layout > .admin-field-hint,
+.admin-form-layout--pamati > .admin-field-hint,
 .admin-form fieldset > p.muted,
 .admin-form .admin-fieldset-body > p.muted,
 .admin-form-layout > p.muted {
@@ -850,6 +897,10 @@
   border-radius: var(--admin-radius);
   margin: 0 0 12px;
   font-size: 0.88rem;
+}
+
+.admin-links + #admin-face-search-panel {
+  margin-top: 0;
 }
 
 .admin-links {

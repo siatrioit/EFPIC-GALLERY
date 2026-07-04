@@ -2115,6 +2115,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         }
         $body .= efpic_admin_render_dimensions_debug_line($meta);
         $body .= '</div>';
+        $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
     }
 
     if (!$isEdit) {
@@ -2122,16 +2123,28 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     }
 
     $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-pamatinformacija"><legend>Pamatinformācija</legend>';
-    $body .= '<div class="admin-form-layout admin-form-layout--basic">';
-    $body .= '<label>Nosaukums<input name="name" required value="' . efpic_admin_esc((string) ($formMeta['name'] ?? '')) . '"></label>';
+    $body .= '<div class="admin-form-layout admin-form-layout--pamati">';
     if (!$isEdit) {
-        $body .= '<label>Slug (URL)<input name="slug" placeholder="pasakuma-foto"></label>';
+        $body .= '<label class="admin-field-full">Slug (URL)<input name="slug" placeholder="pasakuma-foto"></label>';
     }
     $eventDate = substr((string) ($formMeta['event_date'] ?? ''), 0, 10);
     if ($eventDate === '' && !$isEdit) {
         $eventDate = date('Y-m-d');
     }
-    $body .= '<label>Datums (obligāts)<input name="event_date" type="date" required value="' . efpic_admin_esc($eventDate) . '"></label>';
+    $expiresVal = efpic_gallery_expires_at_value($formMeta) ?? '';
+    if ($expiresVal === '' && !$isEdit) {
+        $expiresVal = efpic_gallery_default_expires_at();
+    }
+    $body .= '<div class="admin-form-row admin-form-row--3">';
+    $body .= '<label>Nosaukums<input name="name" required value="' . efpic_admin_esc((string) ($formMeta['name'] ?? '')) . '"></label>';
+    $body .= '<label class="admin-field-date">Datums (obligāts)<input name="event_date" type="date" required value="' . efpic_admin_esc($eventDate) . '"></label>';
+    $body .= '<label class="admin-field-date">Pieejama līdz<input type="date" name="expires_at" value="' . efpic_admin_esc($expiresVal) . '"></label>';
+    $body .= '</div>';
+    $body .= '<div class="admin-form-row admin-form-row--2">';
+    $body .= '<label>Klienta tālrunis (WhatsApp)<input type="tel" name="client_phone" value="' . efpic_admin_esc((string) ($formMeta['client_access']['phone'] ?? '')) . '" placeholder="29123456"></label>';
+    $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
+    $body .= '</div>';
+    $body .= '<div class="admin-form-row admin-form-row--2">';
     $body .= efpic_admin_render_password_field(
         'Galerijas parole',
         'gallery_password',
@@ -2139,14 +2152,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         'Aizsargā publisko galeriju (/v/g/…). Ievadi jaunu paroli vai atzīmē «Noņemt».',
         efpic_gallery_has_password($formMeta),
     );
-    $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
-    $body .= '<label>Klienta tālrunis (WhatsApp)<input type="tel" name="client_phone" value="' . efpic_admin_esc((string) ($formMeta['client_access']['phone'] ?? '')) . '" placeholder="29123456"></label>';
-    $expiresVal = efpic_gallery_expires_at_value($formMeta) ?? '';
-    if ($expiresVal === '' && !$isEdit) {
-        $expiresVal = efpic_gallery_default_expires_at();
-    }
-    $body .= '<label>Pieejama līdz<input type="date" name="expires_at" value="' . efpic_admin_esc($expiresVal) . '"></label>';
-    $body .= '<p class="admin-field-hint admin-fieldset-full">Jaunām galerijām noklusējums ir 12 mēneši. Pēc termiņa galerija vairs nav pieejama.</p>';
     $body .= efpic_admin_render_password_field(
         'Klienta paneļa parole',
         'client_password',
@@ -2154,6 +2159,8 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         'Aizsargā klienta paneli (/c/p/…). Ievadi jaunu paroli vai atzīmē «Noņemt».',
         efpic_client_portal_has_password($formMeta),
     );
+    $body .= '</div>';
+    $body .= '<p class="admin-field-hint admin-field-full">Jaunām galerijām noklusējums ir 12 mēneši. Pēc termiņa galerija vairs nav pieejama.</p>';
     $body .= '</div></fieldset>';
 
     if ($isEdit && is_array($meta)) {
@@ -2170,7 +2177,10 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         ]);
         $body .= '<p class="admin-field-hint">Pēc noklusējuma izslēgts. Kad ieslēgts, apmeklētāji ar vārdu un e-pastu var veidot vairākas izlases, '
             . 'saņemt saiti turpināšanai un pieprasīt ZIP lejupielādi uz e-pastu. '
-            . 'Ja klients panelī kaut ko paslēpj, izlase automātiski izslēdzas.</p>';
+            . 'Paslēptās bildes publiskajā skatā nav redzamas un nevar tikt pievienotas izlasei.</p>';
+        if ($collectionOn) {
+            $body .= '<p class="admin-ok">Izlase ir aktīva — publiskajā galerijā pie bildēm parādās aplītis (augšējā kreisajā stūrī).</p>';
+        }
         $body .= '</fieldset>';
         $sectionLabels = [
             'images' => 'Bildes',
@@ -2214,11 +2224,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
     }
 
-    if ($isEdit && is_array($meta) && $slug !== null) {
-        $body .= '<div class="admin-tab-panel-grid">';
-    }
-
-    $body .= '<fieldset class="admin-fieldset-full' . ($isEdit ? ' admin-fieldset-compact' : '') . '" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
+    $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
     $body .= '<div class="admin-form-layout admin-form-layout--failiem admin-form-layout--pairs">';
     $body .= '<p class="muted admin-fieldset-full">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
     $body .= '<label class="admin-fieldset-full">Galvenā mape (AI meklēšanai, opcija)<input name="folder_parent_url" value="'
@@ -2226,11 +2232,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Mapes pilns<input name="folder_full_url" value="' . efpic_admin_esc((string) ($failiem['folder_full_url'] ?? '')) . '"></label>';
     $body .= '<label>Mapes web<input name="folder_web_url" value="' . efpic_admin_esc((string) ($failiem['folder_web_url'] ?? '')) . '"></label>';
     $body .= '</div></fieldset>';
-
-    if ($isEdit && is_array($meta) && $slug !== null) {
-        $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
-        $body .= '</div>';
-    }
 
     if ($isEdit) {
         $body .= efpic_admin_tab_panel_close();

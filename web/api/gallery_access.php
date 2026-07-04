@@ -1252,14 +1252,10 @@ function efpic_gallery_public_collection_enabled(array $meta): bool
     return !empty(efpic_gallery_settings($meta)['enable_public_collection']);
 }
 
-/** Vai apmeklētāji drīkst lietot izlasi (admin ieslēdzis un klients neko nav paslēpis). */
+/** Vai apmeklētāji drīkst lietot izlasi (admin ieslēdzis). Paslēptās bildes tāpat nav redzamas publiski. */
 function efpic_can_use_public_collection(array $meta): bool
 {
-    if (!efpic_gallery_public_collection_enabled($meta)) {
-        return false;
-    }
-
-    return !efpic_gallery_has_client_content_filtering($meta);
+    return efpic_gallery_public_collection_enabled($meta);
 }
 
 /** Vai klients ir paslēpis vismaz vienu bildi vai sadaļu (tad nav bulk ZIP). */
