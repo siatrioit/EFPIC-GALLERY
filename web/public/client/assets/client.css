@@ -1456,22 +1456,29 @@ input[type="password"],
   padding: 10px 12px;
   border: 1px solid var(--border);
   border-radius: 10px;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  min-height: 44px;
 }
 
 .visitor-collection-item.is-editing {
   align-items: stretch;
+  flex-wrap: wrap;
 }
 
 .visitor-collection-item-main {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1 1 160px;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow: hidden;
+}
+
+.visitor-collection-item.is-editing .visitor-collection-item-main {
+  flex: 1 1 100%;
 }
 
 .visitor-collection-item-label {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   font-size: 0.9rem;
   font-weight: 500;
   color: var(--text);
@@ -1480,6 +1487,9 @@ input[type="password"],
   background: none;
   border: none;
   cursor: default;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .visitor-collection-item-label.is-editable {
@@ -1495,10 +1505,27 @@ input[type="password"],
 
 .visitor-collection-item-actions {
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  flex-shrink: 0;
   align-items: center;
   justify-content: flex-end;
+}
+
+.visitor-collection-activate-btn {
+  width: auto;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  background: var(--surface, #f3f4f6);
+  color: var(--text);
+  border: 1px solid var(--border);
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.visitor-collection-item.is-editing .visitor-collection-item-actions {
+  margin-left: auto;
 }
 
 .visitor-collection-rename-btn,

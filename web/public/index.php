@@ -42,6 +42,10 @@ try {
         efpic_handle_site_asset($config, 'signature');
     }
 
+    if (preg_match('#^/site/asset/([a-zA-Z0-9_.-]+)$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_site_asset_file($config, $m[1]);
+    }
+
     if ($uri === '/api/galleries' && $method === 'POST') {
         efpic_handle_create_gallery($config);
     }

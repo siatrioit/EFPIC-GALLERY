@@ -580,6 +580,69 @@ function efpic_handle_site_asset(array $config, string $kind): void
     exit;
 }
 
+function efpic_sanitize_email_signature_html(string $html): string
+{
+    $html = trim($html);
+    if ($html === '' || $html === '<p><br></p>' || $html === '<p></p>') {
+        return '';
+    }
+    $allowed = '<p><br><b><strong><i><em><u><a><img><span><div><ul><ol><li><h1><h2><h3>';
+    $html = strip_tags($html, $allowed);
+    $html = preg_replace('/\s+on\w+\s*=\s*("[^"]*"|\'[^\']*\'|[^\s>]+)/i', '', $html) ?? $html;
+    $html = preg_replace('/javascript:/i', '', $html) ?? $html;
+
+    return trim($html);
+}
+
+function efpic_html_to_plain_text(string $html): string
+{
+    $html = preg_replace('/<br\s*\/?>/i', "\n", $html) ?? $html;
+    $html = preg_replace('/<\/(p|div|li|h[1-6])>/i', "\n", $html) ?? $html;
+    $text = html_entity_decode(strip_tags($html), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    $text = preg_replace("/\n{3,}/", "\n\n", $text) ?? $text;
+
+    return trim($text);
+}
+
+function efpic_site_asset_public_url(array $config, string $filename): string
+{
+    $filename = basename($filename);
+    if ($filename === '') {
+        return '';
+    }
+
+    return efpic_base_url($config) . '/site/asset/' . rawurlencode($filename);
+}
+
+function efpic_handle_site_asset_file(array $config, string $filename): void
+{
+    $path = efpic_site_asset_path($config, $filename);
+    if (!is_file($path)) {
+        http_response_code(404);
+        exit;
+    }
+    $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+    $mime = match ($ext) {
+        'png' => 'image/png',
+        'jpg', 'jpeg' => 'image/jpeg',
+        'webp' => 'image/webp',
+        'gif' => 'image/gif',
+        'ico' => 'image/x-icon',
+        default => 'application/octet-stream',
+    };
+    header('Content-Type: ' . $mime);
+    header('Cache-Control: public, max-age=86400');
+    readfile($path);
+    exit;
+}
+
+function efpic_store_signature_editor_image(array $config, array $file): string
+{
+    $name = 'sig_' . bin2hex(random_bytes(8));
+
+    return efpic_store_site_asset($config, $file, ['png', 'jpg', 'jpeg', 'webp', 'gif'], $name);
+}
+
 function efpic_json_response(int $code, array $data): void
 {
     http_response_code($code);

@@ -8,6 +8,24 @@ $config = efpic_load_config();
 efpic_admin_handle_logout();
 efpic_admin_require_login($config);
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_GET['upload'] ?? '') === 'signature_image') {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        if (empty($_FILES['signature_image']['tmp_name']) || !is_uploaded_file((string) $_FILES['signature_image']['tmp_name'])) {
+            throw new InvalidArgumentException('Nav augšupielādēts attēls');
+        }
+        $filename = efpic_store_signature_editor_image($config, $_FILES['signature_image']);
+        echo json_encode([
+            'ok' => true,
+            'url' => efpic_site_asset_public_url($config, $filename),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    } catch (Throwable $e) {
+        http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'render_queue') {
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode(efpic_render_admin_monitor_payload($config), JSON_UNESCAPED_UNICODE);

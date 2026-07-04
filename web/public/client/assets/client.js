@@ -1380,7 +1380,7 @@
       if (coll.id !== activeId) {
         var btn = document.createElement('button');
         btn.type = 'button';
-        btn.className = 'btn';
+        btn.className = 'btn visitor-collection-activate-btn';
         btn.textContent = 'Aktivizēt';
         btn.setAttribute('data-visitor-activate', coll.id);
         actions.appendChild(btn);

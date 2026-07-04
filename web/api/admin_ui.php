@@ -79,8 +79,16 @@ function efpic_admin_icon_settings(): string
         . '</svg>';
 }
 
-function efpic_admin_layout(string $title, string $body, string $active = '', ?string $pageHeading = null, ?string $pageLead = null, array $config = []): void
-{
+function efpic_admin_layout(
+    string $title,
+    string $body,
+    string $active = '',
+    ?string $pageHeading = null,
+    ?string $pageLead = null,
+    array $config = [],
+    string $headExtra = '',
+    string $footExtra = '',
+): void {
     header('Content-Type: text/html; charset=utf-8');
     $heading = $pageHeading ?? $title;
     echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">';
@@ -90,7 +98,11 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     echo '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">';
     echo efpic_gallery_intro_fonts_google_link_tags();
     echo '<link rel="stylesheet" href="' . efpic_admin_esc(efpic_asset_url('/client/assets/client.css')) . '">';
-    echo '<link rel="stylesheet" href="' . efpic_admin_esc(efpic_asset_url('/admin/assets/admin.css')) . '"></head><body class="admin-body">';
+    echo '<link rel="stylesheet" href="' . efpic_admin_esc(efpic_asset_url('/admin/assets/admin.css')) . '">';
+    if ($headExtra !== '') {
+        echo $headExtra;
+    }
+    echo '</head><body class="admin-body">';
     echo '<div class="admin-shell">';
     echo '<button type="button" class="admin-sidebar-reopen" id="adminSidebarReopen" hidden aria-label="Atvērt izvēlni">';
     echo '<svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path fill="currentColor" d="M3 6h18v2H3V6zm0 5h18v2H3v-2zm0 5h18v2H3v-2z"/></svg>';
@@ -135,7 +147,11 @@ function efpic_admin_layout(string $title, string $body, string $active = '', ?s
     echo '</header>';
     echo '<main class="admin-main">' . $body . '</main></div></div>';
     echo '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/cover-theme.js')) . '" defer></script>';
-    echo '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/admin.js')) . '" defer></script></body></html>';
+    echo '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/admin.js')) . '" defer></script>';
+    if ($footExtra !== '') {
+        echo $footExtra;
+    }
+    echo '</body></html>';
     exit;
 }
 
@@ -2558,16 +2574,11 @@ function efpic_admin_save_settings_from_post(array $config): void
         $siteLogo = efpic_store_site_asset($config, $_FILES['site_logo'], ['png', 'jpg', 'jpeg', 'webp', 'ico', 'gif'], 'logo');
     }
     $sigImage = trim((string) ($existing['gallery_email_signature_image'] ?? ''));
-    if (
-        !empty($_FILES['gallery_email_signature_image']['tmp_name'])
-        && is_uploaded_file((string) $_FILES['gallery_email_signature_image']['tmp_name'])
-    ) {
-        $sigImage = efpic_store_site_asset(
-            $config,
-            $_FILES['gallery_email_signature_image'],
-            ['png', 'jpg', 'jpeg', 'webp', 'gif'],
-            'signature',
-        );
+    $signatureHtml = efpic_sanitize_email_signature_html((string) ($_POST['gallery_email_signature'] ?? ''));
+    if ($signatureHtml === '' && $sigImage !== '' && is_file(efpic_site_asset_path($config, $sigImage))) {
+        $signatureHtml = '<p><img src="'
+            . htmlspecialchars(efpic_site_signature_image_url($config), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '" alt=""></p>';
     }
 
     efpic_save_app_settings($config, [
@@ -2579,9 +2590,30 @@ function efpic_admin_save_settings_from_post(array $config): void
         'gallery_whatsapp' => efpic_admin_parse_gallery_whatsapp_settings_from_post(),
         'message_templates' => efpic_admin_parse_message_templates_from_post(),
         'site_logo' => $siteLogo,
-        'gallery_email_signature' => trim((string) ($_POST['gallery_email_signature'] ?? '')),
+        'gallery_email_signature' => $signatureHtml,
         'gallery_email_signature_image' => $sigImage,
     ]);
+}
+
+function efpic_admin_render_email_signature_editor(array $config, array $settings): string
+{
+    $signature = (string) ($settings['gallery_email_signature'] ?? '');
+    if ($signature === '' && efpic_site_signature_image_url($config) !== '') {
+        $signature = '<p><img src="' . efpic_admin_esc(efpic_site_signature_image_url($config)) . '" alt=""></p>';
+    }
+
+    $html = '<fieldset class="admin-fieldset-full"><legend>E-pasta paraksts</legend>';
+    $html .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem. Formatējiet kā Gmail — fonts, krāsas, saites, bildes.</p>';
+    $html .= '<div class="admin-signature-editor-wrap">';
+    $html .= '<div id="signatureEditor" class="admin-signature-editor"></div>';
+    $html .= '<input type="hidden" name="gallery_email_signature" id="galleryEmailSignatureInput" value="">';
+    $html .= '<script type="application/json" id="signatureEditorInitial">'
+        . json_encode($signature, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)
+        . '</script>';
+    $html .= '<script>window.EFPIC_SIGNATURE_UPLOAD_URL=' . json_encode('settings.php?upload=signature_image', JSON_UNESCAPED_SLASHES) . ';</script>';
+    $html .= '</div></fieldset>';
+
+    return $html;
 }
 
 function efpic_admin_settings_page(array $config): void
@@ -2630,17 +2662,7 @@ function efpic_admin_settings_page(array $config): void
     $body .= '<p class="muted">Attiecas uz visām tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
     $body .= '</fieldset>';
     $body .= efpic_admin_render_gallery_email_settings_fieldset($settings);
-    $sigText = (string) ($settings['gallery_email_signature'] ?? '');
-    $sigImageUrl = efpic_site_signature_image_url($config);
-    $body .= '<fieldset class="admin-fieldset-full"><legend>E-pasta paraksts</legend>';
-    $body .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem (izlases saites, ZIP, klientu paziņojumi).</p>';
-    $body .= '<label>Paraksta teksts<textarea name="gallery_email_signature" rows="5" placeholder="Ar cieņu,' . "\n" . 'Edgars Pohevics">'
-        . efpic_admin_esc($sigText) . '</textarea></label>';
-    $body .= '<label>Paraksta bilde (neobligāta)<input type="file" name="gallery_email_signature_image" accept="image/png,image/jpeg,image/webp,image/gif"></label>';
-    if ($sigImageUrl !== '') {
-        $body .= '<p class="muted">Pašreizējā bilde: <img src="' . efpic_admin_esc($sigImageUrl) . '" alt="" style="max-height:80px;"></p>';
-    }
-    $body .= '</fieldset>';
+    $body .= efpic_admin_render_email_signature_editor($config, $settings);
     $body .= efpic_admin_render_gallery_whatsapp_settings_fieldset($settings);
     $body .= efpic_admin_render_message_templates_fieldset($config);
     if (efpic_gallery_email_ready($config)) {
@@ -2651,12 +2673,18 @@ function efpic_admin_settings_page(array $config): void
     $body .= efpic_admin_render_render_queue_panel($config);
     $body .= '</div></form>';
 
+    $quillCss = '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css">';
+    $quillJs = '<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>';
+    $quillJs .= '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/signature-editor.js')) . '"></script>';
+
     efpic_admin_layout(
         'Iestatījumi',
         $body,
         'settings',
         'Iestatījumi',
         'Globālie iestatījumi visām publiskajām galerijām (paraksts, režģa atstarpes, render rinda).',
-        $config
+        $config,
+        $quillCss,
+        $quillJs
     );
 }

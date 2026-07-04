@@ -64,9 +64,34 @@ function efpic_gallery_email_ready(array $config): bool
 
 function efpic_gallery_email_signature_text(array $config): string
 {
-    $settings = efpic_load_app_settings($config);
+    $html = efpic_gallery_email_signature_html($config);
+    if ($html === '') {
+        return '';
+    }
 
-    return trim((string) ($settings['gallery_email_signature'] ?? ''));
+    return efpic_html_to_plain_text($html);
+}
+
+function efpic_gallery_email_signature_html(array $config): string
+{
+    $settings = efpic_load_app_settings($config);
+    $raw = trim((string) ($settings['gallery_email_signature'] ?? ''));
+    if ($raw !== '') {
+        if (preg_match('/<[^>]+>/', $raw)) {
+            return efpic_sanitize_email_signature_html($raw);
+        }
+
+        return '<div>' . nl2br(htmlspecialchars($raw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
+    }
+
+    $legacyImage = efpic_site_signature_image_url($config);
+    if ($legacyImage !== '') {
+        $img = htmlspecialchars($legacyImage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+        return '<p><img src="' . $img . '" alt="" style="max-width:320px;height:auto;"></p>';
+    }
+
+    return '';
 }
 
 function efpic_gallery_email_with_signature(array $config, string $body): string
@@ -79,31 +104,34 @@ function efpic_gallery_email_with_signature(array $config, string $body): string
     return rtrim($body) . "\n\n--\n" . $signature;
 }
 
-function efpic_gallery_email_html_with_signature(array $config, string $plainBody, string $signatureImageUrl): string
+function efpic_gallery_email_html_body_with_signature(array $config, string $plainBody): string
 {
     $escaped = htmlspecialchars($plainBody, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.5;">'
+    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.5;color:#111;">'
         . nl2br($escaped, false) . '</div>';
-    $signature = efpic_gallery_email_signature_text($config);
-    $html .= '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-family:sans-serif;font-size:14px;">';
-    if ($signatureImageUrl !== '') {
-        $img = htmlspecialchars($signatureImageUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $html .= '<p style="margin:0 0 12px;"><img src="' . $img . '" alt="" style="max-width:320px;height:auto;"></p>';
-    }
+    $signature = efpic_gallery_email_signature_html($config);
     if ($signature !== '') {
-        $html .= '<div>' . nl2br(htmlspecialchars($signature, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
+        $html .= '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-family:sans-serif;font-size:14px;color:#111;">'
+            . $signature . '</div>';
     }
-    $html .= '</div>';
 
     return $html;
+}
+
+/** @deprecated */
+function efpic_gallery_email_html_with_signature(array $config, string $plainBody, string $signatureImageUrl): string
+{
+    unset($signatureImageUrl);
+
+    return efpic_gallery_email_html_body_with_signature($config, $plainBody);
 }
 
 function efpic_gallery_deliver_email(array $config, string $to, string $subject, string $body): void
 {
     $plainBody = efpic_gallery_email_with_signature($config, $body);
     $emailCfg = efpic_gallery_email_cfg($config);
-    $sigImageUrl = efpic_site_signature_image_url($config);
-    $htmlBody = $sigImageUrl !== '' ? efpic_gallery_email_html_with_signature($config, $body, $sigImageUrl) : null;
+    $signatureHtml = efpic_gallery_email_signature_html($config);
+    $htmlBody = $signatureHtml !== '' ? efpic_gallery_email_html_body_with_signature($config, $body) : null;
 
     if (!empty($emailCfg['use_php_mail'])) {
         $from = (string) ($emailCfg['from'] ?? '');

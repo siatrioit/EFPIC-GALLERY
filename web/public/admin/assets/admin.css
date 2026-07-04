@@ -3584,3 +3584,34 @@
   font-size: 0.85rem;
   opacity: 0.85;
 }
+
+.admin-signature-editor-wrap {
+  margin-top: 8px;
+}
+
+.admin-signature-editor-wrap .ql-toolbar.ql-snow {
+  border: 1px solid var(--admin-border, #d5d9e0);
+  border-radius: 10px 10px 0 0;
+  background: #f8f9fb;
+  font-family: inherit;
+}
+
+.admin-signature-editor-wrap .ql-container.ql-snow {
+  border: 1px solid var(--admin-border, #d5d9e0);
+  border-top: none;
+  border-radius: 0 0 10px 10px;
+  background: #fff;
+  min-height: 180px;
+  font-family: inherit;
+  font-size: 0.95rem;
+}
+
+.admin-signature-editor-wrap .ql-editor {
+  min-height: 160px;
+  line-height: 1.5;
+}
+
+.admin-signature-editor-wrap .ql-editor img {
+  max-width: 320px;
+  height: auto;
+}
