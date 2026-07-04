@@ -2612,6 +2612,7 @@
     var indexBtn = document.getElementById('admin-face-index-btn');
     var testBtn = document.getElementById('admin-face-test-btn');
     var clearBtn = document.getElementById('admin-face-clear-btn');
+    var failiemRefreshBtn = document.getElementById('admin-face-failiem-refresh-btn');
     var msg = document.getElementById('admin-face-index-msg');
     var testResult = document.getElementById('admin-face-test-result');
     var form = document.getElementById('admin-delivery-form');
@@ -2619,13 +2620,27 @@
 
     function updateFaceUi(data) {
       if (!data || !data.ok) return;
+      var label = document.getElementById('admin-face-status-label');
+      if (data.provider === 'failiem') {
+        var personCount = document.getElementById('admin-face-person-count');
+        var failiemHash = document.getElementById('admin-face-failiem-hash');
+        if (personCount) personCount.textContent = String(data.person_count || 0);
+        if (failiemHash) failiemHash.textContent = data.upload_hash || '';
+        if (label) {
+          label.textContent = data.ready
+            ? 'Gatavs (Failiem)'
+            : data.processing_error
+              ? 'Failiem kļūda'
+              : 'Gaida Failiem';
+        }
+        return;
+      }
       var stats = data.stats || data.index_stats || {};
       var indexed = document.getElementById('admin-face-indexed');
       var faces = document.getElementById('admin-face-count');
       var pending = document.getElementById('admin-face-pending');
       var queueEl = document.getElementById('admin-face-queue');
       var worker = document.getElementById('admin-face-worker');
-      var label = document.getElementById('admin-face-status-label');
       if (indexed) indexed.textContent = String(stats.indexed || 0);
       if (faces) faces.textContent = String(stats.total_faces || 0);
       if (pending) pending.textContent = String(stats.pending || 0);
@@ -2856,6 +2871,42 @@
           })
           .finally(function () {
             clearBtn.disabled = false;
+          });
+      });
+    }
+
+    if (failiemRefreshBtn && failiemRefreshBtn.dataset.bound !== '1') {
+      failiemRefreshBtn.dataset.bound = '1';
+      failiemRefreshBtn.addEventListener('click', function () {
+        failiemRefreshBtn.disabled = true;
+        if (msg) {
+          msg.hidden = false;
+          msg.textContent = 'Lasu no Failiem…';
+        }
+        var fd = new FormData();
+        fd.set('face_failiem_refresh_api', '1');
+        fetch(window.location.pathname + window.location.search, {
+          method: 'POST',
+          body: fd,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error((data && data.error) || 'Neizdevās');
+            updateFaceUi(data);
+            if (msg) {
+              msg.textContent =
+                'Personas: ' + String(data.person_count || 0) + (data.from_cache ? ' (kešs)' : ' (svaigi)');
+            }
+          })
+          .catch(function (err) {
+            if (msg) msg.textContent = (err && err.message) || 'Kļūda';
+          })
+          .finally(function () {
+            failiemRefreshBtn.disabled = false;
           });
       });
     }

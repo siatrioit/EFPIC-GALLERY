@@ -63,6 +63,8 @@ function efpic_gallery_face_search_defaults(): array
 {
     return [
         'enabled' => false,
+        'provider' => 'local',
+        'failiem_upload_hash' => '',
         'status' => 'none',
         'indexed_images' => 0,
         'total_faces' => 0,

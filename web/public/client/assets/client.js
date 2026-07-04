@@ -1297,7 +1297,12 @@
   });
 
   function initFaceSearch() {
-    if (!window.EFPIC_FACE_SEARCH_ENABLED || !window.EFPIC_FACE_SEARCH_URL) return;
+    if (!window.EFPIC_FACE_SEARCH_ENABLED) return;
+    if (window.EFPIC_FACE_SEARCH_MODE === 'failiem') {
+      initFacePersonSearch();
+      return;
+    }
+    if (!window.EFPIC_FACE_SEARCH_URL) return;
     var modal = document.getElementById('faceSearchModal');
     var openBtns = document.querySelectorAll('[data-face-search-open]');
     var closeBtns = document.querySelectorAll('[data-face-search-close]');
@@ -1442,6 +1447,194 @@
           })
           .finally(function () {
             submitBtn.disabled = !selectedFile;
+          });
+      });
+    }
+  }
+
+  function initFacePersonSearch() {
+    var personsUrl = window.EFPIC_FACE_PERSONS_URL || '';
+    var tokensUrl = window.EFPIC_FACE_PERSON_TOKENS_URL || '';
+    if (!personsUrl || !tokensUrl) return;
+    var modal = document.getElementById('facePersonModal');
+    var openBtns = document.querySelectorAll('[data-face-search-open]');
+    var closeBtns = document.querySelectorAll('[data-face-person-close]');
+    var grid = document.getElementById('facePersonGrid');
+    var statusEl = document.getElementById('facePersonStatus');
+    var applyBtn = document.getElementById('facePersonApply');
+    var deselectBtn = document.getElementById('facePersonDeselect');
+    var banner = document.getElementById('faceSearchBanner');
+    var bannerText = document.getElementById('faceSearchBannerText');
+    var clearBtn = document.getElementById('faceSearchClear');
+    var persons = [];
+    var selected = {};
+    var loaded = false;
+
+    function openModal() {
+      if (!modal) return;
+      modal.hidden = false;
+      document.body.classList.add('face-search-open');
+      if (!loaded) loadPersons();
+    }
+    function closeModal() {
+      if (!modal) return;
+      modal.hidden = true;
+      document.body.classList.remove('face-search-open');
+    }
+    openBtns.forEach(function (btn) {
+      btn.addEventListener('click', openModal);
+    });
+    closeBtns.forEach(function (btn) {
+      btn.addEventListener('click', closeModal);
+    });
+    if (modal) {
+      modal.addEventListener('click', function (evt) {
+        if (evt.target === modal) closeModal();
+      });
+    }
+
+    function updateSelectionUi() {
+      var count = Object.keys(selected).length;
+      if (applyBtn) applyBtn.disabled = count === 0;
+      if (deselectBtn) deselectBtn.disabled = count === 0;
+      if (!grid) return;
+      grid.querySelectorAll('[data-person-id]').forEach(function (el) {
+        var id = el.getAttribute('data-person-id') || '';
+        el.classList.toggle('selected', !!selected[id]);
+      });
+    }
+
+    function renderPersons() {
+      if (!grid) return;
+      grid.innerHTML = '';
+      persons.forEach(function (person) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'face-person-item';
+        btn.setAttribute('data-person-id', person.id);
+        btn.title = (person.photo_count || 0) + ' bildes';
+        var img = document.createElement('img');
+        img.src = person.thumb_url || '';
+        img.alt = '';
+        img.loading = 'lazy';
+        var count = document.createElement('span');
+        count.className = 'face-person-count';
+        count.textContent = String(person.photo_count || 0);
+        btn.appendChild(img);
+        btn.appendChild(count);
+        btn.addEventListener('click', function () {
+          if (selected[person.id]) delete selected[person.id];
+          else selected[person.id] = true;
+          updateSelectionUi();
+        });
+        grid.appendChild(btn);
+      });
+      updateSelectionUi();
+    }
+
+    function loadPersons() {
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.textContent = 'Ielādēju sejas…';
+      }
+      fetch(personsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error((data && data.error) || 'Kļūda');
+          loaded = true;
+          if (!data.processing_done) {
+            if (statusEl) statusEl.textContent = 'Failiem vēl indeksē sejas — mēģini vēlāk.';
+            return;
+          }
+          persons = data.persons || [];
+          if (persons.length === 0) {
+            if (statusEl) statusEl.textContent = 'Nav atrastu personu šajā galerijā.';
+            return;
+          }
+          if (statusEl) statusEl.hidden = true;
+          renderPersons();
+        })
+        .catch(function (err) {
+          if (statusEl) statusEl.textContent = (err && err.message) || 'Neizdevās ielādēt sejas';
+        });
+    }
+
+    function applyFaceFilter(tokens) {
+      var set = {};
+      tokens.forEach(function (t) {
+        set[t] = true;
+      });
+      document.querySelectorAll('[data-token]').forEach(function (el) {
+        var tok = el.getAttribute('data-token') || '';
+        if (tok === '') return;
+        el.classList.toggle('face-search-hidden', !set[tok]);
+      });
+      document.querySelectorAll('.scene-block').forEach(function (scene) {
+        var visible = scene.querySelector('[data-token]:not(.face-search-hidden)');
+        scene.classList.toggle('face-search-scene-empty', !visible);
+      });
+      if (banner && bannerText) {
+        bannerText.textContent = 'Rāda ' + tokens.length + ' bildes ar izvēlētajām sejām';
+        banner.hidden = tokens.length === 0;
+      }
+      closeModal();
+      if (banner && tokens.length > 0) {
+        banner.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+
+    function clearFaceFilter() {
+      document.querySelectorAll('.face-search-hidden').forEach(function (el) {
+        el.classList.remove('face-search-hidden');
+      });
+      document.querySelectorAll('.face-search-scene-empty').forEach(function (el) {
+        el.classList.remove('face-search-scene-empty');
+      });
+      if (banner) banner.hidden = true;
+      selected = {};
+      updateSelectionUi();
+    }
+
+    if (clearBtn) clearBtn.addEventListener('click', clearFaceFilter);
+    if (deselectBtn) {
+      deselectBtn.addEventListener('click', function () {
+        selected = {};
+        updateSelectionUi();
+      });
+    }
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function () {
+        var ids = Object.keys(selected);
+        if (ids.length === 0) return;
+        applyBtn.disabled = true;
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.textContent = 'Atlasu bildes…';
+        }
+        fetch(tokensUrl + '?ids=' + encodeURIComponent(ids.join(',')), {
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error((data && data.error) || 'Kļūda');
+            var tokens = data.tokens || [];
+            if (tokens.length === 0) {
+              if (statusEl) statusEl.textContent = 'Nav atrastu bildes (hash nesakrīt ar Failiem?).';
+              return;
+            }
+            if (statusEl) statusEl.hidden = true;
+            applyFaceFilter(tokens);
+          })
+          .catch(function (err) {
+            if (statusEl) statusEl.textContent = (err && err.message) || 'Kļūda';
+          })
+          .finally(function () {
+            applyBtn.disabled = Object.keys(selected).length === 0;
           });
       });
     }

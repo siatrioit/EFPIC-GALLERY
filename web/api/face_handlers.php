@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/face_index.php';
 require_once __DIR__ . '/image_dimensions.php';
 require_once __DIR__ . '/failiem_client.php';
+require_once __DIR__ . '/failiem_face.php';
 require_once __DIR__ . '/gallery_access.php';
 
 function efpic_handle_face_ping(array $config): void
@@ -306,17 +307,96 @@ function efpic_handle_client_face_status(array $config, string $galleryToken): v
     if (!efpic_gallery_face_search_enabled($meta)) {
         efpic_json_response(200, ['ok' => true, 'enabled' => false]);
     }
+    if (efpic_gallery_face_search_uses_failiem($meta)) {
+        $failiem = efpic_failiem_face_admin_status($config, $slug, $meta);
+        efpic_json_response(200, array_merge(['ok' => true, 'enabled' => true], $failiem));
+
+        return;
+    }
     $fs = efpic_gallery_face_search($meta);
     $stats = efpic_face_index_stats($config, $slug, $meta);
     efpic_json_response(200, [
         'ok' => true,
         'enabled' => true,
+        'provider' => 'local',
         'status' => (string) ($fs['status'] ?? 'none'),
         'indexed_images' => $stats['indexed'],
         'total_faces' => $stats['total_faces'],
         'pending_images' => $stats['pending'],
         'ready' => ($fs['status'] ?? '') === 'ready' && $stats['pending'] <= 0,
     ]);
+}
+
+function efpic_handle_client_face_persons(array $config, string $galleryToken): void
+{
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    if (!efpic_gallery_face_search_enabled($meta) || !efpic_gallery_face_search_uses_failiem($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $ctx = efpic_viewer_context($config, $meta);
+    $refresh = (($_GET['refresh'] ?? '') === '1');
+    $payload = efpic_failiem_face_public_persons($config, $slug, $meta, $ctx, $refresh);
+    efpic_json_response(200, $payload);
+}
+
+function efpic_handle_client_face_person_tokens(array $config, string $galleryToken): void
+{
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    if (!efpic_gallery_face_search_enabled($meta) || !efpic_gallery_face_search_uses_failiem($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $rawIds = trim((string) ($_GET['ids'] ?? ''));
+    if ($rawIds === '') {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_ids']);
+    }
+    $personIds = array_values(array_filter(array_map('trim', explode(',', $rawIds)), static fn ($id) => $id !== ''));
+    if ($personIds === []) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_ids']);
+    }
+    $ctx = efpic_viewer_context($config, $meta);
+    $bundle = efpic_failiem_face_fetch_bundle($config, $slug, $meta);
+    if (empty($bundle['ok'])) {
+        efpic_json_response(502, ['ok' => false, 'error' => (string) ($bundle['error'] ?? 'failiem_error')]);
+    }
+    $tokens = efpic_failiem_face_tokens_for_persons(
+        $meta,
+        $ctx,
+        $personIds,
+        is_array($bundle['person_images'] ?? null) ? $bundle['person_images'] : [],
+        is_array($bundle['person_images_ids_hashes'] ?? null) ? $bundle['person_images_ids_hashes'] : []
+    );
+    efpic_json_response(200, [
+        'ok' => true,
+        'count' => count($tokens),
+        'tokens' => $tokens,
+    ]);
+}
+
+/** @return array<string, mixed> */
+function efpic_admin_face_failiem_refresh(array $config, string $slug): array
+{
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        return ['ok' => false, 'error' => 'not_found'];
+    }
+    if (!efpic_gallery_face_search_uses_failiem($meta)) {
+        return ['ok' => false, 'error' => 'not_failiem'];
+    }
+    @unlink(efpic_failiem_face_cache_path($config, $slug));
+    efpic_failiem_face_fetch_bundle($config, $slug, $meta, true);
+    $status = efpic_failiem_face_admin_status($config, $slug, $meta);
+
+    return array_merge(['ok' => true], $status);
 }
 
 function efpic_admin_face_index_gallery(array $config, string $slug): array
@@ -402,40 +482,70 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
 {
     $fs = efpic_gallery_face_search($meta);
     $enabled = !empty($fs['enabled']);
+    $provider = (string) ($fs['provider'] ?? 'local');
+    $failiem = $provider === 'failiem';
     $stats = efpic_face_index_stats($config, $slug, $meta);
     $worker = efpic_face_worker_status($config);
     $queue = efpic_face_queue_stats_for_slug($config, $slug);
     $status = (string) ($fs['status'] ?? 'none');
-    $statusLabel = match ($status) {
-        'ready' => 'Gatavs',
-        'indexing', 'queued' => 'Indeksē…',
-        'failed' => 'Kļūda',
-        default => 'Nav indeksēts',
-    };
+    $failiemStatus = $failiem ? efpic_failiem_face_admin_status($config, $slug, $meta) : null;
+    $statusLabel = $failiem
+        ? (($failiemStatus['ready'] ?? false) ? 'Gatavs (Failiem)' : 'Gaida Failiem')
+        : match ($status) {
+            'ready' => 'Gatavs',
+            'indexing', 'queued' => 'Indeksē…',
+            'failed' => 'Kļūda',
+            default => 'Nav indeksēts',
+        };
 
     $html = '<fieldset class="admin-fieldset-full" id="admin-face-search-panel"><legend>Seju meklēšana</legend>';
     $html .= '<input type="hidden" name="face_search_enabled" value="0">';
-    $html .= efpic_render_admin_toggle('Ieslēgt «Atrodi sevi» publiskajā galerijā', $enabled, [
+    $html .= efpic_render_admin_toggle('Ieslēgt seju meklēšanu publiskajā galerijā', $enabled, [
         'name' => 'face_search_enabled',
         'value' => '1',
     ]);
-    $html .= '<p class="muted">Viesi var augšupielādēt selfiju un redzēt bildes, kurās viņi atrodas. '
-        . 'Indeksēšana notiek fonā caur Synology face worker (InsightFace).</p>';
+    $html .= '<p class="muted admin-face-provider">';
+    $html .= '<label><input type="radio" name="face_search_provider" value="local"'
+        . ($provider !== 'failiem' ? ' checked' : '') . '> Synology worker (selfijs)</label> ';
+    $html .= '<label><input type="radio" name="face_search_provider" value="failiem"'
+        . ($failiem ? ' checked' : '') . '> Failiem (tests — personu saraksts)</label>';
+    $html .= '</p>';
+    if ($failiem) {
+        $html .= '<p class="muted">Izmanto Failiem mapes seju indeksu. Viesi izvēlas seju no saraksta (bez selfija). '
+            . 'Web mapes hash: <code>' . efpic_admin_esc(efpic_failiem_face_upload_hash($meta) ?: '—') . '</code></p>';
+        $html .= '<p class="muted"><label>Pārrakstīt Failiem mapes hash (tests): '
+            . '<input type="text" name="face_search_failiem_upload_hash" class="admin-input-sm" value="'
+            . efpic_admin_esc((string) ($fs['failiem_upload_hash'] ?? ''))
+            . '" placeholder="piem. 3zucdnkj8a"></label></p>';
+    } else {
+        $html .= '<p class="muted">Viesi var augšupielādēt selfiju un redzēt bildes, kurās viņi atrodas. '
+            . 'Indeksēšana notiek fonā caur Synology face worker (InsightFace).</p>';
+    }
     $html .= '<p class="muted admin-face-status" id="admin-face-status">Statuss: <strong id="admin-face-status-label">'
         . efpic_admin_esc($statusLabel) . '</strong>';
-    $html .= ' · indeksētas <strong id="admin-face-indexed">' . (int) $stats['indexed'] . '</strong>';
-    $html .= ' · sejas <strong id="admin-face-count">' . (int) $stats['total_faces'] . '</strong>';
-    if ($stats['pending'] > 0) {
-        $html .= ' · gaida <strong id="admin-face-pending">' . (int) $stats['pending'] . '</strong> bildes';
+    if ($failiem && is_array($failiemStatus)) {
+        $html .= ' · personas <strong id="admin-face-person-count">' . (int) ($failiemStatus['person_count'] ?? 0) . '</strong>';
+        $html .= ' · hash <strong id="admin-face-failiem-hash">' . efpic_admin_esc((string) ($failiemStatus['upload_hash'] ?? '')) . '</strong>';
+    } else {
+        $html .= ' · indeksētas <strong id="admin-face-indexed">' . (int) $stats['indexed'] . '</strong>';
+        $html .= ' · sejas <strong id="admin-face-count">' . (int) $stats['total_faces'] . '</strong>';
+        if ($stats['pending'] > 0) {
+            $html .= ' · gaida <strong id="admin-face-pending">' . (int) $stats['pending'] . '</strong> bildes';
+        }
+        $html .= ' · rindā <strong id="admin-face-queue">' . (int) $queue['total'] . '</strong> jobi';
+        $html .= ' · worker: <strong id="admin-face-worker">' . efpic_admin_esc($worker['status_label']) . '</strong>';
     }
-    $html .= ' · rindā <strong id="admin-face-queue">' . (int) $queue['total'] . '</strong> jobi';
-    $html .= ' · worker: <strong id="admin-face-worker">' . efpic_admin_esc($worker['status_label']) . '</strong></p>';
+    $html .= '</p>';
     if (($fs['error'] ?? '') !== '') {
         $html .= '<p class="err" id="admin-face-error">' . efpic_admin_esc((string) $fs['error']) . '</p>';
     }
-    $html .= '<button type="button" class="btn admin-btn-sm" id="admin-face-index-btn">Indeksēt / turpināt</button>';
-    $html .= ' <button type="button" class="btn admin-btn-sm" id="admin-face-test-btn">Pārbaudīt NAS</button>';
-    $html .= ' <button type="button" class="btn admin-btn-sm admin-btn-danger" id="admin-face-clear-btn">Notīrīt rindu</button>';
+    if ($failiem) {
+        $html .= '<button type="button" class="btn admin-btn-sm" id="admin-face-failiem-refresh-btn">Atsvaidzināt no Failiem</button>';
+    } else {
+        $html .= '<button type="button" class="btn admin-btn-sm" id="admin-face-index-btn">Indeksēt / turpināt</button>';
+        $html .= ' <button type="button" class="btn admin-btn-sm" id="admin-face-test-btn">Pārbaudīt NAS</button>';
+        $html .= ' <button type="button" class="btn admin-btn-sm admin-btn-danger" id="admin-face-clear-btn">Notīrīt rindu</button>';
+    }
     $html .= ' <span class="admin-face-index-msg muted" id="admin-face-index-msg" hidden></span>';
     $html .= '<div class="admin-face-test-result muted" id="admin-face-test-result" hidden></div>';
     $html .= '</fieldset>';
@@ -450,12 +560,35 @@ function efpic_apply_face_search_from_post(array &$meta): void
     }
     $wasEnabled = !empty($meta['face_search']['enabled']);
     $meta['face_search']['enabled'] = efpic_post_flag_is_on('face_search_enabled');
-    if ($meta['face_search']['enabled'] && !$wasEnabled && ($meta['face_search']['status'] ?? 'none') === 'none') {
+    $provider = trim((string) ($_POST['face_search_provider'] ?? 'local'));
+    $meta['face_search']['provider'] = $provider === 'failiem' ? 'failiem' : 'local';
+    $meta['face_search']['failiem_upload_hash'] = efpic_failiem_parse_folder_hash(
+        trim((string) ($_POST['face_search_failiem_upload_hash'] ?? ''))
+    );
+    if ($meta['face_search']['provider'] === 'failiem') {
+        $meta['face_search']['status'] = 'ready';
+        $meta['face_search']['error'] = '';
+    } elseif ($meta['face_search']['enabled'] && !$wasEnabled && ($meta['face_search']['status'] ?? 'none') === 'none') {
         $meta['face_search']['status'] = 'queued';
     }
     if (!$meta['face_search']['enabled']) {
         $meta['face_search']['status'] = 'none';
     }
+}
+
+function efpic_client_render_face_person_modal(): string
+{
+    return '<div class="face-search-modal" id="facePersonModal" hidden>'
+        . '<div class="face-search-dialog face-person-dialog" role="dialog" aria-labelledby="facePersonTitle" aria-modal="true">'
+        . '<button type="button" class="face-search-close" data-face-person-close aria-label="Aizvērt">&times;</button>'
+        . '<h2 id="facePersonTitle">Meklēt pēc sejas</h2>'
+        . '<p class="muted">Izvēlies vienu vai vairākas sejas — parādīsim tikai attiecīgās fotogrāfijas.</p>'
+        . '<div class="face-person-grid" id="facePersonGrid" aria-live="polite"></div>'
+        . '<p class="face-search-status muted" id="facePersonStatus" hidden></p>'
+        . '<div class="face-person-actions">'
+        . '<button type="button" class="btn" id="facePersonDeselect" disabled>Noņemt izvēli</button>'
+        . '<button type="button" class="btn primary" id="facePersonApply" disabled>Rādīt bildes</button>'
+        . '</div></div></div>';
 }
 
 function efpic_client_render_face_search_modal(): string
@@ -481,6 +614,9 @@ function efpic_client_face_search_ready(array $config, string $slug, array $meta
     if (!efpic_gallery_face_search_enabled($meta)) {
         return false;
     }
+    if (efpic_gallery_face_search_uses_failiem($meta)) {
+        return efpic_failiem_face_upload_hash($meta) !== '';
+    }
     $fs = efpic_gallery_face_search($meta);
     if (($fs['status'] ?? '') !== 'ready') {
         return false;
@@ -488,4 +624,9 @@ function efpic_client_face_search_ready(array $config, string $slug, array $meta
     $stats = efpic_face_index_stats($config, $slug, $meta);
 
     return $stats['pending'] <= 0 && $stats['total_faces'] > 0;
+}
+
+function efpic_client_face_search_mode(array $meta): string
+{
+    return efpic_gallery_face_search_uses_failiem($meta) ? 'failiem' : 'selfie';
 }

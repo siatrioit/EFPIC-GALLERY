@@ -2953,3 +2953,60 @@ body.face-search-open {
 .scene-block.face-search-scene-empty {
   display: none !important;
 }
+
+.face-person-dialog {
+  max-width: min(520px, 94vw);
+}
+
+.face-person-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 10px;
+  max-height: min(52vh, 420px);
+  overflow: auto;
+  margin: 16px 0;
+  padding: 2px;
+}
+
+.face-person-item {
+  position: relative;
+  border: 2px solid transparent;
+  border-radius: 999px;
+  padding: 0;
+  width: 72px;
+  height: 72px;
+  overflow: hidden;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.06);
+}
+
+.face-person-item.selected {
+  border-color: var(--accent, #c9a227);
+  box-shadow: 0 0 0 2px rgba(201, 162, 39, 0.35);
+}
+
+.face-person-item img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.face-person-count {
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.65);
+  color: #fff;
+}
+
+.face-person-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+}

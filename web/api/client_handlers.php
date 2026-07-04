@@ -1439,8 +1439,13 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
     $body .= efpic_client_zip_progress_modal();
     $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
+    $faceSearchMode = $faceSearchReady ? efpic_client_face_search_mode($meta) : '';
     if ($faceSearchReady) {
-        $body .= efpic_client_render_face_search_modal();
+        if ($faceSearchMode === 'failiem') {
+            $body .= efpic_client_render_face_person_modal();
+        } else {
+            $body .= efpic_client_render_face_search_modal();
+        }
         $body .= '<div class="face-search-banner" id="faceSearchBanner" hidden>'
             . '<span id="faceSearchBannerText"></span>'
             . '<button type="button" class="btn admin-btn-sm" id="faceSearchClear">Rādīt visas</button></div>';
@@ -1466,8 +1471,9 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= '<button type="button" class="float-btn" data-share-open aria-label="Dalīties">';
         $body .= efpic_client_icon('share') . '<span>Dalīties</span></button>';
         if ($faceSearchReady) {
-            $body .= '<button type="button" class="float-btn" data-face-search-open aria-label="Atrodi sevi">';
-            $body .= '<span>☺</span><span>Atrodi sevi</span></button>';
+            $faceBtnLabel = $faceSearchMode === 'failiem' ? 'Sejas' : 'Atrodi sevi';
+            $body .= '<button type="button" class="float-btn" data-face-search-open aria-label="' . efpic_client_esc($faceBtnLabel) . '">';
+            $body .= '<span>☺</span><span>' . efpic_client_esc($faceBtnLabel) . '</span></button>';
         }
         if ($hasGalleryDl) {
             $body .= '<button type="button" class="float-btn" data-gallery-dl-open aria-label="Lejupielādēt">';
@@ -1488,7 +1494,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
         'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
-        'EFPIC_FACE_SEARCH_URL' => $faceSearchReady ? $galleryUrl . '/face-search' : '',
+        'EFPIC_FACE_SEARCH_MODE' => $faceSearchMode,
+        'EFPIC_FACE_SEARCH_URL' => $faceSearchReady && $faceSearchMode === 'selfie' ? $galleryUrl . '/face-search' : '',
+        'EFPIC_FACE_PERSONS_URL' => $faceSearchReady && $faceSearchMode === 'failiem' ? $galleryUrl . '/face-persons' : '',
+        'EFPIC_FACE_PERSON_TOKENS_URL' => $faceSearchReady && $faceSearchMode === 'failiem' ? $galleryUrl . '/face-persons/tokens' : '',
     ], $meta, $headExtra, null, $ctx);
 }
 

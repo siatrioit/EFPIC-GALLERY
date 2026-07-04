@@ -218,6 +218,14 @@ try {
         efpic_handle_client_face_status($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/face-persons/tokens$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_face_person_tokens($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/face-persons$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_face_persons($config, strtolower($m[1]));
+    }
+
     efpic_json_response(404, ['ok' => false, 'error' => 'not_found', 'path' => $uri]);
 } catch (Throwable $e) {
     efpic_json_response(500, [
