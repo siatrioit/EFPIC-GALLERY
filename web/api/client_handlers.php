@@ -1581,6 +1581,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             $body .= '<button type="button" class="float-btn" data-face-search-open aria-label="Sejas">';
             $body .= '<span>☺</span><span>Sejas</span></button>';
         }
+        if ($canPublicCollection) {
+            $body .= '<button type="button" class="float-btn" data-visitor-collection-open aria-label="Izlase">';
+            $body .= efpic_client_icon('pick-empty') . '<span>Izlase</span></button>';
+        }
         if ($hasGalleryDl) {
             $body .= '<button type="button" class="float-btn" data-gallery-dl-open aria-label="Lejupielādēt">';
             $body .= efpic_client_icon('download') . '<span>Lejupielādēt</span></button>';

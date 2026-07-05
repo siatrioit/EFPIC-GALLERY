@@ -1360,6 +1360,16 @@
     updateCollectionTray(count);
   }
 
+  function openVisitorCollectionEntry() {
+    if (!collectionEnabled) return;
+    pendingCollectionImageToken = '';
+    if (visitorState.authenticated) {
+      openVisitorManageModal();
+    } else {
+      openVisitorModal();
+    }
+  }
+
   function openVisitorModal() {
     if (!visitorModal) return;
     var nameInput = document.getElementById('visitorNameInput');
@@ -1918,6 +1928,12 @@
     if (manageOpen) {
       evt.preventDefault();
       openVisitorManageModal();
+    }
+    var collectionOpen =
+      evt.target && evt.target.closest ? evt.target.closest('[data-visitor-collection-open]') : null;
+    if (collectionOpen) {
+      evt.preventDefault();
+      openVisitorCollectionEntry();
     }
   });
 
