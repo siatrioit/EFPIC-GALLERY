@@ -1494,6 +1494,40 @@
       });
   }
 
+  function createFaceVisitorCollection(imageTokens) {
+    if (!visitorBaseUrl || !visitorState.authenticated) return Promise.resolve(null);
+    if (!imageTokens || !imageTokens.length) return Promise.resolve(null);
+    var body =
+      'image_tokens=' +
+      encodeURIComponent(imageTokens.join(',')) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    return fetch(visitorUrl('/collections/face'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          applyVisitorState({
+            authenticated: true,
+            visitor: { name: visitorState.name, email: visitorState.email },
+            active_collection: data.active_collection,
+            collections: data.collections,
+            active_tokens: data.active_tokens || {},
+          });
+          renderVisitorCollectionList();
+        }
+        return data;
+      });
+  }
+
   function addVisitorCollectionTokens(imageTokens) {
     if (!visitorBaseUrl || !visitorState.authenticated) return Promise.resolve(null);
     var collId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
@@ -2067,7 +2101,7 @@
         openVisitorModal();
         return;
       }
-      addVisitorCollectionTokens(tokens).then(function (data) {
+      createFaceVisitorCollection(tokens).then(function (data) {
         if (data && data.ok && faceFilterToolbar) {
           faceFilterToolbar.classList.add('is-added-to-collection');
           window.setTimeout(function () {

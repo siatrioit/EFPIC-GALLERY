@@ -427,6 +427,76 @@ function efpic_visitor_collection_add_tokens(
     ];
 }
 
+function efpic_visitor_face_collection_name(): string
+{
+    return 'Sejas izlase';
+}
+
+/**
+ * @param list<string> $imageTokens
+ * @return array{collection: array<string, mixed>, count: int}
+ */
+function efpic_visitor_create_face_collection(
+    array $config,
+    string $slug,
+    array &$meta,
+    array $ctx,
+    string $galleryToken,
+    string $visitorId,
+    array $imageTokens,
+): array {
+    $allowed = [];
+    foreach (efpic_client_navigable_images($meta, $ctx) as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $allowed[$tok] = true;
+        }
+    }
+    $tokens = [];
+    $seen = [];
+    foreach ($imageTokens as $token) {
+        $token = (string) $token;
+        if ($token === '' || !isset($allowed[$token]) || isset($seen[$token])) {
+            continue;
+        }
+        $seen[$token] = true;
+        $tokens[] = $token;
+    }
+    if ($tokens === []) {
+        throw new InvalidArgumentException('Nav pievienojamu bildes');
+    }
+
+    $data = efpic_visitor_collections_load($config, $slug);
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    if ($visitor === null) {
+        throw new RuntimeException('Apmeklētājs nav atrasts');
+    }
+
+    $name = efpic_visitor_face_collection_name();
+    $collectionId = efpic_visitor_create_collection_record($data, $visitorId, $name);
+    $data['collections'][$collectionId]['image_tokens'] = $tokens;
+    $data['collections'][$collectionId]['updated_at'] = gmdate('c');
+    efpic_visitor_collections_save($config, $slug, $data);
+    efpic_visitor_set_session($galleryToken, $visitorId, $collectionId);
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        'visitor_collection_create',
+        ($visitor['name'] ?? '') . ' izveidoja izlasi «' . $name . '» (' . count($tokens) . ' bildes)',
+        'visitor:' . ($visitor['email'] ?? ''),
+        ['visitor_id' => $visitorId, 'collection_id' => $collectionId, 'count' => count($tokens)],
+    );
+
+    return [
+        'collection' => $data['collections'][$collectionId],
+        'count' => count($tokens),
+    ];
+}
+
 /** @return array<string, true> */
 function efpic_visitor_active_collection_token_map(
     array $config,

@@ -126,6 +126,10 @@ try {
         efpic_handle_visitor_collection_create($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/face$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_face_collection_create($config, strtolower($m[1]));
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/activate$#i', $uri, $m) && $method === 'POST') {
         efpic_handle_visitor_collection_activate($config, strtolower($m[1]), $m[2]);
     }

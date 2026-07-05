@@ -171,6 +171,68 @@ function efpic_handle_visitor_collection_create(array $config, string $galleryTo
     ]);
 }
 
+function efpic_handle_visitor_face_collection_create(array $config, string $galleryToken): void
+{
+    efpic_csrf_require();
+    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    if ($ctxPack === null) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+    $session = efpic_visitor_session_state($galleryToken);
+    if ($session === null) {
+        efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
+    }
+
+    $raw = trim((string) ($_POST['image_tokens'] ?? ''));
+    if ($raw === '') {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_tokens']);
+    }
+    $requested = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn ($t) => $t !== ''));
+    if ($requested === []) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_tokens']);
+    }
+
+    try {
+        $result = efpic_visitor_create_face_collection(
+            $config,
+            $ctxPack['slug'],
+            $ctxPack['meta'],
+            $ctxPack['ctx'],
+            $galleryToken,
+            $session['visitor_id'],
+            $requested,
+        );
+    } catch (InvalidArgumentException $e) {
+        efpic_json_response(400, ['ok' => false, 'error' => $e->getMessage()]);
+    } catch (Throwable $e) {
+        efpic_json_response(500, ['ok' => false, 'error' => $e->getMessage()]);
+    }
+
+    $data = efpic_visitor_collections_load($config, $ctxPack['slug']);
+
+    efpic_json_response(200, [
+        'ok' => true,
+        'count' => $result['count'],
+        'active_collection' => efpic_visitor_collection_public_summary($result['collection']),
+        'collections' => array_map(static function (array $collection): array {
+            $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
+
+            return [
+                'id' => (string) ($collection['id'] ?? ''),
+                'name' => (string) ($collection['name'] ?? ''),
+                'count' => count($tokens),
+            ];
+        }, efpic_visitor_collections_for_visitor($data, $session['visitor_id'])),
+        'active_tokens' => efpic_visitor_active_collection_token_map(
+            $config,
+            $ctxPack['slug'],
+            $galleryToken,
+            $ctxPack['meta'],
+            $ctxPack['ctx'],
+        ),
+    ]);
+}
+
 function efpic_handle_visitor_collection_activate(array $config, string $galleryToken, string $collectionId): void
 {
     efpic_csrf_require();
