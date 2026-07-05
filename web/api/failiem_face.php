@@ -418,6 +418,49 @@ function efpic_failiem_face_navigable_tokens_for_person(
 }
 
 /**
+ * @return list<string>
+ */
+function efpic_failiem_face_tokens_without_faces(
+    array $meta,
+    array $ctx,
+    array $personImages,
+    array $personImagesIdsHashes,
+): array {
+    $allTokens = [];
+    foreach (efpic_client_navigable_images($meta, $ctx) as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $allTokens[$tok] = true;
+        }
+    }
+
+    $hashMap = efpic_failiem_face_hash_to_token_map($meta, $ctx);
+    $faceTokens = [];
+    foreach (array_keys($personImages) as $personId) {
+        foreach (efpic_failiem_face_navigable_tokens_for_person(
+            (string) $personId,
+            $personImages,
+            $personImagesIdsHashes,
+            $hashMap
+        ) as $tok) {
+            $faceTokens[$tok] = true;
+        }
+    }
+
+    $out = [];
+    foreach (array_keys($allTokens) as $tok) {
+        if (!isset($faceTokens[$tok])) {
+            $out[] = $tok;
+        }
+    }
+
+    return $out;
+}
+
+/**
  * @return array{
  *   ok: bool,
  *   ready: bool,

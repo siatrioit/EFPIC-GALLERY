@@ -74,6 +74,10 @@ try {
         efpic_handle_gallery_notifications_run($config);
     }
 
+    if ($uri === '/api/visitor-zip/run' && $method === 'POST') {
+        efpic_handle_visitor_zip_queue_run($config);
+    }
+
     if ($uri === '/api/booth-events' && $method === 'GET') {
         efpic_handle_list_booth_events($config);
     }
@@ -134,6 +138,14 @@ try {
         efpic_handle_visitor_all_collections_download_request($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/share/download-all$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_share_download_request($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/add-tokens$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_add_tokens($config, strtolower($m[1]), $m[2]);
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/download$#i', $uri, $m) && $method === 'POST') {
         efpic_handle_visitor_collection_download_request($config, strtolower($m[1]), $m[2]);
     }
@@ -148,6 +160,18 @@ try {
 
     if (preg_match('#^/c/p/([a-f0-9]{48})/download\.zip$#i', $uri, $m) && $method === 'GET') {
         efpic_portal_handle_download_zip($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/c/p/([a-f0-9]{48})/face-persons/tokens$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_portal_face_person_tokens($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/c/p/([a-f0-9]{48})/face-persons/no-face-tokens$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_portal_face_no_face_tokens($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/c/p/([a-f0-9]{48})/face-persons$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_portal_face_persons($config, strtolower($m[1]));
     }
 
     if (preg_match('#^/c/p/([a-f0-9]{48})$#i', $uri, $m) && ($method === 'GET' || $method === 'POST')) {
@@ -236,6 +260,10 @@ try {
 
     if (preg_match('#^/v/g/([a-f0-9]{48})/face-persons/tokens$#i', $uri, $m) && $method === 'GET') {
         efpic_handle_client_face_person_tokens($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/face-persons/no-face-tokens$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_face_no_face_tokens($config, strtolower($m[1]));
     }
 
     if (preg_match('#^/v/g/([a-f0-9]{48})/face-persons$#i', $uri, $m) && $method === 'GET') {

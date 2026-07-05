@@ -1747,6 +1747,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'client_email' => trim((string) ($_POST['client_email'] ?? '')),
             'client_phone' => trim((string) ($_POST['client_phone'] ?? '')),
             'client_password' => (string) ($_POST['client_password'] ?? ''),
+            'client_portal_enabled' => efpic_post_flag_is_on('client_portal_enabled'),
             'folder_parent_url' => trim((string) ($_POST['folder_parent_url'] ?? '')),
             'folder_full_url' => trim((string) ($_POST['folder_full_url'] ?? '')),
             'folder_web_url' => trim((string) ($_POST['folder_web_url'] ?? '')),
@@ -1836,6 +1837,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             efpic_apply_gallery_passwords_from_post($meta);
         }
         efpic_apply_client_portal_sections_from_post($meta);
+        efpic_apply_client_portal_enabled_from_post($meta);
 
         $meta['failiem']['folder_parent_url'] = trim((string) ($_POST['folder_parent_url'] ?? ''));
         $meta['failiem']['folder_parent_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_parent_url']);
@@ -2119,8 +2121,12 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '<p class="admin-regenerate-link-row"><button type="button" class="btn admin-btn-sm" id="admin-regenerate-public-link" data-confirm="'
             . efpic_admin_esc('Izveidot jaunu publisko saiti? Vecā saite un ar to saistītās kopīgošanas saites pārtraks darboties.')
             . '">Ģenerēt jaunu publisko saiti</button></p>';
-        $body .= '<p class="admin-links-row"><strong>Klienta panelis:</strong> '
-            . efpic_admin_render_link_row(efpic_portal_url($config, $portal)) . '</p>';
+        if (efpic_client_portal_enabled($meta)) {
+            $body .= '<p class="admin-links-row"><strong>Klienta panelis:</strong> '
+                . efpic_admin_render_link_row(efpic_portal_url($config, $portal)) . '</p>';
+        } else {
+            $body .= '<p class="admin-links-row muted"><strong>Klienta panelis:</strong> izslēgts — ieslēdz sadaļā «Klienta panelis».</p>';
+        }
         if (efpic_gallery_has_password($meta)) {
             $body .= '<p class="admin-warn">Galerijai ir <strong>parole</strong> — publiskajā saitē klientam tā jāievada, lai redzētu bildes.</p>';
         }
@@ -2164,6 +2170,18 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Klienta tālrunis (WhatsApp)<input type="tel" name="client_phone" value="' . efpic_admin_esc((string) ($formMeta['client_access']['phone'] ?? '')) . '" placeholder="29123456"></label>';
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '</div>';
+    $portalEnabled = $isEdit ? efpic_client_portal_enabled($formMeta) : true;
+    $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-fieldset-no-collapse admin-fieldset-full--portal-toggle">';
+    $body .= '<legend>Klienta panelis</legend>';
+    $body .= '<input type="hidden" name="client_portal_enabled" value="0">';
+    $body .= efpic_render_admin_toggle(
+        'Izveidot klienta paneli (/c/p/…)',
+        $portalEnabled,
+        ['name' => 'client_portal_enabled', 'value' => '1'],
+    );
+    $body .= '<p class="admin-field-hint">Ja klientam pietiek tikai ar publisko galerijas saiti, vari izslēgt — netiks ģenerēta atsevišķa paneļa saite un parole. '
+        . 'Vēlāk var ieslēgt rediģēšanā.</p>';
+    $body .= '</fieldset>';
     $body .= '<div class="admin-form-row admin-form-row--2">';
     $body .= efpic_admin_render_password_field(
         'Galerijas parole',
@@ -2209,19 +2227,23 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             'share' => 'Kopīgošana',
             'media' => 'Slideshow & video',
         ];
-        $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact" id="admin-fs-client-portal"><legend>Klienta panelis</legend>';
-        $body .= '<p class="admin-field-hint">Ieslēdz vai izslēdz sadaļas, ko klients redz savā panelī. «Iestatījumi» vienmēr ir pieejami.</p>';
-        foreach ($sectionLabels as $sectionKey => $sectionLabel) {
-            $body .= '<input type="hidden" name="client_portal_section_' . efpic_admin_esc($sectionKey) . '" value="0">';
-            $body .= efpic_render_admin_toggle('Rādīt: ' . $sectionLabel, !empty($portalSections[$sectionKey]), [
-                'name' => 'client_portal_section_' . $sectionKey,
-                'value' => '1',
+        $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact" id="admin-fs-client-portal"><legend>Klienta panela sadaļas</legend>';
+        if (!efpic_client_portal_enabled($meta)) {
+            $body .= '<p class="admin-warn">Klienta panelis ir izslēgts. Ieslēdz to sadaļā «Pamatinformācija», lai konfigurētu sadaļas.</p>';
+        } else {
+            $body .= '<p class="admin-field-hint">Ieslēdz vai izslēdz sadaļas, ko klients redz savā panelī. «Iestatījumi» vienmēr ir pieejami.</p>';
+            foreach ($sectionLabels as $sectionKey => $sectionLabel) {
+                $body .= '<input type="hidden" name="client_portal_section_' . efpic_admin_esc($sectionKey) . '" value="0">';
+                $body .= efpic_render_admin_toggle('Rādīt: ' . $sectionLabel, !empty($portalSections[$sectionKey]), [
+                    'name' => 'client_portal_section_' . $sectionKey,
+                    'value' => '1',
+                ]);
+            }
+            $body .= efpic_render_admin_toggle('Atļaut klienta komentārus pie bildēm', $commentsOn, [
+                'name' => 'client_comments_enabled',
             ]);
+            $body .= '<p class="admin-field-hint">Pēc noklusējuma izslēgts. Kad ieslēgts, klients var atstāt komentāru pie katras bildes panelī.</p>';
         }
-        $body .= efpic_render_admin_toggle('Atļaut klienta komentārus pie bildēm', $commentsOn, [
-            'name' => 'client_comments_enabled',
-        ]);
-        $body .= '<p class="admin-field-hint">Pēc noklusējuma izslēgts. Kad ieslēgts, klients var atstāt komentāru pie katras bildes panelī.</p>';
         $body .= '</fieldset>';
         $body .= '</div>';
         $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-activity-log"><legend>Aktivitāšu žurnāls</legend>';

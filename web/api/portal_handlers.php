@@ -5,6 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/client_handlers.php';
 require_once __DIR__ . '/gallery_assets.php';
 require_once __DIR__ . '/admin_ui.php';
+require_once __DIR__ . '/face_handlers.php';
 
 function efpic_portal_find_by_token(array $config, string $portalToken): ?array
 {
@@ -103,6 +104,9 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if ($found === null) {
         efpic_client_html('Nav atrasts', '<p class="feed-empty err">Panelis nav atrasts.</p>', $config, 'page-auth');
     }
+    if (!efpic_client_portal_enabled($found['meta'])) {
+        efpic_client_html('Nav pieejams', '<p class="feed-empty err">Klienta panelis šai galerijai nav ieslēgts.</p>', $config, 'page-auth');
+    }
 
     efpic_portal_require_auth($config, $portalToken, $found);
     $slug = $found['slug'];
@@ -141,6 +145,8 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
             );
         }
     }
+
+    efpic_visitor_zip_run_pending($config, 1);
 
     if ($method === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
         header('Content-Type: application/json; charset=utf-8');
@@ -415,6 +421,8 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if ($firstPanelId === null) {
         $firstPanelId = 'admin-tab-settings';
     }
+    $faceSearchReady = efpic_gallery_face_search_enabled($meta) && efpic_failiem_face_upload_hash($meta) !== '';
+    $portalBaseUrl = efpic_portal_url($config, $portalToken);
 
     $body = '<div class="admin-shell admin-shell--portal">';
     $body .= efpic_portal_render_sidebar($name, $config, $gt, $meta);
@@ -436,6 +444,12 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-edit-save">Saglabāt izlasi</button>';
         $body .= '<button type="button" class="btn admin-btn-sm" id="admin-share-edit-cancel">Atcelt</button>';
         $body .= '</div>';
+        if ($faceSearchReady) {
+            $body .= '<div class="portal-face-toolbar">';
+            $body .= '<button type="button" class="btn admin-btn-sm" data-face-search-open>Meklēt pēc sejas</button>';
+            $body .= efpic_client_render_face_filter_toolbar_panel();
+            $body .= '</div>';
+        }
         $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled);
         $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
         $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
@@ -516,11 +530,18 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     $body .= '</main></div></div>';
     $body .= efpic_client_zip_progress_modal();
+    if ($faceSearchReady) {
+        $body .= efpic_client_render_face_person_modal();
+    }
 
     efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta, [
         'EFPIC_PORTAL_DL_URL' => efpic_portal_url($config, $portalToken),
         'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
         'EFPIC_CSRF_TOKEN' => efpic_csrf_token(),
+        'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
+        'EFPIC_FACE_PERSONS_URL' => $faceSearchReady ? $portalBaseUrl . '/face-persons' : '',
+        'EFPIC_FACE_PERSON_TOKENS_URL' => $faceSearchReady ? $portalBaseUrl . '/face-persons/tokens' : '',
+        'EFPIC_FACE_NO_FACE_TOKENS_URL' => $faceSearchReady ? $portalBaseUrl . '/face-persons/no-face-tokens' : '',
     ]);
 }
 
@@ -738,6 +759,10 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
     @set_time_limit(0);
     $found = efpic_portal_find_by_token($config, $portalToken);
     if ($found === null) {
+        http_response_code(404);
+        exit;
+    }
+    if (!efpic_client_portal_enabled($found['meta'])) {
         http_response_code(404);
         exit;
     }

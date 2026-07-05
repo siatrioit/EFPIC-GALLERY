@@ -356,8 +356,53 @@ function efpic_client_portal_password_plain(array $meta): string
     return '';
 }
 
+function efpic_client_portal_enabled(array $meta): bool
+{
+    return trim((string) ($meta['client_access']['portal_token'] ?? '')) !== '';
+}
+
+function efpic_ensure_client_portal_token(array &$meta): string
+{
+    if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+        $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+    }
+    $token = trim((string) ($meta['client_access']['portal_token'] ?? ''));
+    if ($token === '') {
+        $token = efpic_random_hex(24);
+        $meta['client_access']['portal_token'] = $token;
+    }
+
+    return $token;
+}
+
+function efpic_disable_client_portal(array &$meta): void
+{
+    if (!isset($meta['client_access']) || !is_array($meta['client_access'])) {
+        $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
+    }
+    $meta['client_access']['portal_token'] = '';
+    $meta['client_access']['password'] = '';
+    $meta['client_access']['password_hash'] = '';
+}
+
+/** @param array<string, mixed> $meta */
+function efpic_apply_client_portal_enabled_from_post(array &$meta): void
+{
+    if (!array_key_exists('client_portal_enabled', $_POST)) {
+        return;
+    }
+    if (efpic_post_flag_is_on('client_portal_enabled')) {
+        efpic_ensure_client_portal_token($meta);
+    } else {
+        efpic_disable_client_portal($meta);
+    }
+}
+
 function efpic_client_portal_has_password(array $meta): bool
 {
+    if (!efpic_client_portal_enabled($meta)) {
+        return false;
+    }
     $access = $meta['client_access'] ?? [];
 
     return is_array($access) && trim((string) ($access['password_hash'] ?? '')) !== '';
@@ -404,6 +449,9 @@ function efpic_apply_gallery_passwords_from_post(array &$meta, bool $emptyClears
     if (array_key_exists('client_password', $_POST)) {
         $pw = trim((string) $_POST['client_password']);
         if ($pw !== '') {
+            if (!efpic_client_portal_enabled($meta)) {
+                efpic_ensure_client_portal_token($meta);
+            }
             efpic_set_client_portal_password($meta, $pw);
         } elseif ($emptyClears || !empty($_POST['remove_client_password'])) {
             efpic_set_client_portal_password($meta, '');
@@ -1286,6 +1334,9 @@ function efpic_can_download_all_gallery_zip(array $meta, array $ctx, string $siz
     if (!in_array($size, ['web', 'full'], true)) {
         return false;
     }
+    if (efpic_viewer_is_restricted_share($ctx)) {
+        return efpic_can_download_share_set_zip($meta, $ctx, $size);
+    }
     if (efpic_gallery_has_client_content_filtering($meta)) {
         return false;
     }
@@ -1315,6 +1366,16 @@ function efpic_can_download_collection_zip(array $meta, array $ctx, string $size
     }
 
     return in_array($size, ['web', 'full'], true) && efpic_can_download_size($meta, $ctx, $size);
+}
+
+/** Vai drīkst lejupielādēt kopīgojamās izlases bildes (viesu saite ar ?g=). */
+function efpic_can_download_share_set_zip(array $meta, array $ctx, string $size): bool
+{
+    if (!efpic_viewer_is_restricted_share($ctx)) {
+        return false;
+    }
+
+    return in_array(strtolower($size), ['web', 'full'], true) && efpic_can_download_size($meta, $ctx, $size);
 }
 
 function efpic_can_download_scene_zip(array $meta, array $ctx, string $size): bool

@@ -82,6 +82,125 @@ function efpic_handle_client_face_person_tokens(array $config, string $galleryTo
     ]);
 }
 
+function efpic_handle_client_face_no_face_tokens(array $config, string $galleryToken): void
+{
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    if (!efpic_gallery_face_search_enabled($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $ctx = efpic_viewer_context($config, $meta);
+    if (($ctx['role'] ?? '') === 'guest') {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $bundle = efpic_failiem_face_fetch_bundle($config, $slug, $meta);
+    if (empty($bundle['ok'])) {
+        efpic_json_response(502, ['ok' => false, 'error' => (string) ($bundle['error'] ?? 'failiem_error')]);
+    }
+    $tokens = efpic_failiem_face_tokens_without_faces(
+        $meta,
+        $ctx,
+        is_array($bundle['person_images'] ?? null) ? $bundle['person_images'] : [],
+        is_array($bundle['person_images_ids_hashes'] ?? null) ? $bundle['person_images_ids_hashes'] : [],
+    );
+    efpic_json_response(200, [
+        'ok' => true,
+        'count' => count($tokens),
+        'tokens' => $tokens,
+    ]);
+}
+
+function efpic_handle_portal_face_persons(array $config, string $portalToken): void
+{
+    $found = efpic_portal_find_by_token($config, $portalToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+    efpic_portal_require_auth($config, $portalToken, $found);
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    if (!efpic_gallery_face_search_enabled($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false];
+    $refresh = (($_GET['refresh'] ?? '') === '1');
+    $payload = efpic_failiem_face_public_persons($config, $slug, $meta, $ctx, $refresh);
+    efpic_json_response(200, $payload);
+}
+
+function efpic_handle_portal_face_person_tokens(array $config, string $portalToken): void
+{
+    $found = efpic_portal_find_by_token($config, $portalToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+    efpic_portal_require_auth($config, $portalToken, $found);
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    if (!efpic_gallery_face_search_enabled($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $rawIds = trim((string) ($_GET['ids'] ?? ''));
+    if ($rawIds === '') {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_ids']);
+    }
+    $personIds = array_values(array_filter(array_map('trim', explode(',', $rawIds)), static fn ($id) => $id !== ''));
+    if ($personIds === []) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_ids']);
+    }
+    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false];
+    $bundle = efpic_failiem_face_fetch_bundle($config, $slug, $meta);
+    if (empty($bundle['ok'])) {
+        efpic_json_response(502, ['ok' => false, 'error' => (string) ($bundle['error'] ?? 'failiem_error')]);
+    }
+    $tokens = efpic_failiem_face_tokens_for_persons(
+        $meta,
+        $ctx,
+        $personIds,
+        is_array($bundle['person_images'] ?? null) ? $bundle['person_images'] : [],
+        is_array($bundle['person_images_ids_hashes'] ?? null) ? $bundle['person_images_ids_hashes'] : [],
+    );
+    efpic_json_response(200, [
+        'ok' => true,
+        'count' => count($tokens),
+        'tokens' => $tokens,
+    ]);
+}
+
+function efpic_handle_portal_face_no_face_tokens(array $config, string $portalToken): void
+{
+    $found = efpic_portal_find_by_token($config, $portalToken);
+    if ($found === null) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
+    }
+    efpic_portal_require_auth($config, $portalToken, $found);
+    $meta = $found['meta'];
+    $slug = $found['slug'];
+    if (!efpic_gallery_face_search_enabled($meta)) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
+    }
+    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false];
+    $bundle = efpic_failiem_face_fetch_bundle($config, $slug, $meta);
+    if (empty($bundle['ok'])) {
+        efpic_json_response(502, ['ok' => false, 'error' => (string) ($bundle['error'] ?? 'failiem_error')]);
+    }
+    $tokens = efpic_failiem_face_tokens_without_faces(
+        $meta,
+        $ctx,
+        is_array($bundle['person_images'] ?? null) ? $bundle['person_images'] : [],
+        is_array($bundle['person_images_ids_hashes'] ?? null) ? $bundle['person_images_ids_hashes'] : [],
+    );
+    efpic_json_response(200, [
+        'ok' => true,
+        'count' => count($tokens),
+        'tokens' => $tokens,
+    ]);
+}
+
 /** @return array<string, mixed> */
 function efpic_admin_face_failiem_refresh(array $config, string $slug): array
 {
@@ -188,8 +307,11 @@ function efpic_client_render_face_person_modal(): string
         . '</div></div></div>';
 }
 
-function efpic_client_face_search_ready(array $config, string $slug, array $meta): bool
+function efpic_client_face_search_ready(array $config, string $slug, array $meta, array $ctx = []): bool
 {
+    if (($ctx['role'] ?? '') === 'guest') {
+        return false;
+    }
     if (!efpic_gallery_face_search_enabled($meta)) {
         return false;
     }

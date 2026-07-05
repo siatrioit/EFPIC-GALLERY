@@ -30,6 +30,7 @@ return [
     /**
      * Galeriju paziņojumi — e-pasts klientam, Telegram fotogrāfam, termiņa atgādinājumi.
      * Cron (vienreiz dienā): POST /api/gallery-notifications/run ar Authorization: Bearer {api_token}
+     * Cron (ik pēc vajadzības): POST /api/visitor-zip/run ar Authorization: Bearer {api_token}
      */
     'gallery_notifications' => [
         'enabled' => true,

@@ -133,6 +133,7 @@ function efpic_client_zip_progress_modal(): string
 
 function efpic_client_gallery_download_modal(array $meta, array $ctx): string
 {
+    $isShare = efpic_viewer_is_restricted_share($ctx);
     $canAllWeb = efpic_can_download_all_gallery_zip($meta, $ctx, 'web');
     $canAllFull = efpic_can_download_all_gallery_zip($meta, $ctx, 'full');
 
@@ -140,11 +141,20 @@ function efpic_client_gallery_download_modal(array $meta, array $ctx): string
         return '';
     }
 
+    $title = $isShare ? 'Lejupielādēt izlasi' : 'Lejupielāde';
+    $kicker = $isShare
+        ? 'Visas bildes šajā kopīgojamā izlasē'
+        : 'Visas bildes';
+    $hint = $isShare
+        ? '<p class="muted visitor-dl-hint">ZIP arhīvu sagatavosim fonā un nosūtīsim uz tavu e-pastu.</p>'
+        : '';
+
     $html = '<div class="modal-backdrop" id="galleryDownloadModal" hidden role="dialog" aria-labelledby="galleryDownloadModalTitle">';
     $html .= '<div class="modal"><button type="button" class="icon-btn modal-close" data-gdl-close aria-label="Aizvērt">';
     $html .= efpic_client_icon('close') . '</button>';
-    $html .= '<h2 id="galleryDownloadModalTitle">Lejupielāde</h2>';
-    $html .= '<p class="modal-kicker">Visas bildes</p>';
+    $html .= '<h2 id="galleryDownloadModalTitle">' . efpic_client_esc($title) . '</h2>';
+    $html .= '<p class="modal-kicker">' . efpic_client_esc($kicker) . '</p>';
+    $html .= $hint;
     $html .= '<div class="dl-size-row">';
     if ($canAllWeb) {
         $html .= '<a class="btn primary gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="web">WEB</a>';
@@ -1367,6 +1377,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     efpic_gallery_process_expiry_reminders($config);
+    efpic_visitor_zip_run_pending($config, 1);
 
     if ($method === 'POST' && isset($_POST['gallery_password'])) {
         if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
@@ -1480,7 +1491,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $sceneNavLinks = $usesSceneMain
         ? efpic_client_scene_jump_nav_links($config, $meta, $images, $ctx)
         : '';
-    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta);
+    $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta, $ctx);
     $useGalleryToolbar = $sceneNavLinks !== '' || $faceSearchReady;
     $toolbarExtraClass = $usesShell ? 'topbar-floating' : '';
     $body = '';
@@ -1599,6 +1610,11 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
         'EFPIC_FACE_PERSONS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons' : '',
         'EFPIC_FACE_PERSON_TOKENS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons/tokens' : '',
+        'EFPIC_FACE_NO_FACE_TOKENS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons/no-face-tokens' : '',
+        'EFPIC_IS_SHARE_LINK' => efpic_viewer_is_restricted_share($ctx),
+        'EFPIC_SHARE_DOWNLOAD_URL' => efpic_viewer_is_restricted_share($ctx) && $canPublicCollection
+            ? $galleryUrl . '/visitor/share/download-all'
+            : '',
     ], $meta, $headExtra, null, $ctx);
 }
 

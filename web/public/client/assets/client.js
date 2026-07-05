@@ -423,8 +423,13 @@
   document.querySelectorAll('[data-gdl-scope="all"][data-gdl-size]').forEach(function (btn) {
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
-      if (!gdlBase) return;
       var size = btn.getAttribute('data-gdl-size') || 'web';
+      if (window.EFPIC_IS_SHARE_LINK && window.EFPIC_SHARE_DOWNLOAD_URL) {
+        requestShareCollectionEmail(size);
+        closeGalleryDlModal();
+        return;
+      }
+      if (!gdlBase) return;
       startZipDownload('all', size);
     });
   });
@@ -1489,6 +1494,44 @@
       });
   }
 
+  function addVisitorCollectionTokens(imageTokens) {
+    if (!visitorBaseUrl || !visitorState.authenticated) return Promise.resolve(null);
+    var collId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
+    if (!collId || !imageTokens || !imageTokens.length) return Promise.resolve(null);
+    var body =
+      'image_tokens=' +
+      encodeURIComponent(imageTokens.join(',')) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    return fetch(visitorUrl('/collections/' + encodeURIComponent(collId) + '/add-tokens'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          if (data.active_collection) {
+            visitorState.activeCollection = data.active_collection;
+            visitorState.collections = (visitorState.collections || []).map(function (c) {
+              return c.id === data.active_collection.id ? data.active_collection : c;
+            });
+          }
+          if (data.active_tokens) {
+            visitorState.activeTokens = data.active_tokens;
+            applyActiveTokensFromMap(data.active_tokens);
+          }
+          updateCollectionTray(parseInt(data.count, 10) || 0);
+        }
+        return data;
+      });
+  }
+
   function toggleVisitorCollectionImage(imageToken) {
     if (!visitorBaseUrl || !visitorState.authenticated) return Promise.resolve(null);
     var collId = visitorState.activeCollection ? visitorState.activeCollection.id : '';
@@ -1592,7 +1635,7 @@
       return;
     }
     closeCollectionDlModal();
-    openZipProgressLoading('Sagatavo izlases…', 'Veido ZIP failus un nosūta uz e-pastu…');
+    openZipProgressLoading('Pieprasa…', 'Ievietojam ZIP sagatavošanu rindā…');
     var body =
       'size=' +
       encodeURIComponent(size) +
@@ -1614,11 +1657,56 @@
           setZipProgressUi({
             loading: false,
             success: true,
-            title: 'Nosūtīts!',
-            hint: data.message || 'Lejupielādes saite nosūtīta uz tavu e-pastu.',
+            title: 'ZIP tiek veidots',
+            hint:
+              data.message ||
+              'ZIP faili tiek veidoti fonā. Saņemsi e-pastu ar lejupielādes saiti, kad viss būs gatavs.',
           });
         } else {
-          showZipProgressError((data && data.error) || 'Neizdevās sagatavot lejupielādi.');
+          showZipProgressError((data && data.error) || 'Neizdevās pieprasīt lejupielādi.');
+        }
+      })
+      .catch(function () {
+        showZipProgressError('Neizdevās sazināties ar serveri.');
+      });
+  }
+
+  function requestShareCollectionEmail(size) {
+    var shareUrl = window.EFPIC_SHARE_DOWNLOAD_URL || '';
+    if (!shareUrl) return;
+    if (!visitorState.authenticated) {
+      openVisitorModal();
+      return;
+    }
+    openZipProgressLoading('Pieprasa…', 'Ievietojam ZIP sagatavošanu rindā…');
+    var body =
+      'size=' +
+      encodeURIComponent(size) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    fetch(shareUrl, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          setZipProgressUi({
+            loading: false,
+            success: true,
+            title: 'ZIP tiek veidots',
+            hint:
+              data.message ||
+              'ZIP ar visām izlases bildēm tiek veidots fonā. Saņemsi e-pastu, kad būs gatavs.',
+          });
+        } else {
+          showZipProgressError((data && data.error) || 'Neizdevās pieprasīt lejupielādi.');
         }
       })
       .catch(function () {
@@ -1851,6 +1939,7 @@
   function initFacePersonSearch() {
     var personsUrl = window.EFPIC_FACE_PERSONS_URL || '';
     var tokensUrl = window.EFPIC_FACE_PERSON_TOKENS_URL || '';
+    var noFaceTokensUrl = window.EFPIC_FACE_NO_FACE_TOKENS_URL || '';
     if (!personsUrl || !tokensUrl) return;
     var modal = document.getElementById('facePersonModal');
     var openBtns = document.querySelectorAll('[data-face-search-open]');
@@ -1867,6 +1956,7 @@
     var persons = [];
     var selected = {};
     var activeFilterPersonIds = [];
+    var activeFaceFilterTokens = [];
     var loaded = false;
     var faceFilterRestore = [];
 
@@ -1926,11 +2016,65 @@
           thumb.loading = 'lazy';
           faceFilterToolbarFaces.appendChild(thumb);
         });
+        if (personIds.length === 1 && personIds[0] === '__no_faces__') {
+          faceFilterToolbarFaces.innerHTML = '';
+          var noFaceDot = document.createElement('span');
+          noFaceDot.className = 'gallery-face-filter-face gallery-face-filter-face--empty';
+          noFaceDot.setAttribute('aria-hidden', 'true');
+          faceFilterToolbarFaces.appendChild(noFaceDot);
+        }
+        faceFilterToolbarFaces.classList.toggle(
+          'is-actionable',
+          collectionEnabled && imageCount > 0
+        );
       }
       if (faceFilterToolbarText) {
-        faceFilterToolbarText.textContent =
-          'Rāda ' + imageCount + ' bildes no izvēlētajām sejām';
+        if (personIds.length === 1 && personIds[0] === '__no_faces__') {
+          faceFilterToolbarText.textContent =
+            'Rāda ' + imageCount + ' bildes bez sejām';
+        } else {
+          faceFilterToolbarText.textContent =
+            'Rāda ' + imageCount + ' bildes no izvēlētajām sejām';
+        }
       }
+    }
+
+    function getVisibleFaceFilterTokens() {
+      var tokens = [];
+      getFaceFilterGalleryItems().forEach(function (el) {
+        if (el.classList.contains('face-search-hidden')) {
+          return;
+        }
+        var tok = el.getAttribute('data-token') || '';
+        if (tok) {
+          tokens.push(tok);
+        }
+      });
+      return tokens;
+    }
+
+    function addVisibleFaceFilterToCollection() {
+      if (!collectionEnabled) {
+        return;
+      }
+      var tokens = activeFaceFilterTokens.length
+        ? activeFaceFilterTokens.slice()
+        : getVisibleFaceFilterTokens();
+      if (!tokens.length) {
+        return;
+      }
+      if (!visitorState.authenticated) {
+        openVisitorModal();
+        return;
+      }
+      addVisitorCollectionTokens(tokens).then(function (data) {
+        if (data && data.ok && faceFilterToolbar) {
+          faceFilterToolbar.classList.add('is-added-to-collection');
+          window.setTimeout(function () {
+            faceFilterToolbar.classList.remove('is-added-to-collection');
+          }, 1200);
+        }
+      });
     }
 
     function updateSceneVisibility() {
@@ -1983,6 +2127,7 @@
 
     function applyFaceFilter(tokens, personIds) {
       restoreFaceFilterDom();
+      activeFaceFilterTokens = tokens.slice();
 
       var domTokens = getDomGalleryTokenSet();
       var allowed = tokens.filter(function (t) {
@@ -2053,6 +2198,29 @@
     function renderPersons() {
       if (!grid) return;
       grid.innerHTML = '';
+      if (noFaceTokensUrl) {
+        var noFaceBtn = document.createElement('button');
+        noFaceBtn.type = 'button';
+        noFaceBtn.className = 'face-person-item face-person-item--no-face';
+        noFaceBtn.setAttribute('data-person-id', '__no_faces__');
+        noFaceBtn.title = 'Bildes bez sejām';
+        var noFaceDot = document.createElement('span');
+        noFaceDot.className = 'face-person-no-face-dot';
+        noFaceBtn.appendChild(noFaceDot);
+        var noFaceLabel = document.createElement('span');
+        noFaceLabel.className = 'face-person-count face-person-no-face-label';
+        noFaceLabel.textContent = '0';
+        noFaceBtn.appendChild(noFaceLabel);
+        noFaceBtn.addEventListener('click', function () {
+          if (selected.__no_faces__) {
+            delete selected.__no_faces__;
+          } else {
+            selected = { __no_faces__: true };
+          }
+          updateSelectionUi();
+        });
+        grid.appendChild(noFaceBtn);
+      }
       persons.forEach(function (person) {
         var btn = document.createElement('button');
         btn.type = 'button';
@@ -2069,6 +2237,9 @@
         btn.appendChild(img);
         btn.appendChild(count);
         btn.addEventListener('click', function () {
+          if (selected.__no_faces__) {
+            delete selected.__no_faces__;
+          }
           if (selected[person.id]) delete selected[person.id];
           else selected[person.id] = true;
           updateSelectionUi();
@@ -2101,6 +2272,27 @@
           }
           if (statusEl) statusEl.hidden = true;
           renderPersons();
+          if (noFaceTokensUrl) {
+            fetch(noFaceTokensUrl, {
+              credentials: 'same-origin',
+              headers: { Accept: 'application/json' },
+            })
+              .then(function (res) {
+                return res.json();
+              })
+              .then(function (nfData) {
+                if (!nfData || !nfData.ok || !grid) return;
+                var label = grid.querySelector(
+                  '[data-person-id="__no_faces__"] .face-person-no-face-label'
+                );
+                if (label) {
+                  label.textContent = String((nfData.tokens || []).length);
+                }
+              })
+              .catch(function () {
+                /* ignore */
+              });
+          }
         })
         .catch(function (err) {
           if (statusEl) statusEl.textContent = (err && err.message) || 'Neizdevās ielādēt sejas';
@@ -2119,8 +2311,26 @@
       updateFaceFilterToolbar([], 0);
       selected = {};
       activeFilterPersonIds = [];
+      activeFaceFilterTokens = [];
       updateSelectionUi();
       scheduleMosaicRelayout();
+    }
+
+    if (faceFilterToolbarFaces) {
+      faceFilterToolbarFaces.addEventListener('click', function () {
+        if (!faceFilterToolbarFaces.classList.contains('is-actionable')) {
+          return;
+        }
+        addVisibleFaceFilterToCollection();
+      });
+    }
+    if (faceFilterToolbarText) {
+      faceFilterToolbarText.addEventListener('click', function () {
+        if (!faceFilterToolbar || faceFilterToolbar.hidden) {
+          return;
+        }
+        addVisibleFaceFilterToCollection();
+      });
     }
 
     if (clearBtn) clearBtn.addEventListener('click', clearFaceFilter);
@@ -2143,6 +2353,32 @@
         if (statusEl) {
           statusEl.hidden = false;
           statusEl.textContent = 'Atlasu bildes…';
+        }
+        if (ids.length === 1 && ids[0] === '__no_faces__') {
+          fetch(noFaceTokensUrl, {
+            credentials: 'same-origin',
+            headers: { Accept: 'application/json' },
+          })
+            .then(function (res) {
+              return res.json();
+            })
+            .then(function (data) {
+              if (!data || !data.ok) throw new Error((data && data.error) || 'Kļūda');
+              var tokens = data.tokens || [];
+              if (tokens.length === 0) {
+                if (statusEl) statusEl.textContent = 'Nav atrastu bildes bez sejām.';
+                return;
+              }
+              if (statusEl) statusEl.hidden = true;
+              applyFaceFilter(tokens, appliedPersonIds);
+            })
+            .catch(function (err) {
+              if (statusEl) statusEl.textContent = (err && err.message) || 'Kļūda';
+            })
+            .finally(function () {
+              applyBtn.disabled = false;
+            });
+          return;
         }
         fetch(tokensUrl + '?ids=' + encodeURIComponent(ids.join(',')), {
           credentials: 'same-origin',

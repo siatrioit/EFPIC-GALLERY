@@ -1153,6 +1153,313 @@
 
   initPortalGalleryDownload();
 
+  function initPortalFaceSearch() {
+    if (!window.EFPIC_FACE_SEARCH_ENABLED) return;
+    var personsUrl = window.EFPIC_FACE_PERSONS_URL || '';
+    var tokensUrl = window.EFPIC_FACE_PERSON_TOKENS_URL || '';
+    var noFaceTokensUrl = window.EFPIC_FACE_NO_FACE_TOKENS_URL || '';
+    if (!personsUrl || !tokensUrl || !imageGrid) return;
+
+    var modal = document.getElementById('facePersonModal');
+    var openBtns = document.querySelectorAll('[data-face-search-open]');
+    var closeBtns = document.querySelectorAll('[data-face-person-close]');
+    var grid = document.getElementById('facePersonGrid');
+    var statusEl = document.getElementById('facePersonStatus');
+    var applyBtn = document.getElementById('facePersonApply');
+    var deselectBtn = document.getElementById('facePersonDeselect');
+    var faceFilterToolbar = document.getElementById('faceSearchToolbar');
+    var faceFilterToolbarFaces = document.getElementById('faceSearchToolbarFaces');
+    var faceFilterToolbarText = document.getElementById('faceSearchToolbarText');
+    var clearBtn = document.getElementById('faceSearchClear');
+    var persons = [];
+    var selected = {};
+    var loaded = false;
+
+    function getPortalCards() {
+      return Array.prototype.slice.call(imageGrid.querySelectorAll('.admin-media-card[data-token]'));
+    }
+
+    function getPersonById(id) {
+      for (var i = 0; i < persons.length; i++) {
+        if (persons[i].id === id) return persons[i];
+      }
+      return null;
+    }
+
+    function getVisibleFaceTokens() {
+      var tokens = [];
+      getPortalCards().forEach(function (card) {
+        if (card.classList.contains('face-search-hidden') || card.hidden) return;
+        var tok = card.getAttribute('data-token') || '';
+        if (tok) tokens.push(tok);
+      });
+      return tokens;
+    }
+
+    function updateFaceFilterToolbar(personIds, imageCount) {
+      if (!faceFilterToolbar) return;
+      var active = personIds.length > 0 && imageCount > 0;
+      faceFilterToolbar.hidden = !active;
+      if (!active) {
+        if (faceFilterToolbarFaces) faceFilterToolbarFaces.innerHTML = '';
+        return;
+      }
+      if (faceFilterToolbarFaces) {
+        faceFilterToolbarFaces.innerHTML = '';
+        if (personIds.length === 1 && personIds[0] === '__no_faces__') {
+          var dot = document.createElement('span');
+          dot.className = 'gallery-face-filter-face gallery-face-filter-face--empty';
+          faceFilterToolbarFaces.appendChild(dot);
+        } else {
+          personIds.forEach(function (id) {
+            var person = getPersonById(id);
+            if (!person) return;
+            var thumb = document.createElement('img');
+            thumb.className = 'gallery-face-filter-face';
+            thumb.src = person.thumb_url || '';
+            thumb.alt = '';
+            thumb.loading = 'lazy';
+            faceFilterToolbarFaces.appendChild(thumb);
+          });
+        }
+        faceFilterToolbarFaces.classList.add('is-actionable');
+      }
+      if (faceFilterToolbarText) {
+        faceFilterToolbarText.textContent =
+          personIds.length === 1 && personIds[0] === '__no_faces__'
+            ? 'Rāda ' + imageCount + ' bildes bez sejām'
+            : 'Rāda ' + imageCount + ' bildes no izvēlētajām sejām';
+      }
+    }
+
+    function applyFaceFilter(tokens, personIds) {
+      var set = {};
+      tokens.forEach(function (t) {
+        set[t] = true;
+      });
+      getPortalCards().forEach(function (card) {
+        var tok = card.getAttribute('data-token') || '';
+        var show = !!set[tok];
+        card.classList.toggle('face-search-hidden', !show);
+        card.hidden = !show;
+      });
+      updateFaceFilterToolbar(personIds || [], tokens.length);
+      closeModal();
+    }
+
+    function clearFaceFilter() {
+      getPortalCards().forEach(function (card) {
+        card.classList.remove('face-search-hidden');
+        card.hidden = false;
+      });
+      updateFaceFilterToolbar([], 0);
+      selected = {};
+      updateSelectionUi();
+    }
+
+    function addVisibleFacePicks() {
+      var tokens = getVisibleFaceTokens();
+      if (!tokens.length) return;
+      if (shareEditMode) {
+        selectShareEditTokens(tokens);
+        return;
+      }
+      getPortalCards().forEach(function (card) {
+        if (card.classList.contains('face-search-hidden') || card.hidden) return;
+        setCardPicked(card, true);
+      });
+    }
+
+    function openModal() {
+      if (!modal) return;
+      modal.hidden = false;
+      document.body.classList.add('face-search-open');
+      if (!loaded) loadPersons();
+    }
+    function closeModal() {
+      if (!modal) return;
+      modal.hidden = true;
+      document.body.classList.remove('face-search-open');
+    }
+
+    function updateSelectionUi() {
+      var count = Object.keys(selected).length;
+      if (deselectBtn) deselectBtn.disabled = count === 0;
+      if (!grid) return;
+      grid.querySelectorAll('[data-person-id]').forEach(function (el) {
+        var id = el.getAttribute('data-person-id') || '';
+        el.classList.toggle('selected', !!selected[id]);
+      });
+    }
+
+    function renderPersons() {
+      if (!grid) return;
+      grid.innerHTML = '';
+      if (noFaceTokensUrl) {
+        var noFaceBtn = document.createElement('button');
+        noFaceBtn.type = 'button';
+        noFaceBtn.className = 'face-person-item face-person-item--no-face';
+        noFaceBtn.setAttribute('data-person-id', '__no_faces__');
+        noFaceBtn.title = 'Bildes bez sejām';
+        var noFaceDot = document.createElement('span');
+        noFaceDot.className = 'face-person-no-face-dot';
+        noFaceBtn.appendChild(noFaceDot);
+        var noFaceLabel = document.createElement('span');
+        noFaceLabel.className = 'face-person-count face-person-no-face-label';
+        noFaceLabel.textContent = '0';
+        noFaceBtn.appendChild(noFaceLabel);
+        noFaceBtn.addEventListener('click', function () {
+          selected = selected.__no_faces__ ? {} : { __no_faces__: true };
+          updateSelectionUi();
+        });
+        grid.appendChild(noFaceBtn);
+      }
+      persons.forEach(function (person) {
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'face-person-item';
+        btn.setAttribute('data-person-id', person.id);
+        btn.title = (person.photo_count || 0) + ' bildes';
+        var img = document.createElement('img');
+        img.src = person.thumb_url || '';
+        img.alt = '';
+        img.loading = 'lazy';
+        var count = document.createElement('span');
+        count.className = 'face-person-count';
+        count.textContent = String(person.photo_count || 0);
+        btn.appendChild(img);
+        btn.appendChild(count);
+        btn.addEventListener('click', function () {
+          if (selected.__no_faces__) delete selected.__no_faces__;
+          if (selected[person.id]) delete selected[person.id];
+          else selected[person.id] = true;
+          updateSelectionUi();
+        });
+        grid.appendChild(btn);
+      });
+      updateSelectionUi();
+    }
+
+    function loadPersons() {
+      if (statusEl) {
+        statusEl.hidden = false;
+        statusEl.textContent = 'Ielādēju sejas…';
+      }
+      fetch(personsUrl, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error((data && data.error) || 'Kļūda');
+          loaded = true;
+          if (!data.processing_done) {
+            if (statusEl) statusEl.textContent = 'Failiem vēl indeksē sejas — mēģini vēlāk.';
+            return;
+          }
+          persons = data.persons || [];
+          if (persons.length === 0 && !noFaceTokensUrl) {
+            if (statusEl) statusEl.textContent = 'Nav atrastu personu šajā galerijā.';
+            return;
+          }
+          if (statusEl) statusEl.hidden = true;
+          renderPersons();
+          if (noFaceTokensUrl) {
+            fetch(noFaceTokensUrl, {
+              credentials: 'same-origin',
+              headers: { Accept: 'application/json' },
+            })
+              .then(function (res) {
+                return res.json();
+              })
+              .then(function (nfData) {
+                if (!nfData || !nfData.ok || !grid) return;
+                var label = grid.querySelector(
+                  '[data-person-id="__no_faces__"] .face-person-no-face-label'
+                );
+                if (label) label.textContent = String((nfData.tokens || []).length);
+              })
+              .catch(function () {});
+          }
+        })
+        .catch(function (err) {
+          if (statusEl) statusEl.textContent = (err && err.message) || 'Neizdevās ielādēt sejas';
+        });
+    }
+
+    openBtns.forEach(function (btn) {
+      btn.addEventListener('click', openModal);
+    });
+    closeBtns.forEach(function (btn) {
+      btn.addEventListener('click', closeModal);
+    });
+    if (modal) {
+      modal.addEventListener('click', function (evt) {
+        if (evt.target === modal) closeModal();
+      });
+    }
+    if (clearBtn) clearBtn.addEventListener('click', clearFaceFilter);
+    if (deselectBtn) {
+      deselectBtn.addEventListener('click', function () {
+        selected = {};
+        updateSelectionUi();
+      });
+    }
+    if (faceFilterToolbarFaces) {
+      faceFilterToolbarFaces.addEventListener('click', addVisibleFacePicks);
+    }
+    if (faceFilterToolbarText) {
+      faceFilterToolbarText.addEventListener('click', addVisibleFacePicks);
+    }
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function () {
+        var ids = Object.keys(selected);
+        if (ids.length === 0) {
+          clearFaceFilter();
+          closeModal();
+          return;
+        }
+        applyBtn.disabled = true;
+        if (statusEl) {
+          statusEl.hidden = false;
+          statusEl.textContent = 'Atlasu bildes…';
+        }
+        var fetchTokens =
+          ids.length === 1 && ids[0] === '__no_faces__'
+            ? fetch(noFaceTokensUrl, {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+              }).then(function (res) {
+                return res.json();
+              })
+            : fetch(tokensUrl + '?ids=' + encodeURIComponent(ids.join(',')), {
+                credentials: 'same-origin',
+                headers: { Accept: 'application/json' },
+              }).then(function (res) {
+                return res.json();
+              });
+        fetchTokens
+          .then(function (data) {
+            if (!data || !data.ok) throw new Error((data && data.error) || 'Kļūda');
+            var tokens = data.tokens || [];
+            if (tokens.length === 0) {
+              if (statusEl) statusEl.textContent = 'Nav atrastu bildes.';
+              return;
+            }
+            if (statusEl) statusEl.hidden = true;
+            applyFaceFilter(tokens, ids);
+          })
+          .catch(function (err) {
+            if (statusEl) statusEl.textContent = (err && err.message) || 'Kļūda';
+          })
+          .finally(function () {
+            applyBtn.disabled = false;
+          });
+      });
+    }
+  }
+
+  initPortalFaceSearch();
+
   function injectPortalCsrfTokens() {
     var token = window.EFPIC_CSRF_TOKEN || '';
     if (!token) return;

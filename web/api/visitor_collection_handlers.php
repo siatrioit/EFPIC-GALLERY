@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/visitor_collections.php';
+require_once __DIR__ . '/visitor_zip_queue.php';
 
 function efpic_visitor_collection_gallery_context(array $config, string $galleryToken): ?array
 {
@@ -261,7 +262,6 @@ function efpic_handle_visitor_collection_download_request(array $config, string 
 function efpic_handle_visitor_all_collections_download_request(array $config, string $galleryToken): void
 {
     efpic_csrf_require();
-    @set_time_limit(0);
     $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
     if ($ctxPack === null) {
         efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
@@ -275,7 +275,7 @@ function efpic_handle_visitor_all_collections_download_request(array $config, st
         efpic_json_response(400, ['ok' => false, 'error' => 'invalid_size']);
     }
 
-    $result = efpic_visitor_request_all_collections_zip_email(
+    $result = efpic_visitor_zip_enqueue_collections_job(
         $config,
         $ctxPack['slug'],
         $ctxPack['meta'],
@@ -294,15 +294,135 @@ function efpic_handle_visitor_all_collections_download_request(array $config, st
         efpic_json_response($code, ['ok' => false, 'error' => $err]);
     }
 
-    $count = (int) ($result['collections_prepared'] ?? 1);
-    $message = $count === 1
-        ? 'Lejupielādes saite nosūtīta uz tavu e-pastu.'
-        : 'Lejupielādes saites (' . $count . ' izlases) nosūtītas uz tavu e-pastu.';
+    $already = !empty($result['already_queued']);
+    $message = $already
+        ? 'Tava izlase jau tiek sagatavota fonā. Saņemsi e-pastu ar lejupielādes saiti, kad ZIP būs gatavs.'
+        : 'ZIP faili tiek veidoti fonā. Saņemsi e-pastu ar lejupielādes saiti, kad viss būs gatavs.';
+
+    efpic_json_response_then_process($config, 200, [
+        'ok' => true,
+        'queued' => true,
+        'message' => $message,
+    ], (string) ($result['job_id'] ?? ''));
+}
+
+function efpic_handle_visitor_share_download_request(array $config, string $galleryToken): void
+{
+    efpic_csrf_require();
+    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    if ($ctxPack === null) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+    if (!efpic_viewer_is_restricted_share($ctxPack['ctx'])) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'not_share_link']);
+    }
+    $session = efpic_visitor_session_state($galleryToken);
+    if ($session === null) {
+        efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
+    }
+    $size = strtolower(trim((string) ($_POST['size'] ?? 'web')));
+    if (!in_array($size, ['web', 'full'], true)) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'invalid_size']);
+    }
+
+    $guestToken = (string) ($ctxPack['ctx']['guest_token'] ?? '');
+    $result = efpic_visitor_zip_enqueue_share_all_job(
+        $config,
+        $ctxPack['slug'],
+        $ctxPack['meta'],
+        $ctxPack['ctx'],
+        $galleryToken,
+        $session['visitor_id'],
+        $size,
+        $guestToken,
+    );
+    if (empty($result['ok'])) {
+        $err = (string) ($result['error'] ?? 'error');
+        $code = match ($err) {
+            'empty_collection' => 400,
+            'download_disabled' => 403,
+            default => 500,
+        };
+        efpic_json_response($code, ['ok' => false, 'error' => $err]);
+    }
+
+    $already = !empty($result['already_queued']);
+    $message = $already
+        ? 'Lejupielāde jau tiek sagatavota fonā. Saņemsi e-pastu, kad ZIP būs gatavs.'
+        : 'ZIP ar visām izlases bildēm tiek veidots fonā. Saņemsi e-pastu ar lejupielādes saiti, kad būs gatavs.';
+
+    efpic_json_response_then_process($config, 200, [
+        'ok' => true,
+        'queued' => true,
+        'message' => $message,
+    ], (string) ($result['job_id'] ?? ''));
+}
+
+function efpic_handle_visitor_collection_add_tokens(array $config, string $galleryToken, string $collectionId): void
+{
+    efpic_csrf_require();
+    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    if ($ctxPack === null) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+    $session = efpic_visitor_session_state($galleryToken);
+    if ($session === null) {
+        efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
+    }
+    if ($collectionId !== $session['active_collection_id']) {
+        efpic_json_response(409, ['ok' => false, 'error' => 'inactive_collection']);
+    }
+
+    $raw = trim((string) ($_POST['image_tokens'] ?? ''));
+    if ($raw === '') {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_tokens']);
+    }
+    $requested = array_values(array_filter(array_map('trim', explode(',', $raw)), static fn ($t) => $t !== ''));
+    if ($requested === []) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'missing_tokens']);
+    }
+
+    $allowed = [];
+    foreach (efpic_client_navigable_images($ctxPack['meta'], $ctxPack['ctx']) as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $allowed[$tok] = true;
+        }
+    }
+    $tokens = array_values(array_filter($requested, static fn ($t) => isset($allowed[$t])));
+    if ($tokens === []) {
+        efpic_json_response(404, ['ok' => false, 'error' => 'not_visible']);
+    }
+
+    try {
+        $result = efpic_visitor_collection_add_tokens(
+            $config,
+            $ctxPack['slug'],
+            $ctxPack['meta'],
+            $galleryToken,
+            $session['visitor_id'],
+            $collectionId,
+            $tokens,
+        );
+    } catch (Throwable $e) {
+        efpic_json_response(500, ['ok' => false, 'error' => $e->getMessage()]);
+    }
 
     efpic_json_response(200, [
         'ok' => true,
-        'message' => $message,
-        'collections_prepared' => $count,
+        'added' => $result['added'],
+        'count' => $result['count'],
+        'active_collection' => efpic_visitor_collection_public_summary($result['collection']),
+        'active_tokens' => efpic_visitor_active_collection_token_map(
+            $config,
+            $ctxPack['slug'],
+            $galleryToken,
+            $ctxPack['meta'],
+            $ctxPack['ctx'],
+        ),
     ]);
 }
 

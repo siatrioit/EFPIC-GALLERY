@@ -2172,6 +2172,7 @@ input[type="password"],
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
 
 .gallery-scene-nav__sections[hidden] {
@@ -3268,6 +3269,57 @@ body.face-search-filter-active .scene-title {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+.gallery-face-filter-faces.is-actionable {
+  cursor: pointer;
+}
+
+.gallery-face-filter-faces.is-actionable:hover .gallery-face-filter-face {
+  box-shadow: 0 0 0 2px var(--accent, #c9a227);
+}
+
+.gallery-face-filter-status.is-added-to-collection {
+  outline: 2px solid var(--accent, #c9a227);
+  outline-offset: 2px;
+}
+
+.gallery-face-filter-face--empty,
+.face-person-no-face-dot {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 999px;
+  background: #fff;
+  border: 2px solid rgba(0, 0, 0, 0.12);
+  box-sizing: border-box;
+}
+
+.face-person-item--no-face .face-person-no-face-dot {
+  width: 68px;
+  height: 68px;
+}
+
+.face-person-no-face-label {
+  min-width: 1.2em;
+  text-align: center;
+}
+
+.portal-face-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.portal-face-toolbar .gallery-face-filter-status {
+  margin: 0;
+  flex: 1 1 auto;
+}
+
+.admin-media-card.face-search-hidden {
+  display: none !important;
 }
 
 .face-person-count {

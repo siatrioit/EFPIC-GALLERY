@@ -229,7 +229,13 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta['client_access']['email'] = trim((string) ($input['client_email'] ?? ''));
     $meta['client_access']['phone'] = trim((string) ($input['client_phone'] ?? ''));
     $meta['settings']['expires_at'] = efpic_gallery_default_expires_at();
-    efpic_set_client_portal_password($meta, (string) ($input['client_password'] ?? ''));
+
+    $enablePortal = !array_key_exists('client_portal_enabled', $input) || !empty($input['client_portal_enabled']);
+    if ($enablePortal) {
+        efpic_set_client_portal_password($meta, (string) ($input['client_password'] ?? ''));
+    } else {
+        efpic_disable_client_portal($meta);
+    }
 
     if (!empty($input['scenes']) && is_array($input['scenes'])) {
         $meta['scenes'] = $input['scenes'];
