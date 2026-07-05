@@ -160,8 +160,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'client_em
         $overrides['portal_password'] = $portalPassword;
     }
     $templateId = trim((string) ($_GET['template_id'] ?? ''));
-    $draft = efpic_gallery_client_email_draft($config, $meta, $slug, $group, $overrides, $templateId);
-    echo json_encode(array_merge(['ok' => true], $draft), JSON_UNESCAPED_UNICODE);
+    try {
+        $draft = efpic_gallery_client_email_draft($config, $meta, $slug, $group, $overrides, $templateId);
+        echo json_encode(array_merge(['ok' => true], $draft), JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
     exit;
 }
 

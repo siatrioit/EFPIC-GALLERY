@@ -56,17 +56,28 @@
       return params;
     }
 
-    function loadDraft(group) {
-      if (!previewUrl) return Promise.reject(new Error('Nav pieejams priekšskatījums'));
+    function buildPreviewRequestUrl(group) {
       var params = passwordOverrides();
       params.set('group', group);
       var templateId = templateIdForGroup(group);
       if (templateId) params.set('template_id', templateId);
-      return fetch(previewUrl + '?' + params.toString(), {
+      var sep = previewUrl.indexOf('?') >= 0 ? '&' : '?';
+      return previewUrl + sep + params.toString();
+    }
+
+    function loadDraft(group) {
+      if (!previewUrl) return Promise.reject(new Error('Nav pieejams priekšskatījums'));
+      return fetch(buildPreviewRequestUrl(group), {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       }).then(function (res) {
-        return res.json().then(function (data) {
+        return res.text().then(function (text) {
+          var data = null;
+          try {
+            data = text ? JSON.parse(text) : null;
+          } catch (e) {
+            throw new Error('Serveris atgrieza nederīgu atbildi (nav JSON).');
+          }
           if (!res.ok || !data || !data.ok) {
             throw new Error((data && data.error) || 'Neizdevās ielādēt sagatavi');
           }
