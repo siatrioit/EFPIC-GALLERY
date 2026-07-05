@@ -631,15 +631,21 @@ function efpic_gallery_notify_gallery_vars(array $config, array $meta, ?string $
 {
     $gt = (string) ($meta['gallery_token'] ?? '');
     $url = $gt !== '' ? efpic_gallery_view_url($config, $gt) : '';
-    $galleryPassword = $passwordOverride ?? '';
-    $galleryPasswordLine = $galleryPassword !== '' ? 'Parole: ' . $galleryPassword : '';
+    $galleryPassword = $passwordOverride !== null
+        ? trim($passwordOverride)
+        : efpic_gallery_password_plain($meta);
+    $galleryPasswordLine = $galleryPassword !== '' && efpic_gallery_has_password($meta)
+        ? 'Parole: ' . $galleryPassword
+        : '';
+    $title = trim((string) ($meta['name'] ?? ''));
 
     $galleryBlock = '';
     if ($url !== '') {
-        $galleryBlock = 'Publiskā galerija:' . "\n" . $url;
+        $lines = [$title !== '' ? $title : 'Publiskā galerija', $url];
         if ($galleryPasswordLine !== '') {
-            $galleryBlock .= "\n" . $galleryPasswordLine;
+            $lines[] = $galleryPasswordLine;
         }
+        $galleryBlock = implode("\n", $lines);
     }
 
     return [
@@ -655,15 +661,20 @@ function efpic_gallery_notify_portal_vars(array $config, array $meta, ?string $p
 {
     $portalToken = (string) ($meta['client_access']['portal_token'] ?? '');
     $portalUrl = $portalToken !== '' ? efpic_portal_url($config, $portalToken) : '';
-    $portalPassword = $passwordOverride ?? '';
-    $portalPasswordLine = $portalPassword !== '' ? 'Parole: ' . $portalPassword : '';
+    $portalPassword = $passwordOverride !== null
+        ? trim($passwordOverride)
+        : efpic_client_portal_password_plain($meta);
+    $portalPasswordLine = $portalPassword !== '' && efpic_client_portal_has_password($meta)
+        ? 'Parole: ' . $portalPassword
+        : '';
 
     $portalBlock = '';
-    if ($portalUrl !== '') {
-        $portalBlock = 'Klienta panelis: ' . $portalUrl;
+    if ($portalUrl !== '' && efpic_client_portal_enabled($meta)) {
+        $lines = ['Klienta panelis', $portalUrl];
         if ($portalPasswordLine !== '') {
-            $portalBlock .= "\n" . $portalPasswordLine;
+            $lines[] = $portalPasswordLine;
         }
+        $portalBlock = implode("\n", $lines);
     }
 
     return [

@@ -320,7 +320,7 @@ function efpic_csrf_input(): string
 
 function efpic_gallery_password_plain(array $meta): string
 {
-    return '';
+    return trim((string) ($meta['password'] ?? ''));
 }
 
 function efpic_gallery_has_password(array $meta): bool
@@ -347,13 +347,15 @@ function efpic_set_gallery_password(array &$meta, string $password): void
 
         return;
     }
-    $meta['password'] = '';
+    $meta['password'] = $password;
     $meta['password_hash'] = efpic_hash_password($password);
 }
 
 function efpic_client_portal_password_plain(array $meta): string
 {
-    return '';
+    $access = $meta['client_access'] ?? [];
+
+    return is_array($access) ? trim((string) ($access['password'] ?? '')) : '';
 }
 
 function efpic_client_portal_enabled(array $meta): bool
@@ -431,7 +433,7 @@ function efpic_set_client_portal_password(array &$meta, string $password): void
 
         return;
     }
-    $meta['client_access']['password'] = '';
+    $meta['client_access']['password'] = $password;
     $meta['client_access']['password_hash'] = efpic_hash_password($password);
 }
 
@@ -497,11 +499,8 @@ function efpic_gallery_migrate_password_storage(array &$meta): bool
     $changed = false;
 
     $plain = trim((string) ($meta['password'] ?? ''));
-    if ($plain !== '') {
-        if (trim((string) ($meta['password_hash'] ?? '')) === '') {
-            $meta['password_hash'] = efpic_hash_password($plain);
-        }
-        unset($meta['password']);
+    if ($plain !== '' && trim((string) ($meta['password_hash'] ?? '')) === '') {
+        $meta['password_hash'] = efpic_hash_password($plain);
         $changed = true;
     }
 
@@ -509,11 +508,8 @@ function efpic_gallery_migrate_password_storage(array &$meta): bool
         $meta['client_access'] = efpic_gallery_defaults('delivery')['client_access'];
     }
     $portalPlain = trim((string) ($meta['client_access']['password'] ?? ''));
-    if ($portalPlain !== '') {
-        if (trim((string) ($meta['client_access']['password_hash'] ?? '')) === '') {
-            $meta['client_access']['password_hash'] = efpic_hash_password($portalPlain);
-        }
-        unset($meta['client_access']['password']);
+    if ($portalPlain !== '' && trim((string) ($meta['client_access']['password_hash'] ?? '')) === '') {
+        $meta['client_access']['password_hash'] = efpic_hash_password($portalPlain);
         $changed = true;
     }
 
