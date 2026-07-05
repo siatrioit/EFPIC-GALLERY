@@ -902,41 +902,22 @@
 .admin-links-panel {
   margin-bottom: 0;
   min-width: 0;
-}
-
-.admin-panel-box-title {
-  margin: 0 0 12px;
-  padding: 0 0 12px;
-  border-bottom: 1px solid var(--admin-border);
-  font-size: 0.95rem;
-  font-weight: 600;
-  color: var(--admin-text);
-}
-
-.admin-links {
-  background: var(--admin-surface);
-  padding: 16px 20px;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-lg);
-  margin-bottom: 16px;
   font-size: 0.88rem;
   word-break: break-all;
-  box-shadow: var(--admin-shadow);
 }
 
-.admin-links p {
+.admin-links-panel .admin-links-row {
   margin: 0 0 8px;
 }
 
-.admin-links p:last-child {
+.admin-links-panel .admin-links-row:last-child {
   margin-bottom: 0;
 }
 
-.admin-links a {
+.admin-links-panel a {
   color: var(--admin-accent);
 }
 
-/* Scene blocks */
 .admin-scene-list {
   display: grid;
   gap: 10px;

@@ -2153,8 +2153,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         }
         $gt = (string) ($meta['gallery_token'] ?? '');
         $body .= '<div class="admin-tab-panel-grid admin-tab-panel-grid--pamati-top">';
-        $body .= '<div class="admin-links admin-links-panel">';
-        $body .= '<h3 class="admin-panel-box-title">Saites</h3>';
+        $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-links-panel" id="admin-fs-saites"><legend>Saites</legend>';
         $body .= '<p class="admin-links-row" id="admin-public-link-row" data-gallery-token="' . efpic_admin_esc($gt) . '"><strong>Publiska saite:</strong> '
             . efpic_admin_render_link_row(efpic_gallery_view_url($config, $gt)) . '</p>';
         $body .= efpic_admin_render_portal_links_block($config, $formMeta, true);
@@ -2174,17 +2173,16 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
         }
         $body .= efpic_admin_render_dimensions_debug_line($meta);
-        $body .= '</div></div>';
+        $body .= '</div></fieldset>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
         $body .= '</div>';
     }
 
     if (!$isEdit) {
-        $body .= '<div class="admin-links admin-links-panel admin-links-panel--new">';
-        $body .= '<h3 class="admin-panel-box-title">Saites</h3>';
+        $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-links-panel" id="admin-fs-saites"><legend>Saites</legend>';
         $body .= efpic_admin_render_portal_links_block($config, $formMeta, false);
         $body .= '<p class="muted admin-field-hint">Publiskā galerijas saite būs redzama pēc izveides.</p>';
-        $body .= '</div>';
+        $body .= '</fieldset>';
         $body .= '<div class="admin-form-layout">';
     }
 

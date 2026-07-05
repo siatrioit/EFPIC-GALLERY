@@ -230,7 +230,7 @@ function efpic_admin_render_face_search_panel(array $config, array $meta, string
             ? 'Nav ielādēts'
             : (($failiemStatus['processing_error'] ?? false) ? 'Failiem kļūda' : 'Gaida Failiem'));
 
-    $html = '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-fieldset-no-collapse" id="admin-face-search-panel"><legend>Seju meklēšana (Failiem)</legend>';
+    $html = '<fieldset class="admin-fieldset-full admin-fieldset-compact" id="admin-face-search-panel"><legend>Seju meklēšana (Failiem)</legend>';
     $html .= '<input type="hidden" name="face_search_enabled" value="0">';
     $html .= efpic_render_admin_toggle('Ieslēgt seju meklēšanu publiskajā galerijā', $enabled, [
         'name' => 'face_search_enabled',
