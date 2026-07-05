@@ -2424,13 +2424,23 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     $body .= '</form>';
 
+    $footExtra = '';
+    if ($isEdit && $slug !== null) {
+        $previewUrl = 'delivery_edit.php?slug=' . rawurlencode($slug) . '&poll=client_email_preview';
+        $footExtra = '<script>window.EFPIC_CLIENT_EMAIL_PREVIEW_URL=' . json_encode($previewUrl, JSON_UNESCAPED_SLASHES) . ';</script>';
+        $footExtra .= '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/rich-text-editor.js')) . '" defer></script>';
+        $footExtra .= '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/client-email-compose.js')) . '" defer></script>';
+    }
+
     efpic_admin_layout(
         $isEdit ? 'Rediģēt' : 'Jauna',
         $body,
         $isEdit ? 'list' : 'new',
         $isEdit ? 'Rediģēt galeriju' : 'Jauna galerija',
         $isEdit ? 'Sadaļas cilnēs: pamati, ziņojumi klientam, Failiem, bildes, kopīgošana un mediji.' : 'Izveido jaunu galeriju un piesaisti Failiem mapes.',
-        $config
+        $config,
+        '',
+        $footExtra,
     );
 }
 
@@ -2623,7 +2633,10 @@ function efpic_admin_save_settings_from_post(array $config): void
     }
     $sigImage = trim((string) ($existing['gallery_email_signature_image'] ?? ''));
     $signatureHtml = efpic_sanitize_email_signature_html(
-        efpic_signature_host_embedded_images($config, (string) ($_POST['gallery_email_signature'] ?? '')),
+        efpic_signature_host_remote_images(
+            $config,
+            efpic_signature_host_embedded_images($config, (string) ($_POST['gallery_email_signature'] ?? '')),
+        ),
     );
     if ($signatureHtml === '' && $sigImage !== '' && is_file(efpic_site_asset_path($config, $sigImage))) {
         $signatureHtml = '<p><img src="'
@@ -2645,17 +2658,10 @@ function efpic_admin_save_settings_from_post(array $config): void
     ]);
 }
 
-function efpic_admin_render_email_signature_editor(array $config, array $settings): string
+function efpic_admin_render_rich_text_toolbar(string $toolbarId, string $ariaLabel = 'Teksta formatēšana'): string
 {
-    $signature = (string) ($settings['gallery_email_signature'] ?? '');
-    if ($signature === '' && efpic_site_signature_image_url($config) !== '') {
-        $signature = '<p><img src="' . efpic_admin_esc(efpic_site_signature_image_url($config)) . '" alt=""></p>';
-    }
-
-    $html = '<fieldset class="admin-fieldset-full"><legend>E-pasta paraksts</legend>';
-    $html .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem. Vari nokopēt parakstu no Gmail — izkārtojums tiek saglabāts.</p>';
-    $html .= '<div class="admin-signature-editor-wrap">';
-    $html .= '<div id="signatureEditorToolbar" class="admin-signature-toolbar" role="toolbar" aria-label="Paraksta formatēšana">';
+    $html = '<div id="' . efpic_admin_esc($toolbarId) . '" class="admin-rich-text-toolbar admin-signature-toolbar" data-rich-toolbar role="toolbar" aria-label="'
+        . efpic_admin_esc($ariaLabel) . '">';
     $html .= '<select data-cmd="fontName" class="admin-signature-select" title="Fonts" aria-label="Fonts">';
     $html .= '<option value="sans-serif">Sans Serif</option>';
     $html .= '<option value="Arial">Arial</option>';
@@ -2686,13 +2692,66 @@ function efpic_admin_render_email_signature_editor(array $config, array $setting
     $html .= '<button type="button" class="admin-signature-btn" data-cmd="insertOrderedList" title="Numurēts saraksts">1.</button>';
     $html .= '<button type="button" class="admin-signature-btn" data-cmd="insertUnorderedList" title="Aizzīmju saraksts">•</button>';
     $html .= '</div>';
-    $html .= '<div id="signatureEditorContent" class="admin-signature-editor" contenteditable="true" role="textbox" aria-label="E-pasta paraksts"></div>';
-    $html .= '<input type="hidden" name="gallery_email_signature" id="galleryEmailSignatureInput" value="">';
-    $html .= '<script type="application/json" id="signatureEditorInitial">'
-        . json_encode($signature, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)
-        . '</script>';
-    $html .= '<script>window.EFPIC_SIGNATURE_UPLOAD_URL=' . json_encode('settings.php?upload=signature_image', JSON_UNESCAPED_SLASHES) . ';</script>';
-    $html .= '</div></fieldset>';
+
+    return $html;
+}
+
+function efpic_admin_render_rich_text_editor_block(
+    string $editorId,
+    string $toolbarId,
+    string $hiddenInputId,
+    string $ariaLabel,
+    string $initialHtml = '',
+    string $initialJsonId = '',
+    string $uploadUrl = '',
+    string $wrapExtraClass = '',
+    string $hiddenInputName = '',
+): string {
+    $wrapClass = 'admin-rich-text-editor-wrap admin-signature-editor-wrap' . ($wrapExtraClass !== '' ? ' ' . $wrapExtraClass : '');
+    $html = '<div class="' . efpic_admin_esc(trim($wrapClass)) . '" data-rich-editor-wrap';
+    if ($uploadUrl !== '') {
+        $html .= ' data-upload-url="' . efpic_admin_esc($uploadUrl) . '"';
+    }
+    $html .= '>';
+    $html .= efpic_admin_render_rich_text_toolbar($toolbarId, $ariaLabel);
+    $html .= '<div id="' . efpic_admin_esc($editorId) . '" class="admin-rich-text-editor admin-signature-editor" data-rich-editor contenteditable="true" role="textbox" aria-label="'
+        . efpic_admin_esc($ariaLabel) . '"></div>';
+    $html .= '<input type="hidden" id="' . efpic_admin_esc($hiddenInputId) . '" data-rich-input';
+    if ($hiddenInputName !== '') {
+        $html .= ' name="' . efpic_admin_esc($hiddenInputName) . '"';
+    }
+    $html .= ' value="">';
+    if ($initialJsonId !== '') {
+        $html .= '<script type="application/json" data-rich-initial id="' . efpic_admin_esc($initialJsonId) . '">'
+            . json_encode($initialHtml, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT | JSON_UNESCAPED_UNICODE)
+            . '</script>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
+function efpic_admin_render_email_signature_editor(array $config, array $settings): string
+{
+    $signature = (string) ($settings['gallery_email_signature'] ?? '');
+    if ($signature === '' && efpic_site_signature_image_url($config) !== '') {
+        $signature = '<p><img src="' . efpic_admin_esc(efpic_site_signature_image_url($config)) . '" alt=""></p>';
+    }
+
+    $html = '<fieldset class="admin-fieldset-full"><legend>E-pasta paraksts</legend>';
+    $html .= '<p class="muted">Tiek pievienots automātiskajiem e-pastiem. Vari nokopēt parakstu no Gmail — izkārtojums tiek saglabāts.</p>';
+    $html .= efpic_admin_render_rich_text_editor_block(
+        'signatureEditorContent',
+        'signatureEditorToolbar',
+        'galleryEmailSignatureInput',
+        'E-pasta paraksts',
+        $signature,
+        'signatureEditorInitial',
+        'settings.php?upload=signature_image',
+        '',
+        'gallery_email_signature',
+    );
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -2754,7 +2813,7 @@ function efpic_admin_settings_page(array $config): void
     $body .= efpic_admin_render_render_queue_panel($config);
     $body .= '</div></form>';
 
-    $sigJs = '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/signature-editor.js')) . '"></script>';
+    $sigJs = '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/rich-text-editor.js')) . '" defer></script>';
 
     efpic_admin_layout(
         'Iestatījumi',

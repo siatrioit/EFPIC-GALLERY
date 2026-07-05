@@ -389,6 +389,83 @@ function efpic_admin_render_message_templates_fieldset(array $config): string
     return $html;
 }
 
+/** @return array{subject: string, body: string, body_html: string} */
+function efpic_gallery_client_email_draft(
+    array $config,
+    array $meta,
+    string $slug,
+    string $group,
+    array $overrides = [],
+    string $templateId = '',
+): array {
+    if ($templateId !== '') {
+        $row = efpic_message_template_by_id($config, $templateId);
+        if ($row !== null && ($row['group'] ?? '') === $group && ($row['channel'] ?? '') === 'email') {
+            $tpl = [
+                'subject' => (string) ($row['subject'] ?? ''),
+                'body' => (string) ($row['body'] ?? ''),
+            ];
+        } else {
+            $tpl = efpic_gallery_notify_template($config, $group, $meta, $slug);
+        }
+    } else {
+        $tpl = efpic_gallery_notify_template($config, $group, $meta, $slug);
+    }
+
+    $vars = efpic_gallery_notify_vars($config, $meta, $slug, $overrides);
+    $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
+    $body = efpic_gallery_notify_replace($tpl['body'], $vars);
+    $bodyHtml = efpic_email_template_body_for_editor($body);
+
+    return [
+        'subject' => $subject,
+        'body' => $body,
+        'body_html' => $bodyHtml,
+    ];
+}
+
+function efpic_email_template_body_for_editor(string $body): string
+{
+    $body = trim($body);
+    if ($body === '') {
+        return '';
+    }
+    if (preg_match('/<[^>]+>/', $body)) {
+        return $body;
+    }
+
+    return '<div>' . nl2br(htmlspecialchars($body, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
+}
+
+function efpic_admin_render_client_email_compose_modal(): string
+{
+    $html = '<div class="modal-backdrop admin-client-email-modal-backdrop" id="clientEmailComposeModal" hidden role="dialog" aria-labelledby="clientEmailComposeTitle">';
+    $html .= '<div class="modal admin-client-email-compose-modal">';
+    $html .= '<button type="button" class="icon-btn modal-close admin-client-email-modal-close" data-client-email-compose-close aria-label="Aizvērt">×</button>';
+    $html .= '<h2 id="clientEmailComposeTitle">Sagatavot e-pastu klientam</h2>';
+    $html .= '<p class="muted admin-client-email-compose-kicker" id="clientEmailComposeGroupLabel"></p>';
+    $html .= '<p class="muted">Sagataves teksts ir aizpildīts automātiski. Vari pielikt personīgu ziņu, mainīt formatējumu vai šriftu. E-pasta paraksts tiks pievienots automātiski.</p>';
+    $html .= '<label class="field admin-client-email-subject-field">Temats<input type="text" id="clientEmailComposeSubject" autocomplete="off"></label>';
+    $html .= '<div class="admin-client-email-editor-label">Vēstules saturs</div>';
+    $html .= efpic_admin_render_rich_text_editor_block(
+        'clientEmailComposeEditor',
+        'clientEmailComposeToolbar',
+        'clientEmailComposeBodyInput',
+        'E-pasta saturs',
+        '',
+        '',
+        'settings.php?upload=signature_image',
+        'admin-client-email-editor-wrap',
+    );
+    $html .= '<p class="err admin-client-email-compose-error" id="clientEmailComposeError" hidden></p>';
+    $html .= '<div class="admin-client-email-compose-actions">';
+    $html .= '<button type="button" class="btn" data-client-email-compose-close>Atcelt</button>';
+    $html .= '<button type="button" class="btn primary" data-client-email-compose-send>Sūtīt e-pastu</button>';
+    $html .= '</div></div></div>';
+
+    return $html;
+}
+
 function efpic_admin_render_gallery_client_messages(array $config, array $meta, string $slug): string
 {
     $groups = efpic_message_template_groups();
@@ -429,7 +506,8 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
 
         $html .= '<div class="admin-client-msg-actions">';
         if ($hasEmail && efpic_gallery_client_email($meta) !== '') {
-            $html .= '<button type="submit" class="btn" name="send_client_email" value="' . efpic_admin_esc($group) . '">Sūtīt e-pastu</button>';
+            $html .= '<button type="button" class="btn primary" data-client-email-compose="' . efpic_admin_esc($group) . '" data-client-email-group-label="'
+                . efpic_admin_esc($label) . '">Sagatavot un sūtīt e-pastu</button>';
         }
         if ($hasPhone) {
             $waLink = efpic_gallery_whatsapp_link($config, $meta, $slug, $group);
@@ -450,6 +528,10 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
     }
 
     $html .= '</fieldset>';
+    $html .= '<input type="hidden" name="send_client_email" id="clientEmailComposeGroupHidden" value="">';
+    $html .= '<input type="hidden" name="client_email_compose_subject" id="clientEmailComposeSubjectHidden" value="">';
+    $html .= '<input type="hidden" name="client_email_compose_body_html" id="clientEmailComposeBodyHidden" value="">';
+    $html .= efpic_admin_render_client_email_compose_modal();
 
     return $html;
 }

@@ -2131,7 +2131,7 @@ input[type="password"],
   backdrop-filter: none;
 }
 
-.gallery-toolbar__nav:has(#faceSearchToolbar[hidden]):not(:has(.gallery-scene-nav__sections .gallery-scene-nav__link)) {
+.gallery-toolbar__nav:has(#faceSearchToolbar[hidden]):has(#collectionFilterToolbar[hidden]):not(:has(.gallery-scene-nav__sections .gallery-scene-nav__link)) {
   display: none;
 }
 
@@ -3215,21 +3215,31 @@ body.face-search-open {
   display: none !important;
 }
 
-.scene-block.face-search-scene-empty {
+.collection-filter-hidden {
   display: none !important;
 }
 
-body.face-search-filter-active .pic-feed.face-search-feed-inactive {
+.scene-block.face-search-scene-empty,
+.scene-block.collection-filter-scene-empty {
+  display: none !important;
+}
+
+body.face-search-filter-active .pic-feed.face-search-feed-inactive,
+body.collection-filter-active .pic-feed.collection-filter-feed-inactive {
   display: none !important;
 }
 
 body.face-search-filter-active .gallery-videos-inline,
 body.face-search-filter-active .gallery-inline-video-player,
-body.face-search-filter-active .slideshow-inline-video {
+body.face-search-filter-active .slideshow-inline-video,
+body.collection-filter-active .gallery-videos-inline,
+body.collection-filter-active .gallery-inline-video-player,
+body.collection-filter-active .slideshow-inline-video {
   display: none !important;
 }
 
-body.face-search-filter-active .scene-title {
+body.face-search-filter-active .scene-title,
+body.collection-filter-active .scene-title {
   display: none !important;
 }
 

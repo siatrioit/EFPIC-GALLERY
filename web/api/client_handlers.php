@@ -346,14 +346,18 @@ function efpic_client_render_gallery_toolbar(
     string $sceneNavLinks,
     string $extraClass = '',
     bool $faceSearchReady = false,
+    bool $collectionFilterReady = false,
 ): string {
     $cls = 'gallery-toolbar topbar' . ($extraClass !== '' ? ' ' . efpic_client_esc($extraClass) : '');
     $html = '<header class="' . $cls . '">';
     $html .= '<h1 class="topbar-title gallery-toolbar__title">' . efpic_client_esc($title) . '</h1>';
-    if ($sceneNavLinks !== '' || $faceSearchReady) {
+    if ($sceneNavLinks !== '' || $faceSearchReady || $collectionFilterReady) {
         $html .= '<nav class="gallery-scene-nav gallery-toolbar__nav" aria-label="Galerijas sadaļas">';
         if ($sceneNavLinks !== '') {
             $html .= '<div class="gallery-scene-nav__inner gallery-scene-nav__sections">' . $sceneNavLinks . '</div>';
+        }
+        if ($collectionFilterReady) {
+            $html .= efpic_client_render_collection_filter_toolbar_panel();
         }
         if ($faceSearchReady) {
             $html .= efpic_client_render_face_filter_toolbar_panel();
@@ -364,6 +368,14 @@ function efpic_client_render_gallery_toolbar(
     $html .= '</header>';
 
     return $html;
+}
+
+function efpic_client_render_collection_filter_toolbar_panel(): string
+{
+    return '<div class="gallery-face-filter-status gallery-collection-filter-status" id="collectionFilterToolbar" hidden>'
+        . '<span class="gallery-face-filter-text" id="collectionFilterToolbarText"></span>'
+        . '<button type="button" class="btn admin-btn-sm" id="collectionFilterToggle">Rādīt izlasi</button>'
+        . '</div>';
 }
 
 function efpic_client_navigable_images(array $meta, array $ctx): array
@@ -1492,7 +1504,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         ? efpic_client_scene_jump_nav_links($config, $meta, $images, $ctx)
         : '';
     $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta, $ctx);
-    $useGalleryToolbar = $sceneNavLinks !== '' || $faceSearchReady;
+    $useGalleryToolbar = $sceneNavLinks !== '' || $faceSearchReady || $canPublicCollection;
     $toolbarExtraClass = $usesShell ? 'topbar-floating' : '';
     $body = '';
     if ($usesShell) {
@@ -1504,6 +1516,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
                 $sceneNavLinks,
                 $toolbarExtraClass,
                 $faceSearchReady,
+                $canPublicCollection,
             );
         } else {
             $body .= efpic_client_topbar($name, $right, $toolbarExtraClass);
@@ -1517,6 +1530,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
                 $sceneNavLinks,
                 $toolbarExtraClass,
                 $faceSearchReady,
+                $canPublicCollection,
             );
         } else {
             $body .= efpic_client_topbar($name, $right);
@@ -1540,7 +1554,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= '<main class="feed">';
         foreach ($images as $img) {
             $tok = (string) ($img['token'] ?? '');
-            $body .= '<a class="feed-card" href="' . efpic_client_esc(efpic_image_view_url($config, $tok)) . '">';
+            $body .= '<a class="feed-card" href="' . efpic_client_esc(efpic_image_view_url($config, $tok)) . '" data-token="' . efpic_client_esc($tok) . '">';
             $body .= '<img src="' . efpic_client_esc(efpic_client_media_url($config, $img, 'web')) . '" alt="" loading="lazy"></a>';
         }
         $body .= '</main>';

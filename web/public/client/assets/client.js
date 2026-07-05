@@ -1295,6 +1295,175 @@
     }
   }
 
+  var collectionFilterActive = false;
+  var collectionFilterRestore = [];
+
+  function getCollectionFilterCount() {
+    var count = 0;
+    var tokens = visitorState.activeTokens || {};
+    Object.keys(tokens).forEach(function (tok) {
+      if (tokens[tok]) count += 1;
+    });
+    if (count > 0) return count;
+    if (visitorState.activeCollection && visitorState.activeCollection.count) {
+      return parseInt(visitorState.activeCollection.count, 10) || 0;
+    }
+    return 0;
+  }
+
+  function getCollectionGalleryItems() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll('.pic-feed-item[data-token], .grid-card[data-token], .feed-card[data-token]')
+    );
+  }
+
+  function restoreCollectionFilterDom() {
+    collectionFilterRestore.slice().reverse().forEach(function (entry) {
+      if (!entry.el || !entry.parent) return;
+      if (entry.next && entry.next.parentNode === entry.parent) {
+        entry.parent.insertBefore(entry.el, entry.next);
+      } else {
+        entry.parent.appendChild(entry.el);
+      }
+    });
+    collectionFilterRestore = [];
+    document.querySelectorAll('.collection-filter-feed-inactive').forEach(function (feed) {
+      feed.classList.remove('collection-filter-feed-inactive');
+    });
+  }
+
+  function consolidateVisibleCollectionItems(visibleItems) {
+    var mosaicFeeds = document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]');
+    if (!mosaicFeeds.length) return;
+    var target = mosaicFeeds[0];
+    var feedItems = visibleItems.filter(function (el) {
+      return el.classList.contains('pic-feed-item');
+    });
+    feedItems.forEach(function (item) {
+      collectionFilterRestore.push({
+        el: item,
+        parent: item.parentNode,
+        next: item.nextSibling,
+      });
+      target.appendChild(item);
+    });
+    mosaicFeeds.forEach(function (feed, idx) {
+      feed.classList.toggle('collection-filter-feed-inactive', idx > 0);
+    });
+  }
+
+  function updateCollectionFilterScenes() {
+    document.querySelectorAll('.scene-block').forEach(function (scene) {
+      var hasVisible = scene.querySelector(
+        '.pic-feed-item[data-token]:not(.face-search-hidden):not(.collection-filter-hidden), .grid-card[data-token]:not(.face-search-hidden):not(.collection-filter-hidden)'
+      );
+      scene.classList.toggle('collection-filter-scene-empty', collectionFilterActive && !hasVisible);
+    });
+  }
+
+  function applyCollectionFilter() {
+    if (!collectionFilterActive) return;
+    restoreCollectionFilterDom();
+    var tokens = visitorState.activeTokens || {};
+    var visible = [];
+    getCollectionGalleryItems().forEach(function (el) {
+      var tok = el.getAttribute('data-token') || '';
+      if (tok === '') return;
+      var show = !!tokens[tok];
+      el.classList.toggle('collection-filter-hidden', !show);
+      if (show && !el.classList.contains('face-search-hidden')) {
+        visible.push(el);
+      }
+    });
+    document.body.classList.add('collection-filter-active');
+    consolidateVisibleCollectionItems(visible);
+    updateCollectionFilterScenes();
+    updateCollectionFilterToolbar();
+    scheduleMosaicRelayout();
+  }
+
+  function clearCollectionFilter() {
+    collectionFilterActive = false;
+    document.body.classList.remove('collection-filter-active');
+    restoreCollectionFilterDom();
+    document.querySelectorAll('.collection-filter-hidden').forEach(function (el) {
+      el.classList.remove('collection-filter-hidden');
+    });
+    document.querySelectorAll('.collection-filter-scene-empty').forEach(function (el) {
+      el.classList.remove('collection-filter-scene-empty');
+    });
+    updateCollectionFilterToolbar();
+    scheduleMosaicRelayout();
+  }
+
+  function setCollectionFilterActive(active) {
+    collectionFilterActive = !!active;
+    if (collectionFilterActive) {
+      applyCollectionFilter();
+    } else {
+      clearCollectionFilter();
+    }
+  }
+
+  function updateCollectionFilterToolbar() {
+    var toolbar = document.getElementById('collectionFilterToolbar');
+    var toggleBtn = document.getElementById('collectionFilterToggle');
+    var textEl = document.getElementById('collectionFilterToolbarText');
+    if (!toolbar || !toggleBtn) return;
+    var count = getCollectionFilterCount();
+    var show = collectionEnabled && count > 0;
+    toolbar.hidden = !show;
+    if (!show) {
+      if (collectionFilterActive) clearCollectionFilter();
+      return;
+    }
+    var collName =
+      visitorState.activeCollection && visitorState.activeCollection.name
+        ? visitorState.activeCollection.name
+        : '';
+    if (collectionFilterActive) {
+      toggleBtn.textContent = 'Rādīt visas';
+      if (textEl) {
+        textEl.textContent =
+          'Rāda ' +
+          count +
+          (count === 1 ? ' izlases bildi' : ' izlases bildes') +
+          (collName ? ' («' + collName + '»)' : '');
+      }
+    } else {
+      toggleBtn.textContent = 'Rādīt izlasi';
+      if (textEl) {
+        textEl.textContent = collName
+          ? collName + ' · ' + count + (count === 1 ? ' bilde' : ' bildes')
+          : count + (count === 1 ? ' bilde izlases' : ' bildes izlases');
+      }
+    }
+  }
+
+  function syncCollectionFilterAfterCollectionChange() {
+    if (!collectionFilterActive) {
+      updateCollectionFilterToolbar();
+      return;
+    }
+    var count = getCollectionFilterCount();
+    if (count <= 0) {
+      clearCollectionFilter();
+      return;
+    }
+    applyCollectionFilter();
+  }
+
+  function initCollectionFilter() {
+    if (!collectionEnabled) return;
+    var toggleBtn = document.getElementById('collectionFilterToggle');
+    if (!toggleBtn) return;
+    toggleBtn.addEventListener('click', function () {
+      if (getCollectionFilterCount() <= 0) return;
+      setCollectionFilterActive(!collectionFilterActive);
+    });
+    updateCollectionFilterToolbar();
+  }
+
   function updateCollectionTray(count) {
     var tray = document.getElementById('collectionTray');
     var countEl = document.getElementById('collectionTrayCount');
@@ -1334,6 +1503,7 @@
       manageBtn.hidden = !visitorState.authenticated;
     }
     updateCollectionDownloadTitle(count);
+    updateCollectionFilterToolbar();
   }
 
   function applyVisitorState(data) {
@@ -1358,6 +1528,7 @@
       (data.active_collection && data.active_collection.count) ||
       0;
     updateCollectionTray(count);
+    syncCollectionFilterAfterCollectionChange();
   }
 
   function openVisitorCollectionEntry() {
@@ -1639,6 +1810,7 @@
             applyActiveTokensFromMap(data.active_tokens);
           }
           updateCollectionTray(parseInt(data.count, 10) || 0);
+          syncCollectionFilterAfterCollectionChange();
         }
         return data;
       });
@@ -1679,6 +1851,7 @@
           }
           applyActiveTokensFromMap(visitorState.activeTokens);
           updateCollectionTray(parseInt(data.count, 10) || 0);
+          syncCollectionFilterAfterCollectionChange();
         }
         return data;
       });
@@ -2467,5 +2640,6 @@
       });
     }
   }
+  initCollectionFilter();
   initFaceSearch();
 })();

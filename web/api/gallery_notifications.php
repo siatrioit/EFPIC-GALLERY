@@ -75,18 +75,25 @@ function efpic_gallery_email_signature_text(array $config): string
 function efpic_gallery_email_signature_html(array $config): string
 {
     $settings = efpic_load_app_settings($config);
+    $legacyImage = efpic_site_signature_image_url($config);
     $raw = trim((string) ($settings['gallery_email_signature'] ?? ''));
     if ($raw !== '') {
         if (preg_match('/<[^>]+>/', $raw)) {
             $html = efpic_sanitize_email_signature_html($raw);
+            $html = efpic_email_absolutize_image_urls($config, $html);
+            $html = efpic_email_signature_prune_broken_images($config, $html);
+            if ($legacyImage !== '' && !preg_match('/<img\b/i', $html)) {
+                $img = htmlspecialchars($legacyImage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-            return efpic_email_absolutize_image_urls($config, $html);
+                return '<p><img src="' . $img . '" alt="" style="max-width:120px;height:auto;"></p>' . $html;
+            }
+
+            return $html;
         }
 
         return '<div>' . nl2br(htmlspecialchars($raw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
     }
 
-    $legacyImage = efpic_site_signature_image_url($config);
     if ($legacyImage !== '') {
         $img = htmlspecialchars($legacyImage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
@@ -94,6 +101,32 @@ function efpic_gallery_email_signature_html(array $config): string
     }
 
     return '';
+}
+
+function efpic_email_signature_prune_broken_images(array $config, string $html): string
+{
+    if ($html === '' || stripos($html, '<img') === false) {
+        return $html;
+    }
+
+    return preg_replace_callback(
+        '/<img\b([^>]*)\bsrc=(["\'])([^"\']*)\2([^>]*)>/i',
+        static function (array $m) use ($config): string {
+            $src = trim(html_entity_decode($m[3], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($src === '') {
+                return '';
+            }
+            if (efpic_email_resolve_local_image_path($config, $src) !== null) {
+                return $m[0];
+            }
+            if (preg_match('#^https?://#i', $src) && efpic_email_cache_remote_image($src) !== null) {
+                return $m[0];
+            }
+
+            return '';
+        },
+        $html,
+    ) ?? $html;
 }
 
 function efpic_email_absolutize_image_urls(array $config, string $html): string
@@ -203,7 +236,7 @@ function efpic_email_embed_inline_images(array $config, string $html): array
             $src = $m[3];
             $path = efpic_email_resolve_local_image_path($config, $src);
             if ($path === null && preg_match('#^https?://#i', $src)) {
-                $path = efpic_email_resolve_local_image_path($config, $src);
+                $path = efpic_email_cache_remote_image($src);
             }
             if ($path === null || !is_file($path)) {
                 return $m[0];
@@ -530,12 +563,30 @@ function efpic_gallery_notify_replace(string $text, array $vars): string
     return $text;
 }
 
+function efpic_gallery_deliver_composed_email(array $config, string $to, string $subject, string $bodyHtml): void
+{
+    $bodyHtml = efpic_email_absolutize_image_urls($config, efpic_sanitize_email_signature_html($bodyHtml));
+    $plainMain = efpic_html_to_plain_text($bodyHtml);
+    $plainBody = efpic_gallery_email_with_signature($config, $plainMain);
+
+    $signatureHtml = efpic_gallery_email_signature_html($config);
+    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.55;color:#111;">' . $bodyHtml . '</div>';
+    if ($signatureHtml !== '') {
+        $html .= '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-family:sans-serif;font-size:14px;color:#111;">'
+            . $signatureHtml . '</div>';
+    }
+    $embedded = efpic_email_embed_inline_images($config, $html);
+    efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $embedded['html'], $embedded['inline']);
+}
+
 function efpic_gallery_send_client_email(
     array $config,
     array $meta,
     string $slug,
     string $group,
     array $notifyOverrides = [],
+    string $customSubject = '',
+    string $customBodyHtml = '',
 ): bool {
     if (!efpic_gallery_email_ready($config)) {
         throw new RuntimeException('E-pasts nav konfigurēts. Admin → Iestatījumi → E-pasts klientam.');
@@ -543,6 +594,22 @@ function efpic_gallery_send_client_email(
     $to = efpic_gallery_client_email($meta);
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
         throw new RuntimeException('Klienta e-pasts nav norādīts vai nav derīgs.');
+    }
+
+    if (trim($customBodyHtml) !== '') {
+        $subject = trim($customSubject);
+        if ($subject === '') {
+            $tpl = efpic_gallery_notify_template($config, $group, $meta, $slug);
+            $vars = efpic_gallery_notify_vars($config, $meta, $slug, $notifyOverrides);
+            $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
+        }
+        try {
+            efpic_gallery_deliver_composed_email($config, $to, $subject, $customBodyHtml);
+        } catch (Throwable $e) {
+            throw new RuntimeException('E-pasts: ' . $e->getMessage(), 0, $e);
+        }
+
+        return true;
     }
 
     $tpl = efpic_gallery_notify_template($config, $group, $meta, $slug);

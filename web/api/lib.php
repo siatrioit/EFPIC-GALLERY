@@ -30,6 +30,9 @@ function efpic_app_version(): string
 
 function efpic_format_bytes(int $bytes): string
 {
+    if ($bytes >= 1073741824) {
+        return round($bytes / 1073741824, 2) . ' GB';
+    }
     if ($bytes >= 1048576) {
         return round($bytes / 1048576, 1) . ' MB';
     }
@@ -615,6 +618,132 @@ function efpic_signature_host_embedded_images(array $config, string $html): stri
         },
         $html,
     ) ?? $html;
+}
+
+function efpic_store_image_bytes_as_site_asset(array $config, string $bytes, string $ext): string
+{
+    $ext = strtolower($ext);
+    if ($ext === 'jpeg') {
+        $ext = 'jpg';
+    }
+    if (!in_array($ext, ['png', 'jpg', 'gif', 'webp'], true) || $bytes === '') {
+        return '';
+    }
+    $dir = efpic_site_assets_dir($config);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0755, true);
+    }
+    $name = 'sig_' . bin2hex(random_bytes(8)) . '.' . $ext;
+    $path = $dir . DIRECTORY_SEPARATOR . $name;
+    if (file_put_contents($path, $bytes) === false) {
+        return '';
+    }
+
+    return efpic_site_asset_public_url($config, $name);
+}
+
+function efpic_fetch_remote_image_bytes(string $url): ?array
+{
+    $url = trim($url);
+    if ($url === '' || !preg_match('#^https?://#i', $url)) {
+        return null;
+    }
+
+    $ctx = stream_context_create([
+        'http' => [
+            'timeout' => 12,
+            'follow_location' => 1,
+            'max_redirects' => 4,
+            'user_agent' => 'EFPIC-Gallery/1.0',
+        ],
+        'ssl' => [
+            'verify_peer' => true,
+            'verify_peer_name' => true,
+        ],
+    ]);
+    $bytes = @file_get_contents($url, false, $ctx);
+    if ($bytes === false || $bytes === '') {
+        return null;
+    }
+    if (strlen($bytes) > 8 * 1024 * 1024) {
+        return null;
+    }
+
+    $ext = 'jpg';
+    if (str_starts_with($bytes, "\x89PNG")) {
+        $ext = 'png';
+    } elseif (str_starts_with($bytes, 'GIF8')) {
+        $ext = 'gif';
+    } elseif (str_starts_with($bytes, "RIFF") && substr($bytes, 8, 4) === 'WEBP') {
+        $ext = 'webp';
+    } elseif (!str_starts_with($bytes, "\xFF\xD8\xFF")) {
+        return null;
+    }
+
+    return ['bytes' => $bytes, 'ext' => $ext];
+}
+
+function efpic_signature_host_remote_images(array $config, string $html): string
+{
+    if ($html === '' || stripos($html, '<img') === false) {
+        return $html;
+    }
+
+    $base = rtrim(efpic_base_url($config), '/');
+
+    return preg_replace_callback(
+        '/<img\b([^>]*)\bsrc=(["\'])([^"\']+)\2([^>]*)>/i',
+        static function (array $m) use ($config, $base): string {
+            $src = trim(html_entity_decode($m[3], ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+            if ($src === '' || str_starts_with($src, 'data:') || str_starts_with($src, 'cid:')) {
+                return $m[0];
+            }
+            if (str_starts_with($src, $base)) {
+                return $m[0];
+            }
+            if (str_starts_with($src, '/site/')) {
+                return $m[0];
+            }
+            if (efpic_email_resolve_local_image_path($config, $src) !== null) {
+                return $m[0];
+            }
+            $fetched = efpic_fetch_remote_image_bytes($src);
+            if ($fetched === null) {
+                return $m[0];
+            }
+            $hosted = efpic_store_image_bytes_as_site_asset($config, $fetched['bytes'], $fetched['ext']);
+            if ($hosted === '') {
+                return $m[0];
+            }
+            $url = htmlspecialchars($hosted, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+            return '<img' . $m[1] . ' src="' . $url . '"' . $m[4] . '>';
+        },
+        $html,
+    ) ?? $html;
+}
+
+function efpic_email_cache_remote_image(string $url): ?string
+{
+    static $cache = [];
+    if (isset($cache[$url])) {
+        return $cache[$url];
+    }
+    $fetched = efpic_fetch_remote_image_bytes($url);
+    if ($fetched === null) {
+        $cache[$url] = null;
+
+        return null;
+    }
+    $tmp = sys_get_temp_dir() . DIRECTORY_SEPARATOR . 'efpic_mail_' . hash('sha256', $url) . '.' . $fetched['ext'];
+    if (!is_file($tmp) && file_put_contents($tmp, $fetched['bytes']) === false) {
+        $cache[$url] = null;
+
+        return null;
+    }
+    $cache[$url] = $tmp;
+
+    return $tmp;
 }
 
 function efpic_sanitize_email_signature_html(string $html): string

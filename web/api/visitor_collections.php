@@ -865,6 +865,7 @@ function efpic_visitor_zip_prepare_collection_item(
         'download_url' => efpic_visitor_zip_download_url($config, $galleryToken, $downloadToken),
         'download_token' => $downloadToken,
         'count' => count($tokens),
+        'zip_bytes' => (int) filesize($zipPath),
     ];
 }
 
@@ -1282,7 +1283,13 @@ function efpic_visitor_zip_email_plain(
 
     foreach ($prepared as $item) {
         $collectionName = (string) ($item['collection']['name'] ?? 'Izlase');
-        $body .= '«' . $collectionName . '» (' . (int) $item['count'] . " bildes)\n";
+        $line = '«' . $collectionName . '» (' . (int) $item['count'] . ' bildes';
+        $zipBytes = (int) ($item['zip_bytes'] ?? 0);
+        if ($zipBytes > 0) {
+            $line .= ' · ' . efpic_format_bytes($zipBytes);
+        }
+        $line .= ")\n";
+        $body .= $line;
         $body .= $item['download_url'] . "\n\n";
     }
     $body .= "Saites ir derīgas 72 stundas.\n";
@@ -1315,12 +1322,22 @@ function efpic_visitor_zip_email_html_pack(
         $collectionName = htmlspecialchars((string) ($item['collection']['name'] ?? 'Izlase'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $count = (int) $item['count'];
         $url = htmlspecialchars($item['download_url'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $zipBytes = (int) ($item['zip_bytes'] ?? 0);
+        $metaLine = $count . ' bildes · ' . $sizeLabel;
+        if ($zipBytes > 0) {
+            $metaLine .= ' · ' . htmlspecialchars(efpic_format_bytes($zipBytes), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        }
         $cards .= '<tr><td style="padding:0 0 12px;">'
             . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#faf9f7;border:1px solid #e8e4df;border-radius:10px;">'
             . '<tr><td style="padding:16px 18px;">'
-            . '<div style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px;">' . $collectionName . '</div>'
-            . '<div style="font-size:13px;color:#6b6560;margin:0 0 14px;">' . $count . ' bildes · ' . $sizeLabel . '</div>'
-            . '<a href="' . $url . '" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:11px 20px;border-radius:8px;">Lejupielādēt ZIP</a>'
+            . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+            . '<td style="vertical-align:middle;padding:0 16px 0 0;">'
+            . '<div style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px;line-height:1.35;">' . $collectionName . '</div>'
+            . '<div style="font-size:13px;color:#6b6560;margin:0;line-height:1.4;">' . $metaLine . '</div>'
+            . '</td>'
+            . '<td style="vertical-align:middle;width:1px;white-space:nowrap;text-align:right;">'
+            . '<a href="' . $url . '" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 18px;border-radius:8px;line-height:1.2;">Lejupielādēt ZIP</a>'
+            . '</td></tr></table>'
             . '</td></tr></table></td></tr>';
     }
 

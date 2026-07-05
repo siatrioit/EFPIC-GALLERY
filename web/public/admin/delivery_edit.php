@@ -138,6 +138,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'client_email_preview') {
+    header('Content-Type: application/json; charset=utf-8');
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        echo json_encode(['ok' => false, 'error' => 'not_found'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $group = trim((string) ($_GET['group'] ?? ''));
+    if (!array_key_exists($group, efpic_message_template_groups())) {
+        echo json_encode(['ok' => false, 'error' => 'invalid_group'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $overrides = [];
+    $galleryPassword = trim((string) ($_GET['gallery_password'] ?? ''));
+    $portalPassword = trim((string) ($_GET['portal_password'] ?? ''));
+    if ($galleryPassword !== '') {
+        $overrides['gallery_password'] = $galleryPassword;
+    }
+    if ($portalPassword !== '') {
+        $overrides['portal_password'] = $portalPassword;
+    }
+    $templateId = trim((string) ($_GET['template_id'] ?? ''));
+    $draft = efpic_gallery_client_email_draft($config, $meta, $slug, $group, $overrides, $templateId);
+    echo json_encode(array_merge(['ok' => true], $draft), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
         if (!empty($_POST['send_client_email'])) {
@@ -162,7 +189,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $notifyOverrides['portal_password'] = $portalPassword;
             }
             efpic_save_gallery_meta($config, $slug, $meta);
-            efpic_gallery_send_client_email($config, $meta, $slug, $group, $notifyOverrides);
+            $customSubject = trim((string) ($_POST['client_email_compose_subject'] ?? ''));
+            $customBodyHtml = trim((string) ($_POST['client_email_compose_body_html'] ?? ''));
+            efpic_gallery_send_client_email(
+                $config,
+                $meta,
+                $slug,
+                $group,
+                $notifyOverrides,
+                $customSubject,
+                $customBodyHtml,
+            );
             if (str_starts_with($group, 'expiry_reminder_')) {
                 efpic_gallery_mark_notification_sent($meta, $group);
             } else {
@@ -311,6 +348,6 @@ if (isset($_GET['link_regenerated'])) {
     $flash = 'Jauna publiskā saite izveidota. Vecā saite vairs nedarbojas.';
 }
 if (isset($_GET['email_sent'])) {
-    $flash = '«Galerija gatava» e-pasts nosūtīts klientam.';
+    $flash = 'E-pasts nosūtīts klientam.';
 }
 efpic_admin_delivery_form($config, $meta, $slug, $flash);
