@@ -168,6 +168,9 @@ function efpic_visitor_zip_enqueue_collections_job(
         'claimed_at' => '',
         'error' => '',
         'collections_prepared' => 0,
+        'collection_ids' => efpic_visitor_zip_job_collection_ids($data, $visitorId),
+        'prepared' => [],
+        'email_sent' => false,
     ]);
 
     return ['ok' => true, 'job_id' => $jobId];
@@ -222,6 +225,9 @@ function efpic_visitor_zip_enqueue_share_all_job(
         'claimed_at' => '',
         'error' => '',
         'collections_prepared' => 0,
+        'collection_ids' => [],
+        'prepared' => [],
+        'email_sent' => false,
     ]);
 
     return ['ok' => true, 'job_id' => $jobId];
@@ -258,38 +264,57 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
     @set_time_limit(0);
     @ignore_user_abort(true);
 
-    if ($type === 'share_all') {
-        $result = efpic_visitor_request_share_all_zip_email(
-            $config,
-            $slug,
-            $meta,
-            $ctx,
-            $galleryToken,
-            $visitorId,
-            $size,
-        );
-    } else {
-        $result = efpic_visitor_request_all_collections_zip_email(
-            $config,
-            $slug,
-            $meta,
-            $ctx,
-            $galleryToken,
-            $visitorId,
-            $size,
-        );
-    }
-
-    if (empty($result['ok'])) {
+    $data = efpic_visitor_collections_load($config, $slug);
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    if ($visitor === null) {
         $job['status'] = 'failed';
-        $job['error'] = (string) ($result['error'] ?? 'error');
+        $job['error'] = 'not_found';
         efpic_visitor_zip_save_job($config, $job);
 
         return;
     }
 
-    $job['status'] = 'done';
-    $job['collections_prepared'] = (int) ($result['collections_prepared'] ?? 1);
+    $advance = efpic_visitor_zip_advance_job($config, $job, $meta, $ctx);
+    if (empty($advance['ok'])) {
+        $job['status'] = 'failed';
+        $job['error'] = (string) ($advance['error'] ?? 'zip_build_failed');
+        efpic_visitor_zip_save_job($config, $job);
+
+        return;
+    }
+
+    $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
+    $job['collections_prepared'] = count($prepared);
+
+    if (!empty($advance['done'])) {
+        if ($prepared === []) {
+            $job['status'] = 'failed';
+            $job['error'] = 'empty_collection';
+            efpic_visitor_zip_save_job($config, $job);
+
+            return;
+        }
+        if (empty($job['email_sent'])) {
+            try {
+                efpic_visitor_zip_finalize_job_email($config, $slug, $meta, $visitor, $prepared, $size, $visitorId);
+                $job['email_sent'] = true;
+            } catch (Throwable $e) {
+                $job['status'] = 'failed';
+                $job['error'] = 'zip_verify_failed';
+                efpic_visitor_zip_save_job($config, $job);
+
+                return;
+            }
+        }
+        $job['status'] = 'done';
+        $job['error'] = '';
+        efpic_visitor_zip_save_job($config, $job);
+
+        return;
+    }
+
+    $job['status'] = 'queued';
+    $job['claimed_at'] = '';
     $job['error'] = '';
     efpic_visitor_zip_save_job($config, $job);
 }
@@ -327,22 +352,44 @@ function efpic_visitor_zip_run_pending(array $config, int $limit = 1): int
     return $processed;
 }
 
+function efpic_visitor_zip_process_job_chain(array $config, string $jobId, int $maxSteps = 50): void
+{
+    $steps = 0;
+    while ($steps < $maxSteps) {
+        $job = efpic_visitor_zip_load_job($config, $jobId);
+        if ($job === null) {
+            return;
+        }
+        $status = (string) ($job['status'] ?? '');
+        if ($status !== 'queued') {
+            return;
+        }
+        $job['status'] = 'processing';
+        $job['claimed_at'] = gmdate('c');
+        efpic_visitor_zip_save_job($config, $job);
+        efpic_visitor_zip_process_job($config, $job);
+        $steps++;
+        $job = efpic_visitor_zip_load_job($config, $jobId);
+        if ($job === null) {
+            return;
+        }
+        $status = (string) ($job['status'] ?? '');
+        if ($status === 'done' || $status === 'failed') {
+            return;
+        }
+    }
+}
+
 function efpic_visitor_zip_finish_response_and_process(array $config, ?string $preferJobId = null): void
 {
     @set_time_limit(0);
     @ignore_user_abort(true);
 
     if ($preferJobId !== null && $preferJobId !== '') {
-        $job = efpic_visitor_zip_load_job($config, $preferJobId);
-        if ($job !== null && (string) ($job['status'] ?? '') === 'queued') {
-            $job['status'] = 'processing';
-            $job['claimed_at'] = gmdate('c');
-            efpic_visitor_zip_save_job($config, $job);
-            efpic_visitor_zip_process_job($config, $job);
-            efpic_visitor_zip_run_pending($config, 2);
+        efpic_visitor_zip_process_job_chain($config, $preferJobId, 50);
+        efpic_visitor_zip_run_pending($config, 3);
 
-            return;
-        }
+        return;
     }
 
     efpic_visitor_zip_run_pending($config, 3);
@@ -350,6 +397,15 @@ function efpic_visitor_zip_finish_response_and_process(array $config, ?string $p
 
 function efpic_json_response_then_process(array $config, int $code, array $data, ?string $jobId = null): void
 {
+    register_shutdown_function(static function () use ($config, $jobId): void {
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+        @set_time_limit(0);
+        @ignore_user_abort(true);
+        efpic_visitor_zip_finish_response_and_process($config, $jobId);
+    });
+
     http_response_code($code);
     header('Content-Type: application/json; charset=utf-8');
     header('Connection: close');
@@ -369,7 +425,6 @@ function efpic_json_response_then_process(array $config, int $code, array $data,
         flush();
     }
 
-    efpic_visitor_zip_finish_response_and_process($config, $jobId);
     exit;
 }
 

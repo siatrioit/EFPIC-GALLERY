@@ -50,6 +50,28 @@ function efpic_zip_build_file(string $zipPath, callable $populate, ?int &$entryC
     return $count > 0 && $writer->finish();
 }
 
+function efpic_zip_verify_file(string $zipPath, int $minEntries = 1): bool
+{
+    if (!is_file($zipPath)) {
+        return false;
+    }
+    $size = filesize($zipPath);
+    if ($size === false || $size < 22) {
+        return false;
+    }
+    if (!class_exists('ZipArchive')) {
+        return $size > 100;
+    }
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::RDONLY) !== true) {
+        return false;
+    }
+    $count = $zip->numFiles;
+    $zip->close();
+
+    return $count >= $minEntries;
+}
+
 final class EfpicPureZipWriter
 {
     /** @var resource|null */

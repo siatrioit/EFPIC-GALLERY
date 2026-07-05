@@ -1943,18 +1943,33 @@ function efpic_handle_client_image_download(array $config, string $imageToken): 
     exit;
 }
 
-function efpic_client_zip_filename(string $slug, string $size, string $scope, string $sceneId = ''): string
-{
+function efpic_client_zip_filename(
+    string $slug,
+    string $size,
+    string $scope,
+    string $sceneId = '',
+    string $collectionLabel = '',
+    string $galleryLabel = '',
+): string {
+    $sizeLabel = efpic_zip_size_label($size);
+    $galleryPart = efpic_zip_filename_segment($galleryLabel !== '' ? $galleryLabel : $slug, true, $slug);
+
     if ($scope === 'collection') {
-        return $slug . '-izlase-' . $size . '.zip';
+        if ($collectionLabel !== '') {
+            $collectionPart = efpic_zip_filename_segment($collectionLabel, false, 'Izlase');
+
+            return $galleryPart . '-' . $collectionPart . '-' . $sizeLabel . '.zip';
+        }
+
+        return $galleryPart . '-izlase-' . $sizeLabel . '.zip';
     }
     if ($scope === 'scene' && $sceneId !== '') {
-        $safeScene = preg_replace('/[^a-zA-Z0-9_-]+/', '-', $sceneId) ?? 'sadala';
+        $safeScene = efpic_zip_filename_segment($sceneId, true, 'sadala');
 
-        return $slug . '-sadala-' . trim($safeScene, '-') . '-' . $size . '.zip';
+        return $galleryPart . '-sadala-' . $safeScene . '-' . $sizeLabel . '.zip';
     }
 
-    return $slug . '-' . $size . '.zip';
+    return $galleryPart . '-' . $sizeLabel . '.zip';
 }
 
 function efpic_client_zip_files_from_images(array $config, array $images, string $size): array

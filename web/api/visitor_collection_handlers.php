@@ -574,10 +574,35 @@ function efpic_handle_visitor_collection_download(array $config, string $gallery
         exit;
     }
     $filename = (string) ($job['filename'] ?? 'izlase.zip');
+    $fileSize = filesize($zipPath);
+    if ($fileSize === false) {
+        http_response_code(500);
+        echo 'ZIP fails nav pieejams';
+        exit;
+    }
+    @set_time_limit(0);
+    @ignore_user_abort(true);
     header('Content-Type: application/zip');
     header('Content-Disposition: attachment; filename="' . str_replace('"', '', $filename) . '"');
-    header('Content-Length: ' . (string) filesize($zipPath));
-    readfile($zipPath);
+    header('Content-Length: ' . (string) $fileSize);
+    $fp = fopen($zipPath, 'rb');
+    if ($fp === false) {
+        http_response_code(500);
+        echo 'ZIP fails nav pieejams';
+        exit;
+    }
+    while (!feof($fp)) {
+        $chunk = fread($fp, 1024 * 1024);
+        if ($chunk === false) {
+            break;
+        }
+        echo $chunk;
+        if (function_exists('ob_get_level') && ob_get_level() > 0) {
+            @ob_flush();
+        }
+        flush();
+    }
+    fclose($fp);
     exit;
 }
 

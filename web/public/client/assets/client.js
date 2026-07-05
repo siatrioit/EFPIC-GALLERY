@@ -160,6 +160,73 @@
   var zipProgressModal = document.getElementById('zipProgressModal');
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
   var zipFetchAbort = null;
+  var zipEmailFollowupTimer = null;
+
+  function clearZipEmailFollowupTimer() {
+    if (zipEmailFollowupTimer) {
+      clearTimeout(zipEmailFollowupTimer);
+      zipEmailFollowupTimer = null;
+    }
+  }
+
+  function queuedZipEmailErrorMessage(data) {
+    var code = data && data.error ? String(data.error) : '';
+    if (code === 'download_disabled') return 'Lejupielāde šim izmēram nav atļauta.';
+    if (code === 'empty_collection') return 'Izlase ir tukša — pievieno vismaz vienu bildi.';
+    if (code === 'not_authenticated') return 'Lūdzu ievadi vārdu un e-pastu, lai saņemtu ZIP.';
+    return 'Neizdevās pieprasīt lejupielādi. Mēģini vēlreiz.';
+  }
+
+  function showQueuedZipEmailProgress() {
+    clearZipEmailFollowupTimer();
+    if (!zipProgressModal) return;
+    zipProgressModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    setZipProgressUi({
+      loading: true,
+      success: false,
+      title: 'ZIP tiek veidots',
+      hint: 'Sagatavojam ZIP arhīvu fonā…',
+    });
+    zipEmailFollowupTimer = setTimeout(function () {
+      zipEmailFollowupTimer = null;
+      setZipProgressUi({
+        loading: false,
+        success: true,
+        title: 'ZIP tiek veidots',
+        hint: 'Tiklīdz ZIP būs gatavs, saņemsi e-pastu ar lejupielādes saiti.',
+      });
+    }, 2500);
+  }
+
+  function submitQueuedZipEmailRequest(url, body) {
+    showQueuedZipEmailProgress();
+    fetch(url, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          return { res: res, data: data };
+        });
+      })
+      .then(function (pack) {
+        if (pack.res.ok && pack.data && pack.data.ok) {
+          return;
+        }
+        clearZipEmailFollowupTimer();
+        showZipProgressError(queuedZipEmailErrorMessage(pack.data));
+      })
+      .catch(function () {
+        clearZipEmailFollowupTimer();
+        showZipProgressError('Neizdevās sazināties ar serveri. Mēģini vēlreiz.');
+      });
+  }
 
   function setZipProgressUi(opts) {
     var spinner = document.getElementById('zipProgressSpinner');
@@ -198,6 +265,7 @@
   }
 
   function closeZipProgress() {
+    clearZipEmailFollowupTimer();
     if (zipFetchAbort) {
       zipFetchAbort.abort();
       zipFetchAbort = null;
@@ -1669,40 +1737,11 @@
       return;
     }
     closeCollectionDlModal();
-    openZipProgressLoading('Pieprasa…', 'Ievietojam ZIP sagatavošanu rindā…');
     var body =
       'size=' +
       encodeURIComponent(size) +
       (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
-    fetch(visitorUrl('/download-all'), {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: csrfFetchHeaders({
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      }),
-      body: body,
-    })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.ok) {
-          setZipProgressUi({
-            loading: false,
-            success: true,
-            title: 'ZIP tiek veidots',
-            hint:
-              data.message ||
-              'ZIP faili tiek veidoti fonā. Saņemsi e-pastu ar lejupielādes saiti, kad viss būs gatavs.',
-          });
-        } else {
-          showZipProgressError((data && data.error) || 'Neizdevās pieprasīt lejupielādi.');
-        }
-      })
-      .catch(function () {
-        showZipProgressError('Neizdevās sazināties ar serveri.');
-      });
+    submitQueuedZipEmailRequest(visitorUrl('/download-all'), body);
   }
 
   function requestShareCollectionEmail(size) {
@@ -1712,40 +1751,12 @@
       openVisitorModal();
       return;
     }
-    openZipProgressLoading('Pieprasa…', 'Ievietojam ZIP sagatavošanu rindā…');
+    closeGalleryDlModal();
     var body =
       'size=' +
       encodeURIComponent(size) +
       (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
-    fetch(shareUrl, {
-      method: 'POST',
-      credentials: 'same-origin',
-      headers: csrfFetchHeaders({
-        Accept: 'application/json',
-        'Content-Type': 'application/x-www-form-urlencoded',
-      }),
-      body: body,
-    })
-      .then(function (res) {
-        return res.json();
-      })
-      .then(function (data) {
-        if (data && data.ok) {
-          setZipProgressUi({
-            loading: false,
-            success: true,
-            title: 'ZIP tiek veidots',
-            hint:
-              data.message ||
-              'ZIP ar visām izlases bildēm tiek veidots fonā. Saņemsi e-pastu, kad būs gatavs.',
-          });
-        } else {
-          showZipProgressError((data && data.error) || 'Neizdevās pieprasīt lejupielādi.');
-        }
-      })
-      .catch(function () {
-        showZipProgressError('Neizdevās sazināties ar serveri.');
-      });
+    submitQueuedZipEmailRequest(shareUrl, body);
   }
 
   function visitorLogout() {

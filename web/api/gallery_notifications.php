@@ -78,7 +78,9 @@ function efpic_gallery_email_signature_html(array $config): string
     $raw = trim((string) ($settings['gallery_email_signature'] ?? ''));
     if ($raw !== '') {
         if (preg_match('/<[^>]+>/', $raw)) {
-            return efpic_sanitize_email_signature_html($raw);
+            $html = efpic_sanitize_email_signature_html($raw);
+
+            return efpic_email_absolutize_image_urls($config, $html);
         }
 
         return '<div>' . nl2br(htmlspecialchars($raw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
@@ -92,6 +94,222 @@ function efpic_gallery_email_signature_html(array $config): string
     }
 
     return '';
+}
+
+function efpic_email_absolutize_image_urls(array $config, string $html): string
+{
+    if ($html === '' || stripos($html, '<img') === false) {
+        return $html;
+    }
+    $base = rtrim(efpic_base_url($config), '/');
+
+    return preg_replace_callback(
+        '/<img\b([^>]*)\bsrc=(["\'])([^"\']+)\2/i',
+        static function (array $m) use ($config, $base): string {
+            $src = trim($m[3]);
+            if ($src === '' || preg_match('#^https?://#i', $src) || str_starts_with($src, 'cid:')) {
+                return $m[0];
+            }
+            if (str_starts_with($src, '//')) {
+                $parsed = parse_url($base);
+                $scheme = $parsed['scheme'] ?? 'https';
+
+                return '<img' . $m[1] . 'src="' . htmlspecialchars($scheme . ':' . $src, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+            }
+            if (str_starts_with($src, '/')) {
+                $abs = $base . $src;
+            } else {
+                $abs = $base . '/' . ltrim($src, '/');
+            }
+            $resolved = efpic_email_resolve_local_image_path($config, $abs);
+            if ($resolved !== null) {
+                $abs = efpic_email_public_url_for_local_image($config, $resolved) ?: $abs;
+            }
+
+            return '<img' . $m[1] . 'src="' . htmlspecialchars($abs, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"';
+        },
+        $html,
+    ) ?? $html;
+}
+
+function efpic_email_resolve_local_image_path(array $config, string $src): ?string
+{
+    $src = trim($src);
+    if ($src === '') {
+        return null;
+    }
+
+    $base = rtrim(efpic_base_url($config), '/');
+    if (str_starts_with($src, $base)) {
+        $src = substr($src, strlen($base));
+    }
+    $src = '/' . ltrim($src, '/');
+
+    if (preg_match('#^/site/asset/([^/?#]+)$#', $src, $m)) {
+        $path = efpic_site_asset_path($config, rawurldecode($m[1]));
+
+        return is_file($path) ? $path : null;
+    }
+    if ($src === '/site/signature') {
+        $settings = efpic_load_app_settings($config);
+        $file = trim((string) ($settings['gallery_email_signature_image'] ?? ''));
+        if ($file === '') {
+            return null;
+        }
+        $path = efpic_site_asset_path($config, $file);
+
+        return is_file($path) ? $path : null;
+    }
+    if (preg_match('#^/site/logo$#', $src)) {
+        $settings = efpic_load_app_settings($config);
+        $file = trim((string) ($settings['site_logo'] ?? ''));
+        if ($file === '') {
+            return null;
+        }
+        $path = efpic_site_asset_path($config, $file);
+
+        return is_file($path) ? $path : null;
+    }
+
+    return null;
+}
+
+function efpic_email_public_url_for_local_image(array $config, string $path): string
+{
+    $assetsDir = efpic_site_assets_dir($config);
+    if (str_starts_with($path, $assetsDir . DIRECTORY_SEPARATOR)) {
+        $name = basename($path);
+
+        return efpic_site_asset_public_url($config, $name);
+    }
+
+    return '';
+}
+
+/**
+ * @return array{html: string, inline: list<array{cid: string, path: string, mime: string}>}
+ */
+function efpic_email_embed_inline_images(array $config, string $html): array
+{
+    $inline = [];
+    if ($html === '' || stripos($html, '<img') === false) {
+        return ['html' => $html, 'inline' => []];
+    }
+
+    $html = efpic_email_absolutize_image_urls($config, $html);
+    $html = preg_replace_callback(
+        '/<img\b([^>]*)\bsrc=(["\'])([^"\']+)\2([^>]*)>/i',
+        static function (array $m) use ($config, &$inline): string {
+            $src = $m[3];
+            $path = efpic_email_resolve_local_image_path($config, $src);
+            if ($path === null && preg_match('#^https?://#i', $src)) {
+                $path = efpic_email_resolve_local_image_path($config, $src);
+            }
+            if ($path === null || !is_file($path)) {
+                return $m[0];
+            }
+            $cid = 'efpic_' . bin2hex(random_bytes(8)) . '@efpic';
+            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
+            $mime = match ($ext) {
+                'png' => 'image/png',
+                'gif' => 'image/gif',
+                'webp' => 'image/webp',
+                default => 'image/jpeg',
+            };
+            $inline[] = ['cid' => $cid, 'path' => $path, 'mime' => $mime];
+
+            return '<img' . $m[1] . 'src="cid:' . $cid . '"' . $m[4] . '>';
+        },
+        $html,
+    ) ?? $html;
+
+    return ['html' => $html, 'inline' => $inline];
+}
+
+function efpic_email_zip_size_label(string $size): string
+{
+    return strtolower($size) === 'full' ? 'PRINT' : 'WEB';
+}
+
+function efpic_email_zip_ready_intro(int $collectionCount, string $size): string
+{
+    $label = efpic_email_zip_size_label($size);
+    if ($collectionCount === 1) {
+        return 'Tava izlase ' . $label . ' izmērā ir gatava lejupielādei.';
+    }
+
+    return 'Tavas izlases ' . $label . ' izmērā ir gatavas lejupielādei.';
+}
+
+/**
+ * @param list<array{cid: string, path: string, mime: string}> $inlineAttachments
+ */
+function efpic_gallery_deliver_rich_email(
+    array $config,
+    string $to,
+    string $subject,
+    string $plainBody,
+    string $htmlBody,
+    array $inlineAttachments = [],
+): void {
+    $emailCfg = efpic_gallery_email_cfg($config);
+
+    if (!empty($emailCfg['use_php_mail'])) {
+        $from = (string) ($emailCfg['from'] ?? '');
+        $fromName = (string) ($emailCfg['from_name'] ?? 'EdgarsFoto');
+        $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
+        $headers = [
+            'From: ' . $fromName . ' <' . $from . '>',
+            'Reply-To: ' . $from,
+            'MIME-Version: 1.0',
+        ];
+        if ($inlineAttachments === []) {
+            $boundary = 'efpic_' . bin2hex(random_bytes(8));
+            $headers[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
+            $message = "--{$boundary}\r\n"
+                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
+                . $plainBody . "\r\n"
+                . "--{$boundary}\r\n"
+                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+                . $htmlBody . "\r\n"
+                . "--{$boundary}--";
+        } else {
+            $mixed = 'efpic_mixed_' . bin2hex(random_bytes(8));
+            $alt = 'efpic_alt_' . bin2hex(random_bytes(8));
+            $rel = 'efpic_rel_' . bin2hex(random_bytes(8));
+            $headers[] = 'Content-Type: multipart/mixed; boundary="' . $mixed . '"';
+            $message = "--{$mixed}\r\n"
+                . 'Content-Type: multipart/alternative; boundary="' . $alt . '"' . "\r\n\r\n"
+                . "--{$alt}\r\n"
+                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
+                . $plainBody . "\r\n"
+                . "--{$alt}\r\n"
+                . 'Content-Type: multipart/related; boundary="' . $rel . '"' . "\r\n\r\n"
+                . "--{$rel}\r\n"
+                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+                . $htmlBody . "\r\n";
+            foreach ($inlineAttachments as $att) {
+                $data = file_get_contents($att['path']);
+                if ($data === false) {
+                    continue;
+                }
+                $message .= "--{$rel}\r\n"
+                    . 'Content-Type: ' . $att['mime'] . '; name="' . basename($att['path']) . '"' . "\r\n"
+                    . 'Content-Transfer-Encoding: base64' . "\r\n"
+                    . 'Content-ID: <' . $att['cid'] . '>' . "\r\n"
+                    . 'Content-Disposition: inline; filename="' . basename($att['path']) . '"' . "\r\n\r\n"
+                    . chunk_split(base64_encode($data));
+            }
+            $message .= "--{$rel}--\r\n"
+                . "--{$alt}--\r\n"
+                . "--{$mixed}--";
+        }
+        @mail($to, $encodedSubject, $message, implode("\r\n", $headers));
+
+        return;
+    }
+
+    efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, $htmlBody, $inlineAttachments);
 }
 
 function efpic_gallery_email_with_signature(array $config, string $body): string

@@ -720,6 +720,33 @@ function efpic_slugify(string $name): string
     return $s !== '' ? $s : 'gallery';
 }
 
+function efpic_transliterate_lv(string $text): string
+{
+    static $map = [
+        'ā' => 'a', 'č' => 'c', 'ē' => 'e', 'ģ' => 'g', 'ī' => 'i', 'ķ' => 'k', 'ļ' => 'l', 'ņ' => 'n', 'š' => 's', 'ū' => 'u', 'ž' => 'z',
+        'Ā' => 'A', 'Č' => 'C', 'Ē' => 'E', 'Ģ' => 'G', 'Ī' => 'I', 'Ķ' => 'K', 'Ļ' => 'L', 'Ņ' => 'N', 'Š' => 'S', 'Ū' => 'U', 'Ž' => 'Z',
+    ];
+
+    return strtr($text, $map);
+}
+
+function efpic_zip_filename_segment(string $text, bool $lowercase = false, string $fallback = 'fails'): string
+{
+    $text = efpic_transliterate_lv(trim($text));
+    $text = preg_replace('/[^a-zA-Z0-9]+/', '-', $text) ?? '';
+    $text = trim($text, '-');
+    if ($text === '') {
+        $text = $fallback;
+    }
+
+    return $lowercase ? strtolower($text) : $text;
+}
+
+function efpic_zip_size_label(string $size): string
+{
+    return strtolower($size) === 'full' ? 'PRINT' : 'WEB';
+}
+
 function efpic_read_json_file(string $path): ?array
 {
     if (!is_file($path)) {
