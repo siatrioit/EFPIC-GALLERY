@@ -905,6 +905,32 @@ function efpic_visitor_zip_activity_message(array $visitor, string $size, array 
     return 'Pieprasīja ' . $collectionCount . ' izlases (' . $sizeLabel . ') uz e-pastu';
 }
 
+function efpic_visitor_zip_download_notify_dedupe_seconds(): int
+{
+    return 120;
+}
+
+/**
+ * @param array<string, mixed> $data
+ * @param array<string, mixed> $job
+ */
+function efpic_visitor_zip_should_log_download_notify(array &$data, string $downloadToken, array &$job): bool
+{
+    $ip = trim((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+    $now = time();
+    $window = efpic_visitor_zip_download_notify_dedupe_seconds();
+    $lastAt = (int) ($job['telegram_notify_at'] ?? 0);
+    $lastIp = (string) ($job['telegram_notify_ip'] ?? '');
+    if ($lastAt > 0 && $lastIp === $ip && ($now - $lastAt) < $window) {
+        return false;
+    }
+    $job['telegram_notify_at'] = $now;
+    $job['telegram_notify_ip'] = $ip;
+    $data['zip_downloads'][$downloadToken] = $job;
+
+    return true;
+}
+
 function efpic_visitor_log_zip_email_request(
     array $config,
     string $slug,

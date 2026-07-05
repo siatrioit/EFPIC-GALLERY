@@ -59,6 +59,8 @@ return [
             'download_image',
             'download_zip',
             'download_collection',
+            'visitor_collection_download',
+            'visitor_share_download',
             'share_created',
             'expiry_reminder',
         ],

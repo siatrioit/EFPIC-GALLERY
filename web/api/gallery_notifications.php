@@ -220,43 +220,21 @@ function efpic_email_public_url_for_local_image(array $config, string $path): st
 }
 
 /**
+ * Sagatavo e-pasta HTML ar absolūtām attēlu saitēm (bez CID MIME daļām).
+ * Gmail un citi klienti citādi rāda iegultos attēlus kā pielikumus.
+ *
  * @return array{html: string, inline: list<array{cid: string, path: string, mime: string}>}
  */
 function efpic_email_embed_inline_images(array $config, string $html): array
 {
-    $inline = [];
     if ($html === '' || stripos($html, '<img') === false) {
         return ['html' => $html, 'inline' => []];
     }
 
-    $html = efpic_email_absolutize_image_urls($config, $html);
-    $html = preg_replace_callback(
-        '/<img\b([^>]*)\bsrc=(["\'])([^"\']+)\2([^>]*)>/i',
-        static function (array $m) use ($config, &$inline): string {
-            $src = $m[3];
-            $path = efpic_email_resolve_local_image_path($config, $src);
-            if ($path === null && preg_match('#^https?://#i', $src)) {
-                $path = efpic_email_cache_remote_image($src);
-            }
-            if ($path === null || !is_file($path)) {
-                return $m[0];
-            }
-            $cid = 'efpic_' . bin2hex(random_bytes(8)) . '@efpic';
-            $ext = strtolower(pathinfo($path, PATHINFO_EXTENSION));
-            $mime = match ($ext) {
-                'png' => 'image/png',
-                'gif' => 'image/gif',
-                'webp' => 'image/webp',
-                default => 'image/jpeg',
-            };
-            $inline[] = ['cid' => $cid, 'path' => $path, 'mime' => $mime];
-
-            return '<img' . $m[1] . 'src="cid:' . $cid . '"' . $m[4] . '>';
-        },
-        $html,
-    ) ?? $html;
-
-    return ['html' => $html, 'inline' => $inline];
+    return [
+        'html' => efpic_email_absolutize_image_urls($config, $html),
+        'inline' => [],
+    ];
 }
 
 /**
@@ -807,42 +785,13 @@ function efpic_gallery_on_activity(
 
     $gn = efpic_gallery_notify_cfg($config);
     $galleryTitle = efpic_gallery_telegram_title($meta, $slug);
-    $telegramEvents = $gn['telegram_events'] ?? [
-        'gallery_view',
-        'client_portal_view',
-        'image_hidden',
-        'image_shown',
-        'section_hidden',
-        'section_shown',
-        'download_image',
-        'download_zip',
-        'download_collection',
-        'share_created',
-        'expiry_reminder',
-    ];
-    if (!is_array($telegramEvents)) {
-        $telegramEvents = [];
-    }
-    if (in_array('download_collection', $telegramEvents, true)) {
-        foreach (['visitor_collection_download', 'visitor_share_download'] as $zipEvent) {
-            if (!in_array($zipEvent, $telegramEvents, true)) {
-                $telegramEvents[] = $zipEvent;
-            }
-        }
-    }
-    if (in_array('download_image', $telegramEvents, true)) {
-        foreach (['download_zip', 'download_collection'] as $zipEvent) {
-            if (!in_array($zipEvent, $telegramEvents, true)) {
-                $telegramEvents[] = $zipEvent;
-            }
-        }
-    }
-    if (in_array('gallery_view', $telegramEvents, true)
-        && !in_array('client_portal_view', $telegramEvents, true)) {
-        $telegramEvents[] = 'client_portal_view';
-    }
+    $telegramEvents = efpic_gallery_telegram_events_list($gn);
 
     if (!in_array($type, $telegramEvents, true)) {
+        return;
+    }
+
+    if (!empty($extra['skip_telegram'])) {
         return;
     }
 

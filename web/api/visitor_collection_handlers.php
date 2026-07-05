@@ -595,19 +595,22 @@ function efpic_handle_visitor_collection_download(array $config, string $gallery
         ];
     }
     if ($summaries !== []) {
-        $extra = $visitor !== null
-            ? efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries)
-            : ['size' => $size, 'collections' => $summaries];
-        $actor = $visitor !== null ? 'visitor:' . (string) ($visitor['email'] ?? '') : 'guest';
-        efpic_gallery_log_activity(
-            $config,
-            $found['slug'],
-            $meta,
-            'download_collection',
-            efpic_visitor_zip_activity_message($visitor ?? [], $size, $summaries, 'download'),
-            $actor,
-            $extra,
-        );
+        if (efpic_visitor_zip_should_log_download_notify($data, $downloadToken, $job)) {
+            $extra = $visitor !== null
+                ? efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries)
+                : ['size' => $size, 'collections' => $summaries];
+            $actor = $visitor !== null ? 'visitor:' . (string) ($visitor['email'] ?? '') : 'guest';
+            efpic_gallery_log_activity(
+                $config,
+                $found['slug'],
+                $meta,
+                'download_collection',
+                efpic_visitor_zip_activity_message($visitor ?? [], $size, $summaries, 'download'),
+                $actor,
+                $extra,
+            );
+            efpic_visitor_collections_save($config, $found['slug'], $data);
+        }
     }
 
     @set_time_limit(0);

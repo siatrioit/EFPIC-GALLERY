@@ -47,6 +47,53 @@ function efpic_gallery_log_activity(
     }
 }
 
+/** @return list<string> */
+function efpic_gallery_telegram_events_list(array $gn): array
+{
+    $telegramEvents = $gn['telegram_events'] ?? [
+        'gallery_view',
+        'client_portal_view',
+        'image_hidden',
+        'image_shown',
+        'section_hidden',
+        'section_shown',
+        'download_image',
+        'download_zip',
+        'download_collection',
+        'visitor_collection_download',
+        'visitor_share_download',
+        'share_created',
+        'expiry_reminder',
+    ];
+    if (!is_array($telegramEvents)) {
+        $telegramEvents = [];
+    }
+    if (in_array('download_image', $telegramEvents, true)) {
+        foreach (['download_zip', 'download_collection'] as $zipEvent) {
+            if (!in_array($zipEvent, $telegramEvents, true)) {
+                $telegramEvents[] = $zipEvent;
+            }
+        }
+    }
+    foreach (['download_image', 'download_zip', 'download_collection'] as $trigger) {
+        if (!in_array($trigger, $telegramEvents, true)) {
+            continue;
+        }
+        foreach (['visitor_collection_download', 'visitor_share_download'] as $zipEvent) {
+            if (!in_array($zipEvent, $telegramEvents, true)) {
+                $telegramEvents[] = $zipEvent;
+            }
+        }
+        break;
+    }
+    if (in_array('gallery_view', $telegramEvents, true)
+        && !in_array('client_portal_view', $telegramEvents, true)) {
+        $telegramEvents[] = 'client_portal_view';
+    }
+
+    return $telegramEvents;
+}
+
 function efpic_gallery_activity_type_label(string $type): string
 {
     return match ($type) {
