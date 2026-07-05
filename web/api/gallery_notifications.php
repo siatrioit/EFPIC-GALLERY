@@ -259,6 +259,60 @@ function efpic_email_embed_inline_images(array $config, string $html): array
     return ['html' => $html, 'inline' => $inline];
 }
 
+/**
+ * @param list<array{cid: string, path: string, mime: string}> $inlineAttachments
+ * @return array{contentType: string, body: string}
+ */
+function efpic_email_multipart_body(string $plainBody, string $htmlBody, array $inlineAttachments = []): array
+{
+    if ($inlineAttachments === []) {
+        $boundary = 'efpic_' . bin2hex(random_bytes(8));
+
+        return [
+            'contentType' => 'multipart/alternative; boundary="' . $boundary . '"',
+            'body' => "--{$boundary}\r\n"
+                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
+                . $plainBody . "\r\n"
+                . "--{$boundary}\r\n"
+                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+                . $htmlBody . "\r\n"
+                . "--{$boundary}--",
+        ];
+    }
+
+    $alt = 'efpic_alt_' . bin2hex(random_bytes(8));
+    $rel = 'efpic_rel_' . bin2hex(random_bytes(8));
+    $body = "--{$alt}\r\n"
+        . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
+        . $plainBody . "\r\n"
+        . "--{$alt}\r\n"
+        . 'Content-Type: multipart/related; boundary="' . $rel . '"' . "\r\n\r\n"
+        . "--{$rel}\r\n"
+        . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
+        . $htmlBody . "\r\n";
+
+    foreach ($inlineAttachments as $att) {
+        $data = file_get_contents($att['path']);
+        if ($data === false) {
+            continue;
+        }
+        $body .= "--{$rel}\r\n"
+            . 'Content-Type: ' . $att['mime'] . "\r\n"
+            . "Content-Transfer-Encoding: base64\r\n"
+            . 'Content-ID: <' . $att['cid'] . '>' . "\r\n"
+            . "Content-Disposition: inline\r\n\r\n"
+            . chunk_split(base64_encode($data));
+    }
+
+    $body .= "--{$rel}--\r\n"
+        . "--{$alt}--";
+
+    return [
+        'contentType' => 'multipart/alternative; boundary="' . $alt . '"',
+        'body' => $body,
+    ];
+}
+
 function efpic_email_zip_size_label(string $size): string
 {
     return strtolower($size) === 'full' ? 'PRINT' : 'WEB';
@@ -297,45 +351,13 @@ function efpic_gallery_deliver_rich_email(
             'MIME-Version: 1.0',
         ];
         if ($inlineAttachments === []) {
-            $boundary = 'efpic_' . bin2hex(random_bytes(8));
-            $headers[] = 'Content-Type: multipart/alternative; boundary="' . $boundary . '"';
-            $message = "--{$boundary}\r\n"
-                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
-                . $plainBody . "\r\n"
-                . "--{$boundary}\r\n"
-                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-                . $htmlBody . "\r\n"
-                . "--{$boundary}--";
+            $pack = efpic_email_multipart_body($plainBody, $htmlBody);
+            $headers[] = 'Content-Type: ' . $pack['contentType'];
+            $message = $pack['body'];
         } else {
-            $mixed = 'efpic_mixed_' . bin2hex(random_bytes(8));
-            $alt = 'efpic_alt_' . bin2hex(random_bytes(8));
-            $rel = 'efpic_rel_' . bin2hex(random_bytes(8));
-            $headers[] = 'Content-Type: multipart/mixed; boundary="' . $mixed . '"';
-            $message = "--{$mixed}\r\n"
-                . 'Content-Type: multipart/alternative; boundary="' . $alt . '"' . "\r\n\r\n"
-                . "--{$alt}\r\n"
-                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
-                . $plainBody . "\r\n"
-                . "--{$alt}\r\n"
-                . 'Content-Type: multipart/related; boundary="' . $rel . '"' . "\r\n\r\n"
-                . "--{$rel}\r\n"
-                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-                . $htmlBody . "\r\n";
-            foreach ($inlineAttachments as $att) {
-                $data = file_get_contents($att['path']);
-                if ($data === false) {
-                    continue;
-                }
-                $message .= "--{$rel}\r\n"
-                    . 'Content-Type: ' . $att['mime'] . '; name="' . basename($att['path']) . '"' . "\r\n"
-                    . 'Content-Transfer-Encoding: base64' . "\r\n"
-                    . 'Content-ID: <' . $att['cid'] . '>' . "\r\n"
-                    . 'Content-Disposition: inline; filename="' . basename($att['path']) . '"' . "\r\n\r\n"
-                    . chunk_split(base64_encode($data));
-            }
-            $message .= "--{$rel}--\r\n"
-                . "--{$alt}--\r\n"
-                . "--{$mixed}--";
+            $pack = efpic_email_multipart_body($plainBody, $htmlBody, $inlineAttachments);
+            $headers[] = 'Content-Type: ' . $pack['contentType'];
+            $message = $pack['body'];
         }
         @mail($to, $encodedSubject, $message, implode("\r\n", $headers));
 
@@ -728,6 +750,48 @@ function efpic_gallery_days_until_expiry(array $meta): ?int
     return (int) ceil($diff / 86400);
 }
 
+function efpic_gallery_telegram_title(array $meta, string $slug): string
+{
+    $name = (string) ($meta['name'] ?? $slug);
+    $dateRaw = substr((string) ($meta['event_date'] ?? ''), 0, 10);
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $dateRaw) === 1) {
+        return str_replace('-', '.', $dateRaw) . ' ' . $name;
+    }
+
+    return $name;
+}
+
+function efpic_gallery_telegram_format_visitor_zip(string $message, string $actor, array $extra): ?string
+{
+    $collections = is_array($extra['collections'] ?? null) ? $extra['collections'] : [];
+    $visitorName = trim((string) ($extra['visitor_name'] ?? ''));
+    $visitorEmail = trim((string) ($extra['visitor_email'] ?? ''));
+    if ($visitorEmail === '' && str_starts_with($actor, 'visitor:')) {
+        $visitorEmail = substr($actor, 8);
+    }
+    if ($collections === [] && $visitorName === '' && $visitorEmail === '') {
+        return null;
+    }
+
+    $lines = [htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8')];
+    if ($visitorName !== '') {
+        $lines[] = '👤 ' . htmlspecialchars($visitorName, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    if ($visitorEmail !== '') {
+        $lines[] = '✉️ ' . htmlspecialchars($visitorEmail, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    foreach ($collections as $collection) {
+        if (!is_array($collection)) {
+            continue;
+        }
+        $name = (string) ($collection['name'] ?? 'Izlase');
+        $count = (int) ($collection['count'] ?? 0);
+        $lines[] = '• «' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '» (' . $count . ' bildes)';
+    }
+
+    return implode("\n", $lines);
+}
+
 function efpic_gallery_on_activity(
     array $config,
     string $slug,
@@ -742,7 +806,7 @@ function efpic_gallery_on_activity(
     }
 
     $gn = efpic_gallery_notify_cfg($config);
-    $name = (string) ($meta['name'] ?? $slug);
+    $galleryTitle = efpic_gallery_telegram_title($meta, $slug);
     $telegramEvents = $gn['telegram_events'] ?? [
         'gallery_view',
         'client_portal_view',
@@ -758,6 +822,13 @@ function efpic_gallery_on_activity(
     ];
     if (!is_array($telegramEvents)) {
         $telegramEvents = [];
+    }
+    if (in_array('download_collection', $telegramEvents, true)) {
+        foreach (['visitor_collection_download', 'visitor_share_download'] as $zipEvent) {
+            if (!in_array($zipEvent, $telegramEvents, true)) {
+                $telegramEvents[] = $zipEvent;
+            }
+        }
     }
     if (in_array('download_image', $telegramEvents, true)) {
         foreach (['download_zip', 'download_collection'] as $zipEvent) {
@@ -789,12 +860,27 @@ function efpic_gallery_on_activity(
         'download_image' => '⬇️',
         'download_zip' => '📦',
         'download_collection' => '📋',
+        'visitor_collection_download' => '📋',
+        'visitor_share_download' => '📋',
         'share_created' => '🔗',
         'expiry_reminder' => '⏳',
         default => 'ℹ️',
     };
 
-    $text = $icon . ' <b>' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</b>' . "\n"
+    $visitorZipTypes = ['visitor_collection_download', 'visitor_share_download', 'download_collection'];
+    $visitorZipText = in_array($type, $visitorZipTypes, true)
+        ? efpic_gallery_telegram_format_visitor_zip($message, $actor, $extra)
+        : null;
+
+    if ($visitorZipText !== null) {
+        $text = $icon . ' <b>' . htmlspecialchars($galleryTitle, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</b>' . "\n"
+            . $visitorZipText;
+        efpic_telegram_notify($config, $text);
+
+        return;
+    }
+
+    $text = $icon . ' <b>' . htmlspecialchars($galleryTitle, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</b>' . "\n"
         . htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     $imageLabels = efpic_gallery_resolve_activity_image_labels($meta, $extra);

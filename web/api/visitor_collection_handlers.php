@@ -580,6 +580,36 @@ function efpic_handle_visitor_collection_download(array $config, string $gallery
         echo 'ZIP fails nav pieejams';
         exit;
     }
+
+    $size = (string) ($job['size'] ?? 'web');
+    $collectionId = (string) ($job['collection_id'] ?? '');
+    $visitorId = (string) ($job['visitor_id'] ?? '');
+    $collection = $collectionId !== '' ? efpic_visitor_get_collection($data, $collectionId) : null;
+    $visitor = $visitorId !== '' ? efpic_visitor_get_visitor($data, $visitorId) : null;
+    $summaries = [];
+    if (is_array($collection)) {
+        $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
+        $summaries[] = [
+            'name' => (string) ($collection['name'] ?? 'Izlase'),
+            'count' => count($tokens),
+        ];
+    }
+    if ($summaries !== []) {
+        $extra = $visitor !== null
+            ? efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries)
+            : ['size' => $size, 'collections' => $summaries];
+        $actor = $visitor !== null ? 'visitor:' . (string) ($visitor['email'] ?? '') : 'guest';
+        efpic_gallery_log_activity(
+            $config,
+            $found['slug'],
+            $meta,
+            'download_collection',
+            efpic_visitor_zip_activity_message($visitor ?? [], $size, $summaries, 'download'),
+            $actor,
+            $extra,
+        );
+    }
+
     @set_time_limit(0);
     @ignore_user_abort(true);
     header('Content-Type: application/zip');

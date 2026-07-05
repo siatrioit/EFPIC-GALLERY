@@ -801,6 +801,137 @@ function efpic_visitor_zip_job_collection_ids(array $data, string $visitorId): a
 }
 
 /**
+ * @param list<string> $collectionIds
+ * @return list<array{id: string, name: string, count: int}>
+ */
+function efpic_visitor_zip_collection_summaries(array $data, array $collectionIds): array
+{
+    $out = [];
+    foreach ($collectionIds as $collectionId) {
+        $collection = efpic_visitor_get_collection($data, (string) $collectionId);
+        if ($collection === null) {
+            continue;
+        }
+        $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
+        if ($tokens === []) {
+            continue;
+        }
+        $out[] = [
+            'id' => (string) ($collection['id'] ?? ''),
+            'name' => (string) ($collection['name'] ?? 'Izlase'),
+            'count' => count($tokens),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @param list<array{collection: array<string, mixed>, count: int}> $prepared
+ * @return list<array{name: string, count: int}>
+ */
+function efpic_visitor_zip_prepared_summaries(array $prepared): array
+{
+    $out = [];
+    foreach ($prepared as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $collection = is_array($item['collection'] ?? null) ? $item['collection'] : [];
+        $out[] = [
+            'name' => (string) ($collection['name'] ?? 'Izlase'),
+            'count' => (int) ($item['count'] ?? 0),
+        ];
+    }
+
+    return $out;
+}
+
+/**
+ * @param list<array{name: string, count: int}> $collections
+ * @return array{visitor_id: string, visitor_name: string, visitor_email: string, size: string, collections: list<array{name: string, count: int}>}
+ */
+function efpic_visitor_zip_activity_extra(
+    array $visitor,
+    string $visitorId,
+    string $size,
+    array $collections,
+): array {
+    return [
+        'visitor_id' => $visitorId,
+        'visitor_name' => (string) ($visitor['name'] ?? ''),
+        'visitor_email' => (string) ($visitor['email'] ?? ''),
+        'size' => $size,
+        'collections' => $collections,
+    ];
+}
+
+/**
+ * @param list<array{name: string, count: int}> $collections
+ */
+function efpic_visitor_zip_activity_message(array $visitor, string $size, array $collections, string $phase): string
+{
+    unset($visitor);
+    $sizeLabel = efpic_visitor_zip_size_label($size);
+    $collectionCount = count($collections);
+
+    if ($phase === 'email_sent') {
+        if ($collectionCount === 1) {
+            $n = (int) ($collections[0]['count'] ?? 0);
+
+            return 'Nosūtīts e-pasts ar izlasi ' . $sizeLabel . ' (' . $n . ' bildes)';
+        }
+
+        return 'Nosūtīts e-pasts ar ' . $collectionCount . ' izlasēm ' . $sizeLabel;
+    }
+
+    if ($phase === 'download') {
+        if ($collectionCount === 1) {
+            $name = (string) ($collections[0]['name'] ?? 'Izlase');
+
+            return 'Lejupielādē izlasi «' . $name . '» (' . $sizeLabel . ')';
+        }
+
+        return 'Lejupielādē ' . $collectionCount . ' izlases (' . $sizeLabel . ')';
+    }
+
+    if ($collectionCount === 1) {
+        $name = (string) ($collections[0]['name'] ?? 'Izlase');
+        $n = (int) ($collections[0]['count'] ?? 0);
+
+        return 'Pieprasīja izlasi «' . $name . '» (' . $n . ' bildes, ' . $sizeLabel . ') uz e-pastu';
+    }
+
+    return 'Pieprasīja ' . $collectionCount . ' izlases (' . $sizeLabel . ') uz e-pastu';
+}
+
+function efpic_visitor_log_zip_email_request(
+    array $config,
+    string $slug,
+    array &$meta,
+    array $visitor,
+    string $visitorId,
+    string $size,
+    array $data,
+    array $collectionIds,
+    string $activityType = 'visitor_collection_download',
+): void {
+    $summaries = efpic_visitor_zip_collection_summaries($data, $collectionIds);
+    if ($summaries === []) {
+        return;
+    }
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        $activityType,
+        efpic_visitor_zip_activity_message($visitor, $size, $summaries, 'request'),
+        'visitor:' . (string) ($visitor['email'] ?? ''),
+        efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries),
+    );
+}
+
+/**
  * @param array<string, mixed> $collection
  * @return array{collection: array<string, mixed>, download_url: string, count: int}|null
  */
@@ -1011,16 +1142,16 @@ function efpic_visitor_zip_finalize_job_email(
         }
     }
     efpic_visitor_send_all_zips_ready_email($config, $meta, $visitor, $prepared, $size);
+    $summaries = efpic_visitor_zip_prepared_summaries($prepared);
     efpic_gallery_log_activity(
         $config,
         $slug,
         $meta,
-        'visitor_collection_download',
-        ($visitor['name'] ?? '') . ' pieprasīja visas izlases ZIP (' . count($prepared) . ' izlases, ' . $size . ')',
-        'visitor:' . ($visitor['email'] ?? ''),
-        ['visitor_id' => $visitorId, 'size' => $size, 'collection_count' => count($prepared)],
+        'visitor_collection_email_sent',
+        efpic_visitor_zip_activity_message($visitor, $size, $summaries, 'email_sent'),
+        'visitor:' . (string) ($visitor['email'] ?? ''),
+        efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries),
     );
-    efpic_gallery_log_download($config, $slug, $meta, 'download_collection', 'Izlases (' . $size . ')');
 }
 
 /**
@@ -1077,16 +1208,16 @@ function efpic_visitor_request_share_all_zip_email(
 
     $prepared = [$item];
     efpic_visitor_send_all_zips_ready_email($config, $meta, $visitor, $prepared, $size);
+    $summaries = [['name' => $shareLabel, 'count' => count($images)]];
     efpic_gallery_log_activity(
         $config,
         $slug,
         $meta,
         'visitor_share_download',
-        ($visitor['name'] ?? '') . ' pieprasīja kopīgojamās izlases ZIP (' . $size . ')',
-        'visitor:' . ($visitor['email'] ?? ''),
-        ['visitor_id' => $visitorId, 'size' => $size, 'share_label' => $shareLabel],
+        efpic_visitor_zip_activity_message($visitor, $size, $summaries, 'request'),
+        'visitor:' . (string) ($visitor['email'] ?? ''),
+        efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries),
     );
-    efpic_gallery_log_download($config, $slug, $meta, 'download_collection', 'Kopīgojamā izlase (' . $size . ')');
 
     return ['ok' => true, 'collections_prepared' => 1];
 }

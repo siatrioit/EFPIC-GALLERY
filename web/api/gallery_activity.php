@@ -66,6 +66,8 @@ function efpic_gallery_activity_type_label(string $type): string
         'visitor_collection_add' => 'Izlasei pievienota bilde',
         'visitor_collection_remove' => 'No izlases noņemta bilde',
         'visitor_collection_download' => 'Izlases ZIP pieprasījums',
+        'visitor_collection_email_sent' => 'Izlases ZIP e-pasts nosūtīts',
+        'visitor_share_download' => 'Kopīgojamās izlases ZIP',
         'share_created' => 'Kopīgošana',
         'expiry_changed' => 'Termiņš',
         'sync' => 'Sinhronizācija',

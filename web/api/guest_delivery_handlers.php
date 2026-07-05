@@ -277,47 +277,9 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
     $msg .= 'Subject: =?UTF-8?B?' . base64_encode($subject) . "?=\r\n";
     $msg .= "MIME-Version: 1.0\r\n";
     if ($htmlBody !== null && $htmlBody !== '') {
-        if ($inlineAttachments === []) {
-            $boundary = 'efpic_' . bin2hex(random_bytes(8));
-            $msg .= 'Content-Type: multipart/alternative; boundary="' . $boundary . '"' . "\r\n\r\n";
-            $msg .= '--' . $boundary . "\r\n";
-            $msg .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
-            $msg .= $body . "\r\n";
-            $msg .= '--' . $boundary . "\r\n";
-            $msg .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-            $msg .= $htmlBody . "\r\n";
-            $msg .= '--' . $boundary . "--\r\n";
-        } else {
-            $mixed = 'efpic_mixed_' . bin2hex(random_bytes(8));
-            $alt = 'efpic_alt_' . bin2hex(random_bytes(8));
-            $rel = 'efpic_rel_' . bin2hex(random_bytes(8));
-            $msg .= 'Content-Type: multipart/mixed; boundary="' . $mixed . '"' . "\r\n\r\n";
-            $msg .= '--' . $mixed . "\r\n";
-            $msg .= 'Content-Type: multipart/alternative; boundary="' . $alt . '"' . "\r\n\r\n";
-            $msg .= '--' . $alt . "\r\n";
-            $msg .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
-            $msg .= $body . "\r\n";
-            $msg .= '--' . $alt . "\r\n";
-            $msg .= 'Content-Type: multipart/related; boundary="' . $rel . '"' . "\r\n\r\n";
-            $msg .= '--' . $rel . "\r\n";
-            $msg .= "Content-Type: text/html; charset=UTF-8\r\n\r\n";
-            $msg .= $htmlBody . "\r\n";
-            foreach ($inlineAttachments as $att) {
-                $data = file_get_contents($att['path']);
-                if ($data === false) {
-                    continue;
-                }
-                $msg .= '--' . $rel . "\r\n";
-                $msg .= 'Content-Type: ' . $att['mime'] . '; name="' . basename($att['path']) . '"' . "\r\n";
-                $msg .= "Content-Transfer-Encoding: base64\r\n";
-                $msg .= 'Content-ID: <' . $att['cid'] . '>' . "\r\n";
-                $msg .= 'Content-Disposition: inline; filename="' . basename($att['path']) . '"' . "\r\n\r\n";
-                $msg .= chunk_split(base64_encode($data));
-            }
-            $msg .= '--' . $rel . "--\r\n";
-            $msg .= '--' . $alt . "--\r\n";
-            $msg .= '--' . $mixed . "--\r\n";
-        }
+        $pack = efpic_email_multipart_body($body, $htmlBody, $inlineAttachments);
+        $msg .= 'Content-Type: ' . $pack['contentType'] . "\r\n\r\n";
+        $msg .= $pack['body'] . "\r\n";
     } else {
         $msg .= "Content-Type: text/plain; charset=UTF-8\r\n";
         $msg .= "\r\n";

@@ -1,4 +1,4 @@
-﻿(function () {
+(function () {
   var shareUrl = window.EFPIC_SHARE_URL || window.location.href;
   var shareTitle = window.EFPIC_SHARE_TITLE || document.title;
 
@@ -296,6 +296,7 @@
 
   function openCollectionDlModal() {
     if (!cdlModal) return;
+    updateCollectionDownloadTitle();
     var countEl = document.getElementById('collectionTrayCount');
     var count = countEl ? parseInt(countEl.textContent, 10) || 0 : 0;
     if (count <= 0) return;
@@ -313,11 +314,35 @@
     }
   }
 
-  function updateCollectionDownloadTitle(count) {
+  function visitorCollectionsWithImages() {
+    return (visitorState.collections || []).filter(function (coll) {
+      return (parseInt(coll.count, 10) || 0) > 0;
+    });
+  }
+
+  function updateCollectionDownloadTitle() {
     var titleEl = document.getElementById('collectionDownloadModalTitle');
     if (!titleEl) return;
-    titleEl.textContent =
-      count === 1 ? 'Atlasītā (1) bilde' : 'Atlasītās (' + count + ') bildes';
+    var withImages = visitorCollectionsWithImages();
+    if (withImages.length > 1) {
+      titleEl.textContent = 'Sagatavo izlases';
+      return;
+    }
+    if (withImages.length === 1) {
+      var n = parseInt(withImages[0].count, 10) || 0;
+      titleEl.textContent =
+        n === 1 ? 'Sagatavo atlasīto 1 bildi' : 'Sagatavo atlasītās ' + n + ' bildes';
+      return;
+    }
+    var activeCount =
+      (visitorState.activeCollection && parseInt(visitorState.activeCollection.count, 10)) || 0;
+    if (activeCount === 1) {
+      titleEl.textContent = 'Sagatavo atlasīto 1 bildi';
+    } else if (activeCount > 1) {
+      titleEl.textContent = 'Sagatavo atlasītās ' + activeCount + ' bildes';
+    } else {
+      titleEl.textContent = 'Sagatavo izlases';
+    }
   }
 
   function triggerBlobDownload(blob, filename) {
@@ -1457,7 +1482,7 @@
     if (manageBtn) {
       manageBtn.hidden = !visitorState.authenticated;
     }
-    updateCollectionDownloadTitle(count);
+    updateCollectionDownloadTitle();
     updateCollectionFilterNavLink();
   }
 

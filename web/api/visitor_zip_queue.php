@@ -154,6 +154,7 @@ function efpic_visitor_zip_enqueue_collections_job(
     }
 
     $jobId = efpic_random_hex(16);
+    $collectionIds = efpic_visitor_zip_job_collection_ids($data, $visitorId);
     efpic_visitor_zip_save_job($config, [
         'id' => $jobId,
         'type' => 'visitor_collections',
@@ -168,10 +169,21 @@ function efpic_visitor_zip_enqueue_collections_job(
         'claimed_at' => '',
         'error' => '',
         'collections_prepared' => 0,
-        'collection_ids' => efpic_visitor_zip_job_collection_ids($data, $visitorId),
+        'collection_ids' => $collectionIds,
         'prepared' => [],
         'email_sent' => false,
     ]);
+
+    efpic_visitor_log_zip_email_request(
+        $config,
+        $slug,
+        $meta,
+        $visitor,
+        $visitorId,
+        $size,
+        $data,
+        $collectionIds,
+    );
 
     return ['ok' => true, 'job_id' => $jobId];
 }
@@ -206,9 +218,16 @@ function efpic_visitor_zip_enqueue_share_all_job(
     }
 
     $data = efpic_visitor_collections_load($config, $slug);
-    if (efpic_visitor_get_visitor($data, $visitorId) === null) {
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    if ($visitor === null) {
         return ['ok' => false, 'error' => 'not_found'];
     }
+
+    $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
+    if ($shareLabel === '') {
+        $shareLabel = 'Izlase';
+    }
+    $images = efpic_client_navigable_images($meta, $ctx);
 
     $jobId = efpic_random_hex(16);
     efpic_visitor_zip_save_job($config, [
@@ -229,6 +248,17 @@ function efpic_visitor_zip_enqueue_share_all_job(
         'prepared' => [],
         'email_sent' => false,
     ]);
+
+    $summaries = [['name' => $shareLabel, 'count' => count($images)]];
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        'visitor_share_download',
+        efpic_visitor_zip_activity_message($visitor, $size, $summaries, 'request'),
+        'visitor:' . (string) ($visitor['email'] ?? ''),
+        efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries),
+    );
 
     return ['ok' => true, 'job_id' => $jobId];
 }
