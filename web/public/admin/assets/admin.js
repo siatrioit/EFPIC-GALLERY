@@ -2131,6 +2131,7 @@
 
   initAdminConfirmForms();
   initAdminRegeneratePublicLink();
+  initAdminPortalLinkToggle();
   initAdminBackfillDimensions();
   initAdminFaceIndex();
   initAdminGalleryLinksPoll();
@@ -2686,6 +2687,21 @@
       });
       form.submit();
     });
+  }
+
+  function initAdminPortalLinkToggle() {
+    var block = document.getElementById('admin-portal-link-block');
+    if (!block || block.dataset.bound === '1') return;
+    var toggle = block.querySelector('input[name="client_portal_enabled"]');
+    if (!toggle) return;
+    block.dataset.bound = '1';
+
+    function syncPortalLinkState() {
+      block.classList.toggle('is-portal-disabled', !toggle.checked);
+    }
+
+    toggle.addEventListener('change', syncPortalLinkState);
+    syncPortalLinkState();
   }
 
   (function initAdminFieldsetCollapse() {

@@ -330,6 +330,17 @@ function efpic_admin_render_link_row(string $url): string
     return $html;
 }
 
+function efpic_admin_render_link_row_disabled(string $url): string
+{
+    $display = efpic_admin_short_display_url($url);
+    $html = '<span class="admin-link-row is-disabled" aria-disabled="true">';
+    $html .= '<span class="admin-link-row__url admin-link-row__url--disabled" title="'
+        . efpic_admin_esc($url) . '">' . efpic_admin_esc($display) . '</span>';
+    $html .= '</span>';
+
+    return $html;
+}
+
 /** @return array{gallery_token: string, public_link_html: string, share_sets_html: string, share_index: list<string>, share_counts: array<string, int>} */
 function efpic_admin_gallery_links_payload(array $config, array $meta): array
 {
@@ -1974,34 +1985,63 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
         return '';
     }
 
-    $line = '<p class="muted admin-dims-debug" id="admin-dims-debug"><strong>Diag (pagaidu):</strong> '
-        . efpic_app_version_label()
-        . ' · izmēri meta.json: <strong id="admin-dims-count">' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
-    if ($stats['missing'] > 0 || ($stats['stale'] ?? 0) > 0) {
+    $html = '<div class="admin-dims-panel" id="admin-dims-debug">';
+    $html .= '<div class="admin-dims-panel__actions">';
+    $html .= '<button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
+        . 'Pārrēķināt izmērus</button>';
+    if ($stats['missing'] > 0) {
+        $html .= '<button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
+            . 'Ievākt atlikušos izmērus</button>';
+    } elseif (($stats['stale'] ?? 0) > 0) {
+        $html .= '<button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
+            . 'Pārrēķināt novecojušos</button>';
+    }
+    $html .= '<span class="admin-dims-progress-wrap" id="admin-dims-progress-wrap" hidden>'
+        . '<span class="admin-dims-progress-bar" id="admin-dims-progress-bar"></span></span>';
+    $html .= '<span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
+    $html .= '</div>';
+    $html .= '<p class="muted admin-dims-panel__summary">';
+    $html .= 'Izmēri saglabāti: <strong id="admin-dims-count">' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
+    if ($stats['missing'] <= 0 && ($stats['stale'] ?? 0) <= 0) {
+        $html .= ' — viss kārtībā';
+    } else {
         if ($stats['missing'] > 0) {
-            $line .= ' — trūkst <strong id="admin-dims-missing">' . $stats['missing'] . '</strong> (bez izmēra mosaic rēķina 1.5 — rodas caurumi)';
+            $html .= ' · trūkst <strong id="admin-dims-missing">' . $stats['missing'] . '</strong>';
         }
         if (($stats['stale'] ?? 0) > 0) {
-            $line .= ' — novecojuši <strong id="admin-dims-stale">' . (int) $stats['stale'] . '</strong> (Failiem fails mainīts, vajag sync/pārprobe)';
+            $html .= ' · novecojuši <strong id="admin-dims-stale">' . (int) $stats['stale'] . '</strong>';
         }
-        if ($stats['missing'] > 0) {
-            $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
-                . 'Ievākt atlikušos izmērus</button>';
-        } elseif (($stats['stale'] ?? 0) > 0) {
-            $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
-                . 'Pārrēķināt novecojušos izmērus</button>';
-        }
-        $line .= ' <span class="admin-dims-progress-wrap" id="admin-dims-progress-wrap" hidden>'
-            . '<span class="admin-dims-progress-bar" id="admin-dims-progress-bar"></span></span>';
-        $line .= ' <span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
-    } else {
-        $line .= ' — viss OK';
     }
-    $line .= ' · <button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
-        . 'Pārrēķināt izmērus</button>';
-    $line .= ' · publiski pārbaudi lapas avotā: <code>data-aspect</code></p>';
+    $html .= '</p></div>';
 
-    return $line;
+    return $html;
+}
+
+function efpic_admin_render_portal_links_block(array $config, array $formMeta, bool $isEdit): string
+{
+    $portalEnabled = $isEdit ? efpic_client_portal_enabled($formMeta) : true;
+    $portalToken = trim((string) ($formMeta['client_access']['portal_token'] ?? ''));
+    $portalUrl = $portalToken !== '' ? efpic_portal_url($config, $portalToken) : '';
+    $blockClass = 'admin-links-portal-block' . ($portalEnabled ? '' : ' is-portal-disabled');
+
+    $html = '<div class="' . $blockClass . '" id="admin-portal-link-block">';
+    $html .= '<input type="hidden" name="client_portal_enabled" value="0">';
+    $html .= efpic_render_admin_toggle('Klienta panelis', $portalEnabled, [
+        'name' => 'client_portal_enabled',
+        'value' => '1',
+        'class' => 'admin-toggle-field--links',
+    ]);
+    $html .= '<p class="admin-links-row admin-links-row--portal" id="admin-portal-link-row">';
+    if ($isEdit && $portalUrl !== '') {
+        $html .= efpic_admin_render_link_row($portalUrl);
+    } elseif ($isEdit) {
+        $html .= '<span class="muted">Saite nav pieejama.</span>';
+    } else {
+        $html .= '<span class="muted">Saite būs pieejama pēc galerijas izveides.</span>';
+    }
+    $html .= '</p></div>';
+
+    return $html;
 }
 
 function efpic_admin_media_thumb_url(array $config, array $img): string
@@ -2112,39 +2152,39 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= '<p class="admin-warn">Šī galerija ir <strong>dzēsta</strong> — publiski nav pieejama. Atjauno no saraksta «Dzēstās galerijas».</p>';
         }
         $gt = (string) ($meta['gallery_token'] ?? '');
-        $portal = (string) ($meta['client_access']['portal_token'] ?? '');
         $body .= '<div class="admin-tab-panel-grid admin-tab-panel-grid--pamati-top">';
         $body .= '<div class="admin-links admin-links-panel">';
         $body .= '<h3 class="admin-panel-box-title">Saites</h3>';
         $body .= '<p class="admin-links-row" id="admin-public-link-row" data-gallery-token="' . efpic_admin_esc($gt) . '"><strong>Publiska saite:</strong> '
             . efpic_admin_render_link_row(efpic_gallery_view_url($config, $gt)) . '</p>';
+        $body .= efpic_admin_render_portal_links_block($config, $formMeta, true);
         $body .= '<p class="admin-regenerate-link-row"><button type="button" class="btn admin-btn-sm" id="admin-regenerate-public-link" data-confirm="'
             . efpic_admin_esc('Izveidot jaunu publisko saiti? Vecā saite un ar to saistītās kopīgošanas saites pārtraks darboties.')
             . '">Ģenerēt jaunu publisko saiti</button></p>';
-        if (efpic_client_portal_enabled($meta)) {
-            $body .= '<p class="admin-links-row"><strong>Klienta panelis:</strong> '
-                . efpic_admin_render_link_row(efpic_portal_url($config, $portal)) . '</p>';
-        } else {
-            $body .= '<p class="admin-links-row muted"><strong>Klienta panelis:</strong> izslēgts — ieslēdz sadaļā «Klienta panelis».</p>';
-        }
         if (efpic_gallery_has_password($meta)) {
             $body .= '<p class="admin-warn">Galerijai ir <strong>parole</strong> — publiskajā saitē klientam tā jāievada, lai redzētu bildes.</p>';
         }
+        $body .= '<div class="admin-links-panel-footer">';
         $stats = $failiem['sync_stats'] ?? null;
         if (is_array($stats)) {
-            $body .= '<p class="muted">Sync: ' . (int) ($stats['paired'] ?? 0) . ' pāri';
+            $body .= '<p class="muted admin-links-sync">Sync: ' . (int) ($stats['paired'] ?? 0) . ' pāri';
             if ((int) ($stats['orphans_full'] ?? 0) > 0 || (int) ($stats['orphans_web'] ?? 0) > 0) {
                 $body .= ' · brīdinājumi: pilns ' . (int) ($stats['orphans_full'] ?? 0) . ', web ' . (int) ($stats['orphans_web'] ?? 0);
             }
             $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
         }
         $body .= efpic_admin_render_dimensions_debug_line($meta);
-        $body .= '</div>';
+        $body .= '</div></div>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
         $body .= '</div>';
     }
 
     if (!$isEdit) {
+        $body .= '<div class="admin-links admin-links-panel admin-links-panel--new">';
+        $body .= '<h3 class="admin-panel-box-title">Saites</h3>';
+        $body .= efpic_admin_render_portal_links_block($config, $formMeta, false);
+        $body .= '<p class="muted admin-field-hint">Publiskā galerijas saite būs redzama pēc izveides.</p>';
+        $body .= '</div>';
         $body .= '<div class="admin-form-layout">';
     }
 
@@ -2170,18 +2210,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     $body .= '<label>Klienta tālrunis (WhatsApp)<input type="tel" name="client_phone" value="' . efpic_admin_esc((string) ($formMeta['client_access']['phone'] ?? '')) . '" placeholder="29123456"></label>';
     $body .= '<label>Klienta e-pasts<input type="email" name="client_email" value="' . efpic_admin_esc((string) ($formMeta['client_access']['email'] ?? '')) . '"></label>';
     $body .= '</div>';
-    $portalEnabled = $isEdit ? efpic_client_portal_enabled($formMeta) : true;
-    $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-fieldset-no-collapse admin-fieldset-full--portal-toggle">';
-    $body .= '<legend>Klienta panelis</legend>';
-    $body .= '<input type="hidden" name="client_portal_enabled" value="0">';
-    $body .= efpic_render_admin_toggle(
-        'Izveidot klienta paneli (/c/p/…)',
-        $portalEnabled,
-        ['name' => 'client_portal_enabled', 'value' => '1'],
-    );
-    $body .= '<p class="admin-field-hint">Ja klientam pietiek tikai ar publisko galerijas saiti, vari izslēgt — netiks ģenerēta atsevišķa paneļa saite un parole. '
-        . 'Vēlāk var ieslēgt rediģēšanā.</p>';
-    $body .= '</fieldset>';
     $body .= '<div class="admin-form-row admin-form-row--2">';
     $body .= efpic_admin_render_password_field(
         'Galerijas parole',
@@ -2229,7 +2257,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         ];
         $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact" id="admin-fs-client-portal"><legend>Klienta panela sadaļas</legend>';
         if (!efpic_client_portal_enabled($meta)) {
-            $body .= '<p class="admin-warn">Klienta panelis ir izslēgts. Ieslēdz to sadaļā «Pamatinformācija», lai konfigurētu sadaļas.</p>';
+            $body .= '<p class="admin-warn">Klienta panelis ir izslēgts. Ieslēdz to sadaļā «Saites», lai konfigurētu sadaļas.</p>';
         } else {
             $body .= '<p class="admin-field-hint">Ieslēdz vai izslēdz sadaļas, ko klients redz savā panelī. «Iestatījumi» vienmēr ir pieejami.</p>';
             foreach ($sectionLabels as $sectionKey => $sectionLabel) {

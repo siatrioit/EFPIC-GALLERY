@@ -1560,7 +1560,66 @@
 }
 
 .admin-regenerate-link-row {
-  margin: 0 0 12px;
+  margin: 12px 0 0;
+}
+
+.admin-links-portal-block {
+  margin: 12px 0 0;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-links-portal-block .admin-toggle-field--links {
+  margin-bottom: 8px;
+}
+
+.admin-links-row--portal {
+  margin-bottom: 0;
+}
+
+.admin-links-portal-block.is-portal-disabled .admin-link-row {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.admin-links-portal-block.is-portal-disabled .admin-link-row__url {
+  color: var(--admin-text-muted);
+  cursor: not-allowed;
+}
+
+.admin-links-panel-footer {
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-links-sync {
+  margin: 0 0 10px;
+}
+
+.admin-dims-panel {
+  margin: 0;
+}
+
+.admin-dims-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 10px;
+  margin-bottom: 8px;
+}
+
+.admin-dims-panel__summary {
+  margin: 0;
+}
+
+.admin-link-row__url--disabled {
+  font-size: 0.82rem;
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: min(100%, 420px);
 }
 
 .admin-link-row {
