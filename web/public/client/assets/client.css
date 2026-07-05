@@ -2131,8 +2131,16 @@ input[type="password"],
   backdrop-filter: none;
 }
 
-.gallery-toolbar__nav:has(#faceSearchToolbar[hidden]):has(#collectionFilterToolbar[hidden]):not(:has(.gallery-scene-nav__sections .gallery-scene-nav__link)) {
+.gallery-toolbar__nav:has(#faceSearchToolbar[hidden]):not(:has(.gallery-scene-nav__sections .gallery-scene-nav__link)) {
   display: none;
+}
+
+button.gallery-scene-nav__link {
+  font: inherit;
+  cursor: pointer;
+  appearance: none;
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 .gallery-face-filter-status {
@@ -3224,8 +3232,7 @@ body.face-search-open {
   display: none !important;
 }
 
-body.face-search-filter-active .pic-feed.face-search-feed-inactive,
-body.collection-filter-active .pic-feed.collection-filter-feed-inactive {
+body.face-search-filter-active .pic-feed.face-search-feed-inactive {
   display: none !important;
 }
 

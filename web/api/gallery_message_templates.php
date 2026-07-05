@@ -528,10 +528,6 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
     }
 
     $html .= '</fieldset>';
-    $html .= '<input type="hidden" name="send_client_email" id="clientEmailComposeGroupHidden" value="">';
-    $html .= '<input type="hidden" name="client_email_compose_subject" id="clientEmailComposeSubjectHidden" value="">';
-    $html .= '<input type="hidden" name="client_email_compose_body_html" id="clientEmailComposeBodyHidden" value="">';
-    $html .= efpic_admin_render_client_email_compose_modal();
 
     return $html;
 }

@@ -626,7 +626,7 @@
 
   function collectFeedItems(container) {
     return Array.prototype.slice.call(
-      container.querySelectorAll(':scope > .pic-feed-item:not(.pic-feed-item--broken):not(.face-search-hidden)')
+      container.querySelectorAll(':scope > .pic-feed-item:not(.pic-feed-item--broken):not(.face-search-hidden):not(.collection-filter-hidden)')
     );
   }
 
@@ -1296,7 +1296,6 @@
   }
 
   var collectionFilterActive = false;
-  var collectionFilterRestore = [];
 
   function getCollectionFilterCount() {
     var count = 0;
@@ -1317,39 +1316,23 @@
     );
   }
 
-  function restoreCollectionFilterDom() {
-    collectionFilterRestore.slice().reverse().forEach(function (entry) {
-      if (!entry.el || !entry.parent) return;
-      if (entry.next && entry.next.parentNode === entry.parent) {
-        entry.parent.insertBefore(entry.el, entry.next);
-      } else {
-        entry.parent.appendChild(entry.el);
-      }
-    });
-    collectionFilterRestore = [];
-    document.querySelectorAll('.collection-filter-feed-inactive').forEach(function (feed) {
-      feed.classList.remove('collection-filter-feed-inactive');
-    });
-  }
-
-  function consolidateVisibleCollectionItems(visibleItems) {
-    var mosaicFeeds = document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]');
-    if (!mosaicFeeds.length) return;
-    var target = mosaicFeeds[0];
-    var feedItems = visibleItems.filter(function (el) {
-      return el.classList.contains('pic-feed-item');
-    });
-    feedItems.forEach(function (item) {
-      collectionFilterRestore.push({
-        el: item,
-        parent: item.parentNode,
-        next: item.nextSibling,
+  function getCollectionFilterNavLink() {
+    var sections = document.querySelector('.gallery-scene-nav__sections');
+    if (!sections) return null;
+    var link = document.getElementById('collectionFilterNavLink');
+    if (!link) {
+      link = document.createElement('button');
+      link.type = 'button';
+      link.id = 'collectionFilterNavLink';
+      link.className = 'gallery-scene-nav__link';
+      link.hidden = true;
+      sections.appendChild(link);
+      link.addEventListener('click', function () {
+        if (getCollectionFilterCount() <= 0) return;
+        setCollectionFilterActive(!collectionFilterActive);
       });
-      target.appendChild(item);
-    });
-    mosaicFeeds.forEach(function (feed, idx) {
-      feed.classList.toggle('collection-filter-feed-inactive', idx > 0);
-    });
+    }
+    return link;
   }
 
   function updateCollectionFilterScenes() {
@@ -1361,39 +1344,38 @@
     });
   }
 
+  function relayoutGalleryAfterFilter() {
+    scheduleMosaicRelayout();
+    requestAnimationFrame(function () {
+      scheduleMosaicRelayout();
+    });
+  }
+
   function applyCollectionFilter() {
     if (!collectionFilterActive) return;
-    restoreCollectionFilterDom();
     var tokens = visitorState.activeTokens || {};
-    var visible = [];
     getCollectionGalleryItems().forEach(function (el) {
       var tok = el.getAttribute('data-token') || '';
       if (tok === '') return;
-      var show = !!tokens[tok];
-      el.classList.toggle('collection-filter-hidden', !show);
-      if (show && !el.classList.contains('face-search-hidden')) {
-        visible.push(el);
-      }
+      el.classList.toggle('collection-filter-hidden', !tokens[tok]);
     });
     document.body.classList.add('collection-filter-active');
-    consolidateVisibleCollectionItems(visible);
     updateCollectionFilterScenes();
-    updateCollectionFilterToolbar();
-    scheduleMosaicRelayout();
+    updateCollectionFilterNavLink();
+    relayoutGalleryAfterFilter();
   }
 
   function clearCollectionFilter() {
     collectionFilterActive = false;
     document.body.classList.remove('collection-filter-active');
-    restoreCollectionFilterDom();
     document.querySelectorAll('.collection-filter-hidden').forEach(function (el) {
       el.classList.remove('collection-filter-hidden');
     });
     document.querySelectorAll('.collection-filter-scene-empty').forEach(function (el) {
       el.classList.remove('collection-filter-scene-empty');
     });
-    updateCollectionFilterToolbar();
-    scheduleMosaicRelayout();
+    updateCollectionFilterNavLink();
+    relayoutGalleryAfterFilter();
   }
 
   function setCollectionFilterActive(active) {
@@ -1405,48 +1387,27 @@
     }
   }
 
-  function updateCollectionFilterToolbar() {
-    var toolbar = document.getElementById('collectionFilterToolbar');
-    var toggleBtn = document.getElementById('collectionFilterToggle');
-    var textEl = document.getElementById('collectionFilterToolbarText');
-    if (!toolbar || !toggleBtn) return;
+  function updateCollectionFilterNavLink() {
+    var link = getCollectionFilterNavLink();
+    if (!link) return;
     var count = getCollectionFilterCount();
     var show = collectionEnabled && count > 0;
-    toolbar.hidden = !show;
+    link.hidden = !show;
     if (!show) {
       if (collectionFilterActive) clearCollectionFilter();
       return;
     }
-    var collName =
-      visitorState.activeCollection && visitorState.activeCollection.name
-        ? visitorState.activeCollection.name
-        : '';
-    if (collectionFilterActive) {
-      toggleBtn.textContent = 'Rādīt visas';
-      if (textEl) {
-        textEl.textContent =
-          'Rāda ' +
-          count +
-          (count === 1 ? ' izlases bildi' : ' izlases bildes') +
-          (collName ? ' («' + collName + '»)' : '');
-      }
-    } else {
-      toggleBtn.textContent = 'Rādīt izlasi';
-      if (textEl) {
-        textEl.textContent = collName
-          ? collName + ' · ' + count + (count === 1 ? ' bilde' : ' bildes')
-          : count + (count === 1 ? ' bilde izlases' : ' bildes izlases');
-      }
-    }
+    link.textContent = collectionFilterActive ? 'Rādīt visas' : 'Rādīt izlasi';
+    link.classList.toggle('is-active', collectionFilterActive);
+    link.setAttribute('aria-pressed', collectionFilterActive ? 'true' : 'false');
   }
 
   function syncCollectionFilterAfterCollectionChange() {
     if (!collectionFilterActive) {
-      updateCollectionFilterToolbar();
+      updateCollectionFilterNavLink();
       return;
     }
-    var count = getCollectionFilterCount();
-    if (count <= 0) {
+    if (getCollectionFilterCount() <= 0) {
       clearCollectionFilter();
       return;
     }
@@ -1455,13 +1416,7 @@
 
   function initCollectionFilter() {
     if (!collectionEnabled) return;
-    var toggleBtn = document.getElementById('collectionFilterToggle');
-    if (!toggleBtn) return;
-    toggleBtn.addEventListener('click', function () {
-      if (getCollectionFilterCount() <= 0) return;
-      setCollectionFilterActive(!collectionFilterActive);
-    });
-    updateCollectionFilterToolbar();
+    updateCollectionFilterNavLink();
   }
 
   function updateCollectionTray(count) {
@@ -1503,7 +1458,7 @@
       manageBtn.hidden = !visitorState.authenticated;
     }
     updateCollectionDownloadTitle(count);
-    updateCollectionFilterToolbar();
+    updateCollectionFilterNavLink();
   }
 
   function applyVisitorState(data) {

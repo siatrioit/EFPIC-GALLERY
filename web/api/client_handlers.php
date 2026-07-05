@@ -353,11 +353,12 @@ function efpic_client_render_gallery_toolbar(
     $html .= '<h1 class="topbar-title gallery-toolbar__title">' . efpic_client_esc($title) . '</h1>';
     if ($sceneNavLinks !== '' || $faceSearchReady || $collectionFilterReady) {
         $html .= '<nav class="gallery-scene-nav gallery-toolbar__nav" aria-label="Galerijas sadaļas">';
-        if ($sceneNavLinks !== '') {
-            $html .= '<div class="gallery-scene-nav__inner gallery-scene-nav__sections">' . $sceneNavLinks . '</div>';
-        }
-        if ($collectionFilterReady) {
-            $html .= efpic_client_render_collection_filter_toolbar_panel();
+        if ($sceneNavLinks !== '' || $collectionFilterReady) {
+            $html .= '<div class="gallery-scene-nav__inner gallery-scene-nav__sections">';
+            if ($sceneNavLinks !== '') {
+                $html .= $sceneNavLinks;
+            }
+            $html .= '</div>';
         }
         if ($faceSearchReady) {
             $html .= efpic_client_render_face_filter_toolbar_panel();
@@ -368,14 +369,6 @@ function efpic_client_render_gallery_toolbar(
     $html .= '</header>';
 
     return $html;
-}
-
-function efpic_client_render_collection_filter_toolbar_panel(): string
-{
-    return '<div class="gallery-face-filter-status gallery-collection-filter-status" id="collectionFilterToolbar" hidden>'
-        . '<span class="gallery-face-filter-text" id="collectionFilterToolbarText"></span>'
-        . '<button type="button" class="btn admin-btn-sm" id="collectionFilterToggle">Rādīt izlasi</button>'
-        . '</div>';
 }
 
 function efpic_client_navigable_images(array $meta, array $ctx): array
