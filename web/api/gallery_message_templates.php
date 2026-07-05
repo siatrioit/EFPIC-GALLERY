@@ -437,12 +437,10 @@ function efpic_email_template_body_for_editor(string $body): string
     return '<div>' . nl2br(htmlspecialchars($body, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
 }
 
-function efpic_admin_render_client_email_compose_modal(): string
+function efpic_admin_render_client_email_compose_workspace(): string
 {
-    $html = '<div class="modal-backdrop admin-client-email-modal-backdrop" id="clientEmailComposeModal" hidden role="dialog" aria-labelledby="clientEmailComposeTitle">';
-    $html .= '<div class="modal admin-client-email-compose-modal">';
-    $html .= '<button type="button" class="icon-btn modal-close admin-client-email-modal-close" data-client-email-compose-close aria-label="Aizvērt">×</button>';
-    $html .= '<h2 id="clientEmailComposeTitle">Sagatavot e-pastu klientam</h2>';
+    $html = '<div class="admin-client-email-compose-workspace" id="clientEmailComposeWorkspace" hidden>';
+    $html .= '<h3 class="admin-client-email-compose-title" id="clientEmailComposeTitle">Sagatavot e-pastu klientam</h3>';
     $html .= '<p class="muted admin-client-email-compose-kicker" id="clientEmailComposeGroupLabel"></p>';
     $html .= '<p class="muted">Sagataves teksts ir aizpildīts automātiski. Vari pielikt personīgu ziņu, mainīt formatējumu vai šriftu. E-pasta paraksts tiks pievienots automātiski.</p>';
     $html .= '<label class="field admin-client-email-subject-field">Temats<input type="text" id="clientEmailComposeSubject" autocomplete="off"></label>';
@@ -459,9 +457,9 @@ function efpic_admin_render_client_email_compose_modal(): string
     );
     $html .= '<p class="err admin-client-email-compose-error" id="clientEmailComposeError" hidden></p>';
     $html .= '<div class="admin-client-email-compose-actions">';
-    $html .= '<button type="button" class="btn" data-client-email-compose-close>Atcelt</button>';
+    $html .= '<button type="button" class="btn" data-client-email-compose-close>Aizvērt</button>';
     $html .= '<button type="button" class="btn primary" data-client-email-compose-send>Sūtīt e-pastu</button>';
-    $html .= '</div></div></div>';
+    $html .= '</div></div>';
 
     return $html;
 }
@@ -475,6 +473,7 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
 
     $html = '<fieldset class="admin-fieldset-full admin-client-messages" id="admin-fs-client-messages"><legend>Ziņojumi klientam</legend>';
     $html .= '<p class="muted">Izvēlies sagatavi katrai grupai. Sagataves veido <a href="settings.php">Iestatījumi → Ziņu sagataves</a>. '
+        . 'Nospied <strong>Sagatavot un sūtīt e-pastu</strong> — zemāk atvērsies redaktors, kur vari pielabot tekstu pirms nosūtīšanas. '
         . 'Pēc sagatavju izvēles maiņas saglabā galeriju — WhatsApp saite atjaunojas pēc saglabāšanas.</p>';
     $html .= '<div class="admin-client-msg-groups">';
 
@@ -519,6 +518,10 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
     }
 
     $html .= '</div>';
+
+    if ($hasEmail && efpic_gallery_client_email($meta) !== '') {
+        $html .= efpic_admin_render_client_email_compose_workspace();
+    }
 
     if (!$hasEmail) {
         $html .= '<p class="muted">E-pasta sūtīšanai ieslēdz SMTP <a href="settings.php">Iestatījumos</a>.</p>';

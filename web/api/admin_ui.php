@@ -2426,7 +2426,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '<input type="hidden" name="send_client_email" id="clientEmailComposeGroupHidden" value="">';
         $body .= '<input type="hidden" name="client_email_compose_subject" id="clientEmailComposeSubjectHidden" value="">';
         $body .= '<input type="hidden" name="client_email_compose_body_html" id="clientEmailComposeBodyHidden" value="">';
-        $body .= efpic_admin_render_client_email_compose_modal();
     }
 
     $body .= '</form>';
