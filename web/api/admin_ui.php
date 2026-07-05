@@ -341,6 +341,15 @@ function efpic_admin_render_link_row_disabled(string $url): string
     return $html;
 }
 
+/** @return array{gallery_password_set: bool, client_password_set: bool} */
+function efpic_admin_password_fields_payload(array $meta): array
+{
+    return [
+        'gallery_password_set' => efpic_gallery_has_password($meta),
+        'client_password_set' => efpic_client_portal_has_password($meta),
+    ];
+}
+
 /** @return array{gallery_token: string, public_link_html: string, share_sets_html: string, share_index: list<string>, share_counts: array<string, int>} */
 function efpic_admin_gallery_links_payload(array $config, array $meta): array
 {
@@ -1844,9 +1853,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
 
         efpic_apply_client_contact_from_post($meta);
         efpic_apply_gallery_client_messages_from_post($meta);
-        if (empty($_POST['autosave'])) {
-            efpic_apply_gallery_passwords_from_post($meta);
-        }
+        efpic_apply_gallery_passwords_from_post($meta);
         efpic_apply_client_portal_sections_from_post($meta);
         efpic_apply_client_portal_enabled_from_post($meta);
 

@@ -415,12 +415,14 @@ function efpic_gallery_client_email_draft(
     $vars = efpic_gallery_notify_vars($config, $meta, $slug, $overrides);
     $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
     $body = efpic_gallery_notify_replace($tpl['body'], $vars);
-    $bodyHtml = efpic_email_template_body_for_editor($body);
+    $innerHtml = efpic_gallery_email_plain_to_inner_html($body);
+    $previewPack = efpic_gallery_email_transactional_pack($config, $meta, $innerHtml, $subject);
 
     return [
         'subject' => $subject,
         'body' => $body,
-        'body_html' => $bodyHtml,
+        'body_html' => $innerHtml,
+        'preview_html' => $previewPack['html'],
     ];
 }
 
@@ -437,13 +439,22 @@ function efpic_email_template_body_for_editor(string $body): string
     return '<div>' . nl2br(htmlspecialchars($body, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false) . '</div>';
 }
 
+function efpic_gallery_client_email_preview_html(array $config, array $meta, string $contentHtml, string $subject = ''): string
+{
+    $built = efpic_gallery_email_build_from_html($config, $meta, $contentHtml, $subject);
+
+    return $built['html'];
+}
+
 function efpic_admin_render_client_email_compose_workspace(): string
 {
     $html = '<div class="admin-client-email-compose-workspace" id="clientEmailComposeWorkspace" hidden>';
     $html .= '<h3 class="admin-client-email-compose-title" id="clientEmailComposeTitle">Sagatavot e-pastu klientam</h3>';
     $html .= '<p class="muted admin-client-email-compose-kicker" id="clientEmailComposeGroupLabel"></p>';
-    $html .= '<p class="muted">Sagataves teksts ir aizpildīts automātiski. Vari pielikt personīgu ziņu, mainīt formatējumu vai šriftu. E-pasta paraksts tiks pievienots automātiski.</p>';
+    $html .= '<p class="muted">Sagataves teksts ir aizpildīts automātiski. Vari pielabot saturu kreisajā pusē — labajā redzēsi, kā e-pasts izskatīsies klientam. Paraksts tiek pievienots automātiski.</p>';
     $html .= '<label class="field admin-client-email-subject-field">Temats<input type="text" id="clientEmailComposeSubject" autocomplete="off"></label>';
+    $html .= '<div class="admin-client-email-compose-layout">';
+    $html .= '<div class="admin-client-email-compose-editor-col">';
     $html .= '<div class="admin-client-email-editor-label">Vēstules saturs</div>';
     $html .= efpic_admin_render_rich_text_editor_block(
         'clientEmailComposeEditor',
@@ -455,6 +466,12 @@ function efpic_admin_render_client_email_compose_workspace(): string
         'settings.php?upload=signature_image',
         'admin-client-email-editor-wrap',
     );
+    $html .= '</div>';
+    $html .= '<div class="admin-client-email-compose-preview-col">';
+    $html .= '<div class="admin-client-email-editor-label">Priekšskatījums</div>';
+    $html .= '<div class="admin-client-email-preview-wrap">';
+    $html .= '<iframe class="admin-client-email-preview-frame" id="clientEmailComposePreview" title="E-pasta priekšskatījums"></iframe>';
+    $html .= '</div></div></div>';
     $html .= '<p class="err admin-client-email-compose-error" id="clientEmailComposeError" hidden></p>';
     $html .= '<div class="admin-client-email-compose-actions">';
     $html .= '<button type="button" class="btn" data-client-email-compose-close>Aizvērt</button>';
@@ -480,7 +497,7 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
     foreach ($groups as $group => $label) {
         $html .= '<div class="admin-client-msg-group">';
         $html .= '<h3 class="admin-share-block-title">' . efpic_admin_esc($label) . '</h3>';
-        $html .= '<div class="admin-form-layout admin-form-layout--basic">';
+        $html .= '<div class="admin-client-msg-fields">';
 
         $emailOptions = efpic_message_templates_for($config, $group, 'email');
         $html .= '<label>E-pasta sagatave<select name="client_msg_' . efpic_admin_esc($group) . '_email">';

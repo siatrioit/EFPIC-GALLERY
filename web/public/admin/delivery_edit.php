@@ -138,6 +138,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'face') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['poll'] ?? '') === 'client_email_preview') {
+    header('Content-Type: application/json; charset=utf-8');
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if ($meta === null) {
+        echo json_encode(['ok' => false, 'error' => 'not_found'], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+    $contentHtml = trim((string) ($_POST['content_html'] ?? ''));
+    $subject = trim((string) ($_POST['subject'] ?? ''));
+    try {
+        echo json_encode([
+            'ok' => true,
+            'preview_html' => efpic_gallery_client_email_preview_html($config, $meta, $contentHtml, $subject),
+        ], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'client_email_preview') {
     header('Content-Type: application/json; charset=utf-8');
     $meta = efpic_load_gallery_meta($config, $slug);
@@ -256,6 +277,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $gt = (string) ($meta['gallery_token'] ?? '');
                 $payload['videos_html'] = efpic_admin_render_existing_videos_list($config, $meta, $gt);
                 $payload = array_merge($payload, efpic_admin_gallery_links_payload($config, $meta));
+                $payload = array_merge($payload, efpic_admin_password_fields_payload($meta));
                 $slideshowItems = [];
                 foreach (efpic_gallery_slideshow_storage($meta)['items'] as $item) {
                     $item = efpic_slideshow_slot_with_render($item);

@@ -543,16 +543,15 @@ function efpic_admin_render_password_field(string $label, string $name, string $
     $html .= '<label>' . htmlspecialchars($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
     $placeholder = $isSet ? 'Parole iestatīta (ievadi jaunu, lai mainītu)' : 'Tukšs = bez paroles';
     $html .= '<input type="text" name="' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '"'
-        . ' class="admin-password-field admin-no-autosave" value="'
+        . ' class="admin-password-field" value="'
         . htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" autocomplete="off"'
         . ' placeholder="' . htmlspecialchars($placeholder, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '">';
     $html .= '</label>';
-    if ($isSet) {
-        $removeName = 'remove_' . $name;
-        $html .= '<label class="admin-checkbox-inline"><input type="checkbox" name="'
-            . htmlspecialchars($removeName, ENT_QUOTES | ENT_HTML5, 'UTF-8')
-            . '" value="1"> Noņemt paroli</label>';
-    }
+    $removeName = 'remove_' . $name;
+    $html .= '<label class="admin-checkbox-inline admin-password-remove"'
+        . ($isSet ? '' : ' hidden') . '><input type="checkbox" name="'
+        . htmlspecialchars($removeName, ENT_QUOTES | ENT_HTML5, 'UTF-8')
+        . '" value="1"> Noņemt paroli</label>';
     if ($hint !== '') {
         $html .= '<p class="admin-field-hint">' . htmlspecialchars($hint, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
     }

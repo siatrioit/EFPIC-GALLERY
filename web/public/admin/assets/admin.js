@@ -202,6 +202,7 @@
 
   var adminAutoSaveTimer = 0;
   var adminAutoSaveInFlight = false;
+  var adminPasswordUiSyncing = false;
   var adminAutoSaveQueued = false;
 
   function adminFormIsEditDelivery() {
@@ -409,6 +410,7 @@
     form.addEventListener('input', function (evt) {
       var t = evt.target;
       if (!shouldAutoSaveTarget(t)) return;
+      if (t.classList && t.classList.contains('admin-password-field')) return;
       if (t.tagName === 'SELECT' || t.type === 'checkbox' || t.type === 'radio') return;
       scheduleAdminAutoSave();
     });
@@ -498,6 +500,7 @@
 
   function scheduleAdminAutoSave() {
     if (!adminFormIsEditDelivery()) return;
+    if (adminPasswordUiSyncing) return;
     if (adminAutoSaveTimer) clearTimeout(adminAutoSaveTimer);
     adminAutoSaveTimer = setTimeout(function () {
       adminAutoSaveTimer = 0;
@@ -572,6 +575,7 @@
           }
         }
         applyAdminGalleryLinksPayload(data);
+        applyAdminPasswordFieldsPayload(data);
         applyAdminShareAutosavePayload(data);
         applyAdminSlideshowRenderPayload(data);
         applyAdminFavoritesAutosavePayload(data);
@@ -587,6 +591,47 @@
           scheduleAdminAutoSave();
         }
       });
+  }
+
+  function applyAdminPasswordFieldsPayload(data) {
+    if (!data) return;
+    var form = document.getElementById('admin-delivery-form');
+    if (!form) return;
+
+    adminPasswordUiSyncing = true;
+    try {
+      if (typeof data.gallery_password_set === 'boolean') {
+        syncAdminPasswordField(form, 'gallery_password', 'remove_gallery_password', data.gallery_password_set);
+      }
+      if (typeof data.client_password_set === 'boolean') {
+        syncAdminPasswordField(form, 'client_password', 'remove_client_password', data.client_password_set);
+      }
+    } finally {
+      adminPasswordUiSyncing = false;
+    }
+  }
+
+  function syncAdminPasswordField(form, inputName, removeName, isSet) {
+    var input = form.querySelector('[name="' + inputName + '"]');
+    if (!input) return;
+    input.value = '';
+    input.placeholder = isSet
+      ? 'Parole iestatīta (ievadi jaunu, lai mainītu)'
+      : 'Tukšs = bez paroles';
+    var block = input.closest('.admin-field-block');
+    if (!block) return;
+    var removeLabel = block.querySelector('.admin-password-remove');
+    if (isSet) {
+      if (removeLabel) {
+        removeLabel.hidden = false;
+        var removeInputOn = removeLabel.querySelector('[name="' + removeName + '"]');
+        if (removeInputOn) removeInputOn.checked = false;
+      }
+    } else if (removeLabel) {
+      removeLabel.hidden = true;
+      var removeInput = removeLabel.querySelector('[name="' + removeName + '"]');
+      if (removeInput) removeInput.checked = false;
+    }
   }
 
   function applyAdminGalleryLinksPayload(data) {
@@ -2692,7 +2737,7 @@
   function initAdminPortalLinkToggle() {
     var block = document.getElementById('admin-portal-link-block');
     if (!block || block.dataset.bound === '1') return;
-    var toggle = block.querySelector('input[name="client_portal_enabled"]');
+    var toggle = block.querySelector('input[type="checkbox"][name="client_portal_enabled"]');
     if (!toggle) return;
     block.dataset.bound = '1';
 

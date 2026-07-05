@@ -306,6 +306,166 @@ function efpic_email_zip_ready_intro(int $collectionCount, string $size): string
     return 'Tavas izlases ' . $label . ' izmērā ir gatavas lejupielādei.';
 }
 
+function efpic_gallery_email_render_link_card(
+    string $title,
+    string $url,
+    string $passwordLine = '',
+    string $buttonLabel = 'Atvērt',
+): string {
+    $titleEsc = htmlspecialchars($title, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $urlEsc = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $btnEsc = htmlspecialchars($buttonLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $metaLine = $passwordLine !== ''
+        ? htmlspecialchars($passwordLine, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        : '';
+
+    $html = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;background:#faf9f7;border:1px solid #e8e4df;border-radius:10px;">'
+        . '<tr><td style="padding:16px 18px;">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr>'
+        . '<td style="vertical-align:middle;padding:0 16px 0 0;">'
+        . '<div style="font-size:15px;font-weight:600;color:#1a1a1a;margin:0 0 4px;line-height:1.35;">' . $titleEsc . '</div>';
+    if ($metaLine !== '') {
+        $html .= '<div style="font-size:13px;color:#6b6560;margin:0;line-height:1.4;">' . $metaLine . '</div>';
+    }
+    $html .= '</td>'
+        . '<td style="vertical-align:middle;width:1px;white-space:nowrap;text-align:right;">'
+        . '<a href="' . $urlEsc . '" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 18px;border-radius:8px;line-height:1.2;">'
+        . $btnEsc . '</a>'
+        . '</td></tr></table>'
+        . '</td></tr></table>';
+
+    return $html;
+}
+
+function efpic_gallery_email_link_card_button_label(string $url, string $title): string
+{
+    if (str_contains($url, '/c/p/') || stripos($title, 'panel') !== false) {
+        return 'Atvērt paneli';
+    }
+    if (str_contains($url, '/v/g/')) {
+        return 'Atvērt galeriju';
+    }
+
+    return 'Atvērt saiti';
+}
+
+function efpic_gallery_email_plain_to_inner_html(string $plain): string
+{
+    $plain = trim(str_replace(["\r\n", "\r"], "\n", $plain));
+    if ($plain === '') {
+        return '';
+    }
+
+    $html = '';
+    $blocks = preg_split('/\n\s*\n/', $plain) ?: [];
+    foreach ($blocks as $block) {
+        $lines = array_values(array_filter(array_map('trim', explode("\n", (string) $block)), static fn ($line) => $line !== ''));
+        if ($lines === []) {
+            continue;
+        }
+
+        $urlIndex = null;
+        foreach ($lines as $index => $line) {
+            if (preg_match('#^https?://#i', $line) === 1) {
+                $urlIndex = $index;
+                break;
+            }
+        }
+
+        if ($urlIndex !== null) {
+            $url = $lines[$urlIndex];
+            $title = $urlIndex > 0 ? implode(' ', array_slice($lines, 0, $urlIndex)) : 'Saite';
+            $passwordLine = '';
+            if (isset($lines[$urlIndex + 1]) && str_starts_with($lines[$urlIndex + 1], 'Parole:')) {
+                $passwordLine = $lines[$urlIndex + 1];
+            }
+            $html .= efpic_gallery_email_render_link_card(
+                $title,
+                $url,
+                $passwordLine,
+                efpic_gallery_email_link_card_button_label($url, $title),
+            );
+            continue;
+        }
+
+        $html .= '<p style="margin:0 0 16px;font-size:15px;line-height:1.55;color:#444;">'
+            . nl2br(htmlspecialchars(implode("\n", $lines), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'), false)
+            . '</p>';
+    }
+
+    return $html;
+}
+
+/**
+ * @return array{html: string, inline: list<array{cid: string, path: string, mime: string}>}
+ */
+function efpic_gallery_email_transactional_pack(
+    array $config,
+    array $meta,
+    string $innerHtml,
+    string $documentTitle = '',
+): array {
+    $settings = efpic_load_app_settings($config);
+    $byline = trim((string) ($settings['gallery_byline'] ?? 'Gallery by EdgarsFoto'));
+    $galleryName = htmlspecialchars((string) ($meta['name'] ?? 'Galerija'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $bylineEsc = htmlspecialchars($byline, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $titleEsc = htmlspecialchars(
+        $documentTitle !== '' ? $documentTitle : (string) ($meta['name'] ?? 'Galerija'),
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8',
+    );
+
+    $signatureEmbedded = efpic_email_embed_inline_images($config, efpic_gallery_email_signature_html($config));
+    $signatureBlock = '';
+    if ($signatureEmbedded['html'] !== '') {
+        $signatureBlock = '<tr><td style="padding:20px 28px 24px;border-top:1px solid #e8e4df;font-family:Helvetica,Arial,sans-serif;">'
+            . '<div style="font-size:14px;line-height:1.55;color:#333;">' . $signatureEmbedded['html'] . '</div></td></tr>';
+    }
+
+    $html = '<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<title>' . $titleEsc . '</title></head>'
+        . '<body style="margin:0;padding:0;background:#f0eeeb;font-family:Georgia,\'Times New Roman\',serif;">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f0eeeb;padding:32px 16px;">'
+        . '<tr><td align="center">'
+        . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.06);">'
+        . '<tr><td style="background:#1a1a1a;padding:28px 28px 24px;text-align:center;">'
+        . '<div style="font-size:11px;letter-spacing:0.12em;text-transform:uppercase;color:#b8b0a8;margin:0 0 8px;">' . $bylineEsc . '</div>'
+        . '<div style="font-size:22px;font-weight:400;color:#ffffff;margin:0;line-height:1.3;">' . $galleryName . '</div>'
+        . '</td></tr>'
+        . '<tr><td style="padding:28px 28px 24px;font-family:Helvetica,Arial,sans-serif;">'
+        . $innerHtml
+        . '</td></tr>'
+        . $signatureBlock
+        . '</table></td></tr></table></body></html>';
+
+    return ['html' => $html, 'inline' => $signatureEmbedded['inline']];
+}
+
+function efpic_gallery_email_build_from_plain(array $config, array $meta, string $plainBody, string $documentTitle = ''): array
+{
+    $innerHtml = efpic_gallery_email_plain_to_inner_html($plainBody);
+    $pack = efpic_gallery_email_transactional_pack($config, $meta, $innerHtml, $documentTitle);
+
+    return [
+        'plain' => efpic_gallery_email_with_signature($config, $plainBody),
+        'html' => $pack['html'],
+        'inline' => $pack['inline'],
+    ];
+}
+
+function efpic_gallery_email_build_from_html(array $config, array $meta, string $contentHtml, string $documentTitle = ''): array
+{
+    $contentHtml = efpic_email_absolutize_image_urls($config, efpic_sanitize_email_signature_html($contentHtml));
+    $plainMain = efpic_html_to_plain_text($contentHtml);
+    $pack = efpic_gallery_email_transactional_pack($config, $meta, $contentHtml, $documentTitle);
+
+    return [
+        'plain' => efpic_gallery_email_with_signature($config, $plainMain),
+        'html' => $pack['html'],
+        'inline' => $pack['inline'],
+    ];
+}
+
 /**
  * @param list<array{cid: string, path: string, mime: string}> $inlineAttachments
  */
@@ -377,47 +537,18 @@ function efpic_gallery_email_html_with_signature(array $config, string $plainBod
     return efpic_gallery_email_html_body_with_signature($config, $plainBody);
 }
 
-function efpic_gallery_deliver_email(array $config, string $to, string $subject, string $body): void
+function efpic_gallery_deliver_email(array $config, string $to, string $subject, string $body, array $meta = []): void
 {
-    $plainBody = efpic_gallery_email_with_signature($config, $body);
-    $emailCfg = efpic_gallery_email_cfg($config);
-    $signatureHtml = efpic_gallery_email_signature_html($config);
-    $htmlBody = $signatureHtml !== '' ? efpic_gallery_email_html_body_with_signature($config, $body) : null;
-
-    if (!empty($emailCfg['use_php_mail'])) {
-        $from = (string) ($emailCfg['from'] ?? '');
-        $fromName = (string) ($emailCfg['from_name'] ?? 'EdgarsFoto');
-        $encodedSubject = '=?UTF-8?B?' . base64_encode($subject) . '?=';
-        if ($htmlBody !== null) {
-            $boundary = 'efpic_' . bin2hex(random_bytes(8));
-            $headers = [
-                'From: ' . $fromName . ' <' . $from . '>',
-                'Reply-To: ' . $from,
-                'MIME-Version: 1.0',
-                'Content-Type: multipart/alternative; boundary="' . $boundary . '"',
-            ];
-            $message = "--{$boundary}\r\n"
-                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
-                . $plainBody . "\r\n"
-                . "--{$boundary}\r\n"
-                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-                . $htmlBody . "\r\n"
-                . "--{$boundary}--";
-            @mail($to, $encodedSubject, $message, implode("\r\n", $headers));
-        } else {
-            $headers = [
-                'From: ' . $fromName . ' <' . $from . '>',
-                'Reply-To: ' . $from,
-                'Content-Type: text/plain; charset=UTF-8',
-                'MIME-Version: 1.0',
-            ];
-            @mail($to, $encodedSubject, $plainBody, implode("\r\n", $headers));
-        }
+    if ($meta === []) {
+        $emailCfg = efpic_gallery_email_cfg($config);
+        $plainBody = efpic_gallery_email_with_signature($config, $body);
+        efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
 
         return;
     }
 
-    efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, $htmlBody);
+    $built = efpic_gallery_email_build_from_plain($config, $meta, $body, $subject);
+    efpic_gallery_deliver_rich_email($config, $to, $subject, $built['plain'], $built['html'], $built['inline']);
 }
 
 function efpic_telegram_cfg(array $config): array
@@ -563,20 +694,15 @@ function efpic_gallery_notify_replace(string $text, array $vars): string
     return $text;
 }
 
-function efpic_gallery_deliver_composed_email(array $config, string $to, string $subject, string $bodyHtml): void
-{
-    $bodyHtml = efpic_email_absolutize_image_urls($config, efpic_sanitize_email_signature_html($bodyHtml));
-    $plainMain = efpic_html_to_plain_text($bodyHtml);
-    $plainBody = efpic_gallery_email_with_signature($config, $plainMain);
-
-    $signatureHtml = efpic_gallery_email_signature_html($config);
-    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.55;color:#111;">' . $bodyHtml . '</div>';
-    if ($signatureHtml !== '') {
-        $html .= '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;font-family:sans-serif;font-size:14px;color:#111;">'
-            . $signatureHtml . '</div>';
-    }
-    $embedded = efpic_email_embed_inline_images($config, $html);
-    efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $embedded['html'], $embedded['inline']);
+function efpic_gallery_deliver_composed_email(
+    array $config,
+    string $to,
+    string $subject,
+    string $bodyHtml,
+    array $meta,
+): void {
+    $built = efpic_gallery_email_build_from_html($config, $meta, $bodyHtml, $subject);
+    efpic_gallery_deliver_rich_email($config, $to, $subject, $built['plain'], $built['html'], $built['inline']);
 }
 
 function efpic_gallery_send_client_email(
@@ -604,7 +730,7 @@ function efpic_gallery_send_client_email(
             $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
         }
         try {
-            efpic_gallery_deliver_composed_email($config, $to, $subject, $customBodyHtml);
+            efpic_gallery_deliver_composed_email($config, $to, $subject, $customBodyHtml, $meta);
         } catch (Throwable $e) {
             throw new RuntimeException('E-pasts: ' . $e->getMessage(), 0, $e);
         }
@@ -618,7 +744,7 @@ function efpic_gallery_send_client_email(
     $body = efpic_gallery_notify_replace($tpl['body'], $vars);
 
     try {
-        efpic_gallery_deliver_email($config, $to, $subject, $body);
+        efpic_gallery_deliver_email($config, $to, $subject, $body, $meta);
     } catch (Throwable $e) {
         throw new RuntimeException('E-pasts: ' . $e->getMessage(), 0, $e);
     }
