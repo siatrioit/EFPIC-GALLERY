@@ -610,6 +610,121 @@ input[type="password"],
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.14);
 }
 
+.gallery-intro-cover-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+
+.gallery-intro-cover-media {
+  overflow: hidden;
+}
+
+.gallery-intro-full-bg.gallery-intro-cover-media,
+.gallery-intro-split-media.gallery-intro-cover-media {
+  position: relative;
+}
+
+.gallery-intro-full-bg .gallery-intro-cover-video,
+.gallery-intro-split-media .gallery-intro-cover-video {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.gallery-intro--mood .gallery-intro-blob .gallery-intro-cover-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.gallery-cover-media {
+  position: relative;
+  width: 100%;
+  max-height: 42vh;
+  overflow: hidden;
+}
+
+.gallery-cover-media .gallery-intro-cover-video,
+.gallery-cover-media .gallery-intro-photo {
+  width: 100%;
+  max-height: 42vh;
+  object-fit: cover;
+  box-shadow: none;
+}
+
+@keyframes efpic-cover-ken-burns {
+  0% {
+    transform: scale(1);
+    object-position: 42% 50%;
+  }
+  100% {
+    transform: scale(1.1);
+    object-position: 58% 50%;
+  }
+}
+
+@keyframes efpic-cover-zoom-in {
+  0% {
+    transform: scale(1);
+  }
+  100% {
+    transform: scale(1.12);
+  }
+}
+
+@keyframes efpic-cover-pan-left {
+  0% {
+    object-position: 62% 50%;
+  }
+  100% {
+    object-position: 38% 50%;
+  }
+}
+
+.gallery-intro-cover-anim--ken-burns .gallery-intro-cover-media .gallery-intro-photo,
+.gallery-intro-cover-anim--ken-burns .gallery-intro-cover-media .gallery-intro-cover-video,
+.gallery-intro-cover-anim--ken-burns.gallery-intro--mood .gallery-intro-blob .gallery-intro-photo,
+.gallery-intro-cover-anim--ken-burns.gallery-intro--mood .gallery-intro-blob .gallery-intro-cover-video,
+.gallery-intro-cover-anim--ken-burns.gallery-intro--cinematic-full .gallery-intro-cinematic-bg .gallery-intro-photo,
+.gallery-intro-cover-anim--ken-burns.gallery-intro--cinematic-full .gallery-intro-cinematic-bg .gallery-intro-cover-video {
+  animation: efpic-cover-ken-burns 22s ease-in-out infinite alternate;
+  will-change: transform, object-position;
+}
+
+.gallery-intro-cover-anim--zoom-in .gallery-intro-cover-media .gallery-intro-photo,
+.gallery-intro-cover-anim--zoom-in .gallery-intro-cover-media .gallery-intro-cover-video,
+.gallery-intro-cover-anim--zoom-in.gallery-intro--mood .gallery-intro-blob .gallery-intro-photo,
+.gallery-intro-cover-anim--zoom-in.gallery-intro--mood .gallery-intro-blob .gallery-intro-cover-video,
+.gallery-intro-cover-anim--zoom-in.gallery-intro--cinematic-full .gallery-intro-cinematic-bg .gallery-intro-photo,
+.gallery-intro-cover-anim--zoom-in.gallery-intro--cinematic-full .gallery-intro-cinematic-bg .gallery-intro-cover-video {
+  animation: efpic-cover-zoom-in 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.gallery-intro-cover-anim--pan-left .gallery-intro-cover-media .gallery-intro-photo,
+.gallery-intro-cover-anim--pan-left .gallery-intro-cover-media .gallery-intro-cover-video,
+.gallery-intro-cover-anim--pan-left.gallery-intro--mood .gallery-intro-blob .gallery-intro-photo,
+.gallery-intro-cover-anim--pan-left.gallery-intro--mood .gallery-intro-blob .gallery-intro-cover-video,
+.gallery-intro-cover-anim--pan-left.gallery-intro--cinematic-full .gallery-intro-cinematic-bg .gallery-intro-photo,
+.gallery-intro-cover-anim--pan-left.gallery-intro--cinematic-full .gallery-intro-cinematic-bg .gallery-intro-cover-video {
+  animation: efpic-cover-pan-left 20s ease-in-out infinite alternate;
+  will-change: object-position;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gallery-intro-cover-anim--ken-burns .gallery-intro-photo,
+  .gallery-intro-cover-anim--ken-burns .gallery-intro-cover-video,
+  .gallery-intro-cover-anim--zoom-in .gallery-intro-photo,
+  .gallery-intro-cover-anim--zoom-in .gallery-intro-cover-video,
+  .gallery-intro-cover-anim--pan-left .gallery-intro-photo,
+  .gallery-intro-cover-anim--pan-left .gallery-intro-cover-video {
+    animation: none !important;
+  }
+}
+
 .gallery-intro-date {
   margin: 12px 0 0;
   text-align: right;
@@ -801,7 +916,8 @@ input[type="password"],
   min-height: 50dvh;
 }
 
-.gallery-intro-split-media .gallery-intro-photo {
+.gallery-intro-split-media .gallery-intro-photo,
+.gallery-intro-split-media .gallery-intro-cover-video {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -855,7 +971,8 @@ input[type="password"],
   background: var(--hero-accent);
 }
 
-.gallery-intro-full-bg .gallery-intro-photo {
+.gallery-intro-full-bg .gallery-intro-photo,
+.gallery-intro-full-bg .gallery-intro-cover-video {
   width: 100%;
   height: 100%;
   min-height: 100%;
@@ -913,6 +1030,88 @@ input[type="password"],
   padding: 0;
   align-self: flex-start;
   max-width: min(92%, 52rem);
+}
+
+/* Kinematogrāfisks pilnekrāna vāks */
+.gallery-intro--cinematic-full {
+  position: relative;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 0;
+  overflow: hidden;
+  background: #000;
+  color: var(--intro-text-color, #f5f2eb);
+}
+
+.gallery-intro-cinematic-bg {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background: #000;
+}
+
+.gallery-intro-cinematic-bg .gallery-intro-photo,
+.gallery-intro-cinematic-bg .gallery-intro-cover-video {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  object-fit: cover;
+  box-shadow: none;
+}
+
+.gallery-intro-cinematic-vignette {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  pointer-events: none;
+  background:
+    linear-gradient(to bottom, rgba(0, 0, 0, 0.35) 0%, transparent 28%, transparent 55%, rgba(0, 0, 0, 0.72) 100%),
+    radial-gradient(ellipse at center, transparent 40%, rgba(0, 0, 0, 0.35) 100%);
+}
+
+.gallery-intro-cinematic-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  min-height: inherit;
+  width: 100%;
+  padding: 28px 24px 48px;
+  box-sizing: border-box;
+}
+
+.gallery-intro-byline--cinematic {
+  margin: 0;
+  text-align: center;
+  opacity: 0.72;
+}
+
+.gallery-intro-cinematic-footer {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  text-align: center;
+  padding-bottom: clamp(12px, 4vh, 36px);
+}
+
+.gallery-intro-date--cinematic {
+  margin: 0;
+  opacity: 0.9;
+  letter-spacing: 0.08em;
+}
+
+.gallery-intro-title--cinematic {
+  margin: 0;
+  padding: 0;
+  max-width: min(94%, 18ch);
+  line-height: 1.08;
+  text-wrap: balance;
 }
 
 .gallery-intro-date--below {
@@ -1526,8 +1725,10 @@ input[type="password"],
     margin-bottom: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
   }
 
-  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]),
-  .theme-efpic-high-five .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+  .theme-efpic-base .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]),
+  .pic-feed[data-mosaic-max-columns="3"]:not([data-mosaic-columns]),
+  .pic-feed[data-mosaic-max-columns="4"]:not([data-mosaic-columns]),
+  .pic-feed[data-mosaic-max-columns="5"]:not([data-mosaic-columns]) {
     column-count: 3;
   }
 }
@@ -1547,23 +1748,21 @@ input[type="password"],
     margin-bottom: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
   }
 
-  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]),
-  .theme-efpic-high-five .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+  .theme-efpic-base .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]),
+  .pic-feed[data-mosaic-max-columns="4"]:not([data-mosaic-columns]),
+  .pic-feed[data-mosaic-max-columns="5"]:not([data-mosaic-columns]) {
     column-count: 4;
   }
 }
 
 @media (min-width: 1400px) {
-  .theme-efpic-high-five .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+  .pic-feed[data-mosaic-max-columns="5"]:not([data-mosaic-columns]) {
     column-count: 5;
   }
 }
 
 /* Shell theme full-screen image viewer */
-.page-viewer.theme-efpic-modern,
-.page-viewer.theme-efpic-high-five,
-.page-viewer.theme-efpic-mood,
-.page-viewer.theme-efpic-forest {
+.page-viewer.theme-efpic-base {
   background: var(--page-bg, #ffffff);
   color: var(--text);
   overflow: hidden;
@@ -1571,10 +1770,7 @@ input[type="password"],
   height: 100dvh;
 }
 
-.page-viewer.theme-efpic-modern .modern-viewer,
-.page-viewer.theme-efpic-high-five .modern-viewer,
-.page-viewer.theme-efpic-mood .modern-viewer,
-.page-viewer.theme-efpic-forest .modern-viewer {
+.page-viewer.theme-efpic-base .modern-viewer {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1629,21 +1825,12 @@ input[type="password"],
   flex-shrink: 0;
 }
 
-.page-viewer.theme-efpic-modern .icon-btn,
-.page-viewer.theme-efpic-high-five .icon-btn,
-.page-viewer.theme-efpic-mood .icon-btn,
-.page-viewer.theme-efpic-forest .icon-btn {
+.page-viewer.theme-efpic-base .icon-btn {
   color: var(--text);
 }
 
-.page-viewer.theme-efpic-modern .icon-btn:hover,
-.page-viewer.theme-efpic-modern .icon-btn:focus-visible,
-.page-viewer.theme-efpic-high-five .icon-btn:hover,
-.page-viewer.theme-efpic-high-five .icon-btn:focus-visible,
-.page-viewer.theme-efpic-mood .icon-btn:hover,
-.page-viewer.theme-efpic-mood .icon-btn:focus-visible,
-.page-viewer.theme-efpic-forest .icon-btn:hover,
-.page-viewer.theme-efpic-forest .icon-btn:focus-visible {
+.page-viewer.theme-efpic-base .icon-btn:hover,
+.page-viewer.theme-efpic-base .icon-btn:focus-visible {
   background: rgba(0, 0, 0, 0.06);
 }
 
@@ -2058,10 +2245,7 @@ input[type="password"],
   border-bottom: 1px solid var(--border);
 }
 
-.theme-efpic-modern .gallery-scene-nav,
-.theme-efpic-high-five .gallery-scene-nav,
-.theme-efpic-mood .gallery-scene-nav,
-.theme-efpic-forest .gallery-scene-nav,
+.theme-efpic-base .gallery-scene-nav,
 .theme-pic-time .gallery-scene-nav {
   margin: 0;
   background: color-mix(in srgb, var(--page-bg, #ffffff) 94%, transparent);
@@ -2780,10 +2964,7 @@ button.gallery-scene-nav__link {
     max-width: 900px;
   }
 
-  .theme-efpic-modern .gallery-main,
-  .theme-efpic-high-five .gallery-main,
-  .theme-efpic-mood .gallery-main,
-  .theme-efpic-forest .gallery-main,
+  .theme-efpic-base .gallery-main,
   .theme-pic-time .gallery-main,
   .theme-pic-time .downloads {
     max-width: 100%;

@@ -66,6 +66,492 @@ function efpic_gallery_cover_image_style_attr(array $meta, bool $fill = false): 
     return ' style="' . $style . '"';
 }
 
+/** @return array<string, array{label: string, hero_accent: string, page_bg: string, intro_text_color: string}> */
+function efpic_gallery_design_palette_catalog(): array
+{
+    return [
+        'classic-warm' => [
+            'label' => 'Silts klasiskais',
+            'hero_accent' => '#9a9578',
+            'page_bg' => '#f7f5f0',
+            'intro_text_color' => '#1a1a1a',
+        ],
+        'minimal-light' => [
+            'label' => 'Gaišs minimālisms',
+            'hero_accent' => '#e8e6e1',
+            'page_bg' => '#ffffff',
+            'intro_text_color' => '#111111',
+        ],
+        'editorial-dark' => [
+            'label' => 'Redakcionāls tumšs',
+            'hero_accent' => '#1c1c1c',
+            'page_bg' => '#0f0f0f',
+            'intro_text_color' => '#f5f2eb',
+        ],
+        'forest-natural' => [
+            'label' => 'Dabas zaļš',
+            'hero_accent' => '#3d5c45',
+            'page_bg' => '#eef3ee',
+            'intro_text_color' => '#1a2e1f',
+        ],
+        'sandstone' => [
+            'label' => 'Smilškrāsa',
+            'hero_accent' => '#c4b59a',
+            'page_bg' => '#faf8f4',
+            'intro_text_color' => '#2c2418',
+        ],
+        'blush-romance' => [
+            'label' => 'Blāvi rozā',
+            'hero_accent' => '#e8d5d0',
+            'page_bg' => '#fff9f7',
+            'intro_text_color' => '#3d2c2a',
+        ],
+        'slate-cool' => [
+            'label' => 'Vēsais pelēkzils',
+            'hero_accent' => '#5c6b7a',
+            'page_bg' => '#f4f6f8',
+            'intro_text_color' => '#1a2332',
+        ],
+        'ink-contrast' => [
+            'label' => 'Tintes kontrasts',
+            'hero_accent' => '#0d0d0d',
+            'page_bg' => '#ffffff',
+            'intro_text_color' => '#ffffff',
+        ],
+        'champagne' => [
+            'label' => 'Šampanietis',
+            'hero_accent' => '#d4c4a8',
+            'page_bg' => '#fdfbf7',
+            'intro_text_color' => '#2a2218',
+        ],
+        'moody-blue' => [
+            'label' => 'Dziļš zils',
+            'hero_accent' => '#2a3d5c',
+            'page_bg' => '#eef1f6',
+            'intro_text_color' => '#e8ecf2',
+        ],
+    ];
+}
+
+function efpic_gallery_design_palette_key(array $meta): string
+{
+    $key = trim((string) ($meta['design_palette'] ?? ''));
+
+    return array_key_exists($key, efpic_gallery_design_palette_catalog()) ? $key : '';
+}
+
+/** @return array<string, string> */
+function efpic_gallery_cover_animation_options(): array
+{
+    return [
+        'none' => 'Bez animācijas',
+        'ken-burns' => 'Kinematogrāfisks (Ken Burns)',
+        'zoom-in' => 'Lēns tuvinājums',
+        'pan-left' => 'Lēna panorāma',
+    ];
+}
+
+function efpic_gallery_cover_animation(array $meta): string
+{
+    $key = trim((string) ($meta['cover_animation'] ?? 'none'));
+
+    return array_key_exists($key, efpic_gallery_cover_animation_options()) ? $key : 'none';
+}
+
+function efpic_gallery_cover_animation_class(array $meta): string
+{
+    $anim = efpic_gallery_cover_animation($meta);
+    if ($anim === 'none') {
+        return '';
+    }
+
+    return ' gallery-intro-cover-anim--' . preg_replace('/[^a-z0-9-]/', '', $anim);
+}
+
+function efpic_gallery_cover_media_type(array $meta): string
+{
+    return trim((string) ($meta['cover_media_type'] ?? 'image')) === 'video' ? 'video' : 'image';
+}
+
+function efpic_gallery_cover_video_id(array $meta): string
+{
+    return trim((string) ($meta['cover_video_id'] ?? ''));
+}
+
+/** @return array<string, mixed>|null */
+function efpic_gallery_video_by_id(array $meta, string $id): ?array
+{
+    $id = trim($id);
+    if ($id === '') {
+        return null;
+    }
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (is_array($video) && (string) ($video['id'] ?? '') === $id) {
+            return $video;
+        }
+    }
+
+    return null;
+}
+
+function efpic_gallery_cover_video_url(array $config, array $meta, ?array $ctx = null): string
+{
+    if (efpic_gallery_cover_media_type($meta) !== 'video') {
+        return '';
+    }
+    $video = efpic_gallery_video_by_id($meta, efpic_gallery_cover_video_id($meta));
+    if ($video === null || (string) ($video['kind'] ?? '') !== 'file') {
+        return '';
+    }
+    $file = trim((string) ($video['file'] ?? ''));
+    if ($file === '') {
+        return '';
+    }
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $guestQ = is_array($ctx) ? trim((string) ($ctx['guest_token'] ?? '')) : '';
+
+    return efpic_gallery_asset_url($config, $gt, $file, $guestQ !== '' ? $guestQ : null);
+}
+
+/** @return list<array{id: string, label: string, url: string}> */
+function efpic_admin_cover_video_options(array $config, array $meta): array
+{
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $out = [];
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        if ((string) ($video['kind'] ?? '') !== 'file') {
+            continue;
+        }
+        $file = trim((string) ($video['file'] ?? ''));
+        $id = trim((string) ($video['id'] ?? ''));
+        if ($file === '' || $id === '') {
+            continue;
+        }
+        $title = trim((string) ($video['title'] ?? ''));
+        $out[] = [
+            'id' => $id,
+            'label' => $title !== '' ? $title : $file,
+            'url' => efpic_gallery_asset_url($config, $gt, $file),
+        ];
+    }
+
+    return $out;
+}
+
+/** @return list<string> */
+function efpic_design_template_setting_keys(): array
+{
+    return [
+        'hero_accent_color',
+        'page_bg_color',
+        'intro_text_color',
+        'cover_style',
+        'cover_layout',
+        'cover_focal_x',
+        'cover_focal_y',
+        'mosaic_max_columns',
+        'mood_font_family',
+        'mood_date_format',
+        'mood_title_font_size',
+        'mood_date_font_size',
+        'intro_all_caps',
+        'design_palette',
+        'cover_animation',
+        'cover_media_type',
+        'cover_from_favorites',
+    ];
+}
+
+/** @return array<string, mixed> */
+function efpic_design_template_extract_from_meta(array $meta): array
+{
+    $out = [];
+    foreach (efpic_design_template_setting_keys() as $key) {
+        if (array_key_exists($key, $meta)) {
+            $out[$key] = $meta[$key];
+        }
+    }
+
+    return $out;
+}
+
+/** @param array<string, mixed> $settings */
+function efpic_design_template_apply_to_meta(array &$meta, array $settings): void
+{
+    foreach (efpic_design_template_setting_keys() as $key) {
+        if (!array_key_exists($key, $settings)) {
+            continue;
+        }
+        $meta[$key] = $settings[$key];
+    }
+    if (isset($meta['mosaic_max_columns'])) {
+        $meta['mosaic_max_columns'] = efpic_sanitize_mosaic_max_columns($meta['mosaic_max_columns']);
+    }
+    if (isset($meta['cover_style'])) {
+        $meta['cover_style'] = efpic_gallery_cover_style($meta);
+    }
+    $meta['theme'] = 'efpic-base';
+}
+
+/** @return list<array{id: string, name: string, settings: array<string, mixed>, created_at: string, updated_at: string}> */
+function efpic_load_design_templates(array $config): array
+{
+    $settings = efpic_load_app_settings($config);
+    $list = $settings['design_templates'] ?? [];
+    if (!is_array($list)) {
+        return [];
+    }
+    $out = [];
+    foreach ($list as $item) {
+        if (!is_array($item) || trim((string) ($item['id'] ?? '')) === '') {
+            continue;
+        }
+        $out[] = $item;
+    }
+
+    return $out;
+}
+
+/** @param list<array<string, mixed>> $templates */
+function efpic_save_design_templates(array $config, array $templates): void
+{
+    efpic_save_app_settings($config, ['design_templates' => array_values($templates)]);
+}
+
+/** @param array<string, mixed> $settings */
+function efpic_design_template_save(array $config, string $name, array $settings): array
+{
+    $name = trim($name);
+    if ($name === '') {
+        throw new InvalidArgumentException('Šablona nosaukums obligāts');
+    }
+    $templates = efpic_load_design_templates($config);
+    $entry = [
+        'id' => bin2hex(random_bytes(8)),
+        'name' => $name,
+        'settings' => $settings,
+        'created_at' => gmdate('c'),
+        'updated_at' => gmdate('c'),
+    ];
+    $templates[] = $entry;
+    efpic_save_design_templates($config, $templates);
+
+    return $entry;
+}
+
+function efpic_design_template_delete(array $config, string $id): bool
+{
+    $id = trim($id);
+    if ($id === '') {
+        return false;
+    }
+    $templates = efpic_load_design_templates($config);
+    $next = array_values(array_filter($templates, static fn ($t) => is_array($t) && (string) ($t['id'] ?? '') !== $id));
+    if (count($next) === count($templates)) {
+        return false;
+    }
+    efpic_save_design_templates($config, $next);
+
+    return true;
+}
+
+function efpic_render_design_palette_picker(array $formMeta): string
+{
+    $active = efpic_gallery_design_palette_key($formMeta);
+    $html = '<div class="admin-design-palettes admin-fieldset-full" id="admin-design-palettes">';
+    $html .= '<p class="admin-design-palettes__label">Krāsu palete</p>';
+    $html .= '<input type="hidden" name="design_palette" id="design_palette" value="' . efpic_cover_theme_esc($active) . '">';
+    $html .= '<div class="admin-design-palettes__grid" role="listbox" aria-label="Krāsu paletes">';
+    foreach (efpic_gallery_design_palette_catalog() as $key => $palette) {
+        $sel = $key === $active ? ' is-selected' : '';
+        $html .= '<button type="button" class="admin-design-palette' . $sel . '" role="option"'
+            . ' data-palette="' . efpic_cover_theme_esc($key) . '"'
+            . ' data-hero="' . efpic_cover_theme_esc($palette['hero_accent']) . '"'
+            . ' data-page="' . efpic_cover_theme_esc($palette['page_bg']) . '"'
+            . ' data-text="' . efpic_cover_theme_esc($palette['intro_text_color']) . '"'
+            . ' aria-selected="' . ($key === $active ? 'true' : 'false') . '">';
+        $html .= '<span class="admin-design-palette__swatches" aria-hidden="true">';
+        $html .= '<span style="background:' . efpic_cover_theme_esc($palette['hero_accent']) . '"></span>';
+        $html .= '<span style="background:' . efpic_cover_theme_esc($palette['page_bg']) . '"></span>';
+        $html .= '<span style="background:' . efpic_cover_theme_esc($palette['intro_text_color']) . '"></span>';
+        $html .= '</span>';
+        $html .= '<span class="admin-design-palette__name">' . efpic_cover_theme_esc($palette['label']) . '</span>';
+        $html .= '</button>';
+    }
+    $html .= '</div>';
+    $html .= '<p class="muted">Palete aizpilda vāka, fona un teksta krāsas. Pēc tam vari tās pielāgot manuāli.</p>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+function efpic_render_design_template_controls(array $config, array $formMeta): string
+{
+    $templates = efpic_load_design_templates($config);
+    $map = [];
+    foreach ($templates as $tpl) {
+        if (!is_array($tpl)) {
+            continue;
+        }
+        $id = (string) ($tpl['id'] ?? '');
+        if ($id === '') {
+            continue;
+        }
+        $map[$id] = [
+            'name' => (string) ($tpl['name'] ?? ''),
+            'settings' => is_array($tpl['settings'] ?? null) ? $tpl['settings'] : [],
+        ];
+    }
+    $json = json_encode($map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+
+    $html = '<fieldset class="admin-fieldset-full admin-design-templates" id="admin-design-templates"'
+        . ' data-templates="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '">';
+    $html .= '<legend>Dizaina šabloni</legend>';
+    $html .= '<p class="muted">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
+    $html .= '<div class="admin-design-templates__row">';
+    $html .= '<label>Lietot šablonu<select id="design_template_apply" name="design_template_apply">';
+    $html .= '<option value="">— Izvēlēties —</option>';
+    foreach ($templates as $tpl) {
+        if (!is_array($tpl)) {
+            continue;
+        }
+        $id = (string) ($tpl['id'] ?? '');
+        $name = (string) ($tpl['name'] ?? '');
+        if ($id === '' || $name === '') {
+            continue;
+        }
+        $html .= '<option value="' . efpic_cover_theme_esc($id) . '">' . efpic_cover_theme_esc($name) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="design_template_apply_btn">Lietot</button>';
+    $html .= '</div>';
+    $html .= '<div class="admin-design-templates__row">';
+    $html .= '<label>Jauns šablons<input type="text" name="design_template_name" id="design_template_name" placeholder="piem. Kāzas 2026"></label>';
+    $html .= '<button type="submit" class="btn admin-btn-inline" name="design_template_save" value="1" formnovalidate>Saglabāt kā šablonu</button>';
+    $html .= '</div>';
+    if ($templates !== []) {
+        $html .= '<div class="admin-design-templates__row">';
+        $html .= '<label>Dzēst šablonu<select name="design_template_id" id="design_template_delete_select">';
+        $html .= '<option value="">— Izvēlēties —</option>';
+        foreach ($templates as $tpl) {
+            if (!is_array($tpl)) {
+                continue;
+            }
+            $id = (string) ($tpl['id'] ?? '');
+            $name = (string) ($tpl['name'] ?? '');
+            if ($id === '' || $name === '') {
+                continue;
+            }
+            $html .= '<option value="' . efpic_cover_theme_esc($id) . '">' . efpic_cover_theme_esc($name) . '</option>';
+        }
+        $html .= '</select></label>';
+        $html .= '<button type="submit" class="btn admin-btn-danger admin-btn-inline" name="design_template_delete" value="1" formnovalidate>Dzēst šablonu</button>';
+        $html .= '</div>';
+    }
+    $html .= '</fieldset>';
+
+    return $html;
+}
+
+/** @return array<string, array{label: string, settings: array<string, mixed>}> */
+function efpic_gallery_design_presets(): array
+{
+    return [
+        'modern' => [
+            'label' => 'Modern',
+            'settings' => [
+                'cover_style' => 'standard',
+                'cover_layout' => 'right',
+                'mosaic_max_columns' => 4,
+                'design_palette' => 'minimal-light',
+                'hero_accent_color' => '#e8e6e1',
+                'page_bg_color' => '#ffffff',
+                'intro_text_color' => '#111111',
+                'mood_font_family' => 'montserrat',
+                'cover_animation' => 'none',
+            ],
+        ],
+        'high-five' => [
+            'label' => 'High Five',
+            'settings' => [
+                'cover_style' => 'standard',
+                'cover_layout' => 'right',
+                'mosaic_max_columns' => 5,
+                'design_palette' => 'minimal-light',
+                'hero_accent_color' => '#e8e6e1',
+                'page_bg_color' => '#ffffff',
+                'intro_text_color' => '#111111',
+                'mood_font_family' => 'montserrat',
+                'cover_animation' => 'none',
+            ],
+        ],
+        'forest' => [
+            'label' => 'Forest',
+            'settings' => [
+                'cover_style' => 'standard',
+                'cover_layout' => 'right',
+                'mosaic_max_columns' => 3,
+                'design_palette' => 'forest-natural',
+                'hero_accent_color' => '#3d5c45',
+                'page_bg_color' => '#eef3ee',
+                'intro_text_color' => '#1a2e1f',
+                'mood_font_family' => 'lora',
+                'cover_animation' => 'none',
+            ],
+        ],
+        'mood' => [
+            'label' => 'Mood',
+            'settings' => [
+                'cover_style' => 'mood-blob',
+                'cover_layout' => 'center',
+                'mosaic_max_columns' => 4,
+                'design_palette' => 'editorial-dark',
+                'hero_accent_color' => '#1c1c1c',
+                'page_bg_color' => '#0f0f0f',
+                'intro_text_color' => '#f5f2eb',
+                'mood_font_family' => 'cormorant',
+                'cover_animation' => 'ken-burns',
+            ],
+        ],
+        'cinematic' => [
+            'label' => 'Kinematogrāfisks',
+            'settings' => [
+                'cover_style' => 'cinematic-full',
+                'cover_layout' => 'full',
+                'mosaic_max_columns' => 4,
+                'design_palette' => 'editorial-dark',
+                'hero_accent_color' => '#1c1c1c',
+                'page_bg_color' => '#0f0f0f',
+                'intro_text_color' => '#f5f2eb',
+                'mood_font_family' => 'cormorant',
+                'cover_animation' => 'ken-burns',
+            ],
+        ],
+    ];
+}
+
+function efpic_render_design_preset_picker(): string
+{
+    $presets = efpic_gallery_design_presets();
+    $json = json_encode($presets, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $html = '<div class="admin-design-presets admin-fieldset-full" id="admin-design-presets"'
+        . ' data-presets="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '">';
+    $html .= '<p class="admin-design-presets__label">Ātrais starts</p>';
+    $html .= '<div class="admin-design-presets__grid">';
+    foreach ($presets as $key => $preset) {
+        $html .= '<button type="button" class="btn admin-btn-inline admin-design-preset" data-preset="'
+            . efpic_cover_theme_esc($key) . '">' . efpic_cover_theme_esc((string) $preset['label']) . '</button>';
+    }
+    $html .= '</div>';
+    $html .= '<p class="muted">Iestata vāka stilu, paleti, kolonnas un fontus. Pēc tam vari pielāgot katru daļu atsevišķi.</p>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 /** @return array<string, array{label: string, group: string, family: string, google: string}> */
 function efpic_gallery_intro_font_catalog(): array
 {
@@ -366,10 +852,9 @@ function efpic_gallery_mood_date_size_css(array $meta): string
     };
 }
 
-function efpic_gallery_intro_title_size_css(array $meta, string $theme = ''): string
+function efpic_gallery_intro_title_size_css(array $meta): string
 {
-    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : '';
-    if ($theme === 'efpic-mood') {
+    if (efpic_gallery_uses_mood_blob_cover($meta)) {
         return efpic_gallery_mood_title_size_css($meta);
     }
 
@@ -380,10 +865,9 @@ function efpic_gallery_intro_title_size_css(array $meta, string $theme = ''): st
     };
 }
 
-function efpic_gallery_intro_date_size_css(array $meta, string $theme = ''): string
+function efpic_gallery_intro_date_size_css(array $meta): string
 {
-    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : '';
-    if ($theme === 'efpic-mood') {
+    if (efpic_gallery_uses_mood_blob_cover($meta)) {
         return efpic_gallery_mood_date_size_css($meta);
     }
 
@@ -403,13 +887,11 @@ function efpic_gallery_intro_byline_size_css(array $meta): string
     };
 }
 
-function efpic_gallery_intro_typography_style_vars(array $meta, string $theme = ''): string
+function efpic_gallery_intro_typography_style_vars(array $meta): string
 {
-    $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_gallery_effective_theme($meta);
-
     return '--intro-font:' . efpic_gallery_mood_font_family_css($meta)
-        . ';--intro-title-size:' . efpic_gallery_intro_title_size_css($meta, $theme)
-        . ';--intro-date-size:' . efpic_gallery_intro_date_size_css($meta, $theme)
+        . ';--intro-title-size:' . efpic_gallery_intro_title_size_css($meta)
+        . ';--intro-date-size:' . efpic_gallery_intro_date_size_css($meta)
         . ';--intro-byline-size:' . efpic_gallery_intro_byline_size_css($meta)
         . ';--intro-title-weight:' . efpic_gallery_intro_title_weight_css($meta)
         . ';--intro-title-tracking:' . efpic_gallery_intro_title_tracking_css($meta)
@@ -417,14 +899,14 @@ function efpic_gallery_intro_typography_style_vars(array $meta, string $theme = 
         . ';--intro-text-color:' . efpic_gallery_intro_text_color($meta) . ';';
 }
 
-function efpic_gallery_intro_typography_style_attr(array $meta, string $theme = ''): string
+function efpic_gallery_intro_typography_style_attr(array $meta): string
 {
-    return ' style="' . efpic_gallery_intro_typography_style_vars($meta, $theme) . '"';
+    return ' style="' . efpic_gallery_intro_typography_style_vars($meta) . '"';
 }
 
 function efpic_gallery_mood_intro_style_attr(array $meta): string
 {
-    return efpic_gallery_intro_typography_style_attr($meta, 'efpic-mood');
+    return efpic_gallery_intro_typography_style_attr($meta);
 }
 
 function efpic_cover_theme_esc(string $s): string
@@ -467,7 +949,7 @@ function efpic_client_format_event_date_mood(array $meta, string $date): string
     };
 }
 
-function efpic_client_format_event_date_for_gallery(array $meta, string $date, string $theme = ''): string
+function efpic_client_format_event_date_for_gallery(array $meta, string $date): string
 {
     return efpic_client_format_event_date_mood($meta, $date);
 }
@@ -483,6 +965,36 @@ function efpic_apply_cover_theme_from_post(array &$meta): void
     }
     if (isset($_POST['cover_focal_y'])) {
         $meta['cover_focal_y'] = efpic_sanitize_cover_focal($_POST['cover_focal_y']);
+    }
+    $palette = trim((string) ($_POST['design_palette'] ?? ''));
+    if ($palette === '' || array_key_exists($palette, efpic_gallery_design_palette_catalog())) {
+        $meta['design_palette'] = $palette;
+    }
+    $animation = trim((string) ($_POST['cover_animation'] ?? ''));
+    if ($animation !== '' && array_key_exists($animation, efpic_gallery_cover_animation_options())) {
+        $meta['cover_animation'] = $animation;
+    }
+    $coverStyle = trim((string) ($_POST['cover_style'] ?? ''));
+    if ($coverStyle !== '' && array_key_exists($coverStyle, efpic_gallery_cover_style_options())) {
+        $meta['cover_style'] = $coverStyle;
+    }
+    if (isset($_POST['mosaic_max_columns'])) {
+        $meta['mosaic_max_columns'] = efpic_sanitize_mosaic_max_columns($_POST['mosaic_max_columns']);
+    }
+    $meta['theme'] = 'efpic-base';
+}
+
+function efpic_apply_cover_media_from_post(array &$meta): void
+{
+    $mediaType = trim((string) ($_POST['cover_media_type'] ?? ''));
+    if ($mediaType === 'video' || $mediaType === 'image') {
+        $meta['cover_media_type'] = $mediaType;
+    }
+    $videoId = trim((string) ($_POST['cover_video_id'] ?? ''));
+    if ($videoId === '') {
+        $meta['cover_video_id'] = null;
+    } elseif (efpic_gallery_video_by_id($meta, $videoId) !== null) {
+        $meta['cover_video_id'] = $videoId;
     }
 }
 
@@ -572,17 +1084,17 @@ function efpic_admin_cover_preview_url(array $config, array $meta): string
 }
 
 /** @return array<string, mixed> */
-function efpic_cover_theme_preview_payload(array $config, array $formMeta, string $theme): array
+function efpic_cover_theme_preview_payload(array $config, array $formMeta): array
 {
-    $theme = efpic_normalize_gallery_theme($theme);
     $focal = efpic_gallery_cover_focal($formMeta);
     $dateRaw = substr((string) ($formMeta['event_date'] ?? ''), 0, 10);
 
     return [
-        'theme' => $theme,
+        'coverStyle' => efpic_gallery_cover_style($formMeta),
+        'mosaicMaxColumns' => efpic_gallery_mosaic_max_columns($formMeta),
         'name' => (string) ($formMeta['name'] ?? 'Galerija'),
         'dateRaw' => $dateRaw,
-        'dateFormatted' => efpic_client_format_event_date_for_gallery($formMeta, $dateRaw, $theme),
+        'dateFormatted' => efpic_client_format_event_date_for_gallery($formMeta, $dateRaw),
         'byline' => efpic_client_gallery_byline_display($config),
         'coverUrl' => efpic_admin_cover_preview_url($config, $formMeta),
         'heroAccent' => efpic_client_hero_accent_color($formMeta),
@@ -596,24 +1108,30 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta, strin
         'allCaps' => efpic_gallery_intro_all_caps($formMeta),
         'introTextColor' => efpic_gallery_intro_text_color($formMeta),
         'fonts' => efpic_gallery_intro_fonts_family_map(),
+        'designPalette' => efpic_gallery_design_palette_key($formMeta),
+        'coverAnimation' => efpic_gallery_cover_animation($formMeta),
+        'coverMediaType' => efpic_gallery_cover_media_type($formMeta),
+        'coverVideoId' => efpic_gallery_cover_video_id($formMeta),
+        'coverVideos' => efpic_admin_cover_video_options($config, $formMeta),
     ];
 }
 
 function efpic_render_cover_theme_controls(
     array $config,
     array $formMeta,
-    string $theme,
     bool $standaloneForm,
     string $formAction = '',
 ): string {
-    $theme = efpic_normalize_gallery_theme($theme);
-    $isMood = $theme === 'efpic-mood';
+    $layoutLocked = efpic_gallery_cover_style_locks_layout($formMeta);
+    $isMoodBlob = efpic_gallery_uses_mood_blob_cover($formMeta);
+    $coverStyle = efpic_gallery_cover_style($formMeta);
+    $mosaicCols = efpic_gallery_mosaic_max_columns($formMeta);
     $layout = efpic_gallery_cover_layout($formMeta);
     $focal = efpic_gallery_cover_focal($formMeta);
     $coverUrl = efpic_admin_cover_preview_url($config, $formMeta);
     $hasCover = $coverUrl !== '';
     $previewJson = json_encode(
-        efpic_cover_theme_preview_payload($config, $formMeta, $theme),
+        efpic_cover_theme_preview_payload($config, $formMeta),
         JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
     );
 
@@ -627,17 +1145,74 @@ function efpic_render_cover_theme_controls(
     $fontGroupsJson = json_encode(efpic_gallery_intro_fonts_group_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $fontUrlsJson = json_encode(efpic_gallery_intro_fonts_google_urls(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $clientCssUrl = efpic_asset_url('/client/assets/client.css');
-    $html .= '<div class="admin-cover-theme" id="admin-cover-theme" data-theme="' . efpic_cover_theme_esc($theme) . '"'
+    $html .= '<div class="admin-cover-theme" id="admin-cover-theme"'
         . ' data-preview="' . efpic_cover_theme_esc($previewJson !== false ? $previewJson : '{}') . '"'
         . ' data-fonts="' . efpic_cover_theme_esc($fontsJson !== false ? $fontsJson : '{}') . '"'
         . ' data-font-groups="' . efpic_cover_theme_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '"'
         . ' data-font-urls="' . efpic_cover_theme_esc($fontUrlsJson !== false ? $fontUrlsJson : '[]') . '"'
         . ' data-client-css="' . efpic_cover_theme_esc($clientCssUrl) . '">';
 
-    $html .= '<fieldset class="admin-cover-theme__block' . ($isMood ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
+    $html .= '<div class="admin-form-layout admin-form-layout--basic admin-fieldset-full">';
+    $html .= '<label>Vāka stils<select name="cover_style" id="cover_style">';
+    foreach (efpic_gallery_cover_style_options() as $k => $lbl) {
+        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $coverStyle ? ' selected' : '') . '>'
+            . efpic_cover_theme_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= '<label>Mozaīkas kolonnas (lielos ekrānos)<select name="mosaic_max_columns" id="mosaic_max_columns">';
+    foreach (efpic_gallery_mosaic_max_column_options() as $k => $lbl) {
+        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ((string) $mosaicCols === $k ? ' selected' : '') . '>'
+            . efpic_cover_theme_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= '</div>';
+
+    $coverMediaType = efpic_gallery_cover_media_type($formMeta);
+    $coverVideoId = efpic_gallery_cover_video_id($formMeta);
+    $coverVideos = efpic_admin_cover_video_options($config, $formMeta);
+    $coverAnimation = efpic_gallery_cover_animation($formMeta);
+
+    $html .= '<fieldset class="admin-cover-theme__block admin-cover-media-block" id="admin-cover-media-block">';
+    $html .= '<legend>Vāka medijs</legend>';
+    $html .= '<div class="admin-cover-media-type" role="radiogroup" aria-label="Vāka medija veids">';
+    $html .= '<label class="admin-cover-media-option"><input type="radio" name="cover_media_type" value="image"'
+        . ($coverMediaType === 'image' ? ' checked' : '') . '> Bilde</label>';
+    $html .= '<label class="admin-cover-media-option"><input type="radio" name="cover_media_type" value="video"'
+        . ($coverMediaType === 'video' ? ' checked' : '') . ($coverVideos === [] ? ' disabled' : '') . '> Video</label>';
+    $html .= '</div>';
+    if ($coverVideos === []) {
+        $html .= '<p class="muted">Lai lietotu video vāku, vispirms pievieno MP4 failu cilnē <strong>Video</strong>.</p>';
+    } else {
+        $html .= '<label class="admin-cover-video-select' . ($coverMediaType === 'video' ? '' : ' is-hidden') . '" id="admin-cover-video-select">'
+            . 'Vāka video<select name="cover_video_id" id="cover_video_id">';
+        $html .= '<option value="">— Izvēlēties —</option>';
+        foreach ($coverVideos as $video) {
+            $sel = $video['id'] === $coverVideoId ? ' selected' : '';
+            $html .= '<option value="' . efpic_cover_theme_esc($video['id']) . '" data-url="' . efpic_cover_theme_esc($video['url']) . '"' . $sel . '>'
+                . efpic_cover_theme_esc($video['label']) . '</option>';
+        }
+        $html .= '</select></label>';
+    }
+    $html .= '<label>Vāka animācija<select name="cover_animation" id="cover_animation">';
+    foreach (efpic_gallery_cover_animation_options() as $k => $lbl) {
+        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $coverAnimation ? ' selected' : '') . '>'
+            . efpic_cover_theme_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
+    $html .= '<p class="muted">Video vāks automātiski atskaņojas (bez skaņas). Animācija darbojas arī ar bildi.</p>';
+    $html .= '</fieldset>';
+
+    $html .= '<fieldset class="admin-cover-theme__block' . ($layoutLocked ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
     $html .= '<legend>Vāka bildes novietojums</legend>';
-    if ($isMood) {
-        $html .= '<p class="muted" id="admin-cover-layout-mood-note">Mood tēmā vāka novietojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
+    if ($isMoodBlob) {
+        $html .= '<p class="muted" id="admin-cover-layout-mood-note">Mood burbuļa stilā izkārtojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
+    } else {
+        $html .= '<p class="muted" id="admin-cover-layout-mood-note" hidden>Mood burbuļa stilā izkārtojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
+    }
+    if (efpic_gallery_uses_cinematic_full_cover($formMeta)) {
+        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note">Kinematogrāfiskajā stilā izkārtojumu nevar mainīt — bilde/video aizpilda visu ekrānu.</p>';
+    } else {
+        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note" hidden>Kinematogrāfiskajā stilā izkārtojumu nevar mainīt — bilde/video aizpilda visu ekrānu.</p>';
     }
     $html .= '<div class="admin-cover-layout-grid" role="radiogroup" aria-label="Vāka bildes novietojums">';
     foreach (efpic_gallery_cover_layout_options() as $key => $label) {
@@ -720,7 +1295,7 @@ function efpic_render_cover_theme_controls(
     if (!$hasCover) {
         $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu bildi priekšskatījumā.</p>';
     }
-    $cropHidden = $isMood || !$hasCover ? ' hidden' : '';
+    $cropHidden = $isMoodBlob || !$hasCover ? ' hidden' : '';
     $html .= '<div class="admin-cover-crop' . $cropHidden . '" id="admin-cover-crop" data-layout="' . efpic_cover_theme_esc($layout) . '">';
     $html .= '<p class="admin-cover-crop__label">Pārkadrējiet vāka bildi — velciet, lai mainītu redzamo apgabalu.</p>';
     $html .= '<div class="admin-cover-crop__frame" id="admin-cover-crop-frame" tabindex="0" role="img" aria-label="Vāka bildes pārkadrēšana">';

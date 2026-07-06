@@ -88,18 +88,18 @@
     return d + '. ' + lvMonths[m - 1] + ' ' + y;
   }
 
-  function titleSizeCss(theme, layout, key) {
+  function titleSizeCss(coverStyle, layout, key) {
     if (layout === 'half-left' || layout === 'half-right') {
       return TITLE_SIZES.split[key] || TITLE_SIZES.split.md;
     }
-    if (theme === 'efpic-mood') {
+    if (coverStyle === 'mood-blob') {
       return TITLE_SIZES.mood[key] || TITLE_SIZES.mood.md;
     }
     return TITLE_SIZES.standard[key] || TITLE_SIZES.standard.md;
   }
 
-  function dateSizeCss(theme, key) {
-    var bucket = theme === 'efpic-mood' ? DATE_SIZES.mood : DATE_SIZES.standard;
+  function dateSizeCss(coverStyle, key) {
+    var bucket = coverStyle === 'mood-blob' ? DATE_SIZES.mood : DATE_SIZES.standard;
     return bucket[key] || bucket.md;
   }
 
@@ -156,6 +156,10 @@
   function sectionClass(state, extra) {
     var cls = extra || '';
     if (state.allCaps) cls += ' gallery-intro--all-caps';
+    var anim = state.coverAnimation || 'none';
+    if (anim && anim !== 'none') {
+      cls += ' gallery-intro-cover-anim--' + anim;
+    }
     return cls;
   }
 
@@ -181,6 +185,9 @@
   }
 
   function hasCoverImage(cropImg, base) {
+    if (readCoverMediaType() === 'video' && readCoverVideoUrl()) {
+      return true;
+    }
     return getCoverUrl(cropImg, base) !== '';
   }
 
@@ -214,9 +221,36 @@
       + '</head><body>' + html + '</body></html>';
   }
 
+  function readCoverVideoUrl() {
+    var sel = document.getElementById('cover_video_id');
+    if (!sel || !sel.value) return '';
+    var opt = sel.options[sel.selectedIndex];
+    return opt ? opt.getAttribute('data-url') || '' : '';
+  }
+
+  function readCoverMediaType() {
+    var checked = document.querySelector('input[name="cover_media_type"]:checked');
+    return checked && checked.value === 'video' ? 'video' : 'image';
+  }
+
+  function setColorInput(name, value) {
+    if (!value) return;
+    var el = document.querySelector('input[name="' + name + '"]');
+    if (!el) return;
+    el.value = value;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    var wrap = el.closest('.admin-color-field');
+    if (wrap) {
+      var swatch = wrap.querySelector('.admin-color-swatch');
+      var code = wrap.querySelector('.admin-color-value');
+      if (swatch) swatch.style.backgroundColor = value;
+      if (code) code.textContent = value;
+    }
+  }
+
   function collectState(root, base) {
-    var themeSelect = document.getElementById('admin-gallery-theme-select');
-    var theme = themeSelect ? themeSelect.value : (base.theme || 'efpic-modern');
+    var coverStyleSel = document.getElementById('cover_style');
+    var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
     var layoutInput = root.querySelector('input[name="cover_layout"]:checked');
     var layout = layoutInput ? layoutInput.value : (base.layout || 'right');
     var fx = document.getElementById('cover_focal_x');
@@ -236,15 +270,22 @@
     var heroAccent = readColorInput('hero_accent_color') || base.heroAccent || '#9a9578';
     var introTextColor = readColorInput('intro_text_color') || base.introTextColor || '#1a1a1a';
     var coverUrl = getCoverUrl(document.getElementById('admin-cover-crop-img'), base);
+    var coverAnimSel = document.getElementById('cover_animation');
+    var coverMediaType = readCoverMediaType();
+    var coverVideoSel = document.getElementById('cover_video_id');
 
     return {
-      theme: theme,
+      coverStyle: coverStyle,
       layout: layout,
       name: nameInput ? nameInput.value : (base.name || 'Galerija'),
       dateRaw: dateRaw,
       dateFormatted: formatDate(dateRaw, dateFormat),
       byline: base.byline || 'GALLERY',
       coverUrl: coverUrl,
+      coverMediaType: coverMediaType,
+      coverVideoUrl: coverMediaType === 'video' ? readCoverVideoUrl() : '',
+      coverVideoId: coverVideoSel ? coverVideoSel.value : (base.coverVideoId || ''),
+      coverAnimation: coverAnimSel ? coverAnimSel.value : (base.coverAnimation || 'none'),
       heroAccent: heroAccent,
       introTextColor: introTextColor,
       focalX: fx ? parseFloat(fx.value) || 50 : (base.focalX || 50),
@@ -257,6 +298,26 @@
     };
   }
 
+  function mediaHtml(state, coverFill) {
+    var url = '';
+    var isVideo = state.coverMediaType === 'video' && state.coverVideoUrl;
+    if (isVideo) {
+      url = state.coverVideoUrl;
+    } else if (state.coverUrl) {
+      url = state.coverUrl;
+    }
+    if (!url) return '';
+    var style = 'object-position:' + state.focalX + '% ' + state.focalY + '%;';
+    if (coverFill) style += 'object-fit:cover;';
+    if (isVideo) {
+      return '<video class="gallery-intro-photo gallery-intro-cover-video" src="' + escapeHtml(url) + '"'
+        + ' autoplay muted loop playsinline disablePictureInPicture aria-hidden="true" preload="auto"'
+        + ' style="' + style + '"></video>';
+    }
+    return '<img class="gallery-intro-photo" src="' + escapeHtml(url) + '" alt="" decoding="async"'
+      + ' style="' + style + '">';
+  }
+
   function photoHtml(url, focalX, focalY, coverFill) {
     if (!url) return '';
     var style = 'object-position:' + focalX + '% ' + focalY + '%;';
@@ -267,8 +328,8 @@
 
   function introStyle(state, fontMap, groupMap) {
     var font = fontCss(state.fontFamily, fontMap);
-    var title = safeStyleVar(titleSizeCss(state.theme, state.layout, state.titleSize));
-    var date = safeStyleVar(dateSizeCss(state.theme, state.dateSize));
+    var title = safeStyleVar(titleSizeCss(state.coverStyle, state.layout, state.titleSize));
+    var date = safeStyleVar(dateSizeCss(state.coverStyle, state.dateSize));
     var byline = safeStyleVar(bylineSizeCss(state.dateSize));
     return '--hero-accent:' + state.heroAccent + ';--hero-text:' + safeStyleVar(state.introTextColor)
       + ';--intro-text-color:' + safeStyleVar(state.introTextColor) + ';--intro-font:' + font
@@ -286,7 +347,7 @@
       text += '<p class="gallery-intro-date gallery-intro-date--split">' + escapeHtml(state.dateFormatted) + '</p>';
     }
     text += '</div><h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></div>';
-    var media = '<div class="gallery-intro-split-media">' + photoHtml(state.coverUrl, state.focalX, state.focalY, true) + '</div>';
+    var media = '<div class="gallery-intro-split-media gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
     var inner = layout === 'half-left' ? media + text : text + media;
     return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
       + '<div class="gallery-intro-split">' + inner + '</div></section>';
@@ -296,7 +357,7 @@
     var html = '<section class="gallery-intro gallery-intro--mood' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
     html += '<div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">';
-    html += photoHtml(state.coverUrl, state.focalX, state.focalY, true);
+    html += mediaHtml(state, true);
     html += '</div></div><div class="gallery-intro-footer">';
     html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1>';
     if (state.dateFormatted) {
@@ -308,7 +369,7 @@
 
   function renderFull(state, fontMap, groupMap) {
     var html = '<section class="gallery-intro gallery-intro--layout-full' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
-    html += '<div class="gallery-intro-full-bg">' + photoHtml(state.coverUrl, state.focalX, state.focalY, true) + '</div>';
+    html += '<div class="gallery-intro-full-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
     html += '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
     html += '<div class="gallery-intro-full-content">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
@@ -325,8 +386,8 @@
     var layout = state.layout || 'right';
     var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
     html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
-    html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure">';
-    html += photoHtml(state.coverUrl, state.focalX, state.focalY, false);
+    html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure gallery-intro-cover-media">';
+    html += mediaHtml(state, false);
     if (state.dateFormatted) {
       html += '<figcaption class="gallery-intro-date">' + escapeHtml(state.dateFormatted) + '</figcaption>';
     }
@@ -335,9 +396,27 @@
     return html;
   }
 
+  function renderCinematic(state, fontMap, groupMap) {
+    var html = '<section class="gallery-intro gallery-intro--cinematic-full' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
+    html += '<div class="gallery-intro-cinematic-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
+    html += '<div class="gallery-intro-cinematic-vignette" aria-hidden="true"></div>';
+    html += '<div class="gallery-intro-cinematic-content">';
+    html += '<p class="gallery-intro-byline gallery-intro-byline--cinematic">' + escapeHtml(state.byline) + '</p>';
+    html += '<div class="gallery-intro-cinematic-footer">';
+    if (state.dateFormatted) {
+      html += '<p class="gallery-intro-date gallery-intro-date--cinematic">' + escapeHtml(state.dateFormatted) + '</p>';
+    }
+    html += '<h1 class="gallery-intro-title gallery-intro-title--cinematic">' + escapeHtml(state.name) + '</h1>';
+    html += '</div></div></section>';
+    return html;
+  }
+
   function renderCoverHtml(state, fontMap, groupMap) {
-    if (state.theme === 'efpic-mood') {
+    if (state.coverStyle === 'mood-blob') {
       return renderMood(state, fontMap, groupMap);
+    }
+    if (state.coverStyle === 'cinematic-full') {
+      return renderCinematic(state, fontMap, groupMap);
     }
     if (state.layout === 'half-left' || state.layout === 'half-right') {
       return renderSplit(state, state.layout, fontMap, groupMap);
@@ -411,7 +490,7 @@
     var root = document.getElementById('admin-cover-theme');
     if (!root) return;
 
-    var themeSelect = document.getElementById('admin-gallery-theme-select');
+    var coverStyleSel = document.getElementById('cover_style');
     var layoutBlock = document.getElementById('admin-cover-layout-block');
     var moodNote = document.getElementById('admin-cover-layout-mood-note');
     var crop = document.getElementById('admin-cover-crop');
@@ -440,29 +519,49 @@
       }, 150);
     }
 
-    function isMood() {
-      return themeSelect && themeSelect.value === 'efpic-mood';
+    function isLayoutLocked() {
+      if (!coverStyleSel) return false;
+      var style = coverStyleSel.value;
+      return style === 'mood-blob' || style === 'cinematic-full';
+    }
+
+    function isMoodBlob() {
+      return coverStyleSel && coverStyleSel.value === 'mood-blob';
+    }
+
+    function syncCoverMediaPanels() {
+      var videoSelectWrap = document.getElementById('admin-cover-video-select');
+      var isVideo = readCoverMediaType() === 'video';
+      if (videoSelectWrap) {
+        videoSelectWrap.classList.toggle('is-hidden', !isVideo);
+      }
     }
 
     function syncThemePanels() {
-      var mood = isMood();
+      var mood = isMoodBlob();
+      var layoutLocked = isLayoutLocked();
+      var cinematicNote = document.getElementById('admin-cover-layout-cinematic-note');
       var url = getCoverUrl(cropImg, base);
       if (layoutBlock) {
-        layoutBlock.classList.toggle('is-disabled', mood);
+        layoutBlock.classList.toggle('is-disabled', layoutLocked);
         layoutBlock.querySelectorAll('input[name="cover_layout"]').forEach(function (el) {
-          el.disabled = mood;
+          el.disabled = layoutLocked;
         });
       }
       if (moodNote) {
         moodNote.hidden = !mood;
       }
+      if (cinematicNote) {
+        cinematicNote.hidden = !(coverStyleSel && coverStyleSel.value === 'cinematic-full');
+      }
       if (cropImg && url && cropImg.getAttribute('src') !== url) {
         cropImg.setAttribute('src', url);
       }
       if (crop) {
-        crop.hidden = mood || !hasCoverImage(cropImg, base);
+        var showCrop = !mood && hasCoverImage(cropImg, base) && readCoverMediaType() !== 'video';
+        crop.hidden = !showCrop;
       }
-      root.dataset.theme = themeSelect ? themeSelect.value : '';
+      syncCoverMediaPanels();
     }
 
     function getSelectedLayout() {
@@ -514,8 +613,8 @@
       });
     }
 
-    if (themeSelect) {
-      themeSelect.addEventListener('change', function () {
+    if (coverStyleSel) {
+      coverStyleSel.addEventListener('change', function () {
         syncThemePanels();
         refreshPreview();
       });
@@ -528,13 +627,122 @@
       });
     });
 
-    bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"], input[name="intro_text_color"]');
-    ['#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps'].forEach(function (sel) {
+    bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"], input[name="page_bg_color"], input[name="intro_text_color"]');
+    ['#cover_style', '#mosaic_max_columns', '#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps', '#cover_animation', '#cover_video_id'].forEach(function (sel) {
       document.querySelectorAll(sel).forEach(function (el) {
         el.addEventListener('change', refreshPreview);
         el.addEventListener('input', refreshPreview);
       });
     });
+    document.querySelectorAll('input[name="cover_media_type"]').forEach(function (el) {
+      el.addEventListener('change', function () {
+        syncThemePanels();
+        refreshPreview();
+      });
+    });
+
+    var paletteRoot = document.getElementById('admin-design-palettes');
+    if (paletteRoot) {
+      paletteRoot.querySelectorAll('.admin-design-palette').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          setColorInput('hero_accent_color', btn.getAttribute('data-hero'));
+          setColorInput('page_bg_color', btn.getAttribute('data-page'));
+          setColorInput('intro_text_color', btn.getAttribute('data-text'));
+          var hidden = document.getElementById('design_palette');
+          if (hidden) hidden.value = btn.getAttribute('data-palette') || '';
+          paletteRoot.querySelectorAll('.admin-design-palette').forEach(function (el) {
+            var on = el === btn;
+            el.classList.toggle('is-selected', on);
+            el.setAttribute('aria-selected', on ? 'true' : 'false');
+          });
+          refreshPreview();
+        });
+      });
+    }
+
+    function applyDesignSettings(s) {
+      if (!s) return;
+      if (coverStyleSel && s.cover_style) coverStyleSel.value = s.cover_style;
+      var mosaicSel = document.getElementById('mosaic_max_columns');
+      if (mosaicSel && s.mosaic_max_columns != null) mosaicSel.value = String(s.mosaic_max_columns);
+      if (s.hero_accent_color) setColorInput('hero_accent_color', s.hero_accent_color);
+      if (s.page_bg_color) setColorInput('page_bg_color', s.page_bg_color);
+      if (s.intro_text_color) setColorInput('intro_text_color', s.intro_text_color);
+      if (s.cover_layout) {
+        layoutInputs.forEach(function (input) {
+          input.checked = input.value === s.cover_layout;
+        });
+      }
+      if (fx && s.cover_focal_x != null) fx.value = s.cover_focal_x;
+      if (fy && s.cover_focal_y != null) fy.value = s.cover_focal_y;
+      if (fontSel && s.mood_font_family) fontSel.value = s.mood_font_family;
+      ['mood_date_format', 'mood_title_font_size', 'mood_date_font_size'].forEach(function (name) {
+        if (s[name] == null) return;
+        var el = document.getElementById(name);
+        if (el) el.value = s[name];
+      });
+      var caps = document.getElementById('intro_all_caps');
+      if (caps && typeof s.intro_all_caps !== 'undefined') caps.checked = !!s.intro_all_caps;
+      var anim = document.getElementById('cover_animation');
+      if (anim && s.cover_animation) anim.value = s.cover_animation;
+      document.querySelectorAll('input[name="cover_media_type"]').forEach(function (el) {
+        if (s.cover_media_type) el.checked = el.value === s.cover_media_type;
+      });
+      var fav = document.querySelector('input[name="cover_from_favorites"]');
+      if (fav && typeof s.cover_from_favorites !== 'undefined') fav.checked = !!s.cover_from_favorites;
+      var paletteHidden = document.getElementById('design_palette');
+      if (paletteHidden && typeof s.design_palette !== 'undefined') paletteHidden.value = s.design_palette || '';
+      if (paletteRoot && s.design_palette) {
+        paletteRoot.querySelectorAll('.admin-design-palette').forEach(function (btn) {
+          var on = btn.getAttribute('data-palette') === s.design_palette;
+          btn.classList.toggle('is-selected', on);
+          btn.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+      }
+      syncThemePanels();
+      updateCropAspect();
+      applyFocal();
+      refreshPreview();
+    }
+
+    function applyDesignTemplate(id) {
+      var tplRoot = document.getElementById('admin-design-templates');
+      if (!tplRoot || !id) return;
+      var map = {};
+      try {
+        map = JSON.parse(tplRoot.getAttribute('data-templates') || '{}');
+      } catch (e) {
+        return;
+      }
+      var entry = map[id];
+      if (!entry || !entry.settings) return;
+      applyDesignSettings(entry.settings);
+    }
+
+    var presetRoot = document.getElementById('admin-design-presets');
+    if (presetRoot) {
+      var presets = {};
+      try {
+        presets = JSON.parse(presetRoot.getAttribute('data-presets') || '{}');
+      } catch (e) {
+        presets = {};
+      }
+      presetRoot.querySelectorAll('.admin-design-preset').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var key = btn.getAttribute('data-preset');
+          if (!key || !presets[key] || !presets[key].settings) return;
+          applyDesignSettings(presets[key].settings);
+        });
+      });
+    }
+
+    var applyTplBtn = document.getElementById('design_template_apply_btn');
+    var applyTplSel = document.getElementById('design_template_apply');
+    if (applyTplBtn && applyTplSel) {
+      applyTplBtn.addEventListener('click', function () {
+        applyDesignTemplate(applyTplSel.value);
+      });
+    }
 
     document.addEventListener('change', function (evt) {
       if (evt.target && evt.target.matches && evt.target.matches('input[name="cover_image_token"]')) {
@@ -567,7 +775,7 @@
     var startFy = 50;
 
     frame.addEventListener('pointerdown', function (evt) {
-      if (isMood() || !hasCoverImage(cropImg, base)) return;
+      if (isMoodBlob() || !hasCoverImage(cropImg, base)) return;
       dragging = true;
       startX = evt.clientX;
       startY = evt.clientY;

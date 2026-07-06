@@ -244,14 +244,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     }
                     throw new RuntimeException('Bilde nav atrasta');
                 })(),
-                'set_theme' => (function () use ($config, $slug, &$meta) {
-                    $theme = efpic_normalize_gallery_theme((string) ($_POST['theme'] ?? 'efpic-modern'));
-                    if (!efpic_is_valid_gallery_theme($theme)) {
-                        throw new InvalidArgumentException('Nederīga tēma');
-                    }
-                    $meta['client_theme'] = $theme;
-                    efpic_save_gallery_meta($config, $slug, $meta);
-                })(),
                 'save_gallery_colors' => (function () use ($config, $slug, &$meta) {
                     $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
                     if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
@@ -266,6 +258,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                 })(),
                 'save_cover_theme' => (function () use ($config, $slug, &$meta) {
                     efpic_apply_cover_theme_from_post($meta);
+                    efpic_apply_cover_media_from_post($meta);
                     efpic_apply_mood_theme_from_post($meta);
                     efpic_save_gallery_meta($config, $slug, $meta);
                     $_SESSION['efpic_portal_flash'] = 'Vāka iestatījumi saglabāti.';
@@ -465,7 +458,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     if (!empty($portalSections['theme'])) {
         $body .= efpic_admin_tab_panel_open('admin-tab-theme', $firstPanelId === 'admin-tab-theme');
-        $body .= efpic_portal_render_theme_panel($config, $meta, $theme, $heroAccent, $pageBg);
+        $body .= efpic_portal_render_theme_panel($config, $meta, $heroAccent, $pageBg);
         $body .= efpic_admin_tab_panel_close();
     }
 
@@ -534,7 +527,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= efpic_client_render_face_person_modal();
     }
 
-    efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-' . preg_replace('/[^a-z0-9-]/', '', $theme), $meta, [
+    efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-efpic-base', $meta, [
         'EFPIC_PORTAL_DL_URL' => efpic_portal_url($config, $portalToken),
         'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
         'EFPIC_CSRF_TOKEN' => efpic_csrf_token(),
@@ -545,22 +538,15 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     ]);
 }
 
-function efpic_portal_render_theme_panel(array $config, array $meta, string $theme, string $heroAccent, string $pageBg): string
+function efpic_portal_render_theme_panel(array $config, array $meta, string $heroAccent, string $pageBg): string
 {
-    $html = '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Tēma</h2>';
-    $html .= '<form method="post" class="admin-form-split portal-theme-form">';
-    $html .= '<input type="hidden" name="portal_action" value="set_theme"><label>Tēma<select name="theme" id="admin-gallery-theme-select" onchange="this.form.submit()">';
-    foreach (efpic_gallery_theme_options() as $themeKey => $themeLabel) {
-        $sel = $themeKey === $theme ? ' selected' : '';
-        $html .= '<option value="' . efpic_client_esc($themeKey) . '"' . $sel . '>' . efpic_client_esc($themeLabel) . '</option>';
-    }
-    $html .= '</select></label></form>';
+    $html = '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Dizains</h2>';
     $html .= '<form method="post" class="admin-color-form">';
     $html .= '<input type="hidden" name="portal_action" value="save_gallery_colors">';
     $html .= efpic_client_color_field('hero_accent_color', 'Vāka krāsa', $heroAccent);
     $html .= efpic_client_color_field('page_bg_color', 'Galerijas pamatkrāsa', $pageBg);
     $html .= '<button type="submit" class="btn primary">Saglabāt krāsas</button></form>';
-    $html .= efpic_render_cover_theme_controls($config, $meta, $theme, true, 'save_cover_theme');
+    $html .= efpic_render_cover_theme_controls($config, $meta, true, 'save_cover_theme');
     $html .= '</section>';
 
     return $html;

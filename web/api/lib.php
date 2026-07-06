@@ -348,6 +348,7 @@ function efpic_app_settings_defaults(): array
             'default_country_code' => '371',
         ],
         'message_templates' => [],
+        'design_templates' => [],
         'site_logo' => '',
         'gallery_email_signature' => '',
         'gallery_email_signature_image' => '',
@@ -368,102 +369,176 @@ function efpic_sanitize_gallery_feed_gap(mixed $value, int $fallback = 16): int
 function efpic_gallery_theme_options(): array
 {
     return [
-        'efpic-forest' => 'Forest',
-        'efpic-modern' => 'Modern',
-        'efpic-high-five' => 'High Five',
-        'efpic-mood' => 'Mood',
+        'efpic-base' => 'Pamattēma',
     ];
 }
 
 function efpic_is_valid_gallery_theme(string $theme): bool
 {
-    return array_key_exists($theme, efpic_gallery_theme_options());
+    return $theme === 'efpic-base';
 }
 
 function efpic_normalize_gallery_theme(string $theme): string
 {
-    $theme = strtolower(trim($theme));
-    $legacy = [
-        'pic-time' => 'efpic-modern',
-        'pic_time' => 'efpic-modern',
-        'classic' => 'efpic-modern',
-        'efpic-classic' => 'efpic-modern',
-        'masonry' => 'efpic-mood',
-        'dark' => 'efpic-mood',
-        'high-five' => 'efpic-high-five',
-        'high_five' => 'efpic-high-five',
-    ];
-    if (isset($legacy[$theme])) {
-        return $legacy[$theme];
-    }
-    if (efpic_is_valid_gallery_theme($theme)) {
-        return $theme;
-    }
-
-    return 'efpic-modern';
+    return 'efpic-base';
 }
 
 function efpic_is_modern_gallery_theme(string $theme): bool
 {
-    return efpic_normalize_gallery_theme($theme) === 'efpic-modern';
+    return true;
 }
 
 function efpic_is_high_five_gallery_theme(string $theme): bool
 {
-    return efpic_normalize_gallery_theme($theme) === 'efpic-high-five';
+    return false;
 }
 
 function efpic_uses_mosaic_feed_theme(string $theme): bool
 {
-    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-high-five', 'efpic-mood', 'efpic-forest'], true);
+    return true;
 }
 
 /** Intro vāks, pilna platuma galerija un modern skatītājs. */
 function efpic_uses_full_gallery_shell(string $theme): bool
 {
-    return efpic_uses_mosaic_feed_theme($theme);
+    return true;
 }
 
-/** Fixed mosaic columns per theme; 0 = responsive (see client.js for per-theme ranges). */
 function efpic_gallery_theme_mosaic_columns(string $theme): int
 {
     return 0;
 }
 
-/** Max responsive columns when mosaic_columns is 0. */
+/** @deprecated Izmanto efpic_gallery_mosaic_max_columns($meta) */
 function efpic_gallery_theme_mosaic_max_columns(string $theme): int
 {
-    return match (efpic_normalize_gallery_theme($theme)) {
-        'efpic-forest' => 3,
-        'efpic-high-five' => 5,
-        default => 4,
-    };
+    return 4;
 }
 
 function efpic_uses_mosaic_slideshow_ui(string $theme): bool
 {
-    return efpic_uses_mosaic_feed_theme($theme);
+    return true;
+}
+
+/** @return array<string, string> */
+function efpic_gallery_cover_style_options(): array
+{
+    return [
+        'standard' => 'Standarta (izkārtojums zemāk)',
+        'cinematic-full' => 'Kinematogrāfisks pilnekrāns',
+        'mood-blob' => 'Mood burbulis (centrēts)',
+    ];
+}
+
+function efpic_gallery_cover_style(array $meta): string
+{
+    $style = trim((string) ($meta['cover_style'] ?? 'standard'));
+
+    return array_key_exists($style, efpic_gallery_cover_style_options()) ? $style : 'standard';
+}
+
+function efpic_gallery_uses_mood_blob_cover(array $meta): bool
+{
+    return efpic_gallery_cover_style($meta) === 'mood-blob';
+}
+
+function efpic_gallery_uses_cinematic_full_cover(array $meta): bool
+{
+    return efpic_gallery_cover_style($meta) === 'cinematic-full';
+}
+
+function efpic_gallery_cover_style_locks_layout(array $meta): bool
+{
+    return in_array(efpic_gallery_cover_style($meta), ['mood-blob', 'cinematic-full'], true);
+}
+
+function efpic_sanitize_mosaic_max_columns(mixed $value): int
+{
+    if (!is_numeric($value)) {
+        return 4;
+    }
+    $n = (int) round((float) $value);
+
+    return max(2, min(5, $n));
+}
+
+function efpic_gallery_mosaic_max_columns(array $meta): int
+{
+    if (array_key_exists('mosaic_max_columns', $meta)) {
+        return efpic_sanitize_mosaic_max_columns($meta['mosaic_max_columns']);
+    }
+
+    return 4;
+}
+
+/** @return array<string, string> */
+function efpic_gallery_mosaic_max_column_options(): array
+{
+    return [
+        '2' => '2 kolonnas',
+        '3' => '3 kolonnas',
+        '4' => '4 kolonnas',
+        '5' => '5 kolonnas',
+    ];
 }
 
 function efpic_gallery_effective_theme(array $meta): string
 {
-    $clientTheme = (string) ($meta['client_theme'] ?? '');
-    if ($clientTheme !== '') {
-        return efpic_normalize_gallery_theme($clientTheme);
-    }
-
-    return efpic_normalize_gallery_theme((string) ($meta['theme'] ?? 'efpic-modern'));
+    return 'efpic-base';
 }
 
 function efpic_theme_default_page_bg(string $theme): string
 {
-    return match (efpic_normalize_gallery_theme($theme)) {
-        'efpic-mood' => '#111111',
-        'efpic-forest' => '#f2f6f0',
-        'efpic-high-five' => '#ffffff',
-        'efpic-modern' => '#ffffff',
-        default => '#ffffff',
-    };
+    return '#ffffff';
+}
+
+/**
+ * Pārveido veco tēmu (Modern, Forest u.c.) uz saliekamiem iestatījumiem.
+ */
+function efpic_gallery_migrate_design_meta_in_place(array &$meta): bool
+{
+    $changed = false;
+    $raw = strtolower(trim((string) ($meta['theme'] ?? '')));
+    $legacy = [
+        'efpic-modern' => ['cover_style' => 'standard', 'mosaic_max_columns' => 4],
+        'efpic-high-five' => ['cover_style' => 'standard', 'mosaic_max_columns' => 5],
+        'efpic-forest' => ['cover_style' => 'standard', 'mosaic_max_columns' => 3],
+        'efpic-mood' => ['cover_style' => 'mood-blob', 'mosaic_max_columns' => 4],
+        'pic-time' => ['cover_style' => 'standard', 'mosaic_max_columns' => 4],
+        'pic_time' => ['cover_style' => 'standard', 'mosaic_max_columns' => 4],
+        'classic' => ['cover_style' => 'standard', 'mosaic_max_columns' => 4],
+        'efpic-classic' => ['cover_style' => 'standard', 'mosaic_max_columns' => 4],
+        'masonry' => ['cover_style' => 'mood-blob', 'mosaic_max_columns' => 4],
+        'dark' => ['cover_style' => 'mood-blob', 'mosaic_max_columns' => 4],
+        'high-five' => ['cover_style' => 'standard', 'mosaic_max_columns' => 5],
+        'high_five' => ['cover_style' => 'standard', 'mosaic_max_columns' => 5],
+    ];
+    if (isset($legacy[$raw])) {
+        foreach ($legacy[$raw] as $key => $value) {
+            if (($meta[$key] ?? null) !== $value) {
+                $meta[$key] = $value;
+                $changed = true;
+            }
+        }
+    }
+    if (!array_key_exists('cover_style', $meta)) {
+        $meta['cover_style'] = 'standard';
+        $changed = true;
+    }
+    if (!array_key_exists('mosaic_max_columns', $meta)) {
+        $meta['mosaic_max_columns'] = 4;
+        $changed = true;
+    }
+    if (($meta['theme'] ?? '') !== 'efpic-base') {
+        $meta['theme'] = 'efpic-base';
+        $changed = true;
+    }
+    if (!empty($meta['client_theme'])) {
+        $meta['client_theme'] = null;
+        $changed = true;
+    }
+
+    return $changed;
 }
 
 function efpic_load_app_settings(array $config): array
@@ -951,6 +1026,9 @@ function efpic_load_gallery_meta(array $config, string $slug): ?array
     if (efpic_gallery_migrate_password_storage($meta)) {
         efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
     }
+    if (efpic_gallery_migrate_design_meta_in_place($meta)) {
+        efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
+    }
 
     return $meta;
 }
@@ -958,6 +1036,7 @@ function efpic_load_gallery_meta(array $config, string $slug): ?array
 function efpic_save_gallery_meta(array $config, string $slug, array $meta): void
 {
     efpic_gallery_migrate_password_storage($meta);
+    efpic_gallery_migrate_design_meta_in_place($meta);
     efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
     efpic_rebuild_access_index($config);
 }
@@ -1009,8 +1088,10 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'password' => '',
         'password_hash' => '',
         'restrict_gallery_from_single_link' => false,
-        'theme' => 'efpic-modern',
+        'theme' => 'efpic-base',
         'client_theme' => null,
+        'cover_style' => 'standard',
+        'mosaic_max_columns' => 4,
         'status' => 'active',
         'deleted_at' => null,
         'event_date' => null,
@@ -1027,6 +1108,10 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'mood_date_font_size' => 'md',
         'hero_accent_color' => '#9a9578',
         'page_bg_color' => null,
+        'design_palette' => '',
+        'cover_animation' => 'none',
+        'cover_media_type' => 'image',
+        'cover_video_id' => null,
         'images' => [],
         'slideshow' => [
             'admin' => [

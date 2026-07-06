@@ -1,6 +1,6 @@
 {
   "name": "Noklusējuma piegāde",
-  "theme": "efpic-modern",
+  "theme": "efpic-base",
   "settings": {
     "allow_client_sharing": true,
     "client_comments_enabled": false,

@@ -188,30 +188,24 @@ function efpic_admin_color_field(string $name, string $label, string $value): st
 
 function efpic_admin_render_theme_fieldset(array $config, array $formMeta): string
 {
-    $theme = efpic_normalize_gallery_theme((string) ($formMeta['theme'] ?? 'efpic-modern'));
-    if (!efpic_is_valid_gallery_theme($theme)) {
-        $theme = 'efpic-modern';
-    }
     $heroAccent = efpic_client_hero_accent_color($formMeta);
     $pageBg = efpic_client_page_bg_color($config, $formMeta);
-    $html = '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Tēma</legend>';
-    $html .= '<div class="admin-form-layout admin-form-layout--basic">';
-    $html .= '<label>Tēma<select name="theme" id="admin-gallery-theme-select">';
-    foreach (efpic_gallery_theme_options() as $k => $lbl) {
-        $sel = $k === $theme ? ' selected' : '';
-        $html .= '<option value="' . efpic_admin_esc($k) . '"' . $sel . '>' . efpic_admin_esc($lbl) . '</option>';
-    }
-    $html .= '</select></label>';
+    $html = '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Dizains</legend>';
+    $html .= '<input type="hidden" name="theme" value="efpic-base">';
+    $html .= efpic_render_design_preset_picker();
     $coverFromFav = efpic_gallery_cover_from_favorites($formMeta);
     $html .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
         'name' => 'cover_from_favorites',
         'class' => 'admin-fieldset-full',
     ]);
+    $html .= efpic_render_design_palette_picker($formMeta);
+    $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
     $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
-    $html .= '<p class="muted admin-fieldset-full">Krāsas darbojas visās tēmās. Ja nepieciešams, klients var tās mainīt klienta panelī.</p>';
+    $html .= '<p class="muted admin-fieldset-full">Saliec izskatu pa daļām — vāks, krāsas, fonti un kolonnas. Klients var mainīt krāsas panelī.</p>';
     $html .= '</div>';
-    $html .= efpic_render_cover_theme_controls($config, $formMeta, $theme, false);
+    $html .= efpic_render_cover_theme_controls($config, $formMeta, false);
+    $html .= efpic_render_design_template_controls($config, $formMeta);
     $html .= '</fieldset>';
 
     return $html;
@@ -1792,6 +1786,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             $meta['page_bg_color'] = strtolower($pageBg);
         }
         efpic_apply_cover_theme_from_post($meta);
+        efpic_apply_cover_media_from_post($meta);
         efpic_apply_mood_theme_from_post($meta);
         efpic_save_gallery_meta($config, $slug, $meta);
         efpic_gallery_log_activity(
@@ -1826,10 +1821,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
 
         $meta['name'] = $name;
         $meta['event_date'] = $eventDate;
-        $meta['theme'] = (string) ($_POST['theme'] ?? $meta['theme']);
-        if (!efpic_is_valid_gallery_theme($meta['theme'])) {
-            $meta['theme'] = 'efpic-modern';
-        }
+        $meta['theme'] = 'efpic-base';
 
         $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
         if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
@@ -1842,6 +1834,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
 
         efpic_apply_cover_theme_from_post($meta);
+        efpic_apply_cover_media_from_post($meta);
         efpic_apply_mood_theme_from_post($meta);
 
         $coverTok = trim((string) ($_POST['cover_image_token'] ?? ''));
@@ -1895,9 +1888,22 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             efpic_slideshow_create_from_draft($config, $slug, $meta);
         }
         efpic_apply_videos_from_post($config, $slug, $meta);
+        efpic_apply_cover_media_from_post($meta);
         efpic_normalize_gallery_image_sorts($meta);
         if (!empty($_POST['rebaseline_scene_sort'])) {
             efpic_rebaseline_auto_scene_sorts($meta);
+        }
+        if (!empty($_POST['design_template_save'])) {
+            $tplName = trim((string) ($_POST['design_template_name'] ?? ''));
+            if ($tplName !== '') {
+                efpic_design_template_save($config, $tplName, efpic_design_template_extract_from_meta($meta));
+            }
+        }
+        if (!empty($_POST['design_template_delete'])) {
+            $tplId = trim((string) ($_POST['design_template_id'] ?? ''));
+            if ($tplId !== '') {
+                efpic_design_template_delete($config, $tplId);
+            }
         }
         efpic_save_gallery_meta($config, $slug, $meta);
         // Indeksēšanu sāk tikai ar «Indeksēt / turpināt» — ne automātiski pie Saglabāt (mazāk hosting slodzes).
@@ -2077,7 +2083,7 @@ function efpic_admin_render_edit_tabs_nav(): string
     $tabs = [
         ['id' => 'admin-tab-basic', 'label' => 'Pamati'],
         ['id' => 'admin-tab-messages', 'label' => 'Ziņojumi klientam'],
-        ['id' => 'admin-tab-theme', 'label' => 'Tēma'],
+        ['id' => 'admin-tab-theme', 'label' => 'Dizains'],
         ['id' => 'admin-tab-failiem', 'label' => 'Failiem'],
         ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas'],
         ['id' => 'admin-tab-images', 'label' => 'Bildes'],
@@ -2260,7 +2266,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $sectionLabels = [
             'images' => 'Bildes',
             'scenes' => 'Sadaļas',
-            'theme' => 'Tēma',
+            'theme' => 'Dizains',
             'share' => 'Kopīgošana',
             'media' => 'Slideshow & video',
         ];

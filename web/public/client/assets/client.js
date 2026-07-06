@@ -600,15 +600,6 @@
     updateFloatingUi();
   }
 
-  function getGalleryThemeSlug() {
-    var body = document.body;
-    if (!body || !body.className) {
-      return 'efpic-modern';
-    }
-    var match = body.className.match(/\btheme-(efpic-[a-z0-9-]+)\b/);
-    return match ? match[1] : 'efpic-modern';
-  }
-
   function getMosaicColumnCount(container) {
     if (container && container.hasAttribute('data-mosaic-columns')) {
       var fixed = parseInt(container.getAttribute('data-mosaic-columns'), 10);
@@ -621,13 +612,6 @@
       var maxAttr = parseInt(container.getAttribute('data-mosaic-max-columns'), 10);
       if (maxAttr >= 2 && maxAttr <= 6) {
         maxCols = maxAttr;
-      }
-    } else {
-      var theme = getGalleryThemeSlug();
-      if (theme === 'efpic-forest') {
-        maxCols = 3;
-      } else if (theme === 'efpic-high-five') {
-        maxCols = 5;
       }
     }
     var w = window.innerWidth;
