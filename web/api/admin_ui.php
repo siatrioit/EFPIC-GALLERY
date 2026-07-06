@@ -1763,10 +1763,14 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'name' => $name,
             'slug' => trim((string) ($_POST['slug'] ?? '')),
             'event_date' => $eventDate,
-            'password' => (string) ($_POST['gallery_password'] ?? ''),
+            'password' => efpic_post_flag_is_on('gallery_password_enabled')
+                ? (string) ($_POST['gallery_password'] ?? '')
+                : '',
             'client_email' => trim((string) ($_POST['client_email'] ?? '')),
             'client_phone' => trim((string) ($_POST['client_phone'] ?? '')),
-            'client_password' => (string) ($_POST['client_password'] ?? ''),
+            'client_password' => efpic_post_flag_is_on('client_password_enabled')
+                ? (string) ($_POST['client_password'] ?? '')
+                : '',
             'client_portal_enabled' => efpic_post_flag_is_on('client_portal_enabled'),
             'folder_parent_url' => trim((string) ($_POST['folder_parent_url'] ?? '')),
             'folder_full_url' => trim((string) ($_POST['folder_full_url'] ?? '')),
@@ -2220,14 +2224,14 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         'Galerijas parole',
         'gallery_password',
         '',
-        'Aizsargā publisko galeriju (/v/g/…). Ievadi jaunu paroli vai atzīmē «Noņemt».',
+        'Aizsargā publisko galeriju (/v/g/…). Ieslēdz slēdzi un ievadi paroli.',
         efpic_gallery_has_password($formMeta),
     );
     $body .= efpic_admin_render_password_field(
         'Klienta paneļa parole',
         'client_password',
         '',
-        'Aizsargā klienta paneli (/c/p/…). Ievadi jaunu paroli vai atzīmē «Noņemt».',
+        'Aizsargā klienta paneli (/c/p/…). Ieslēdz slēdzi un ievadi paroli.',
         efpic_client_portal_has_password($formMeta),
     );
     $body .= '</div>';

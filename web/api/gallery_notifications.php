@@ -306,7 +306,73 @@ function efpic_email_zip_ready_intro(int $collectionCount, string $size): string
     return 'Tavas izlases ' . $label . ' izmērā ir gatavas lejupielādei.';
 }
 
+function efpic_gallery_email_button_style(): string
+{
+    return 'display:inline-block;min-width:152px;width:152px;max-width:152px;text-align:center;box-sizing:border-box;'
+        . 'font-size:14px;font-weight:600;padding:12px 10px;border-radius:8px;line-height:1.2;text-decoration:none;';
+}
+
+function efpic_gallery_email_copy_link_url(array $config, string $targetUrl): string
+{
+    $payload = rtrim(strtr(base64_encode($targetUrl), '+/', '-_'), '=');
+
+    return efpic_base_url($config) . '/e/copy?u=' . rawurlencode($payload);
+}
+
+function efpic_gallery_email_copy_link_decode(string $encoded): ?string
+{
+    $encoded = trim($encoded);
+    if ($encoded === '') {
+        return null;
+    }
+    $decoded = base64_decode(strtr($encoded, '-_', '+/'), true);
+    if (!is_string($decoded) || $decoded === '' || !preg_match('#^https?://#i', $decoded)) {
+        return null;
+    }
+
+    return $decoded;
+}
+
+function efpic_gallery_email_copy_link_allowed(array $config, string $url): bool
+{
+    $base = rtrim(efpic_base_url($config), '/');
+    if ($base === '' || !str_starts_with($url, $base . '/')) {
+        return false;
+    }
+
+    return preg_match('#^' . preg_quote($base, '#') . '/(?:v/g|c/p)/[a-f0-9]{48}(?:[/?#]|$)#i', $url) === 1;
+}
+
+function efpic_handle_email_copy_link_page(array $config): void
+{
+    $url = efpic_gallery_email_copy_link_decode((string) ($_GET['u'] ?? ''));
+    if ($url === null || !efpic_gallery_email_copy_link_allowed($config, $url)) {
+        http_response_code(404);
+        header('Content-Type: text/html; charset=utf-8');
+        echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8"><title>Saite nav atrasta</title></head>'
+            . '<body style="font-family:sans-serif;padding:32px;color:#444;"><p>Saite nav derīga.</p></body></html>';
+        exit;
+    }
+
+    $urlEsc = htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    header('Content-Type: text/html; charset=utf-8');
+    echo '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+        . '<title>Kopēt saiti</title></head><body style="margin:0;padding:32px 16px;background:#f0eeeb;font-family:Helvetica,Arial,sans-serif;color:#1a1a1a;">'
+        . '<div style="max-width:560px;margin:0 auto;background:#fff;border-radius:14px;padding:28px;box-shadow:0 2px 12px rgba(0,0,0,0.06);">'
+        . '<h1 style="margin:0 0 12px;font-size:22px;font-weight:600;">Kopēt saiti</h1>'
+        . '<p style="margin:0 0 16px;font-size:15px;line-height:1.5;color:#444;">Atlasi saiti un nokopē, vai spied pogu zemāk.</p>'
+        . '<input id="efpic-copy-url" readonly value="' . $urlEsc . '" style="width:100%;box-sizing:border-box;padding:12px 14px;border:1px solid #e8e4df;border-radius:8px;font-size:14px;margin:0 0 16px;">'
+        . '<div style="display:flex;flex-wrap:wrap;gap:10px;">'
+        . '<button type="button" id="efpic-copy-btn" style="min-width:152px;padding:12px 16px;border:0;border-radius:8px;background:#1a1a1a;color:#fff;font-size:14px;font-weight:600;cursor:pointer;">Kopēt saiti</button>'
+        . '<a href="' . $urlEsc . '" style="min-width:152px;padding:12px 16px;border-radius:8px;background:#fff;color:#1a1a1a;border:1px solid #d8d3cd;font-size:14px;font-weight:600;text-decoration:none;text-align:center;box-sizing:border-box;">Atvērt</a>'
+        . '</div><p id="efpic-copy-status" style="margin:14px 0 0;font-size:13px;color:#2f6b3b;min-height:18px;"></p></div>'
+        . '<script>(function(){var input=document.getElementById("efpic-copy-url");var btn=document.getElementById("efpic-copy-btn");var status=document.getElementById("efpic-copy-status");function setStatus(msg){if(status)status.textContent=msg||"";}function copy(){var text=input?input.value:"";if(!text)return Promise.reject();if(navigator.clipboard&&navigator.clipboard.writeText){return navigator.clipboard.writeText(text);}input.focus();input.select();input.setSelectionRange(0,text.length);try{document.execCommand("copy");return Promise.resolve();}catch(e){return Promise.reject(e);}}if(btn){btn.addEventListener("click",function(){copy().then(function(){setStatus("Saite nokopēta.");}).catch(function(){setStatus("Neizdevās automātiski — atlasi tekstu un nokopē manuāli.");});}if(input){input.addEventListener("focus",function(){input.select();});}})();</script>'
+        . '</body></html>';
+    exit;
+}
+
 function efpic_gallery_email_render_link_card(
+    array $config,
     string $title,
     string $url,
     string $passwordLine = '',
@@ -318,6 +384,8 @@ function efpic_gallery_email_render_link_card(
     $metaLine = $passwordLine !== ''
         ? htmlspecialchars($passwordLine, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
         : '';
+    $btnStyle = efpic_gallery_email_button_style();
+    $copyUrlEsc = htmlspecialchars(efpic_gallery_email_copy_link_url($config, $url), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
     $html = '<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 12px;background:#faf9f7;border:1px solid #e8e4df;border-radius:10px;">'
         . '<tr><td style="padding:16px 18px;">'
@@ -328,9 +396,13 @@ function efpic_gallery_email_render_link_card(
         $html .= '<div style="font-size:13px;color:#6b6560;margin:0;line-height:1.4;">' . $metaLine . '</div>';
     }
     $html .= '</td>'
-        . '<td style="vertical-align:middle;width:1px;white-space:nowrap;text-align:right;">'
-        . '<a href="' . $urlEsc . '" style="display:inline-block;background:#1a1a1a;color:#ffffff;text-decoration:none;font-size:14px;font-weight:600;padding:12px 18px;border-radius:8px;line-height:1.2;">'
-        . $btnEsc . '</a>'
+        . '<td style="vertical-align:middle;width:152px;white-space:nowrap;text-align:right;">'
+        . '<table role="presentation" cellpadding="0" cellspacing="0" align="right"><tr>'
+        . '<td style="padding:0 0 8px;text-align:center;">'
+        . '<a href="' . $urlEsc . '" style="' . $btnStyle . 'background:#1a1a1a;color:#ffffff;">' . $btnEsc . '</a>'
+        . '</td></tr><tr><td style="text-align:center;">'
+        . '<a href="' . $copyUrlEsc . '" style="' . $btnStyle . 'background:#ffffff;color:#1a1a1a;border:1px solid #d8d3cd;">Kopēt saiti</a>'
+        . '</td></tr></table>'
         . '</td></tr></table>'
         . '</td></tr></table>';
 
@@ -349,7 +421,7 @@ function efpic_gallery_email_link_card_button_label(string $url, string $title):
     return 'Atvērt saiti';
 }
 
-function efpic_gallery_email_plain_to_inner_html(string $plain): string
+function efpic_gallery_email_plain_to_inner_html(array $config, string $plain): string
 {
     $plain = trim(str_replace(["\r\n", "\r"], "\n", $plain));
     if ($plain === '') {
@@ -380,6 +452,7 @@ function efpic_gallery_email_plain_to_inner_html(string $plain): string
                 $passwordLine = $lines[$urlIndex + 1];
             }
             $html .= efpic_gallery_email_render_link_card(
+                $config,
                 $title,
                 $url,
                 $passwordLine,
@@ -443,7 +516,7 @@ function efpic_gallery_email_transactional_pack(
 
 function efpic_gallery_email_build_from_plain(array $config, array $meta, string $plainBody, string $documentTitle = ''): array
 {
-    $innerHtml = efpic_gallery_email_plain_to_inner_html($plainBody);
+    $innerHtml = efpic_gallery_email_plain_to_inner_html($config, $plainBody);
     $pack = efpic_gallery_email_transactional_pack($config, $meta, $innerHtml, $documentTitle);
 
     return [

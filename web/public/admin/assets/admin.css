@@ -782,6 +782,23 @@
   min-width: 0;
 }
 
+.admin-password-field-block .admin-toggle-field--password {
+  margin-bottom: 0;
+}
+
+.admin-password-field-block .admin-password-input-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0;
+}
+
+.admin-password-field-block .admin-password-field:disabled {
+  opacity: 0.55;
+  background: var(--admin-surface-2, #faf9f7);
+  cursor: not-allowed;
+}
+
 .admin-form-layout .admin-field-block {
   margin-bottom: 0;
 }

@@ -440,11 +440,42 @@ function efpic_set_client_portal_password(array &$meta, string $password): void
 /** @param array<string, mixed> $meta */
 function efpic_apply_gallery_passwords_from_post(array &$meta, bool $emptyClears = false): void
 {
+    $usesToggles = array_key_exists('gallery_password_enabled', $_POST)
+        || array_key_exists('client_password_enabled', $_POST);
+
+    if ($usesToggles) {
+        if (array_key_exists('gallery_password_enabled', $_POST)) {
+            if (!efpic_post_flag_is_on('gallery_password_enabled')) {
+                efpic_set_gallery_password($meta, '');
+            } elseif (array_key_exists('gallery_password', $_POST)) {
+                $pw = trim((string) $_POST['gallery_password']);
+                if ($pw !== '') {
+                    efpic_set_gallery_password($meta, $pw);
+                }
+            }
+        }
+        if (array_key_exists('client_password_enabled', $_POST)) {
+            if (!efpic_post_flag_is_on('client_password_enabled')) {
+                efpic_set_client_portal_password($meta, '');
+            } elseif (array_key_exists('client_password', $_POST)) {
+                $pw = trim((string) $_POST['client_password']);
+                if ($pw !== '') {
+                    if (!efpic_client_portal_enabled($meta)) {
+                        efpic_ensure_client_portal_token($meta);
+                    }
+                    efpic_set_client_portal_password($meta, $pw);
+                }
+            }
+        }
+
+        return;
+    }
+
     if (array_key_exists('gallery_password', $_POST)) {
         $pw = trim((string) $_POST['gallery_password']);
         if ($pw !== '') {
             efpic_set_gallery_password($meta, $pw);
-        } elseif ($emptyClears || !empty($_POST['remove_gallery_password'])) {
+        } elseif ($emptyClears) {
             efpic_set_gallery_password($meta, '');
         }
     }
@@ -455,7 +486,7 @@ function efpic_apply_gallery_passwords_from_post(array &$meta, bool $emptyClears
                 efpic_ensure_client_portal_token($meta);
             }
             efpic_set_client_portal_password($meta, $pw);
-        } elseif ($emptyClears || !empty($_POST['remove_client_password'])) {
+        } elseif ($emptyClears) {
             efpic_set_client_portal_password($meta, '');
         }
     }
@@ -539,19 +570,23 @@ function efpic_csrf_require(?string $token = null): void
 
 function efpic_admin_render_password_field(string $label, string $name, string $value, string $hint = '', bool $isSet = false): string
 {
-    $html = '<div class="admin-field-block">';
-    $html .= '<label>' . htmlspecialchars($label, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-    $placeholder = $isSet ? 'Parole iestatīta (ievadi jaunu, lai mainītu)' : 'Tukšs = bez paroles';
+    $enabledName = $name . '_enabled';
+    $html = '<div class="admin-field-block admin-password-field-block" data-password-field="'
+        . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '">';
+    $html .= '<input type="hidden" name="' . htmlspecialchars($enabledName, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" value="0">';
+    $html .= efpic_render_admin_toggle($label, $isSet, [
+        'name' => $enabledName,
+        'value' => '1',
+        'class' => 'admin-toggle-field--password',
+    ]);
+    $placeholder = $isSet ? 'Parole iestatīta (ievadi jaunu, lai mainītu)' : 'Ievadi paroli';
+    $html .= '<label class="admin-password-input-wrap">Parole';
     $html .= '<input type="text" name="' . htmlspecialchars($name, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '"'
         . ' class="admin-password-field" value="'
         . htmlspecialchars($value, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '" autocomplete="off"'
+        . ($isSet ? '' : ' disabled')
         . ' placeholder="' . htmlspecialchars($placeholder, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '">';
     $html .= '</label>';
-    $removeName = 'remove_' . $name;
-    $html .= '<label class="admin-checkbox-inline admin-password-remove"'
-        . ($isSet ? '' : ' hidden') . '><input type="checkbox" name="'
-        . htmlspecialchars($removeName, ENT_QUOTES | ENT_HTML5, 'UTF-8')
-        . '" value="1"> Noņemt paroli</label>';
     if ($hint !== '') {
         $html .= '<p class="admin-field-hint">' . htmlspecialchars($hint, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</p>';
     }

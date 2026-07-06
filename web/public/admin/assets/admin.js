@@ -601,37 +601,58 @@
     adminPasswordUiSyncing = true;
     try {
       if (typeof data.gallery_password_set === 'boolean') {
-        syncAdminPasswordField(form, 'gallery_password', 'remove_gallery_password', data.gallery_password_set);
+        syncAdminPasswordField(form, 'gallery_password', data.gallery_password_set);
       }
       if (typeof data.client_password_set === 'boolean') {
-        syncAdminPasswordField(form, 'client_password', 'remove_client_password', data.client_password_set);
+        syncAdminPasswordField(form, 'client_password', data.client_password_set);
       }
     } finally {
       adminPasswordUiSyncing = false;
     }
   }
 
-  function syncAdminPasswordField(form, inputName, removeName, isSet) {
-    var input = form.querySelector('[name="' + inputName + '"]');
-    if (!input) return;
+  function syncAdminPasswordField(form, inputName, isSet) {
+    var block = form.querySelector('[data-password-field="' + inputName + '"]');
+    if (!block) return;
+    var toggle = block.querySelector('input[type="checkbox"][name="' + inputName + '_enabled"]');
+    var input = block.querySelector('input.admin-password-field[name="' + inputName + '"]');
+    if (!toggle || !input) return;
+    toggle.checked = !!isSet;
+    input.disabled = !isSet;
     input.value = '';
     input.placeholder = isSet
       ? 'Parole iestatīta (ievadi jaunu, lai mainītu)'
-      : 'Tukšs = bez paroles';
-    var block = input.closest('.admin-field-block');
-    if (!block) return;
-    var removeLabel = block.querySelector('.admin-password-remove');
-    if (isSet) {
-      if (removeLabel) {
-        removeLabel.hidden = false;
-        var removeInputOn = removeLabel.querySelector('[name="' + removeName + '"]');
-        if (removeInputOn) removeInputOn.checked = false;
+      : 'Ievadi paroli';
+  }
+
+  function initAdminPasswordToggles() {
+    document.querySelectorAll('[data-password-field]').forEach(function (block) {
+      if (block.dataset.bound === '1') return;
+      var toggle = block.querySelector('input[type="checkbox"][name$="_enabled"]');
+      var input = block.querySelector('input.admin-password-field');
+      if (!toggle || !input) return;
+      block.dataset.bound = '1';
+
+      function syncInputState() {
+        input.disabled = !toggle.checked;
+        if (!toggle.checked) {
+          input.value = '';
+          input.placeholder = 'Ievadi paroli';
+        }
       }
-    } else if (removeLabel) {
-      removeLabel.hidden = true;
-      var removeInput = removeLabel.querySelector('[name="' + removeName + '"]');
-      if (removeInput) removeInput.checked = false;
-    }
+
+      toggle.addEventListener('change', function () {
+        syncInputState();
+        if (toggle.checked) {
+          window.setTimeout(function () {
+            input.focus();
+          }, 0);
+        }
+        scheduleAdminAutoSave();
+      });
+      input.addEventListener('change', scheduleAdminAutoSave);
+      syncInputState();
+    });
   }
 
   function applyAdminGalleryLinksPayload(data) {
@@ -2177,6 +2198,7 @@
   initAdminConfirmForms();
   initAdminRegeneratePublicLink();
   initAdminPortalLinkToggle();
+  initAdminPasswordToggles();
   initAdminBackfillDimensions();
   initAdminFaceIndex();
   initAdminGalleryLinksPoll();

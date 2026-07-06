@@ -508,7 +508,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<button type="submit" class="btn primary">Saglabāt</button></form></section>';
 
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Paroles</h2>';
-    $body .= '<p class="muted">Galerijas parole aizsargā publisko saiti apmeklētājiem. Klienta paneļa parole aizsargā šo paneli. Atstāj tukšu, lai noņemtu paroli.</p>';
+    $body .= '<p class="muted">Ieslēdz slēdzi un ievadi paroli katram laukam atsevišķi. Izslēdzot slēdzi, attiecīgā parole tiek noņemta.</p>';
     $body .= '<form method="post" class="portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_passwords">';
     $body .= efpic_admin_render_password_field(

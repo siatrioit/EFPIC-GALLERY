@@ -1316,25 +1316,48 @@ function efpic_gallery_expires_at_value(array $meta): ?string
     return substr((string) $expires, 0, 10);
 }
 
+function efpic_gallery_expires_lv_dative_month(int $month): string
+{
+    return match ($month) {
+        1 => 'janvārim',
+        2 => 'februārim',
+        3 => 'martam',
+        4 => 'aprīlim',
+        5 => 'maijam',
+        6 => 'jūnijam',
+        7 => 'jūlijam',
+        8 => 'augustam',
+        9 => 'septembrim',
+        10 => 'oktobrim',
+        11 => 'novembrim',
+        12 => 'decembrim',
+        default => '',
+    };
+}
+
+function efpic_gallery_format_expires_lv(string $date): string
+{
+    $ts = strtotime($date);
+    if ($ts === false) {
+        return $date;
+    }
+    $month = (int) date('n', $ts);
+    $monthLabel = efpic_gallery_expires_lv_dative_month($month);
+    if ($monthLabel === '') {
+        return $date;
+    }
+
+    return (int) date('Y', $ts) . '.gada ' . (int) date('j', $ts) . '.' . $monthLabel;
+}
+
 function efpic_gallery_expires_display(array $meta): string
 {
     $date = efpic_gallery_expires_at_value($meta);
     if ($date === null) {
         return '';
     }
-    $ts = strtotime($date);
-    if ($ts === false) {
-        return $date;
-    }
 
-    $months = [
-        1 => 'janv.', 2 => 'febr.', 3 => 'marts', 4 => 'apr.',
-        5 => 'maijs', 6 => 'jūn.', 7 => 'jūl.', 8 => 'aug.',
-        9 => 'sept.', 10 => 'okt.', 11 => 'nov.', 12 => 'dec.',
-    ];
-    $m = (int) date('n', $ts);
-
-    return (int) date('j', $ts) . '. ' . ($months[$m] ?? date('m', $ts)) . ' ' . date('Y', $ts);
+    return efpic_gallery_format_expires_lv($date);
 }
 
 function efpic_gallery_expired(array $meta): bool

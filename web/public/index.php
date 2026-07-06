@@ -78,6 +78,10 @@ try {
         efpic_handle_visitor_zip_queue_run($config);
     }
 
+    if ($uri === '/e/copy' && $method === 'GET') {
+        efpic_handle_email_copy_link_page($config);
+    }
+
     if ($uri === '/api/booth-events' && $method === 'GET') {
         efpic_handle_list_booth_events($config);
     }

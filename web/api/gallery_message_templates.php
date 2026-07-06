@@ -307,7 +307,7 @@ function efpic_message_template_variables(): array
 {
     return [
         'name' => 'Galerijas nosaukums (piem. «Riharda un Annikas kāzas»)',
-        'expires' => 'Derīguma termiņš lasāmā formā (piem. «8. jūn. 2027»)',
+        'expires' => 'Derīguma termiņš lasāmā formā (piem. «2026.gada 31.decembrim»)',
         'slug' => 'Galerijas iekšējais identifikators (mapes nosaukums)',
         'url' => 'Tikai publiskās galerijas saite',
         'gallery_password' => 'Tikai publiskās galerijas parole (tukšs, ja nav)',
@@ -415,7 +415,7 @@ function efpic_gallery_client_email_draft(
     $vars = efpic_gallery_notify_vars($config, $meta, $slug, $overrides);
     $subject = efpic_gallery_notify_replace($tpl['subject'], $vars);
     $body = efpic_gallery_notify_replace($tpl['body'], $vars);
-    $innerHtml = efpic_gallery_email_plain_to_inner_html($body);
+    $innerHtml = efpic_gallery_email_plain_to_inner_html($config, $body);
     $previewPack = efpic_gallery_email_transactional_pack($config, $meta, $innerHtml, $subject);
 
     return [
