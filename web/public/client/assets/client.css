@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --bg: #f0f0f0;
   --surface: #ffffff;
   --text: #1a1a1a;
@@ -482,7 +482,6 @@ input[type="password"],
 
 .page-gallery .gallery-main,
 .page-gallery .pic-feed,
-.page-gallery .classic-feed,
 .page-gallery .feed {
   background: var(--page-bg, #ffffff);
 }
@@ -518,11 +517,6 @@ input[type="password"],
   --muted: #9ca3af;
   --border: #333;
   --surface: #1c1c1c;
-}
-
-.theme-efpic-classic.page-gallery {
-  --surface: #ffffff;
-  background: var(--page-bg, #f0f0f0);
 }
 
 .theme-masonry.page-gallery {
@@ -1168,63 +1162,6 @@ input[type="password"],
   box-sizing: border-box;
 }
 
-/* Classic: vienāds rindas augstums, pilna platuma režģis (2→3→4 kolonnas) */
-.classic-feed {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--pic-feed-gap, 16px);
-  width: 100%;
-  padding: var(--pic-feed-gap, 16px);
-  background: var(--page-bg, #ffffff);
-  box-sizing: border-box;
-}
-
-.theme-efpic-classic .classic-feed {
-  --classic-row-h: clamp(148px, 24vw, 260px);
-}
-
-.theme-efpic-classic .classic-feed .pic-feed-item {
-  position: relative;
-  height: var(--classic-row-h);
-  overflow: hidden;
-}
-
-.theme-efpic-classic .classic-feed .pic-feed-link {
-  position: relative;
-  z-index: 1;
-  display: block;
-  width: 100%;
-  height: 100%;
-}
-
-.theme-efpic-classic .classic-feed .pic-feed-item img,
-.theme-efpic-classic .classic-feed .pic-feed-link img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.theme-efpic-classic .classic-feed .pic-feed-img--deferred:not([src]) {
-  min-height: 100%;
-  height: 100%;
-}
-
-@media (min-width: 640px) {
-  .classic-feed {
-    grid-template-columns: repeat(3, 1fr);
-    gap: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
-    padding: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
-  }
-}
-
-@media (min-width: 1024px) {
-  .classic-feed {
-    grid-template-columns: repeat(4, 1fr);
-    gap: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
-    padding: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
-  }
-}
-
 .pic-feed-item {
   position: relative;
   display: block;
@@ -1589,7 +1526,8 @@ input[type="password"],
     margin-bottom: var(--pic-feed-gap-tablet, var(--pic-feed-gap, 20px));
   }
 
-  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]),
+  .theme-efpic-high-five .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
     column-count: 3;
   }
 }
@@ -1609,16 +1547,23 @@ input[type="password"],
     margin-bottom: var(--pic-feed-gap-desktop, var(--pic-feed-gap-tablet, var(--pic-feed-gap, 24px)));
   }
 
-  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+  .theme-efpic-modern .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]),
+  .theme-efpic-high-five .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
     column-count: 4;
+  }
+}
+
+@media (min-width: 1400px) {
+  .theme-efpic-high-five .pic-feed[data-masonry-gallery]:not([data-mosaic-columns]) {
+    column-count: 5;
   }
 }
 
 /* Shell theme full-screen image viewer */
 .page-viewer.theme-efpic-modern,
+.page-viewer.theme-efpic-high-five,
 .page-viewer.theme-efpic-mood,
-.page-viewer.theme-efpic-forest,
-.page-viewer.theme-efpic-classic {
+.page-viewer.theme-efpic-forest {
   background: var(--page-bg, #ffffff);
   color: var(--text);
   overflow: hidden;
@@ -1627,9 +1572,9 @@ input[type="password"],
 }
 
 .page-viewer.theme-efpic-modern .modern-viewer,
+.page-viewer.theme-efpic-high-five .modern-viewer,
 .page-viewer.theme-efpic-mood .modern-viewer,
-.page-viewer.theme-efpic-forest .modern-viewer,
-.page-viewer.theme-efpic-classic .modern-viewer {
+.page-viewer.theme-efpic-forest .modern-viewer {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -1685,20 +1630,20 @@ input[type="password"],
 }
 
 .page-viewer.theme-efpic-modern .icon-btn,
+.page-viewer.theme-efpic-high-five .icon-btn,
 .page-viewer.theme-efpic-mood .icon-btn,
-.page-viewer.theme-efpic-forest .icon-btn,
-.page-viewer.theme-efpic-classic .icon-btn {
+.page-viewer.theme-efpic-forest .icon-btn {
   color: var(--text);
 }
 
 .page-viewer.theme-efpic-modern .icon-btn:hover,
 .page-viewer.theme-efpic-modern .icon-btn:focus-visible,
+.page-viewer.theme-efpic-high-five .icon-btn:hover,
+.page-viewer.theme-efpic-high-five .icon-btn:focus-visible,
 .page-viewer.theme-efpic-mood .icon-btn:hover,
 .page-viewer.theme-efpic-mood .icon-btn:focus-visible,
 .page-viewer.theme-efpic-forest .icon-btn:hover,
-.page-viewer.theme-efpic-forest .icon-btn:focus-visible,
-.page-viewer.theme-efpic-classic .icon-btn:hover,
-.page-viewer.theme-efpic-classic .icon-btn:focus-visible {
+.page-viewer.theme-efpic-forest .icon-btn:focus-visible {
   background: rgba(0, 0, 0, 0.06);
 }
 
@@ -2114,9 +2059,9 @@ input[type="password"],
 }
 
 .theme-efpic-modern .gallery-scene-nav,
+.theme-efpic-high-five .gallery-scene-nav,
 .theme-efpic-mood .gallery-scene-nav,
 .theme-efpic-forest .gallery-scene-nav,
-.theme-efpic-classic .gallery-scene-nav,
 .theme-pic-time .gallery-scene-nav {
   margin: 0;
   background: color-mix(in srgb, var(--page-bg, #ffffff) 94%, transparent);
@@ -2836,9 +2781,9 @@ button.gallery-scene-nav__link {
   }
 
   .theme-efpic-modern .gallery-main,
+  .theme-efpic-high-five .gallery-main,
   .theme-efpic-mood .gallery-main,
   .theme-efpic-forest .gallery-main,
-  .theme-efpic-classic .gallery-main,
   .theme-pic-time .gallery-main,
   .theme-pic-time .downloads {
     max-width: 100%;

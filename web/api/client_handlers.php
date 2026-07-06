@@ -923,79 +923,11 @@ function efpic_client_mosaic_feed_open(array $meta): string
     $attr = ' data-masonry-gallery data-justified-gallery';
     if ($cols > 0) {
         $attr .= ' data-mosaic-columns="' . $cols . '"';
-    } elseif ($maxCols > 0 && $maxCols < 4) {
+    } elseif ($maxCols > 0 && $maxCols !== 4) {
         $attr .= ' data-mosaic-max-columns="' . $maxCols . '"';
     }
 
     return '<div class="pic-feed"' . $attr . '>';
-}
-
-function efpic_client_classic_feed_open(array $meta): string
-{
-    return '<div class="classic-feed" data-classic-gallery>';
-}
-
-function efpic_client_render_classic_scenes(array $config, array $meta, array $images, array $gridCtx, array $ctx = []): string
-{
-    $visible = efpic_client_scenes_for_gallery_view($config, $meta, $images, $ctx);
-
-    $byScene = [];
-    foreach ($images as $img) {
-        if (!is_array($img)) {
-            continue;
-        }
-        $sid = (string) ($img['scene_id'] ?? 'main');
-        $byScene[$sid][] = $img;
-    }
-
-    $scenesWithContent = [];
-    foreach ($visible as $scene) {
-        $sid = $scene['id'];
-        $sceneImages = $byScene[$sid] ?? [];
-        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
-        if ($sceneImages === [] && $sceneVideos === '') {
-            continue;
-        }
-        $scenesWithContent[] = $scene;
-    }
-    $multiScene = count($scenesWithContent) > 1;
-
-    $html = '';
-    foreach ($scenesWithContent as $scene) {
-        $sid = $scene['id'];
-        $sceneImages = $byScene[$sid] ?? [];
-        $sceneVideos = efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
-        $title = $scene['title'];
-        $anchor = efpic_scene_element_id($sid);
-        if ($multiScene) {
-            $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block scene-block--pic" data-scene-id="'
-                . efpic_client_esc($sid) . '">';
-        }
-        $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
-        $html .= $sceneVideos;
-        if ($multiScene) {
-            $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
-        }
-        if ($sceneImages !== []) {
-            $html .= efpic_client_classic_feed_open($meta);
-            $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx, $meta);
-            $html .= '</div>';
-        }
-        if ($multiScene) {
-            $html .= '</section>';
-        }
-    }
-
-    if ($html === '') {
-        $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
-        $html .= efpic_client_classic_feed_open($meta);
-        $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx, $meta);
-        $html .= '</div>';
-    }
-
-    $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'bottom');
-
-    return $html;
 }
 
 function efpic_client_render_modern_scenes(array $config, array $meta, array $images, array $gridCtx, array $ctx = []): string
@@ -1259,9 +1191,6 @@ function efpic_client_render_public_slideshow_video_inline(
 function efpic_client_render_gallery_grid(array $config, array $meta, array $images, string $theme, array $gridCtx, array $ctx = []): string
 {
     $theme = $theme !== '' ? efpic_normalize_gallery_theme($theme) : efpic_client_effective_theme($meta);
-    if (efpic_is_classic_gallery_theme($theme)) {
-        return efpic_client_render_classic_scenes($config, $meta, $images, $gridCtx, $ctx);
-    }
     if (efpic_uses_mosaic_feed_theme($theme)) {
         return efpic_client_render_modern_scenes($config, $meta, $images, $gridCtx, $ctx);
     }

@@ -1,4 +1,4 @@
-(function () {
+﻿(function () {
   var shareUrl = window.EFPIC_SHARE_URL || window.location.href;
   var shareTitle = window.EFPIC_SHARE_TITLE || document.title;
 
@@ -605,7 +605,7 @@
     if (!body || !body.className) {
       return 'efpic-modern';
     }
-    var match = body.className.match(/\btheme-(efpic-[a-z]+)\b/);
+    var match = body.className.match(/\btheme-(efpic-[a-z0-9-]+)\b/);
     return match ? match[1] : 'efpic-modern';
   }
 
@@ -626,9 +626,14 @@
       var theme = getGalleryThemeSlug();
       if (theme === 'efpic-forest') {
         maxCols = 3;
+      } else if (theme === 'efpic-high-five') {
+        maxCols = 5;
       }
     }
     var w = window.innerWidth;
+    if (maxCols >= 5 && w >= 1400) {
+      return 5;
+    }
     if (maxCols >= 4 && w >= 1200) {
       return 4;
     }

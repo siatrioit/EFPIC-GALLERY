@@ -368,10 +368,10 @@ function efpic_sanitize_gallery_feed_gap(mixed $value, int $fallback = 16): int
 function efpic_gallery_theme_options(): array
 {
     return [
-        'efpic-modern' => 'Modern',
-        'efpic-mood' => 'Mood',
         'efpic-forest' => 'Forest',
-        'efpic-classic' => 'Classic',
+        'efpic-modern' => 'Modern',
+        'efpic-high-five' => 'High Five',
+        'efpic-mood' => 'Mood',
     ];
 }
 
@@ -386,9 +386,12 @@ function efpic_normalize_gallery_theme(string $theme): string
     $legacy = [
         'pic-time' => 'efpic-modern',
         'pic_time' => 'efpic-modern',
-        'classic' => 'efpic-classic',
+        'classic' => 'efpic-modern',
+        'efpic-classic' => 'efpic-modern',
         'masonry' => 'efpic-mood',
         'dark' => 'efpic-mood',
+        'high-five' => 'efpic-high-five',
+        'high_five' => 'efpic-high-five',
     ];
     if (isset($legacy[$theme])) {
         return $legacy[$theme];
@@ -405,20 +408,20 @@ function efpic_is_modern_gallery_theme(string $theme): bool
     return efpic_normalize_gallery_theme($theme) === 'efpic-modern';
 }
 
-function efpic_is_classic_gallery_theme(string $theme): bool
+function efpic_is_high_five_gallery_theme(string $theme): bool
 {
-    return efpic_normalize_gallery_theme($theme) === 'efpic-classic';
+    return efpic_normalize_gallery_theme($theme) === 'efpic-high-five';
 }
 
 function efpic_uses_mosaic_feed_theme(string $theme): bool
 {
-    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest'], true);
+    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-high-five', 'efpic-mood', 'efpic-forest'], true);
 }
 
-/** Intro vāks, pilna platuma galerija un modern skatītājs (visas 4 tēmas). */
+/** Intro vāks, pilna platuma galerija un modern skatītājs. */
 function efpic_uses_full_gallery_shell(string $theme): bool
 {
-    return in_array(efpic_normalize_gallery_theme($theme), ['efpic-modern', 'efpic-mood', 'efpic-forest', 'efpic-classic'], true);
+    return efpic_uses_mosaic_feed_theme($theme);
 }
 
 /** Fixed mosaic columns per theme; 0 = responsive (see client.js for per-theme ranges). */
@@ -432,6 +435,7 @@ function efpic_gallery_theme_mosaic_max_columns(string $theme): int
 {
     return match (efpic_normalize_gallery_theme($theme)) {
         'efpic-forest' => 3,
+        'efpic-high-five' => 5,
         default => 4,
     };
 }
@@ -456,7 +460,7 @@ function efpic_theme_default_page_bg(string $theme): string
     return match (efpic_normalize_gallery_theme($theme)) {
         'efpic-mood' => '#111111',
         'efpic-forest' => '#f2f6f0',
-        'efpic-classic' => '#f0f0f0',
+        'efpic-high-five' => '#ffffff',
         'efpic-modern' => '#ffffff',
         default => '#ffffff',
     };
@@ -1005,7 +1009,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'password' => '',
         'password_hash' => '',
         'restrict_gallery_from_single_link' => false,
-        'theme' => $type === 'delivery' ? 'efpic-modern' : 'efpic-classic',
+        'theme' => 'efpic-modern',
         'client_theme' => null,
         'status' => 'active',
         'deleted_at' => null,
