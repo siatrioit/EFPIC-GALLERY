@@ -1098,6 +1098,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'theme' => 'efpic-base',
         'client_theme' => null,
         'cover_style' => 'standard',
+        'cover_text_placement' => 'bottom-center',
         'mosaic_max_columns' => 4,
         'status' => 'active',
         'deleted_at' => null,

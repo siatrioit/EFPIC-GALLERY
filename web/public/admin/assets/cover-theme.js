@@ -273,9 +273,11 @@
     var coverAnimSel = document.getElementById('cover_animation');
     var coverMediaType = readCoverMediaType();
     var coverVideoSel = document.getElementById('cover_video_id');
+    var textPlacementSel = document.getElementById('cover_text_placement');
 
     return {
       coverStyle: coverStyle,
+      coverTextPlacement: textPlacementSel ? textPlacementSel.value : (base.coverTextPlacement || 'bottom-center'),
       layout: layout,
       name: nameInput ? nameInput.value : (base.name || 'Galerija'),
       dateRaw: dateRaw,
@@ -396,8 +398,14 @@
     return html;
   }
 
+  function cinematicTextClass(state) {
+    if (state.coverStyle !== 'cinematic-full') return '';
+    var placement = state.coverTextPlacement || 'bottom-center';
+    return ' gallery-intro--cinematic-text-' + placement.replace(/[^a-z0-9-]/g, '');
+  }
+
   function renderCinematic(state, fontMap, groupMap) {
-    var html = '<section class="gallery-intro gallery-intro--cinematic-full' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
+    var html = '<section class="gallery-intro gallery-intro--cinematic-full' + sectionClass(state) + cinematicTextClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
     html += '<div class="gallery-intro-cinematic-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
     html += '<div class="gallery-intro-cinematic-vignette" aria-hidden="true"></div>';
     html += '<div class="gallery-intro-cinematic-content">';
@@ -554,6 +562,10 @@
       if (cinematicNote) {
         cinematicNote.hidden = !(coverStyleSel && coverStyleSel.value === 'cinematic-full');
       }
+      var textPlacementWrap = document.getElementById('admin-cover-text-placement');
+      if (textPlacementWrap) {
+        textPlacementWrap.classList.toggle('is-hidden', !(coverStyleSel && coverStyleSel.value === 'cinematic-full'));
+      }
       if (cropImg && url && cropImg.getAttribute('src') !== url) {
         cropImg.setAttribute('src', url);
       }
@@ -628,7 +640,7 @@
     });
 
     bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"], input[name="page_bg_color"], input[name="intro_text_color"]');
-    ['#cover_style', '#mosaic_max_columns', '#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps', '#cover_animation', '#cover_video_id'].forEach(function (sel) {
+    ['#cover_style', '#mosaic_max_columns', '#cover_text_placement', '#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps', '#cover_animation', '#cover_video_id'].forEach(function (sel) {
       document.querySelectorAll(sel).forEach(function (el) {
         el.addEventListener('change', refreshPreview);
         el.addEventListener('input', refreshPreview);
@@ -663,6 +675,8 @@
     function applyDesignSettings(s) {
       if (!s) return;
       if (coverStyleSel && s.cover_style) coverStyleSel.value = s.cover_style;
+      var textPlacementSel = document.getElementById('cover_text_placement');
+      if (textPlacementSel && s.cover_text_placement) textPlacementSel.value = s.cover_text_placement;
       var mosaicSel = document.getElementById('mosaic_max_columns');
       if (mosaicSel && s.mosaic_max_columns != null) mosaicSel.value = String(s.mosaic_max_columns);
       if (s.hero_accent_color) setColorInput('hero_accent_color', s.hero_accent_color);

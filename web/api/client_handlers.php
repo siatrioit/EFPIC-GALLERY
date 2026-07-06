@@ -645,7 +645,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         }
 
         if (efpic_gallery_uses_cinematic_full_cover($meta)) {
-            $html = '<section class="gallery-intro gallery-intro--cinematic-full' . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
+            $html = '<section class="gallery-intro gallery-intro--cinematic-full' . efpic_gallery_intro_extra_class($meta) . efpic_gallery_cinematic_text_placement_class($meta) . $animClass . '" id="galleryHero"'
                 . efpic_gallery_intro_typography_style_attr($meta) . '>';
             $html .= '<div class="gallery-intro-cinematic-bg gallery-intro-cover-media">';
             $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx);

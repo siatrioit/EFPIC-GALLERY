@@ -168,6 +168,37 @@ function efpic_gallery_cover_animation_class(array $meta): string
     return ' gallery-intro-cover-anim--' . preg_replace('/[^a-z0-9-]/', '', $anim);
 }
 
+/** @return array<string, string> */
+function efpic_gallery_cover_text_placement_options(): array
+{
+    return [
+        'bottom-center' => 'Apakšā — centrēts',
+        'bottom-left' => 'Apakšā — pa kreisi',
+        'bottom-right' => 'Apakšā — pa labi',
+        'center' => 'Vidū — centrēts',
+        'top-center' => 'Augšā — centrēts',
+        'top-left' => 'Augšā — pa kreisi',
+        'top-right' => 'Augšā — pa labi',
+    ];
+}
+
+function efpic_gallery_cover_text_placement(array $meta): string
+{
+    $key = trim((string) ($meta['cover_text_placement'] ?? 'bottom-center'));
+
+    return array_key_exists($key, efpic_gallery_cover_text_placement_options()) ? $key : 'bottom-center';
+}
+
+function efpic_gallery_cinematic_text_placement_class(array $meta): string
+{
+    if (!efpic_gallery_uses_cinematic_full_cover($meta)) {
+        return '';
+    }
+    $placement = efpic_gallery_cover_text_placement($meta);
+
+    return ' gallery-intro--cinematic-text-' . preg_replace('/[^a-z0-9-]/', '', $placement);
+}
+
 function efpic_gallery_cover_media_type(array $meta): string
 {
     return trim((string) ($meta['cover_media_type'] ?? 'image')) === 'video' ? 'video' : 'image';
@@ -262,6 +293,7 @@ function efpic_design_template_setting_keys(): array
         'cover_animation',
         'cover_media_type',
         'cover_from_favorites',
+        'cover_text_placement',
     ];
 }
 
@@ -528,6 +560,7 @@ function efpic_gallery_design_presets(): array
                 'intro_text_color' => '#f5f2eb',
                 'mood_font_family' => 'cormorant',
                 'cover_animation' => 'ken-burns',
+                'cover_text_placement' => 'bottom-center',
             ],
         ],
     ];
@@ -982,6 +1015,10 @@ function efpic_apply_cover_theme_from_post(array &$meta): void
     if (isset($_POST['mosaic_max_columns'])) {
         $meta['mosaic_max_columns'] = efpic_sanitize_mosaic_max_columns($_POST['mosaic_max_columns']);
     }
+    $textPlacement = trim((string) ($_POST['cover_text_placement'] ?? ''));
+    if ($textPlacement !== '' && array_key_exists($textPlacement, efpic_gallery_cover_text_placement_options())) {
+        $meta['cover_text_placement'] = $textPlacement;
+    }
     $meta['theme'] = 'efpic-base';
 }
 
@@ -1114,6 +1151,7 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta): arra
         'coverMediaType' => efpic_gallery_cover_media_type($formMeta),
         'coverVideoId' => efpic_gallery_cover_video_id($formMeta),
         'coverVideos' => efpic_admin_cover_video_options($config, $formMeta),
+        'coverTextPlacement' => efpic_gallery_cover_text_placement($formMeta),
     ];
 }
 
@@ -1177,6 +1215,15 @@ function efpic_render_cover_theme_controls(
             . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
+    $textPlacement = efpic_gallery_cover_text_placement($formMeta);
+    $isCinematic = efpic_gallery_uses_cinematic_full_cover($formMeta);
+    $html .= '<label class="admin-cover-text-placement' . ($isCinematic ? '' : ' is-hidden') . '" id="admin-cover-text-placement">'
+        . 'Tekstu novietojums (kinematogrāfisks)<select name="cover_text_placement" id="cover_text_placement">';
+    foreach (efpic_gallery_cover_text_placement_options() as $k => $lbl) {
+        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $textPlacement ? ' selected' : '') . '>'
+            . efpic_cover_theme_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
     $html .= '</div>';
 
     $coverMediaType = efpic_gallery_cover_media_type($formMeta);
@@ -1222,9 +1269,9 @@ function efpic_render_cover_theme_controls(
         $html .= '<p class="muted" id="admin-cover-layout-mood-note" hidden>Mood burbuļa stilā izkārtojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
     }
     if (efpic_gallery_uses_cinematic_full_cover($formMeta)) {
-        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note">Kinematogrāfiskajā stilā izkārtojumu nevar mainīt — bilde/video aizpilda visu ekrānu.</p>';
+        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note">Kinematogrāfiskajā stilā bilde/video aizpilda visu ekrānu. Tekstu novietojumu maini augstāk.</p>';
     } else {
-        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note" hidden>Kinematogrāfiskajā stilā izkārtojumu nevar mainīt — bilde/video aizpilda visu ekrānu.</p>';
+        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note" hidden>Kinematogrāfiskajā stilā bilde/video aizpilda visu ekrānu. Tekstu novietojumu maini augstāk.</p>';
     }
     $html .= '<div class="admin-cover-layout-grid" role="radiogroup" aria-label="Vāka bildes novietojums">';
     foreach (efpic_gallery_cover_layout_options() as $key => $label) {
