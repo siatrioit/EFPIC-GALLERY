@@ -41,9 +41,11 @@ function efpic_gallery_email_cfg(array $config): array
 function efpic_gallery_email_enabled(array $config): bool
 {
     $app = efpic_load_app_settings($config);
-    $appEmail = $app['gallery_email'] ?? [];
-    if (is_array($appEmail) && !empty($appEmail['enabled'])) {
-        return true;
+    $appEmail = is_array($app['gallery_email'] ?? null) ? $app['gallery_email'] : [];
+
+    // Kad nosūtītājs ir konfigurēts admin Iestatījumos, uzticieties tikai UI slēdzim.
+    if (trim((string) ($appEmail['from'] ?? '')) !== '') {
+        return !empty($appEmail['enabled']);
     }
 
     $gn = efpic_gallery_notify_cfg($config);
