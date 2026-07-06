@@ -3834,6 +3834,10 @@
   display: none;
 }
 
+.admin-cover-text-placement.is-hidden {
+  display: none;
+}
+
 .admin-dims-progress-wrap {
   display: inline-block;
   vertical-align: middle;
