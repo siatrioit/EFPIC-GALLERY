@@ -515,7 +515,15 @@ function efpic_gallery_migrate_design_meta_in_place(array &$meta): bool
     ];
     if (isset($legacy[$raw])) {
         foreach ($legacy[$raw] as $key => $value) {
-            if (($meta[$key] ?? null) !== $value) {
+            $current = $meta[$key] ?? null;
+            if ($key === 'mosaic_max_columns') {
+                if (efpic_sanitize_mosaic_max_columns($current) !== efpic_sanitize_mosaic_max_columns($value)) {
+                    $meta[$key] = efpic_sanitize_mosaic_max_columns($value);
+                    $changed = true;
+                }
+                continue;
+            }
+            if ($current !== $value) {
                 $meta[$key] = $value;
                 $changed = true;
             }
@@ -1026,9 +1034,8 @@ function efpic_load_gallery_meta(array $config, string $slug): ?array
     if (efpic_gallery_migrate_password_storage($meta)) {
         efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
     }
-    if (efpic_gallery_migrate_design_meta_in_place($meta)) {
-        efpic_write_json_file(efpic_gallery_meta_path($config, $slug), $meta);
-    }
+    // Dizaina migrāciju piemēro atmiņā; disku raksta tikai saglabāšanas laikā (izvairās no N rakstījumiem admin ielādē).
+    efpic_gallery_migrate_design_meta_in_place($meta);
 
     return $meta;
 }

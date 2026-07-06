@@ -117,7 +117,7 @@ function efpic_admin_layout(
     $deletedCount = 0;
     if ($config !== []) {
         foreach (efpic_list_gallery_slugs($config) as $slug) {
-            $m = efpic_load_gallery_meta($config, $slug);
+            $m = efpic_read_json_file(efpic_gallery_meta_path($config, $slug));
             if ($m !== null && efpic_is_delivery_gallery($m) && efpic_gallery_status($m) === 'deleted') {
                 $deletedCount++;
             }
