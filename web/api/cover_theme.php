@@ -169,34 +169,182 @@ function efpic_gallery_cover_animation_class(array $meta): string
 }
 
 /** @return array<string, string> */
-function efpic_gallery_cover_text_placement_options(): array
+function efpic_gallery_intro_text_slot_options(): array
 {
     return [
-        'bottom-center' => 'Apakšā — centrēts',
-        'bottom-left' => 'Apakšā — pa kreisi',
-        'bottom-right' => 'Apakšā — pa labi',
-        'center' => 'Vidū — centrēts',
-        'top-center' => 'Augšā — centrēts',
-        'top-left' => 'Augšā — pa kreisi',
-        'top-right' => 'Augšā — pa labi',
+        'top-left' => 'Augšā pa kreisi',
+        'top-center' => 'Augšā centrēts',
+        'top-right' => 'Augšā pa labi',
+        'center-left' => 'Vidū pa kreisi',
+        'center' => 'Centrēts',
+        'center-right' => 'Vidū pa labi',
+        'bottom-left' => 'Apakšā pa kreisi',
+        'bottom-center' => 'Apakšā centrēts',
+        'bottom-right' => 'Apakšā pa labi',
     ];
 }
 
-function efpic_gallery_cover_text_placement(array $meta): string
+/** @return array{byline: string, date: string, title: string} */
+function efpic_gallery_intro_text_placement_defaults(string $coverStyle, string $layout): array
 {
-    $key = trim((string) ($meta['cover_text_placement'] ?? 'bottom-center'));
+    if ($coverStyle === 'mood-blob') {
+        return ['byline' => 'top-center', 'date' => 'bottom-center', 'title' => 'center'];
+    }
+    if ($coverStyle === 'cinematic-full' || $layout === 'full') {
+        return ['byline' => 'top-center', 'date' => 'bottom-left', 'title' => 'bottom-center'];
+    }
+    if (in_array($layout, ['half-left', 'half-right'], true)) {
+        return ['byline' => 'top-left', 'date' => 'top-right', 'title' => 'bottom-left'];
+    }
 
-    return array_key_exists($key, efpic_gallery_cover_text_placement_options()) ? $key : 'bottom-center';
+    return ['byline' => 'top-left', 'date' => 'top-right', 'title' => 'bottom-left'];
 }
 
+/** @param array{byline?: string, date?: string, title?: string} $placements */
+function efpic_gallery_resolve_intro_text_placement_collisions(array $placements): array
+{
+    $slots = array_keys(efpic_gallery_intro_text_slot_options());
+    $order = ['byline', 'title', 'date'];
+    $used = [];
+    $out = [];
+    foreach ($order as $role) {
+        $want = trim((string) ($placements[$role] ?? ''));
+        if ($want === '' || !array_key_exists($want, efpic_gallery_intro_text_slot_options())) {
+            $want = 'bottom-center';
+        }
+        if (isset($used[$want])) {
+            foreach ($slots as $slot) {
+                if (!isset($used[$slot])) {
+                    $want = $slot;
+                    break;
+                }
+            }
+        }
+        $out[$role] = $want;
+        $used[$want] = $role;
+    }
+
+    return $out;
+}
+
+/** @return array{byline: string, date: string, title: string} */
+function efpic_gallery_intro_text_placements(array $meta): array
+{
+    $coverStyle = efpic_gallery_cover_style($meta);
+    $layout = efpic_gallery_cover_layout($meta);
+    $defaults = efpic_gallery_intro_text_placement_defaults($coverStyle, $layout);
+    $raw = $meta['intro_text_placements'] ?? null;
+    $placements = $defaults;
+    if (is_array($raw)) {
+        foreach (['byline', 'date', 'title'] as $role) {
+            $slot = trim((string) ($raw[$role] ?? ''));
+            if ($slot !== '' && array_key_exists($slot, efpic_gallery_intro_text_slot_options())) {
+                $placements[$role] = $slot;
+            }
+        }
+    } elseif (array_key_exists('cover_text_placement', $meta)) {
+        $legacy = trim((string) ($meta['cover_text_placement'] ?? ''));
+        $placements = efpic_gallery_map_legacy_block_text_placement($legacy, $defaults);
+    }
+
+    return efpic_gallery_resolve_intro_text_placement_collisions($placements);
+}
+
+/** @param array{byline: string, date: string, title: string} $defaults */
+function efpic_gallery_map_legacy_block_text_placement(string $block, array $defaults): array
+{
+    return match ($block) {
+        'top-center' => ['byline' => 'top-center', 'date' => 'top-left', 'title' => 'top-right'],
+        'top-left' => ['byline' => 'top-left', 'date' => 'top-center', 'title' => 'top-right'],
+        'top-right' => ['byline' => 'top-right', 'date' => 'top-center', 'title' => 'top-left'],
+        'center' => ['byline' => 'top-center', 'date' => 'bottom-left', 'title' => 'center'],
+        'bottom-left' => ['byline' => 'top-center', 'date' => 'bottom-left', 'title' => 'bottom-center'],
+        'bottom-right' => ['byline' => 'top-center', 'date' => 'bottom-right', 'title' => 'bottom-center'],
+        default => $defaults,
+    };
+}
+
+function efpic_gallery_intro_text_slot_class(string $role, array $meta): string
+{
+    $placements = efpic_gallery_intro_text_placements($meta);
+    $slot = $placements[$role] ?? 'bottom-center';
+
+    return ' intro-text-at-' . preg_replace('/[^a-z0-9-]/', '', $slot);
+}
+
+function efpic_client_render_intro_text_layer(string $byline, string $name, string $date, array $meta): string
+{
+    $html = '<div class="gallery-intro-text-layer">';
+    $html .= '<p class="gallery-intro-byline' . efpic_gallery_intro_text_slot_class('byline', $meta) . '">'
+        . efpic_client_esc($byline) . '</p>';
+    if ($date !== '') {
+        $html .= '<p class="gallery-intro-date' . efpic_gallery_intro_text_slot_class('date', $meta) . '">'
+            . efpic_client_esc($date) . '</p>';
+    }
+    $html .= '<h1 class="gallery-intro-title' . efpic_gallery_intro_text_slot_class('title', $meta) . '">'
+        . efpic_client_esc($name) . '</h1>';
+    $html .= '</div>';
+
+    return $html;
+}
+
+function efpic_apply_intro_text_placements_from_post(array &$meta): void
+{
+    $placements = efpic_gallery_intro_text_placements($meta);
+    foreach (['byline', 'date', 'title'] as $role) {
+        $slot = trim((string) ($_POST['intro_text_placement_' . $role] ?? ''));
+        if ($slot !== '' && array_key_exists($slot, efpic_gallery_intro_text_slot_options())) {
+            $placements[$role] = $slot;
+        }
+    }
+    $meta['intro_text_placements'] = efpic_gallery_resolve_intro_text_placement_collisions($placements);
+    unset($meta['cover_text_placement']);
+}
+
+function efpic_render_intro_text_placement_controls(array $formMeta): string
+{
+    $placements = efpic_gallery_intro_text_placements($formMeta);
+    $roles = [
+        'byline' => 'Galerijas paraksts',
+        'date' => 'Datums',
+        'title' => 'Galerijas nosaukums',
+    ];
+    $html = '<div class="admin-intro-text-placements admin-fieldset-full" id="admin-intro-text-placements">';
+    $html .= '<p class="admin-intro-text-placements__heading">Tekstu novietojums vākā</p>';
+    $html .= '<p class="muted">Izvēlies atsevišķu vietu katram uzrakstam. Vienā pozīcijā var būt tikai viens teksts.</p>';
+    $html .= '<div class="admin-intro-text-placements__grid">';
+    foreach ($roles as $role => $label) {
+        $html .= '<label>Teksta vieta — ' . efpic_cover_theme_esc($label)
+            . '<select name="intro_text_placement_' . efpic_cover_theme_esc($role) . '" id="intro_text_placement_'
+            . efpic_cover_theme_esc($role) . '" data-intro-text-role="' . efpic_cover_theme_esc($role) . '">';
+        foreach (efpic_gallery_intro_text_slot_options() as $k => $lbl) {
+            $html .= '<option value="' . efpic_cover_theme_esc($k) . '"'
+                . (($placements[$role] ?? '') === $k ? ' selected' : '') . '>'
+                . efpic_cover_theme_esc($lbl) . '</option>';
+        }
+        $html .= '</select></label>';
+    }
+    $html .= '</div></div>';
+
+    return $html;
+}
+
+/** @deprecated Izmanto efpic_gallery_intro_text_slot_options() */
+function efpic_gallery_cover_text_placement_options(): array
+{
+    return efpic_gallery_intro_text_slot_options();
+}
+
+/** @deprecated Izmanto efpic_gallery_intro_text_placements() */
+function efpic_gallery_cover_text_placement(array $meta): string
+{
+    return efpic_gallery_intro_text_placements($meta)['title'];
+}
+
+/** @deprecated */
 function efpic_gallery_cinematic_text_placement_class(array $meta): string
 {
-    if (!efpic_gallery_uses_cinematic_full_cover($meta)) {
-        return '';
-    }
-    $placement = efpic_gallery_cover_text_placement($meta);
-
-    return ' gallery-intro--cinematic-text-' . preg_replace('/[^a-z0-9-]/', '', $placement);
+    return '';
 }
 
 function efpic_gallery_cover_media_type(array $meta): string
@@ -293,7 +441,7 @@ function efpic_design_template_setting_keys(): array
         'cover_animation',
         'cover_media_type',
         'cover_from_favorites',
-        'cover_text_placement',
+        'intro_text_placements',
     ];
 }
 
@@ -560,7 +708,11 @@ function efpic_gallery_design_presets(): array
                 'intro_text_color' => '#f5f2eb',
                 'mood_font_family' => 'cormorant',
                 'cover_animation' => 'ken-burns',
-                'cover_text_placement' => 'bottom-center',
+                'intro_text_placements' => [
+                    'byline' => 'top-center',
+                    'date' => 'bottom-left',
+                    'title' => 'bottom-center',
+                ],
             ],
         ],
     ];
@@ -1012,13 +1164,10 @@ function efpic_apply_cover_theme_from_post(array &$meta): void
     if ($coverStyle !== '' && array_key_exists($coverStyle, efpic_gallery_cover_style_options())) {
         $meta['cover_style'] = $coverStyle;
     }
-    if (isset($_POST['mosaic_max_columns'])) {
+    if (array_key_exists('mosaic_max_columns', $_POST)) {
         $meta['mosaic_max_columns'] = efpic_sanitize_mosaic_max_columns($_POST['mosaic_max_columns']);
     }
-    $textPlacement = trim((string) ($_POST['cover_text_placement'] ?? ''));
-    if ($textPlacement !== '' && array_key_exists($textPlacement, efpic_gallery_cover_text_placement_options())) {
-        $meta['cover_text_placement'] = $textPlacement;
-    }
+    efpic_apply_intro_text_placements_from_post($meta);
     $meta['theme'] = 'efpic-base';
 }
 
@@ -1151,7 +1300,7 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta): arra
         'coverMediaType' => efpic_gallery_cover_media_type($formMeta),
         'coverVideoId' => efpic_gallery_cover_video_id($formMeta),
         'coverVideos' => efpic_admin_cover_video_options($config, $formMeta),
-        'coverTextPlacement' => efpic_gallery_cover_text_placement($formMeta),
+        'introTextPlacements' => efpic_gallery_intro_text_placements($formMeta),
     ];
 }
 
@@ -1215,15 +1364,6 @@ function efpic_render_cover_theme_controls(
             . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
-    $textPlacement = efpic_gallery_cover_text_placement($formMeta);
-    $isCinematic = efpic_gallery_uses_cinematic_full_cover($formMeta);
-    $html .= '<label class="admin-cover-text-placement' . ($isCinematic ? '' : ' is-hidden') . '" id="admin-cover-text-placement">'
-        . 'Tekstu novietojums (kinematogrāfisks)<select name="cover_text_placement" id="cover_text_placement">';
-    foreach (efpic_gallery_cover_text_placement_options() as $k => $lbl) {
-        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $textPlacement ? ' selected' : '') . '>'
-            . efpic_cover_theme_esc($lbl) . '</option>';
-    }
-    $html .= '</select></label>';
     $html .= '</div>';
 
     $coverMediaType = efpic_gallery_cover_media_type($formMeta);
@@ -1269,9 +1409,9 @@ function efpic_render_cover_theme_controls(
         $html .= '<p class="muted" id="admin-cover-layout-mood-note" hidden>Mood burbuļa stilā izkārtojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
     }
     if (efpic_gallery_uses_cinematic_full_cover($formMeta)) {
-        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note">Kinematogrāfiskajā stilā bilde/video aizpilda visu ekrānu. Tekstu novietojumu maini augstāk.</p>';
+        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note">Kinematogrāfiskajā stilā bilde/video aizpilda visu ekrānu. Tekstus kārto tipogrāfijas sadaļā.</p>';
     } else {
-        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note" hidden>Kinematogrāfiskajā stilā bilde/video aizpilda visu ekrānu. Tekstu novietojumu maini augstāk.</p>';
+        $html .= '<p class="muted" id="admin-cover-layout-cinematic-note" hidden>Kinematogrāfiskajā stilā bilde/video aizpilda visu ekrānu. Tekstus kārto tipogrāfijas sadaļā.</p>';
     }
     $html .= '<div class="admin-cover-layout-grid" role="radiogroup" aria-label="Vāka bildes novietojums">';
     foreach (efpic_gallery_cover_layout_options() as $key => $label) {
@@ -1311,6 +1451,7 @@ function efpic_render_cover_theme_controls(
     }
     $html .= efpic_render_intro_all_caps_toggle($formMeta);
     $html .= '</div>';
+    $html .= efpic_render_intro_text_placement_controls($formMeta);
     $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $moodDateFmt = efpic_gallery_mood_date_format_key($formMeta);
     $html .= '<label>Datuma formāts<select name="mood_date_format" id="mood_date_format">';

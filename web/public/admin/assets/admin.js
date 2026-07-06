@@ -391,6 +391,8 @@
     var form = document.getElementById('admin-delivery-form');
     if (!form || !adminFormIsEditDelivery()) return;
 
+    window.efpicRunAdminAutoSave = runAdminAutoSave;
+
     bindAdminVideoRowEvents();
 
     form.addEventListener('change', function (evt) {
@@ -399,6 +401,11 @@
         markFavoritesDirty();
       }
       if (t && t.name && isSlideshowEnabledField(t.name)) {
+        runAdminAutoSave();
+        return;
+      }
+      if (t && (t.name === 'mosaic_max_columns' || t.name === 'cover_style' || t.name === 'cover_layout'
+        || (t.name && t.name.indexOf('intro_text_placement_') === 0))) {
         runAdminAutoSave();
         return;
       }

@@ -25,6 +25,13 @@
 
   var PREVIEW_DISPLAY_H = 400;
   var previewFocusLock = null;
+  var INTRO_TEXT_SLOTS = [
+    'top-left', 'top-center', 'top-right',
+    'center-left', 'center', 'center-right',
+    'bottom-left', 'bottom-center', 'bottom-right',
+  ];
+  var INTRO_TEXT_ROLES = ['byline', 'date', 'title'];
+  var OVERLAY_CLASS = ' gallery-intro--text-overlay';
 
   function lockPreviewFocus(el) {
     if (!el || typeof el.focus !== 'function') {
@@ -248,6 +255,107 @@
     }
   }
 
+  function defaultIntroTextPlacements(coverStyle, layout) {
+    if (coverStyle === 'mood-blob') {
+      return { byline: 'top-center', date: 'bottom-center', title: 'center' };
+    }
+    if (coverStyle === 'cinematic-full' || layout === 'full') {
+      return { byline: 'top-center', date: 'bottom-left', title: 'bottom-center' };
+    }
+    if (layout === 'half-left' || layout === 'half-right') {
+      return { byline: 'top-left', date: 'top-right', title: 'bottom-left' };
+    }
+    return { byline: 'top-left', date: 'top-right', title: 'bottom-left' };
+  }
+
+  function resolveIntroTextPlacementCollisions(placements) {
+    var used = {};
+    var out = {};
+    ['byline', 'title', 'date'].forEach(function (role) {
+      var want = String((placements && placements[role]) || '').trim();
+      if (!want || INTRO_TEXT_SLOTS.indexOf(want) < 0) {
+        want = 'bottom-center';
+      }
+      if (used[want]) {
+        INTRO_TEXT_SLOTS.some(function (slot) {
+          if (!used[slot]) {
+            want = slot;
+            return true;
+          }
+          return false;
+        });
+      }
+      out[role] = want;
+      used[want] = role;
+    });
+    return out;
+  }
+
+  function readIntroTextPlacements(base, coverStyle, layout) {
+    var placements = defaultIntroTextPlacements(coverStyle, layout);
+    if (base && base.introTextPlacements) {
+      INTRO_TEXT_ROLES.forEach(function (role) {
+        var slot = base.introTextPlacements[role];
+        if (slot && INTRO_TEXT_SLOTS.indexOf(slot) >= 0) {
+          placements[role] = slot;
+        }
+      });
+    }
+    INTRO_TEXT_ROLES.forEach(function (role) {
+      var sel = document.getElementById('intro_text_placement_' + role);
+      if (sel && sel.value && INTRO_TEXT_SLOTS.indexOf(sel.value) >= 0) {
+        placements[role] = sel.value;
+      }
+    });
+    return resolveIntroTextPlacementCollisions(placements);
+  }
+
+  function introTextSlotClass(role, placements) {
+    var slot = (placements && placements[role]) || 'bottom-center';
+    return ' intro-text-at-' + slot.replace(/[^a-z0-9-]/g, '');
+  }
+
+  function introTextLayerHtml(state) {
+    var placements = state.introTextPlacements || defaultIntroTextPlacements(state.coverStyle, state.layout);
+    var html = '<div class="gallery-intro-text-layer">';
+    html += '<p class="gallery-intro-byline' + introTextSlotClass('byline', placements) + '">' + escapeHtml(state.byline) + '</p>';
+    if (state.dateFormatted) {
+      html += '<p class="gallery-intro-date' + introTextSlotClass('date', placements) + '">' + escapeHtml(state.dateFormatted) + '</p>';
+    }
+    html += '<h1 class="gallery-intro-title' + introTextSlotClass('title', placements) + '">' + escapeHtml(state.name) + '</h1>';
+    html += '</div>';
+    return html;
+  }
+
+  function introStageHtml(mediaHtml, state) {
+    return '<div class="gallery-intro-stage">' + mediaHtml + introTextLayerHtml(state) + '</div>';
+  }
+
+  function triggerDesignAutoSave() {
+    if (typeof window.efpicRunAdminAutoSave === 'function') {
+      window.efpicRunAdminAutoSave();
+    }
+  }
+
+  function syncPlacementSelects(coverStyle, layout) {
+    var resolved = readIntroTextPlacements({}, coverStyle, layout);
+    INTRO_TEXT_ROLES.forEach(function (role) {
+      var sel = document.getElementById('intro_text_placement_' + role);
+      if (!sel) return;
+      if (sel.value !== resolved[role]) {
+        sel.value = resolved[role];
+      }
+      var taken = {};
+      INTRO_TEXT_ROLES.forEach(function (other) {
+        if (other !== role) taken[resolved[other]] = true;
+      });
+      Array.prototype.forEach.call(sel.options, function (opt) {
+        opt.disabled = !!taken[opt.value];
+      });
+    });
+    return resolved;
+  }
+
   function collectState(root, base) {
     var coverStyleSel = document.getElementById('cover_style');
     var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
@@ -273,11 +381,11 @@
     var coverAnimSel = document.getElementById('cover_animation');
     var coverMediaType = readCoverMediaType();
     var coverVideoSel = document.getElementById('cover_video_id');
-    var textPlacementSel = document.getElementById('cover_text_placement');
+    var introTextPlacements = readIntroTextPlacements(base, coverStyle, layout);
 
     return {
       coverStyle: coverStyle,
-      coverTextPlacement: textPlacementSel ? textPlacementSel.value : (base.coverTextPlacement || 'bottom-center'),
+      introTextPlacements: introTextPlacements,
       layout: layout,
       name: nameInput ? nameInput.value : (base.name || 'Galerija'),
       dateRaw: dateRaw,
@@ -342,81 +450,41 @@
   }
 
   function renderSplit(state, layout, fontMap, groupMap) {
-    var text = '<div class="gallery-intro-split-text">'
-      + '<div class="gallery-intro-split-top">'
-      + '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
-    if (state.dateFormatted) {
-      text += '<p class="gallery-intro-date gallery-intro-date--split">' + escapeHtml(state.dateFormatted) + '</p>';
-    }
-    text += '</div><h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></div>';
-    var media = '<div class="gallery-intro-split-media gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
-    var inner = layout === 'half-left' ? media + text : text + media;
-    return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
-      + '<div class="gallery-intro-split">' + inner + '</div></section>';
+    var mediaPane = '<div class="gallery-intro-split-pane gallery-intro-split-pane--media gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
+    var accentPane = '<div class="gallery-intro-split-pane gallery-intro-split-pane--accent" aria-hidden="true"></div>';
+    var inner = layout === 'half-left' ? mediaPane + accentPane : accentPane + mediaPane;
+    return '<section class="gallery-intro gallery-intro--split gallery-intro--layout-' + layout + OVERLAY_CLASS + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
+      + introStageHtml('<div class="gallery-intro-split">' + inner + '</div>', state)
+      + '</section>';
   }
 
   function renderMood(state, fontMap, groupMap) {
-    var html = '<section class="gallery-intro gallery-intro--mood' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
-    html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
-    html += '<div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">';
-    html += mediaHtml(state, true);
-    html += '</div></div><div class="gallery-intro-footer">';
-    html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1>';
-    if (state.dateFormatted) {
-      html += '<p class="gallery-intro-date">' + escapeHtml(state.dateFormatted) + '</p>';
-    }
-    html += '</div></section>';
-    return html;
+    var media = '<div class="gallery-intro-media gallery-intro-media--mood"><div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">'
+      + mediaHtml(state, true) + '</div></div></div>';
+    return '<section class="gallery-intro gallery-intro--mood' + OVERLAY_CLASS + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
+      + introStageHtml(media, state) + '</section>';
   }
 
   function renderFull(state, fontMap, groupMap) {
-    var html = '<section class="gallery-intro gallery-intro--layout-full' + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
-    html += '<div class="gallery-intro-full-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
-    html += '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
-    html += '<div class="gallery-intro-full-content">';
-    html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
-    html += '<div class="gallery-intro-full-footer">';
-    if (state.dateFormatted) {
-      html += '<p class="gallery-intro-date gallery-intro-date--full">' + escapeHtml(state.dateFormatted) + '</p>';
-    }
-    html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1>';
-    html += '</div></div></section>';
-    return html;
+    var media = '<div class="gallery-intro-full-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>'
+      + '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
+    return '<section class="gallery-intro gallery-intro--layout-full' + OVERLAY_CLASS + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
+      + introStageHtml(media, state) + '</section>';
   }
 
   function renderStandard(state, fontMap, groupMap) {
     var layout = state.layout || 'right';
-    var html = '<section class="gallery-intro gallery-intro--layout-' + layout + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
-    html += '<p class="gallery-intro-byline">' + escapeHtml(state.byline) + '</p>';
-    html += '<div class="gallery-intro-head"><figure class="gallery-intro-figure gallery-intro-cover-media">';
-    html += mediaHtml(state, false);
-    if (state.dateFormatted) {
-      html += '<figcaption class="gallery-intro-date">' + escapeHtml(state.dateFormatted) + '</figcaption>';
-    }
-    html += '</figure></div>';
-    html += '<h1 class="gallery-intro-title">' + escapeHtml(state.name) + '</h1></section>';
-    return html;
-  }
-
-  function cinematicTextClass(state) {
-    if (state.coverStyle !== 'cinematic-full') return '';
-    var placement = state.coverTextPlacement || 'bottom-center';
-    return ' gallery-intro--cinematic-text-' + placement.replace(/[^a-z0-9-]/g, '');
+    var media = '<div class="gallery-intro-media gallery-intro-media--standard"><div class="gallery-intro-head"><figure class="gallery-intro-figure gallery-intro-cover-media">'
+      + mediaHtml(state, false) + '</figure></div></div>';
+    return '<section class="gallery-intro gallery-intro--layout-' + layout + OVERLAY_CLASS + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
+      + introStageHtml(media, state) + '</section>';
   }
 
   function renderCinematic(state, fontMap, groupMap) {
-    var html = '<section class="gallery-intro gallery-intro--cinematic-full' + sectionClass(state) + cinematicTextClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">';
-    html += '<div class="gallery-intro-cinematic-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>';
-    html += '<div class="gallery-intro-cinematic-vignette" aria-hidden="true"></div>';
-    html += '<div class="gallery-intro-cinematic-content">';
-    html += '<p class="gallery-intro-byline gallery-intro-byline--cinematic">' + escapeHtml(state.byline) + '</p>';
-    html += '<div class="gallery-intro-cinematic-footer">';
-    if (state.dateFormatted) {
-      html += '<p class="gallery-intro-date gallery-intro-date--cinematic">' + escapeHtml(state.dateFormatted) + '</p>';
-    }
-    html += '<h1 class="gallery-intro-title gallery-intro-title--cinematic">' + escapeHtml(state.name) + '</h1>';
-    html += '</div></div></section>';
-    return html;
+    var media = '<div class="gallery-intro-cinematic-bg gallery-intro-cover-media">' + mediaHtml(state, true) + '</div>'
+      + '<div class="gallery-intro-cinematic-vignette" aria-hidden="true"></div>';
+    return '<section class="gallery-intro gallery-intro--cinematic-full' + OVERLAY_CLASS + sectionClass(state) + '" style="' + introStyle(state, fontMap, groupMap) + '">'
+      + introStageHtml(media, state) + '</section>';
   }
 
   function renderCoverHtml(state, fontMap, groupMap) {
@@ -562,10 +630,6 @@
       if (cinematicNote) {
         cinematicNote.hidden = !(coverStyleSel && coverStyleSel.value === 'cinematic-full');
       }
-      var textPlacementWrap = document.getElementById('admin-cover-text-placement');
-      if (textPlacementWrap) {
-        textPlacementWrap.classList.toggle('is-hidden', !(coverStyleSel && coverStyleSel.value === 'cinematic-full'));
-      }
       if (cropImg && url && cropImg.getAttribute('src') !== url) {
         cropImg.setAttribute('src', url);
       }
@@ -605,6 +669,7 @@
         var state = collectState(root, base);
         var url = getCoverUrl(cropImg, base);
         state.coverUrl = url;
+        state.introTextPlacements = syncPlacementSelects(state.coverStyle, state.layout);
         if (cropImg && url && cropImg.getAttribute('src') !== url) {
           cropImg.setAttribute('src', url);
         }
@@ -640,12 +705,27 @@
     });
 
     bindLiveInput('input[name="name"], input[name="event_date"], input[name="hero_accent_color"], input[name="page_bg_color"], input[name="intro_text_color"]');
-    ['#cover_style', '#mosaic_max_columns', '#cover_text_placement', '#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps', '#cover_animation', '#cover_video_id'].forEach(function (sel) {
+    ['#cover_style', '#mosaic_max_columns', '#mood_font_family', '#mood_date_format', '#mood_title_font_size', '#mood_date_font_size', '#intro_all_caps', '#cover_animation', '#cover_video_id'].forEach(function (sel) {
       document.querySelectorAll(sel).forEach(function (el) {
         el.addEventListener('change', refreshPreview);
         el.addEventListener('input', refreshPreview);
       });
     });
+    INTRO_TEXT_ROLES.forEach(function (role) {
+      var sel = document.getElementById('intro_text_placement_' + role);
+      if (!sel) return;
+      sel.addEventListener('change', function () {
+        var coverStyle = coverStyleSel ? coverStyleSel.value : 'standard';
+        syncPlacementSelects(coverStyle, getSelectedLayout());
+        refreshPreview();
+        triggerDesignAutoSave();
+      });
+    });
+
+    var mosaicSel = document.getElementById('mosaic_max_columns');
+    if (mosaicSel && base.mosaicMaxColumns != null) {
+      mosaicSel.value = String(base.mosaicMaxColumns);
+    }
     document.querySelectorAll('input[name="cover_media_type"]').forEach(function (el) {
       el.addEventListener('change', function () {
         syncThemePanels();
@@ -675,8 +755,14 @@
     function applyDesignSettings(s) {
       if (!s) return;
       if (coverStyleSel && s.cover_style) coverStyleSel.value = s.cover_style;
-      var textPlacementSel = document.getElementById('cover_text_placement');
-      if (textPlacementSel && s.cover_text_placement) textPlacementSel.value = s.cover_text_placement;
+      if (s.intro_text_placements) {
+        INTRO_TEXT_ROLES.forEach(function (role) {
+          var el = document.getElementById('intro_text_placement_' + role);
+          if (el && s.intro_text_placements[role]) {
+            el.value = s.intro_text_placements[role];
+          }
+        });
+      }
       var mosaicSel = document.getElementById('mosaic_max_columns');
       if (mosaicSel && s.mosaic_max_columns != null) mosaicSel.value = String(s.mosaic_max_columns);
       if (s.hero_accent_color) setColorInput('hero_accent_color', s.hero_accent_color);
@@ -767,6 +853,7 @@
     syncThemePanels();
     updateCropAspect();
     applyFocal();
+    syncPlacementSelects(coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
     refreshPreview();
     window.addEventListener('resize', function () {
       updateAllDeviceScales(root);

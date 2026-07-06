@@ -517,7 +517,7 @@ function efpic_gallery_migrate_design_meta_in_place(array &$meta): bool
         foreach ($legacy[$raw] as $key => $value) {
             $current = $meta[$key] ?? null;
             if ($key === 'mosaic_max_columns') {
-                if (efpic_sanitize_mosaic_max_columns($current) !== efpic_sanitize_mosaic_max_columns($value)) {
+                if (!array_key_exists('mosaic_max_columns', $meta)) {
                     $meta[$key] = efpic_sanitize_mosaic_max_columns($value);
                     $changed = true;
                 }
@@ -1098,7 +1098,11 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'theme' => 'efpic-base',
         'client_theme' => null,
         'cover_style' => 'standard',
-        'cover_text_placement' => 'bottom-center',
+        'intro_text_placements' => [
+            'byline' => 'top-left',
+            'date' => 'top-right',
+            'title' => 'bottom-left',
+        ],
         'mosaic_max_columns' => 4,
         'status' => 'active',
         'deleted_at' => null,

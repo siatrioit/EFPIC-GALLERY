@@ -626,39 +626,33 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($usesShell) {
         $byline = efpic_client_gallery_byline_display($config);
         $date = efpic_client_format_event_date_for_gallery($meta, $dateRaw);
+        $textLayer = efpic_client_render_intro_text_layer($byline, $name, $date, $meta);
+        $overlayClass = ' gallery-intro--text-overlay';
+
         if (efpic_gallery_uses_mood_blob_cover($meta)) {
-            $html = '<section class="gallery-intro gallery-intro--mood' . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
+            $html = '<section class="gallery-intro gallery-intro--mood' . $overlayClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
                 . efpic_gallery_intro_typography_style_attr($meta) . '>';
-            $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
-            $html .= '<div class="gallery-intro-blob-wrap">';
-            $html .= '<div class="gallery-intro-blob">';
+            $html .= '<div class="gallery-intro-stage">';
+            $html .= '<div class="gallery-intro-media gallery-intro-media--mood">';
+            $html .= '<div class="gallery-intro-blob-wrap"><div class="gallery-intro-blob">';
             $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx);
-            $html .= '</div></div>';
-            $html .= '<div class="gallery-intro-footer">';
-            $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
-            if ($date !== '') {
-                $html .= '<p class="gallery-intro-date">' . efpic_client_esc($date) . '</p>';
-            }
+            $html .= '</div></div></div>';
+            $html .= $textLayer;
             $html .= '</div></section>';
 
             return $html;
         }
 
         if (efpic_gallery_uses_cinematic_full_cover($meta)) {
-            $html = '<section class="gallery-intro gallery-intro--cinematic-full' . efpic_gallery_intro_extra_class($meta) . efpic_gallery_cinematic_text_placement_class($meta) . $animClass . '" id="galleryHero"'
+            $html = '<section class="gallery-intro gallery-intro--cinematic-full' . $overlayClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
                 . efpic_gallery_intro_typography_style_attr($meta) . '>';
+            $html .= '<div class="gallery-intro-stage">';
             $html .= '<div class="gallery-intro-cinematic-bg gallery-intro-cover-media">';
             $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx);
             $html .= '</div>';
             $html .= '<div class="gallery-intro-cinematic-vignette" aria-hidden="true"></div>';
-            $html .= '<div class="gallery-intro-cinematic-content">';
-            $html .= '<p class="gallery-intro-byline gallery-intro-byline--cinematic">' . efpic_client_esc($byline) . '</p>';
-            $html .= '<div class="gallery-intro-cinematic-footer">';
-            if ($date !== '') {
-                $html .= '<p class="gallery-intro-date gallery-intro-date--cinematic">' . efpic_client_esc($date) . '</p>';
-            }
-            $html .= '<h1 class="gallery-intro-title gallery-intro-title--cinematic">' . efpic_client_esc($name) . '</h1>';
-            $html .= '</div></div></section>';
+            $html .= $textLayer;
+            $html .= '</div></section>';
 
             return $html;
         }
@@ -666,55 +660,45 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $layout = efpic_gallery_cover_layout($meta);
         if (in_array($layout, ['half-left', 'half-right'], true)) {
             $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
-            $html = '<section class="gallery-intro gallery-intro--split ' . $layoutClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
+            $mediaPane = '<div class="gallery-intro-split-pane gallery-intro-split-pane--media gallery-intro-cover-media">'
+                . efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx) . '</div>';
+            $accentPane = '<div class="gallery-intro-split-pane gallery-intro-split-pane--accent" aria-hidden="true"></div>';
+            $splitInner = $layout === 'half-left' ? $mediaPane . $accentPane : $accentPane . $mediaPane;
+            $html = '<section class="gallery-intro gallery-intro--split ' . $layoutClass . $overlayClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
                 . efpic_gallery_intro_typography_style_attr($meta) . '>';
-            $html .= '<div class="gallery-intro-split">';
-            $media = '<div class="gallery-intro-split-media gallery-intro-cover-media">';
-            $media .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx);
-            $media .= '</div>';
-            $text = efpic_client_render_cover_split_text($config, $name, $date);
-            if ($layout === 'half-left') {
-                $html .= $media . $text;
-            } else {
-                $html .= $text . $media;
-            }
+            $html .= '<div class="gallery-intro-stage">';
+            $html .= '<div class="gallery-intro-split">' . $splitInner . '</div>';
+            $html .= $textLayer;
             $html .= '</div></section>';
 
             return $html;
         }
 
         if ($layout === 'full') {
-            $html = '<section class="gallery-intro gallery-intro--layout-full' . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
+            $html = '<section class="gallery-intro gallery-intro--layout-full' . $overlayClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
                 . efpic_gallery_intro_typography_style_attr($meta) . '>';
+            $html .= '<div class="gallery-intro-stage">';
             $html .= '<div class="gallery-intro-full-bg gallery-intro-cover-media">';
             $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx);
             $html .= '</div>';
             $html .= '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
-            $html .= '<div class="gallery-intro-full-content">';
-            $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
-            $html .= '<div class="gallery-intro-full-footer">';
-            if ($date !== '') {
-                $html .= '<p class="gallery-intro-date gallery-intro-date--full">' . efpic_client_esc($date) . '</p>';
-            }
-            $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
-            $html .= '</div></div></section>';
+            $html .= $textLayer;
+            $html .= '</div></section>';
 
             return $html;
         }
 
         $layoutClass = 'gallery-intro--layout-' . preg_replace('/[^a-z0-9-]/', '', $layout);
-        $html = '<section class="gallery-intro ' . $layoutClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
+        $html = '<section class="gallery-intro ' . $layoutClass . $overlayClass . efpic_gallery_intro_extra_class($meta) . $animClass . '" id="galleryHero"'
             . efpic_gallery_intro_typography_style_attr($meta) . '>';
-        $html .= '<p class="gallery-intro-byline">' . efpic_client_esc($byline) . '</p>';
+        $html .= '<div class="gallery-intro-stage">';
+        $html .= '<div class="gallery-intro-media gallery-intro-media--standard">';
         $html .= '<div class="gallery-intro-head">';
         $html .= '<figure class="gallery-intro-figure gallery-intro-cover-media">';
         $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'low', false, $ctx);
-        if ($date !== '') {
-            $html .= '<figcaption class="gallery-intro-date">' . efpic_client_esc($date) . '</figcaption>';
-        }
-        $html .= '</figure></div>';
-        $html .= '<h1 class="gallery-intro-title">' . efpic_client_esc($name) . '</h1>';
-        $html .= '</section>';
+        $html .= '</figure></div></div>';
+        $html .= $textLayer;
+        $html .= '</div></section>';
 
         return $html;
     }

@@ -3834,8 +3834,26 @@
   display: none;
 }
 
-.admin-cover-text-placement.is-hidden {
-  display: none;
+.admin-intro-text-placements {
+  margin-top: 4px;
+}
+
+.admin-intro-text-placements__heading {
+  margin: 0 0 4px;
+  font-weight: 600;
+}
+
+.admin-intro-text-placements__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px 16px;
+  margin-top: 8px;
+}
+
+.admin-intro-text-placements__grid label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
 .admin-dims-progress-wrap {
