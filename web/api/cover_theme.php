@@ -1119,9 +1119,20 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta): arra
 function efpic_render_cover_theme_controls(
     array $config,
     array $formMeta,
-    bool $standaloneForm,
+    bool|string $standaloneFormOrTheme = false,
+    bool|string $formActionOrStandalone = false,
     string $formAction = '',
 ): string {
+    // Atpakaļsaderība: vecā signatūra (config, meta, theme, standaloneForm, formAction).
+    if (is_string($standaloneFormOrTheme)) {
+        $standaloneForm = is_bool($formActionOrStandalone) ? $formActionOrStandalone : true;
+    } else {
+        $standaloneForm = $standaloneFormOrTheme;
+        if (is_string($formActionOrStandalone)) {
+            $formAction = $formActionOrStandalone;
+        }
+    }
+
     $layoutLocked = efpic_gallery_cover_style_locks_layout($formMeta);
     $isMoodBlob = efpic_gallery_uses_mood_blob_cover($formMeta);
     $coverStyle = efpic_gallery_cover_style($formMeta);

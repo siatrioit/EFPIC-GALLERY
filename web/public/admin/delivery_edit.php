@@ -377,4 +377,14 @@ if (isset($_GET['link_regenerated'])) {
 if (isset($_GET['email_sent'])) {
     $flash = 'E-pasts nosūtīts klientam.';
 }
-efpic_admin_delivery_form($config, $meta, $slug, $flash);
+try {
+    efpic_admin_delivery_form($config, $meta, $slug, $flash);
+} catch (Throwable $e) {
+    error_log('delivery_edit.php: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    efpic_admin_layout(
+        'Galerijas kļūda',
+        '<p class="err">Neizdevās ielādēt galeriju: ' . efpic_admin_esc($e->getMessage()) . '</p>'
+            . '<p class="muted"><a href="index.php">← Atpakaļ uz sarakstu</a></p>',
+        'list',
+    );
+}
