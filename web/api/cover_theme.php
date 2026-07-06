@@ -909,8 +909,9 @@ function efpic_gallery_mood_intro_style_attr(array $meta): string
     return efpic_gallery_intro_typography_style_attr($meta);
 }
 
-function efpic_cover_theme_esc(string $s): string
+function efpic_cover_theme_esc(string|int|float $value): string
 {
+    $s = (string) $value;
     if (function_exists('efpic_admin_esc')) {
         return efpic_admin_esc($s);
     }
