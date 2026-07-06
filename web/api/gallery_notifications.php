@@ -1057,9 +1057,17 @@ function efpic_gallery_on_activity(
     efpic_telegram_notify($config, $text);
 }
 
+function efpic_gallery_auto_expiry_reminder_emails_enabled(array $config): bool
+{
+    $app = efpic_load_app_settings($config);
+    $email = $app['gallery_email'] ?? [];
+
+    return is_array($email) && !empty($email['auto_expiry_reminder_emails']);
+}
+
 function efpic_gallery_process_expiry_reminders(array $config): array
 {
-    $canEmail = efpic_gallery_email_ready($config);
+    $canEmail = efpic_gallery_email_ready($config) && efpic_gallery_auto_expiry_reminder_emails_enabled($config);
     $canTelegram = efpic_gallery_notify_enabled($config) && efpic_telegram_enabled($config);
     if (!$canEmail && !$canTelegram) {
         return ['processed' => 0, 'sent' => 0];

@@ -334,6 +334,7 @@ function efpic_app_settings_defaults(): array
         'gallery_feed_gap_desktop' => 24,
         'gallery_email' => [
             'enabled' => false,
+            'auto_expiry_reminder_emails' => false,
             'from' => '',
             'from_name' => 'EdgarsFoto',
             'use_php_mail' => true,

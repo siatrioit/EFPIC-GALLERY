@@ -2556,6 +2556,7 @@ function efpic_admin_parse_gallery_email_settings_from_post(array $existing): ar
             : 'tls',
         'smtp_user' => trim((string) ($_POST['gallery_email_smtp_user'] ?? '')),
         'smtp_pass' => $smtpPass,
+        'auto_expiry_reminder_emails' => efpic_post_flag_is_on('gallery_email_auto_expiry_reminders'),
     ];
 }
 
@@ -2570,6 +2571,14 @@ function efpic_admin_render_gallery_email_settings_fieldset(array $settings): st
         'name' => 'gallery_email_enabled',
         'value' => '1',
     ]);
+    $html .= '<input type="hidden" name="gallery_email_auto_expiry_reminders" value="0">';
+    $html .= efpic_render_admin_toggle('Automātiski sūtīt termiņa atgādinājumus (30 un 7 dienas)', !empty($email['auto_expiry_reminder_emails']), [
+        'name' => 'gallery_email_auto_expiry_reminders',
+        'value' => '1',
+    ]);
+    $html .= '<p class="muted">Ja ieslēgts, sistēma nosūta atgādinājuma e-pastus, kad galerijai līdz beigām ir ≤30 vai ≤7 dienas. '
+        . 'Tiek izmantotas sagataves no <strong>Ziņu sagataves</strong> un izvēles galerijas cilnē <strong>Ziņojumi klientam</strong>. '
+        . '«Jauna galerija» e-pasts vienmēr jāsūta manuāli. Pārbaudi ar cron: <code>/api/gallery-notifications/run</code> (API token).</p>';
     $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $html .= '<label>Nosūtītāja e-pasts<input type="email" name="gallery_email_from" value="'
         . efpic_admin_esc((string) ($email['from'] ?? '')) . '" placeholder="noreply@edgarsfoto.lv"></label>';
