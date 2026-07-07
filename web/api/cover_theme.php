@@ -281,9 +281,43 @@ function efpic_gallery_intro_text_slot_coords(string $slot): array
     };
 }
 
+function efpic_gallery_intro_text_layout_storage_key(string $coverStyle, string $layout): string
+{
+    if ($coverStyle === 'cinematic-full') {
+        return 'cinematic-full';
+    }
+    if ($coverStyle === 'mood-blob') {
+        return 'mood-blob';
+    }
+
+    return preg_replace('/[^a-z0-9-]/', '', $layout) ?: 'right';
+}
+
 /** @return array{byline: array{x: float, y: float, align: string}, date: array{x: float, y: float, align: string}, title: array{x: float, y: float, align: string, width: float}} */
 function efpic_gallery_intro_text_layout_defaults(string $coverStyle, string $layout): array
 {
+    if ($coverStyle === 'standard' && $layout === 'right') {
+        return [
+            'byline' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
+            'date' => ['x' => 44.0, 'y' => 8.0, 'align' => 'right'],
+            'title' => ['x' => 6.0, 'y' => 88.0, 'align' => 'left', 'width' => 42.0],
+        ];
+    }
+    if ($coverStyle === 'standard' && $layout === 'left') {
+        return [
+            'byline' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'date' => ['x' => 56.0, 'y' => 8.0, 'align' => 'left'],
+            'title' => ['x' => 94.0, 'y' => 88.0, 'align' => 'right', 'width' => 42.0],
+        ];
+    }
+    if ($coverStyle === 'standard' && $layout === 'center') {
+        return [
+            'byline' => ['x' => 50.0, 'y' => 8.0, 'align' => 'center'],
+            'date' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'title' => ['x' => 50.0, 'y' => 88.0, 'align' => 'center', 'width' => 72.0],
+        ];
+    }
+
     $placements = efpic_gallery_intro_text_placement_defaults($coverStyle, $layout);
     $out = [];
     foreach ($placements as $role => $slot) {
@@ -316,21 +350,62 @@ function efpic_sanitize_intro_text_layout_role(string $role, array $raw, array $
     return $out;
 }
 
+/** @return array<string, array{byline: array{x: float, y: float, align: string}, date: array{x: float, y: float, align: string}, title: array{x: float, y: float, align: string, width: float}}> */
+function efpic_gallery_intro_text_layouts_map(array $meta): array
+{
+    $coverStyle = efpic_gallery_cover_style($meta);
+    $layout = efpic_gallery_cover_layout($meta);
+    $map = [];
+    $rawMap = $meta['intro_text_layouts'] ?? null;
+    if (is_array($rawMap)) {
+        foreach ($rawMap as $key => $entry) {
+            if (!is_string($key) || !is_array($entry)) {
+                continue;
+            }
+            $safeKey = preg_replace('/[^a-z0-9-]/', '', $key);
+            if ($safeKey === '') {
+                continue;
+            }
+            $fallback = efpic_gallery_intro_text_layout_defaults(
+                $coverStyle,
+                $safeKey === 'cinematic-full' || $safeKey === 'mood-blob' ? $layout : $safeKey,
+            );
+            $out = [];
+            foreach (['byline', 'date', 'title'] as $role) {
+                $rawRole = isset($entry[$role]) && is_array($entry[$role]) ? $entry[$role] : [];
+                $out[$role] = efpic_sanitize_intro_text_layout_role($role, $rawRole, $fallback[$role]);
+            }
+            $map[$safeKey] = $out;
+        }
+    }
+
+    $legacy = $meta['intro_text_layout'] ?? null;
+    if (is_array($legacy)) {
+        $key = efpic_gallery_intro_text_layout_storage_key($coverStyle, $layout);
+        if (!isset($map[$key])) {
+            $fallback = efpic_gallery_intro_text_layout_defaults($coverStyle, $layout);
+            $out = [];
+            foreach (['byline', 'date', 'title'] as $role) {
+                $rawRole = isset($legacy[$role]) && is_array($legacy[$role]) ? $legacy[$role] : [];
+                $out[$role] = efpic_sanitize_intro_text_layout_role($role, $rawRole, $fallback[$role]);
+            }
+            $map[$key] = $out;
+        }
+    }
+
+    return $map;
+}
+
 /** @return array{byline: array{x: float, y: float, align: string}, date: array{x: float, y: float, align: string}, title: array{x: float, y: float, align: string, width: float}} */
 function efpic_gallery_intro_text_layout(array $meta): array
 {
     $coverStyle = efpic_gallery_cover_style($meta);
     $layout = efpic_gallery_cover_layout($meta);
     $defaults = efpic_gallery_intro_text_layout_defaults($coverStyle, $layout);
-    $raw = $meta['intro_text_layout'] ?? null;
-    if (is_array($raw)) {
-        foreach (['byline', 'date', 'title'] as $role) {
-            if (isset($raw[$role]) && is_array($raw[$role])) {
-                $defaults[$role] = efpic_sanitize_intro_text_layout_role($role, $raw[$role], $defaults[$role]);
-            }
-        }
-
-        return $defaults;
+    $key = efpic_gallery_intro_text_layout_storage_key($coverStyle, $layout);
+    $map = efpic_gallery_intro_text_layouts_map($meta);
+    if (isset($map[$key])) {
+        return $map[$key];
     }
 
     $placements = efpic_gallery_intro_text_placements($meta);
@@ -389,27 +464,56 @@ function efpic_apply_intro_text_layout_from_post(array &$meta): void
 {
     $coverStyle = efpic_gallery_cover_style($meta);
     $coverLayout = efpic_gallery_cover_layout($meta);
-    $defaults = efpic_gallery_intro_text_layout_defaults($coverStyle, $coverLayout);
+    $storageKey = efpic_gallery_intro_text_layout_storage_key($coverStyle, $coverLayout);
+    $map = efpic_gallery_intro_text_layouts_map($meta);
+
+    $mapJson = trim((string) ($_POST['intro_text_layouts'] ?? ''));
+    if ($mapJson !== '') {
+        $decodedMap = json_decode($mapJson, true);
+        if (is_array($decodedMap)) {
+            foreach ($decodedMap as $key => $entry) {
+                if (!is_string($key) || !is_array($entry)) {
+                    continue;
+                }
+                $safeKey = preg_replace('/[^a-z0-9-]/', '', $key);
+                if ($safeKey === '') {
+                    continue;
+                }
+                $fallback = efpic_gallery_intro_text_layout_defaults(
+                    $coverStyle,
+                    $safeKey === 'cinematic-full' || $safeKey === 'mood-blob' ? $coverLayout : $safeKey,
+                );
+                $out = [];
+                foreach (['byline', 'date', 'title'] as $role) {
+                    $raw = isset($entry[$role]) && is_array($entry[$role]) ? $entry[$role] : [];
+                    $out[$role] = efpic_sanitize_intro_text_layout_role($role, $raw, $fallback[$role]);
+                }
+                $map[$safeKey] = $out;
+            }
+        }
+    }
+
     $json = trim((string) ($_POST['intro_text_layout'] ?? ''));
     if ($json !== '') {
         $decoded = json_decode($json, true);
         if (is_array($decoded)) {
+            $defaults = efpic_gallery_intro_text_layout_defaults($coverStyle, $coverLayout);
             $out = [];
             foreach (['byline', 'date', 'title'] as $role) {
                 $raw = isset($decoded[$role]) && is_array($decoded[$role]) ? $decoded[$role] : [];
                 $out[$role] = efpic_sanitize_intro_text_layout_role($role, $raw, $defaults[$role]);
             }
-            $meta['intro_text_layout'] = $out;
-            unset($meta['intro_text_placements'], $meta['cover_text_placement']);
-
-            return;
+            $map[$storageKey] = $out;
         }
+    } elseif (array_key_exists('intro_title_layout_width', $_POST) && is_numeric($_POST['intro_title_layout_width'])) {
+        $current = $map[$storageKey] ?? efpic_gallery_intro_text_layout_defaults($coverStyle, $coverLayout);
+        $current['title']['width'] = max(20.0, min(100.0, (float) $_POST['intro_title_layout_width']));
+        $map[$storageKey] = $current;
     }
 
-    if (array_key_exists('intro_title_layout_width', $_POST) && is_numeric($_POST['intro_title_layout_width'])) {
-        $current = efpic_gallery_intro_text_layout($meta);
-        $current['title']['width'] = max(20.0, min(100.0, (float) $_POST['intro_title_layout_width']));
-        $meta['intro_text_layout'] = $current;
+    if ($map !== []) {
+        $meta['intro_text_layouts'] = $map;
+        $meta['intro_text_layout'] = $map[$storageKey] ?? efpic_gallery_intro_text_layout_defaults($coverStyle, $coverLayout);
         unset($meta['intro_text_placements'], $meta['cover_text_placement']);
     }
 }
@@ -423,12 +527,16 @@ function efpic_apply_intro_text_placements_from_post(array &$meta): void
 function efpic_render_intro_text_placement_controls(array $formMeta): string
 {
     $layout = efpic_gallery_intro_text_layout($formMeta);
+    $layoutsMap = efpic_gallery_intro_text_layouts_map($formMeta);
     $titleWidth = (int) round((float) ($layout['title']['width'] ?? 72.0));
     $layoutJson = json_encode($layout, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $layoutsJson = json_encode($layoutsMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $html = '<div class="admin-intro-text-placements admin-fieldset-full" id="admin-intro-text-placements">';
     $html .= '<p class="admin-intro-text-placements__heading">Tekstu novietojums vākā</p>';
     $html .= '<p class="muted">Velc katru uzrakstu tiešraides priekšskatījumā, lai novietotu kur vajag. '
         . 'Paraksts un datums vienmēr paliek vienā rindā.</p>';
+    $html .= '<input type="hidden" name="intro_text_layouts" id="intro_text_layouts" value="'
+        . efpic_cover_theme_esc($layoutsJson !== false ? $layoutsJson : '{}') . '">';
     $html .= '<input type="hidden" name="intro_text_layout" id="intro_text_layout" value="'
         . efpic_cover_theme_esc($layoutJson !== false ? $layoutJson : '{}') . '">';
     $html .= '<input type="hidden" id="intro_text_selected_role" value="title">';
@@ -563,6 +671,7 @@ function efpic_design_template_setting_keys(): array
         'cover_media_type',
         'cover_from_favorites',
         'intro_text_layout',
+        'intro_text_layouts',
         'intro_text_placements',
     ];
 }
@@ -1407,6 +1516,7 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta): arra
         'byline' => efpic_client_gallery_byline_display($config),
         'coverUrl' => efpic_admin_cover_preview_url($config, $formMeta),
         'heroAccent' => efpic_client_hero_accent_color($formMeta),
+        'pageBg' => efpic_client_page_bg_color($config, $formMeta),
         'layout' => efpic_gallery_cover_layout($formMeta),
         'focalX' => $focal['x'],
         'focalY' => $focal['y'],
@@ -1423,6 +1533,7 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta): arra
         'coverVideoId' => efpic_gallery_cover_video_id($formMeta),
         'coverVideos' => efpic_admin_cover_video_options($config, $formMeta),
         'introTextLayout' => efpic_gallery_intro_text_layout($formMeta),
+        'introTextLayouts' => efpic_gallery_intro_text_layouts_map($formMeta),
         'introTextPlacements' => efpic_gallery_intro_text_placements($formMeta),
     ];
 }

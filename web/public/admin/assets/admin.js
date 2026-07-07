@@ -405,7 +405,7 @@
         return;
       }
       if (t && (t.name === 'mosaic_max_columns' || t.name === 'cover_style' || t.name === 'cover_layout'
-        || t.name === 'intro_text_layout' || t.name === 'intro_title_layout_width')) {
+        || t.name === 'intro_text_layout' || t.name === 'intro_text_layouts' || t.name === 'intro_title_layout_width')) {
         runAdminAutoSave();
         return;
       }

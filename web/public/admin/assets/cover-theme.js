@@ -220,18 +220,19 @@
     };
   }
 
-  function buildPreviewDocument(html, assets) {
+  function buildPreviewDocument(html, assets, pageBg) {
     var links = (assets.fontUrls || []).map(function (url) {
       return '<link rel="stylesheet" href="' + escapeHtml(url) + '">';
     }).join('');
+    var bg = pageBg || '#ffffff';
     return '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">'
       + '<meta name="viewport" content="width=device-width,initial-scale=1">'
       + '<link rel="preconnect" href="https://fonts.googleapis.com">'
       + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
       + links
       + '<link rel="stylesheet" href="' + escapeHtml(assets.clientCss) + '">'
-      + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111;}'
-      + 'body.page-gallery{background:var(--page-bg,#fff);color:var(--page-text,#111);}'
+      + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;}'
+      + 'body.page-gallery{background:' + escapeHtml(bg) + ';color:var(--page-text,#111);}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free{cursor:grab;touch-action:none;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free.is-selected{outline:2px solid rgba(255,255,255,.55);outline-offset:4px;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free.is-dragging{cursor:grabbing;outline:2px dashed rgba(255,255,255,.55);outline-offset:4px;}'
@@ -283,6 +284,27 @@
   }
 
   function defaultIntroTextLayout(coverStyle, layout) {
+    if (coverStyle === 'standard' && layout === 'right') {
+      return {
+        byline: { x: 6, y: 8, align: 'left' },
+        date: { x: 44, y: 8, align: 'right' },
+        title: { x: 6, y: 88, align: 'left', width: 42 },
+      };
+    }
+    if (coverStyle === 'standard' && layout === 'left') {
+      return {
+        byline: { x: 94, y: 8, align: 'right' },
+        date: { x: 56, y: 8, align: 'left' },
+        title: { x: 94, y: 88, align: 'right', width: 42 },
+      };
+    }
+    if (coverStyle === 'standard' && layout === 'center') {
+      return {
+        byline: { x: 50, y: 8, align: 'center' },
+        date: { x: 94, y: 8, align: 'right' },
+        title: { x: 50, y: 88, align: 'center', width: 72 },
+      };
+    }
     var placements = defaultIntroTextPlacements(coverStyle, layout);
     var out = {};
     INTRO_TEXT_ROLES.forEach(function (role) {
@@ -293,30 +315,50 @@
     return out;
   }
 
+  function layoutStorageKey(coverStyle, layout) {
+    if (coverStyle === 'cinematic-full') return 'cinematic-full';
+    if (coverStyle === 'mood-blob') return 'mood-blob';
+    return layout || 'right';
+  }
+
   function cloneIntroLayoutItem(item) {
     return { x: item.x, y: item.y, align: item.align };
   }
 
-  function near(a, b, eps) {
-    eps = eps == null ? 0.25 : eps;
-    return Math.abs((a || 0) - (b || 0)) <= eps;
+  function cloneIntroTextLayout(layout) {
+    var out = {};
+    INTRO_TEXT_ROLES.forEach(function (role) {
+      if (!layout || !layout[role]) return;
+      out[role] = cloneIntroLayoutItem(layout[role]);
+      if (role === 'title' && layout[role].width != null) {
+        out[role].width = layout[role].width;
+      }
+    });
+    return out;
   }
 
-  function introLayoutLooksLikeDefaults(layout, defaults) {
-    if (!layout || !defaults) return true;
-    var roles = ['byline', 'date', 'title'];
-    for (var i = 0; i < roles.length; i++) {
-      var role = roles[i];
-      var a = layout[role] || {};
-      var d = defaults[role] || {};
-      if (!near(Number(a.x), Number(d.x))) return false;
-      if (!near(Number(a.y), Number(d.y))) return false;
-      if ((a.align || 'left') !== (d.align || 'left')) return false;
-      if (role === 'title') {
-        if (!near(Number(a.width || 72), Number(d.width || 72), 0.75)) return false;
-      }
+  function readIntroTextLayoutsMap(base) {
+    var map = {};
+    var hidden = document.getElementById('intro_text_layouts');
+    if (hidden && hidden.value) {
+      try { map = JSON.parse(hidden.value) || {}; } catch (e) { map = {}; }
+    } else if (base && base.introTextLayouts) {
+      map = base.introTextLayouts;
     }
-    return true;
+    if (base && base.introTextLayout) {
+      var coverStyle = document.getElementById('cover_style');
+      var style = coverStyle ? coverStyle.value : (base.coverStyle || 'standard');
+      var layoutInput = document.querySelector('input[name="cover_layout"]:checked');
+      var layout = layoutInput ? layoutInput.value : (base.layout || 'right');
+      var key = layoutStorageKey(style, layout);
+      if (!map[key]) map[key] = cloneIntroTextLayout(base.introTextLayout);
+    }
+    return map;
+  }
+
+  function writeIntroTextLayoutsMap(map) {
+    var hidden = document.getElementById('intro_text_layouts');
+    if (hidden) hidden.value = JSON.stringify(map || {});
   }
 
   function sanitizeIntroLayoutRole(role, raw, fallback) {
@@ -340,34 +382,50 @@
     return Math.max(lo, Math.min(hi, n));
   }
 
-  function readIntroTextLayout(base, coverStyle, layout) {
+  function readIntroTextLayout(base, coverStyle, layout, layoutsMap) {
     var defaults = defaultIntroTextLayout(coverStyle, layout);
-    var raw = null;
-    var hidden = document.getElementById('intro_text_layout');
-    if (hidden && hidden.value) {
-      try { raw = JSON.parse(hidden.value); } catch (e) { raw = null; }
-    }
-    if (!raw && base && base.introTextLayout) raw = base.introTextLayout;
-    if (!raw && base && base.introTextPlacements) {
-      raw = {};
+    var key = layoutStorageKey(coverStyle, layout);
+    var map = layoutsMap || readIntroTextLayoutsMap(base);
+    if (map[key]) {
       INTRO_TEXT_ROLES.forEach(function (role) {
-        var slot = base.introTextPlacements[role];
-        if (slot && INTRO_SLOT_COORDS[slot]) {
-          raw[role] = cloneIntroLayoutItem(INTRO_SLOT_COORDS[slot]);
-          if (role === 'title') raw[role].width = 72;
-        }
+        if (map[key][role]) defaults[role] = sanitizeIntroLayoutRole(role, map[key][role], defaults[role]);
       });
-    }
-    if (raw) {
-      INTRO_TEXT_ROLES.forEach(function (role) {
-        if (raw[role]) defaults[role] = sanitizeIntroLayoutRole(role, raw[role], defaults[role]);
-      });
+    } else {
+      var hidden = document.getElementById('intro_text_layout');
+      var raw = null;
+      if (hidden && hidden.value) {
+        try { raw = JSON.parse(hidden.value); } catch (e) { raw = null; }
+      }
+      if (raw) {
+        INTRO_TEXT_ROLES.forEach(function (role) {
+          if (raw[role]) defaults[role] = sanitizeIntroLayoutRole(role, raw[role], defaults[role]);
+        });
+      } else if (!layoutsMap && base && base.introTextPlacements) {
+        INTRO_TEXT_ROLES.forEach(function (role) {
+          var slot = base.introTextPlacements[role];
+          if (slot && INTRO_SLOT_COORDS[slot]) {
+            defaults[role] = cloneIntroLayoutItem(INTRO_SLOT_COORDS[slot]);
+            if (role === 'title') defaults[role].width = 72;
+          }
+        });
+      }
     }
     var widthInput = document.getElementById('intro_title_layout_width');
     if (widthInput && widthInput.value) {
       defaults.title.width = clampPercent(widthInput.value, 20, 100);
     }
     return defaults;
+  }
+
+  function saveIntroTextLayoutForKey(layoutsMap, coverStyle, layout, layoutData) {
+    var key = layoutStorageKey(coverStyle, layout);
+    layoutsMap[key] = cloneIntroTextLayout(layoutData);
+    if (layoutData.title && layoutData.title.width != null) {
+      layoutsMap[key].title.width = layoutData.title.width;
+    }
+    writeIntroTextLayoutsMap(layoutsMap);
+    writeIntroTextLayout(layoutData);
+    return layoutsMap;
   }
 
   function writeIntroTextLayout(layout) {
@@ -540,11 +598,13 @@
     var coverAnimSel = document.getElementById('cover_animation');
     var coverMediaType = readCoverMediaType();
     var coverVideoSel = document.getElementById('cover_video_id');
-    var introTextLayout = readIntroTextLayout(base, coverStyle, layout);
+    var introTextLayout = readIntroTextLayout(base, coverStyle, layout, readIntroTextLayoutsMap(base));
+    var pageBg = readColorInput('page_bg_color') || base.pageBg || '#ffffff';
 
     return {
       coverStyle: coverStyle,
       introTextLayout: introTextLayout,
+      introTextLayouts: readIntroTextLayoutsMap(base),
       layout: layout,
       name: nameInput ? nameInput.value : (base.name || 'Galerija'),
       dateRaw: dateRaw,
@@ -557,6 +617,7 @@
       coverAnimation: coverAnimSel ? coverAnimSel.value : (base.coverAnimation || 'none'),
       heroAccent: heroAccent,
       introTextColor: introTextColor,
+      pageBg: pageBg,
       focalX: fx ? parseFloat(fx.value) || 50 : (base.focalX || 50),
       focalY: fy ? parseFloat(fy.value) || 50 : (base.focalY || 50),
       fontFamily: fontKey,
@@ -601,7 +662,8 @@
     var date = safeStyleVar(dateSizeCss(state.coverStyle, state.dateSize));
     var byline = safeStyleVar(bylineSizeCss(state.dateSize));
     return '--hero-accent:' + state.heroAccent + ';--hero-text:' + safeStyleVar(state.introTextColor)
-      + ';--intro-text-color:' + safeStyleVar(state.introTextColor) + ';--intro-font:' + font
+      + ';--intro-text-color:' + safeStyleVar(state.introTextColor) + ';--page-bg:' + safeStyleVar(state.pageBg || '#ffffff')
+      + ';--intro-font:' + font
       + ';--intro-title-size:' + title + ';--intro-date-size:' + date + ';--intro-byline-size:' + byline
       + ';--intro-title-weight:' + titleWeightCss(state.fontFamily, groupMap)
       + ';--intro-title-tracking:' + titleTrackingCss(state.fontFamily, groupMap)
@@ -697,7 +759,7 @@
     if (!root) return;
     withPreservedFocus(function () {
       var html = renderCoverHtml(state, fontMap, groupMap);
-      var doc = buildPreviewDocument(html, assets);
+      var doc = buildPreviewDocument(html, assets, state.pageBg);
       root.querySelectorAll('.admin-cover-live-device__iframe').forEach(function (iframe) {
         iframe.setAttribute('tabindex', '-1');
         iframe.onload = function () {
@@ -746,7 +808,8 @@
     var selectedRoleInput = document.getElementById('intro_text_selected_role');
     var alignPanel = document.getElementById('admin-intro-text-align');
     var selectedRole = (selectedRoleInput && selectedRoleInput.value) ? selectedRoleInput.value : 'title';
-    var introLayoutDirty = false;
+    var introTextLayoutsMap = readIntroTextLayoutsMap(base);
+    var activeLayout = base.layout || 'right';
 
     function setSelectedRole(role) {
       if (!role) return;
@@ -777,7 +840,7 @@
     function applyAlignPreset(preset) {
       var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
       var layoutKey = getSelectedLayout();
-      var layout = readIntroTextLayout(base, coverStyle, layoutKey);
+      var layout = readIntroTextLayout(base, coverStyle, layoutKey, introTextLayoutsMap);
       var role = selectedRole || 'title';
       if (!layout[role]) layout[role] = { x: 50, y: 50, align: 'center' };
       if (preset === 'left') {
@@ -790,8 +853,7 @@
         layout[role].x = 94;
         layout[role].align = 'right';
       }
-      writeIntroTextLayout(layout);
-      introLayoutDirty = true;
+      saveIntroTextLayoutForKey(introTextLayoutsMap, coverStyle, layoutKey, layout);
       triggerDesignAutoSave();
       refreshPreview();
       setSelectedRole(role);
@@ -881,11 +943,11 @@
 
     var layoutHandlers = {
       getLayout: function () {
-        return readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
+        return readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout(), introTextLayoutsMap);
       },
       onChange: function (layout) {
-        writeIntroTextLayout(layout);
-        introLayoutDirty = true;
+        var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+        saveIntroTextLayoutForKey(introTextLayoutsMap, coverStyle, getSelectedLayout(), layout);
         triggerDesignAutoSave();
       },
     };
@@ -896,6 +958,7 @@
         var url = getCoverUrl(cropImg, base);
         state.coverUrl = url;
         writeIntroTextLayout(state.introTextLayout);
+        writeIntroTextLayoutsMap(state.introTextLayouts || introTextLayoutsMap);
         if (cropImg && url && cropImg.getAttribute('src') !== url) {
           cropImg.setAttribute('src', url);
         }
@@ -918,6 +981,12 @@
 
     if (coverStyleSel) {
       coverStyleSel.addEventListener('change', function () {
+        var coverStyle = coverStyleSel.value;
+        var layoutKey = getSelectedLayout();
+        var next = introTextLayoutsMap[layoutStorageKey(coverStyle, layoutKey)]
+          ? cloneIntroTextLayout(introTextLayoutsMap[layoutStorageKey(coverStyle, layoutKey)])
+          : defaultIntroTextLayout(coverStyle, layoutKey);
+        saveIntroTextLayoutForKey(introTextLayoutsMap, coverStyle, layoutKey, next);
         syncThemePanels();
         refreshPreview();
       });
@@ -925,23 +994,26 @@
 
     layoutInputs.forEach(function (input) {
       input.addEventListener('change', function () {
-        // If current text positions still match defaults for the previous layout,
-        // snap to defaults for the newly selected layout. If user already moved texts,
-        // do not overwrite their custom placement.
         var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
-        var prevLayout = base.layout || 'right';
-        var currentLayout = readIntroTextLayout(base, coverStyle, prevLayout);
-        var prevDefaults = defaultIntroTextLayout(coverStyle, prevLayout);
-        var looksDefault = introLayoutLooksLikeDefaults(currentLayout, prevDefaults);
-
-        updateCropAspect();
-        var nextLayout = getSelectedLayout();
-        if (looksDefault) {
-          writeIntroTextLayout(defaultIntroTextLayout(coverStyle, nextLayout));
-          introLayoutDirty = false;
+        var prevLayout = activeLayout;
+        var prevKey = layoutStorageKey(coverStyle, prevLayout);
+        var currentPositions = readIntroTextLayout(base, coverStyle, prevLayout, introTextLayoutsMap);
+        introTextLayoutsMap[prevKey] = cloneIntroTextLayout(currentPositions);
+        if (currentPositions.title && currentPositions.title.width != null) {
+          introTextLayoutsMap[prevKey].title.width = currentPositions.title.width;
         }
-        base.layout = nextLayout;
+
+        activeLayout = getSelectedLayout();
+        var nextKey = layoutStorageKey(coverStyle, activeLayout);
+        var nextPositions = introTextLayoutsMap[nextKey]
+          ? cloneIntroTextLayout(introTextLayoutsMap[nextKey])
+          : defaultIntroTextLayout(coverStyle, activeLayout);
+        saveIntroTextLayoutForKey(introTextLayoutsMap, coverStyle, activeLayout, nextPositions);
+
+        base.layout = activeLayout;
+        updateCropAspect();
         refreshPreview();
+        triggerDesignAutoSave();
       });
     });
 
@@ -955,10 +1027,11 @@
     var titleWidthInput = document.getElementById('intro_title_layout_width');
     if (titleWidthInput) {
       titleWidthInput.addEventListener('input', function () {
-        var layout = readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
+        var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+        var layoutKey = getSelectedLayout();
+        var layout = readIntroTextLayout(base, coverStyle, layoutKey, introTextLayoutsMap);
         layout.title.width = clampPercent(titleWidthInput.value, 20, 100);
-        writeIntroTextLayout(layout);
-        introLayoutDirty = true;
+        saveIntroTextLayoutForKey(introTextLayoutsMap, coverStyle, layoutKey, layout);
         refreshPreview();
       });
       titleWidthInput.addEventListener('change', function () {
@@ -975,10 +1048,29 @@
       });
     }
 
+    if (base.introTextLayouts) {
+      writeIntroTextLayoutsMap(introTextLayoutsMap);
+    }
     if (base.introTextLayout) {
       writeIntroTextLayout(base.introTextLayout);
     } else if (base.introTextPlacements) {
-      writeIntroTextLayout(readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout()));
+      var initStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+      var initLayout = getSelectedLayout();
+      saveIntroTextLayoutForKey(
+        introTextLayoutsMap,
+        initStyle,
+        initLayout,
+        readIntroTextLayout(base, initStyle, initLayout, introTextLayoutsMap)
+      );
+    } else {
+      var initCoverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+      var initCoverLayout = getSelectedLayout();
+      saveIntroTextLayoutForKey(
+        introTextLayoutsMap,
+        initCoverStyle,
+        initCoverLayout,
+        defaultIntroTextLayout(initCoverStyle, initCoverLayout)
+      );
     }
 
     setSelectedRole(selectedRole);
@@ -1016,10 +1108,21 @@
     function applyDesignSettings(s) {
       if (!s) return;
       if (coverStyleSel && s.cover_style) coverStyleSel.value = s.cover_style;
+      if (s.intro_text_layouts) {
+        writeIntroTextLayoutsMap(s.intro_text_layouts);
+        introTextLayoutsMap = readIntroTextLayoutsMap(base);
+      }
       if (s.intro_text_layout) {
-        writeIntroTextLayout(s.intro_text_layout);
+        var applyStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+        var applyLayout = s.cover_layout || getSelectedLayout();
+        saveIntroTextLayoutForKey(introTextLayoutsMap, applyStyle, applyLayout, s.intro_text_layout);
       } else if (s.intro_text_placements) {
-        writeIntroTextLayout(readIntroTextLayout({ introTextPlacements: s.intro_text_placements }, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout()));
+        saveIntroTextLayoutForKey(
+          introTextLayoutsMap,
+          coverStyleSel ? coverStyleSel.value : 'standard',
+          getSelectedLayout(),
+          readIntroTextLayout({ introTextPlacements: s.intro_text_placements }, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout(), introTextLayoutsMap)
+        );
       }
       var mosaicSel = document.getElementById('mosaic_max_columns');
       if (mosaicSel && s.mosaic_max_columns != null) mosaicSel.value = String(s.mosaic_max_columns);
@@ -1030,6 +1133,8 @@
         layoutInputs.forEach(function (input) {
           input.checked = input.value === s.cover_layout;
         });
+        activeLayout = s.cover_layout;
+        base.layout = s.cover_layout;
       }
       if (fx && s.cover_focal_x != null) fx.value = s.cover_focal_x;
       if (fy && s.cover_focal_y != null) fy.value = s.cover_focal_y;
