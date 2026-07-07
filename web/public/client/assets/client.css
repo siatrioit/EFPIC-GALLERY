@@ -1140,6 +1140,30 @@ input[type="password"],
   opacity: 0.72;
 }
 
+@media (max-width: 1024px) {
+  .gallery-intro-text-layer [data-intro-role="byline"].intro-text-align-left,
+  .gallery-intro-text-layer [data-intro-role="date"].intro-text-align-left {
+    transform: translate(0, var(--intro-shift-y, 0px));
+  }
+
+  .gallery-intro-text-layer [data-intro-role="byline"].intro-text-align-center,
+  .gallery-intro-text-layer [data-intro-role="date"].intro-text-align-center {
+    transform: translate(-50%, var(--intro-shift-y, 0px));
+  }
+
+  .gallery-intro-text-layer [data-intro-role="byline"].intro-text-align-right,
+  .gallery-intro-text-layer [data-intro-role="date"].intro-text-align-right {
+    transform: translate(-100%, var(--intro-shift-y, 0px));
+  }
+
+  .gallery-intro--text-overlay.gallery-intro:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"],
+  .gallery-intro--text-overlay.gallery-intro:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"] {
+    max-width: min(92%, 18rem);
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+}
+
 .gallery-intro-text-layer .gallery-intro-title.intro-text-free--title {
   width: min(
     calc(var(--intro-title-box-width, 72) * 1%),
@@ -2361,6 +2385,32 @@ input[type="password"],
     bottom: 0;
     width: auto;
     height: auto;
+  }
+
+  /* Paraksts un datums augšā tukšajā laukumā, nevis virs bildes */
+  .gallery-intro--text-overlay.gallery-intro--layout-right:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"],
+  .gallery-intro--text-overlay.gallery-intro--layout-right:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"],
+  .gallery-intro--text-overlay.gallery-intro--layout-left:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"],
+  .gallery-intro--text-overlay.gallery-intro--layout-left:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"],
+  .gallery-intro--text-overlay.gallery-intro--layout-center:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"],
+  .gallery-intro--text-overlay.gallery-intro--layout-center:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"] {
+    left: 50% !important;
+    right: auto !important;
+    transform: translate(-50%, var(--intro-shift-y, 0px)) !important;
+    text-align: center;
+    max-width: 92%;
+  }
+
+  .gallery-intro--text-overlay.gallery-intro--layout-right:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"],
+  .gallery-intro--text-overlay.gallery-intro--layout-left:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"],
+  .gallery-intro--text-overlay.gallery-intro--layout-center:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="byline"] {
+    top: 5% !important;
+  }
+
+  .gallery-intro--text-overlay.gallery-intro--layout-right:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"],
+  .gallery-intro--text-overlay.gallery-intro--layout-left:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"],
+  .gallery-intro--text-overlay.gallery-intro--layout-center:not(.gallery-intro--cinematic-full):not(.gallery-intro--layout-full):not(.gallery-intro--mood) .gallery-intro-text-layer [data-intro-role="date"] {
+    top: 12% !important;
   }
 
   .gallery-intro-split-text {

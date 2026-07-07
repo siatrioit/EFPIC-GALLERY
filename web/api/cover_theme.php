@@ -191,7 +191,7 @@ function efpic_gallery_intro_text_placement_defaults(string $coverStyle, string 
         return ['byline' => 'top-center', 'date' => 'bottom-center', 'title' => 'center'];
     }
     if ($coverStyle === 'cinematic-full' || $layout === 'full') {
-        return ['byline' => 'top-center', 'date' => 'bottom-left', 'title' => 'bottom-center'];
+        return ['byline' => 'top-center', 'date' => 'bottom-center', 'title' => 'bottom-center'];
     }
     if (in_array($layout, ['half-left', 'half-right'], true)) {
         return ['byline' => 'top-left', 'date' => 'top-right', 'title' => 'bottom-left'];
@@ -296,38 +296,52 @@ function efpic_gallery_intro_text_layout_storage_key(string $coverStyle, string 
 /** @return array{byline: array{x: float, y: float, align: string}, date: array{x: float, y: float, align: string}, title: array{x: float, y: float, align: string, width: float}} */
 function efpic_gallery_intro_text_layout_defaults(string $coverStyle, string $layout): array
 {
+    if ($coverStyle === 'cinematic-full' || $layout === 'full') {
+        return [
+            'byline' => ['x' => 50.0, 'y' => 8.0, 'align' => 'center'],
+            'title' => ['x' => 50.0, 'y' => 74.0, 'align' => 'center', 'width' => 80.0],
+            'date' => ['x' => 50.0, 'y' => 92.0, 'align' => 'center'],
+        ];
+    }
+    if ($coverStyle === 'mood-blob') {
+        return [
+            'byline' => ['x' => 50.0, 'y' => 8.0, 'align' => 'center'],
+            'title' => ['x' => 50.0, 'y' => 48.0, 'align' => 'center', 'width' => 72.0],
+            'date' => ['x' => 50.0, 'y' => 62.0, 'align' => 'center'],
+        ];
+    }
     if ($coverStyle === 'standard' && $layout === 'right') {
         return [
             'byline' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
-            'date' => ['x' => 44.0, 'y' => 8.0, 'align' => 'right'],
+            'date' => ['x' => 6.0, 'y' => 15.0, 'align' => 'left'],
             'title' => ['x' => 6.0, 'y' => 88.0, 'align' => 'left', 'width' => 42.0],
         ];
     }
     if ($coverStyle === 'standard' && $layout === 'left') {
         return [
             'byline' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
-            'date' => ['x' => 56.0, 'y' => 8.0, 'align' => 'left'],
+            'date' => ['x' => 94.0, 'y' => 15.0, 'align' => 'right'],
             'title' => ['x' => 94.0, 'y' => 88.0, 'align' => 'right', 'width' => 42.0],
         ];
     }
     if ($coverStyle === 'standard' && $layout === 'center') {
         return [
             'byline' => ['x' => 50.0, 'y' => 8.0, 'align' => 'center'],
-            'date' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'date' => ['x' => 50.0, 'y' => 15.0, 'align' => 'center'],
             'title' => ['x' => 50.0, 'y' => 88.0, 'align' => 'center', 'width' => 72.0],
         ];
     }
     if ($coverStyle === 'standard' && $layout === 'half-right') {
         return [
             'byline' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
-            'date' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'date' => ['x' => 6.0, 'y' => 15.0, 'align' => 'left'],
             'title' => ['x' => 6.0, 'y' => 88.0, 'align' => 'left', 'width' => 88.0],
         ];
     }
     if ($coverStyle === 'standard' && $layout === 'half-left') {
         return [
             'byline' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
-            'date' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
+            'date' => ['x' => 94.0, 'y' => 15.0, 'align' => 'right'],
             'title' => ['x' => 94.0, 'y' => 88.0, 'align' => 'right', 'width' => 88.0],
         ];
     }

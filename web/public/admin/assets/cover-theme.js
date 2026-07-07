@@ -275,7 +275,7 @@
       return { byline: 'top-center', date: 'bottom-center', title: 'center' };
     }
     if (coverStyle === 'cinematic-full' || layout === 'full') {
-      return { byline: 'top-center', date: 'bottom-left', title: 'bottom-center' };
+      return { byline: 'top-center', date: 'bottom-center', title: 'bottom-center' };
     }
     if (layout === 'half-left' || layout === 'half-right') {
       return { byline: 'top-left', date: 'top-right', title: 'bottom-left' };
@@ -284,38 +284,52 @@
   }
 
   function defaultIntroTextLayout(coverStyle, layout) {
+    if (coverStyle === 'cinematic-full' || layout === 'full') {
+      return {
+        byline: { x: 50, y: 8, align: 'center' },
+        title: { x: 50, y: 74, align: 'center', width: 80 },
+        date: { x: 50, y: 92, align: 'center' },
+      };
+    }
+    if (coverStyle === 'mood-blob') {
+      return {
+        byline: { x: 50, y: 8, align: 'center' },
+        title: { x: 50, y: 48, align: 'center', width: 72 },
+        date: { x: 50, y: 62, align: 'center' },
+      };
+    }
     if (coverStyle === 'standard' && layout === 'right') {
       return {
         byline: { x: 6, y: 8, align: 'left' },
-        date: { x: 44, y: 8, align: 'right' },
+        date: { x: 6, y: 15, align: 'left' },
         title: { x: 6, y: 88, align: 'left', width: 42 },
       };
     }
     if (coverStyle === 'standard' && layout === 'left') {
       return {
         byline: { x: 94, y: 8, align: 'right' },
-        date: { x: 56, y: 8, align: 'left' },
+        date: { x: 94, y: 15, align: 'right' },
         title: { x: 94, y: 88, align: 'right', width: 42 },
       };
     }
     if (coverStyle === 'standard' && layout === 'center') {
       return {
         byline: { x: 50, y: 8, align: 'center' },
-        date: { x: 94, y: 8, align: 'right' },
+        date: { x: 50, y: 15, align: 'center' },
         title: { x: 50, y: 88, align: 'center', width: 72 },
       };
     }
     if (coverStyle === 'standard' && layout === 'half-right') {
       return {
         byline: { x: 6, y: 8, align: 'left' },
-        date: { x: 94, y: 8, align: 'right' },
+        date: { x: 6, y: 15, align: 'left' },
         title: { x: 6, y: 88, align: 'left', width: 88 },
       };
     }
     if (coverStyle === 'standard' && layout === 'half-left') {
       return {
         byline: { x: 94, y: 8, align: 'right' },
-        date: { x: 6, y: 8, align: 'left' },
+        date: { x: 94, y: 15, align: 'right' },
         title: { x: 94, y: 88, align: 'right', width: 88 },
       };
     }
@@ -740,11 +754,7 @@
     return renderStandard(state, fontMap, groupMap);
   }
 
-  function resolveIntroTextOverlapsInDoc(doc) {
-    if (!doc) return;
-    var hero = doc.getElementById('galleryHero');
-    if (!hero) return;
-    var layer = hero.querySelector('.gallery-intro-text-layer');
+  function resolveIntroTextOverlapsInLayer(layer) {
     if (!layer) return;
     var roles = ['byline', 'date', 'title'];
     var els = roles.map(function (role) {
@@ -756,26 +766,47 @@
       el.style.removeProperty('--intro-shift-y');
     });
 
-    function fixPair(upper, lower) {
+    function measurePair(a, b) {
+      var ar = a.getBoundingClientRect();
+      var br = b.getBoundingClientRect();
+      var xOverlap = Math.min(ar.right, br.right) - Math.max(ar.left, br.left);
+      var yOverlap = Math.min(ar.bottom, br.bottom) - Math.max(ar.top, br.top);
+      return { xOverlap: xOverlap, yOverlap: yOverlap, ar: ar, br: br };
+    }
+
+    function fixPair(a, b) {
+      var m = measurePair(a, b);
+      if (m.xOverlap <= 2 || m.yOverlap <= 0) return false;
+
+      var aRole = a.getAttribute('data-intro-role') || '';
+      var bRole = b.getAttribute('data-intro-role') || '';
+      var aAbove = m.ar.top < m.br.top - 3 || (
+        Math.abs(m.ar.top - m.br.top) < 3 && m.ar.left <= m.br.left
+      );
+      var upper = aAbove ? a : b;
+      var lower = aAbove ? b : a;
       var upperRole = upper.getAttribute('data-intro-role') || '';
       var lowerRole = lower.getAttribute('data-intro-role') || '';
-      var u = upper.getBoundingClientRect();
-      var l = lower.getBoundingClientRect();
-      var xOverlap = Math.min(u.right, l.right) - Math.max(u.left, l.left);
-      var yOverlap = Math.min(u.bottom, l.bottom) - Math.max(u.top, l.top);
-      if (xOverlap <= 4 || yOverlap <= 0) return false;
+      var mm = measurePair(upper, lower);
+      var moveEl;
+      var delta;
 
-      var sameRow = Math.abs(u.top - l.top) < 24;
-      var isHeaderCollision = sameRow && (
-        (upperRole === 'byline' && lowerRole === 'date')
-        || (upperRole === 'date' && lowerRole === 'byline')
-      );
-      var moveEl = lower;
-      var delta = -(yOverlap + 10);
-
-      if (isHeaderCollision) {
-        moveEl = lowerRole === 'date' ? lower : upper;
-        delta = yOverlap + 12;
+      if (Math.abs(m.ar.top - m.br.top) < 28 && (
+        (aRole === 'byline' && bRole === 'date') || (aRole === 'date' && bRole === 'byline')
+      )) {
+        moveEl = aRole === 'date' ? a : b;
+        delta = mm.yOverlap + 14;
+      } else if (
+        (upperRole === 'title' && lowerRole === 'date')
+        || (upperRole === 'date' && lowerRole === 'title')
+        || (aRole === 'title' && bRole === 'date')
+        || (aRole === 'date' && bRole === 'title')
+      ) {
+        moveEl = aRole === 'date' ? a : b;
+        delta = mm.yOverlap + 12;
+      } else {
+        moveEl = lower;
+        delta = -(mm.yOverlap + 10);
       }
 
       var shift = parseFloat(moveEl.style.getPropertyValue('--intro-shift-y')) || 0;
@@ -784,22 +815,26 @@
     }
 
     var pass;
-    for (pass = 0; pass < 10; pass++) {
+    var i;
+    var j;
+    for (pass = 0; pass < 16; pass++) {
       var changed = false;
-      var sorted = els.slice().sort(function (a, b) {
-        var at = a.getBoundingClientRect().top;
-        var bt = b.getBoundingClientRect().top;
-        if (Math.abs(at - bt) > 2) return at - bt;
-        return a.getBoundingClientRect().left - b.getBoundingClientRect().left;
-      });
-      var i;
-      for (i = 0; i < sorted.length - 1; i++) {
-        if (fixPair(sorted[i], sorted[i + 1])) {
-          changed = true;
+      for (i = 0; i < els.length; i++) {
+        for (j = i + 1; j < els.length; j++) {
+          if (fixPair(els[i], els[j])) {
+            changed = true;
+          }
         }
       }
       if (!changed) break;
     }
+  }
+
+  function resolveIntroTextOverlapsInDoc(doc) {
+    if (!doc) return;
+    var hero = doc.getElementById('galleryHero');
+    if (!hero) return;
+    resolveIntroTextOverlapsInLayer(hero.querySelector('.gallery-intro-text-layer'));
   }
 
   function updateDeviceScale(deviceEl) {
