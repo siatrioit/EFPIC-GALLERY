@@ -3732,10 +3732,8 @@
 }
 
 .admin-cover-live-device__shell--portrait {
-  width: auto;
+  width: 100%;
   max-width: 100%;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 .admin-cover-live-device__viewport {
@@ -4159,4 +4157,15 @@
 
 .admin-analytics-gallery .admin-analytics-chart__col {
   height: 140px;
+}
+
+.admin-analytics-galleries-table th,
+.admin-analytics-galleries-table td {
+  font-size: 0.82rem;
+}
+
+.admin-analytics-galleries-table th:nth-child(n+5):not(:last-child),
+.admin-analytics-galleries-table td:nth-child(n+5):not(:last-child) {
+  text-align: center;
+  white-space: nowrap;
 }

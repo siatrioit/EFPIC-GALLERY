@@ -40,55 +40,72 @@ function efpic_admin_analytics_render_chart(array $daily, string $metric = 'uniq
 }
 
 /** @param array<string, mixed> $summary */
-function efpic_admin_render_analytics_dashboard(array $config, array $summary, string $fromDate, string $toDate, bool $compact = false): string
+function efpic_admin_render_analytics_filters(string $fromDate, string $toDate, string $galleryToken = ''): string
 {
-    $deviceTotal = (int) $summary['mobile'] + (int) $summary['desktop'] + (int) $summary['unknown'];
-    $mobilePct = efpic_analytics_device_percent((int) $summary['mobile'], $deviceTotal);
-    $desktopPct = efpic_analytics_device_percent((int) $summary['desktop'], $deviceTotal);
-    $unknownPct = efpic_analytics_device_percent((int) $summary['unknown'], $deviceTotal);
-
-    $html = '';
-    if (!$compact) {
-        $html .= '<div class="admin-analytics-head">';
-        $html .= '<p class="admin-analytics-head__meta"><strong>' . (int) $summary['online'] . '</strong> tiešsaistē · ';
-        $html .= '<strong>' . (int) $summary['unique_visitors'] . '</strong> apmeklētāji periodā</p>';
-        $html .= '</div>';
-
-        $html .= '<form method="get" class="admin-analytics-filters">';
-        if (!$compact) {
-            $html .= '<input type="hidden" name="page" value="global">';
-        }
-        $html .= '<label>No<input type="date" name="from" value="' . efpic_admin_esc($fromDate) . '"></label>';
-        $html .= '<label>Līdz<input type="date" name="to" value="' . efpic_admin_esc($toDate) . '"></label>';
-        $html .= '<button type="submit" class="btn primary">Rādīt</button>';
-        $html .= '</form>';
-
-        $html .= '<p class="muted admin-analytics-period">Periods: ' . efpic_admin_esc($fromDate) . ' — ' . efpic_admin_esc($toDate);
-        $html .= ' · Pēdējais apmeklējums: ' . efpic_admin_esc(efpic_analytics_format_last_visit($summary['last_visit_at'] ?? null));
-        $html .= ' · Tiešsaistē = aktīvi pēdējās ' . (int) (EFPIC_ANALYTICS_ONLINE_SECONDS / 60) . ' min</p>';
+    $html = '<form method="get" class="admin-analytics-filters"';
+    $html .= $galleryToken !== '' ? ' action="analytics.php"' : '';
+    $html .= '>';
+    if ($galleryToken !== '') {
+        $html .= '<input type="hidden" name="gallery" value="' . efpic_admin_esc($galleryToken) . '">';
     }
+    $html .= '<label>No<input type="date" name="from" value="' . efpic_admin_esc($fromDate) . '"></label>';
+    $html .= '<label>Līdz<input type="date" name="to" value="' . efpic_admin_esc($toDate) . '"></label>';
+    $html .= '<button type="submit" class="btn primary">Rādīt</button>';
+    $html .= '</form>';
+
+    return $html;
+}
+
+/** @param array<string, mixed> $summary */
+function efpic_admin_render_analytics_dashboard(
+    array $config,
+    array $summary,
+    string $fromDate,
+    string $toDate,
+    bool $globalSections = true,
+    string $galleryToken = '',
+): string {
+    $deviceTotal = (int) $summary['phone'] + (int) $summary['tablet'] + (int) $summary['desktop'];
+    $phonePct = efpic_analytics_device_percent((int) $summary['phone'], $deviceTotal);
+    $tabletPct = efpic_analytics_device_percent((int) $summary['tablet'], $deviceTotal);
+    $desktopPct = efpic_analytics_device_percent((int) $summary['desktop'], $deviceTotal);
+
+    $html = '<div class="admin-analytics-head">';
+    $html .= '<p class="admin-analytics-head__meta"><strong>' . (int) $summary['online'] . '</strong> tiešsaistē · ';
+    $html .= '<strong>' . (int) $summary['unique_visitors'] . '</strong> apmeklētāji periodā</p>';
+    $html .= '</div>';
+
+    $html .= efpic_admin_render_analytics_filters($fromDate, $toDate, $galleryToken);
+
+    $html .= '<p class="muted admin-analytics-period">Periods: ' . efpic_admin_esc($fromDate) . ' — ' . efpic_admin_esc($toDate);
+    $html .= ' · Pēdējais apmeklējums: ' . efpic_admin_esc(efpic_analytics_format_last_visit($summary['last_visit_at'] ?? null));
+    $html .= ' · Tiešsaistē = aktīvi pēdējās ' . (int) (EFPIC_ANALYTICS_ONLINE_SECONDS / 60) . ' min';
+    if ($galleryToken === '') {
+        $html .= ' · Admin IP netiek skaitīts 24 h pēc pēdējās pieslēgšanās';
+    }
+    $html .= '</p>';
 
     $html .= '<div class="admin-analytics-stats">';
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['online'], 'Tiešsaistē', 'online');
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['unique_visitors'], 'Unikālie apmeklētāji');
-    $html .= efpic_admin_analytics_stat_card((string) (int) $summary['mobile'] . ' - ' . $mobilePct . '%', 'Viedtālrunis');
+    $html .= efpic_admin_analytics_stat_card((string) (int) $summary['phone'] . ' - ' . $phonePct . '%', 'Viedtālrunis');
+    $html .= efpic_admin_analytics_stat_card((string) (int) $summary['tablet'] . ' - ' . $tabletPct . '%', 'Planšete');
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['desktop'] . ' - ' . $desktopPct . '%', 'Dators');
-    $html .= efpic_admin_analytics_stat_card((string) (int) $summary['unknown'] . ' - ' . $unknownPct . '%', 'Nezināms');
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['today'], 'Šodien');
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['album_views'], 'Albuma skatījumi');
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['session_views'], 'Sesiju skatījumi');
     $html .= efpic_admin_analytics_stat_card((string) (int) $summary['downloads'], 'Lejupielādes');
     $html .= '</div>';
 
-    $chartTitle = $compact
-        ? 'Izvēlētais periods — unikālie apmeklētāji'
-        : 'Pēdējās dienas — unikālie apmeklētāji';
+    $chartTitle = $globalSections
+        ? 'Pēdējās dienas — unikālie apmeklētāji'
+        : 'Izvēlētais periods — unikālie apmeklētāji';
     $html .= '<section class="admin-analytics-section">';
     $html .= '<h2 class="admin-analytics-section__title">' . efpic_admin_esc($chartTitle) . '</h2>';
     $html .= efpic_admin_analytics_render_chart(is_array($summary['daily'] ?? null) ? $summary['daily'] : [], 'unique');
     $html .= '</section>';
 
-    if (!$compact) {
+    if ($globalSections) {
         $html .= '<section class="admin-analytics-section">';
         $html .= '<h2 class="admin-analytics-section__title">Tiešsaistē pa galerijām</h2>';
         $onlineRows = '';
@@ -114,6 +131,7 @@ function efpic_admin_render_analytics_dashboard(array $config, array $summary, s
         foreach (is_array($summary['galleries'] ?? null) ? $summary['galleries'] : [] as $gallery) {
             $name = (string) ($gallery['name'] ?? '—');
             $slug = (string) ($gallery['slug'] ?? '');
+            $token = (string) ($gallery['gallery_token'] ?? '');
             $deleted = !empty($gallery['deleted_at']);
             $nameCell = $deleted || $slug === ''
                 ? '<span class="muted">' . efpic_admin_esc($name) . '</span>'
@@ -126,18 +144,54 @@ function efpic_admin_render_analytics_dashboard(array $config, array $summary, s
             $rows .= '<td>' . (int) ($gallery['online'] ?? 0) . '</td>';
             $rows .= '<td>' . (int) ($gallery['today'] ?? 0) . '</td>';
             $rows .= '<td>' . (int) ($gallery['unique_visitors'] ?? 0) . '</td>';
-            $rows .= '</tr>';
+            $rows .= '<td>' . (int) ($gallery['gallery_dl_web'] ?? 0) . '</td>';
+            $rows .= '<td>' . (int) ($gallery['gallery_dl_print'] ?? 0) . '</td>';
+            $rows .= '<td>' . (int) ($gallery['image_dl'] ?? 0) . '</td>';
+            $rows .= '<td>';
+            if ($token !== '') {
+                $rows .= '<a href="analytics.php?gallery=' . rawurlencode($token) . '">Analītika</a>';
+            } else {
+                $rows .= '<span class="muted">—</span>';
+            }
+            $rows .= '</td></tr>';
         }
         if ($rows === '') {
-            $rows = '<tr><td colspan="4" class="muted">Vēl nav apmeklējumu datu.</td></tr>';
+            $rows = '<tr><td colspan="8" class="muted">Vēl nav apmeklējumu datu.</td></tr>';
         }
-        $html .= '<div class="admin-table-wrap"><table class="admin-table"><thead><tr>';
+        $html .= '<div class="admin-table-wrap"><table class="admin-table admin-analytics-galleries-table"><thead><tr>';
         $html .= '<th>Galerija</th><th>Tiešsaistē</th><th>Šodien</th><th>Kopā apmeklētāji</th>';
+        $html .= '<th>Galerijas lejup. WEB</th><th>Galerijas lejup. PRINT</th><th>Bilžu lejupielāde</th><th></th>';
         $html .= '</tr></thead><tbody>' . $rows . '</tbody></table></div>';
         $html .= '</section>';
     }
 
     return $html;
+}
+
+/** @return array{0: ?array<string, mixed>, 1: string} */
+function efpic_admin_analytics_resolve_gallery_record(array $config, string $galleryToken): array
+{
+    $galleryToken = preg_replace('/[^a-f0-9]/', '', strtolower($galleryToken)) ?? '';
+    if ($galleryToken === '') {
+        return [null, ''];
+    }
+    $record = efpic_analytics_load_gallery($config, $galleryToken);
+    if ($record !== null) {
+        return [$record, (string) ($record['name'] ?? '')];
+    }
+    foreach (efpic_list_gallery_slugs($config) as $slug) {
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta === null) {
+            continue;
+        }
+        if (hash_equals((string) ($meta['gallery_token'] ?? ''), $galleryToken)) {
+            efpic_analytics_ensure_gallery_record($config, $slug, $meta);
+
+            return [efpic_analytics_load_gallery($config, $galleryToken), (string) ($meta['name'] ?? $slug)];
+        }
+    }
+
+    return [$record, (string) ($record['name'] ?? 'Dzēsta galerija')];
 }
 
 function efpic_admin_analytics_page(array $config): void
@@ -146,11 +200,38 @@ function efpic_admin_analytics_page(array $config): void
         isset($_GET['from']) ? (string) $_GET['from'] : null,
         isset($_GET['to']) ? (string) $_GET['to'] : null,
     );
+    $galleryToken = trim((string) ($_GET['gallery'] ?? ''));
+
+    if ($galleryToken !== '') {
+        [$record, $galleryName] = efpic_admin_analytics_resolve_gallery_record($config, $galleryToken);
+        if ($record === null) {
+            $body = '<p class="err">Galerijas analītika nav atrasta.</p>';
+            efpic_admin_layout('Analītika', $body, 'analytics', 'Analītika', '', $config);
+
+            return;
+        }
+        $summary = efpic_analytics_aggregate([$record], $fromDate, $toDate);
+        $body = '<section class="admin-analytics-page">';
+        $body .= '<p class="muted"><a href="analytics.php">← Kopējā analītika</a></p>';
+        $body .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, false, $galleryToken);
+        $body .= '</section>';
+        efpic_admin_layout(
+            'Analītika — ' . $galleryName,
+            $body,
+            'analytics',
+            $galleryName,
+            'Galerijas apmeklējumu statistika. Dati saglabājas arī pēc dzēšanas.',
+            $config,
+        );
+
+        return;
+    }
+
     $records = efpic_analytics_list_gallery_records($config);
     $summary = efpic_analytics_aggregate($records, $fromDate, $toDate);
 
     $body = '<section class="admin-analytics-page">';
-    $body .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, false);
+    $body .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, true, '');
     $body .= '</section>';
 
     efpic_admin_layout(
@@ -163,37 +244,31 @@ function efpic_admin_analytics_page(array $config): void
     );
 }
 
-function efpic_admin_render_gallery_analytics_panel(array $config, array $meta, string $slug): string
+function efpic_admin_render_gallery_analytics_tab(array $config, array $meta, string $slug): string
 {
     $galleryToken = (string) ($meta['gallery_token'] ?? '');
     if ($galleryToken === '') {
-        return '';
+        return '<p class="muted">Analītika būs pieejama pēc galerijas izveides.</p>';
     }
 
+    efpic_analytics_ensure_gallery_record($config, $slug, $meta);
     $record = efpic_analytics_load_gallery($config, $galleryToken);
-    if ($record === null) {
-        efpic_analytics_ensure_gallery_record($config, $slug, $meta);
-        $record = efpic_analytics_load_gallery($config, $galleryToken);
-    }
     if ($record === null) {
         return '<p class="muted">Analītikas dati vēl nav pieejami.</p>';
     }
 
     [$fromDate, $toDate] = efpic_analytics_parse_date_range(null, null, 14);
     $summary = efpic_analytics_aggregate([$record], $fromDate, $toDate);
-    if ($summary['galleries'] !== []) {
-        $summary['galleries'][0]['name'] = (string) ($meta['name'] ?? $slug);
-    }
 
-    $html = '<fieldset class="admin-fieldset-full admin-analytics-gallery" id="admin-fs-analytics">';
-    $html .= '<legend>Analītika</legend>';
-    $html .= '<p class="muted">Pēdējās 14 dienas. Kopējā statistika pieejama sadaļā <a href="analytics.php">Analītika</a>.';
+    $html = '<div class="admin-analytics-gallery-tab">';
+    $html .= '<p class="muted">Pilna analītika ar datumu filtru: ';
+    $html .= '<a href="analytics.php?gallery=' . rawurlencode($galleryToken) . '">Atvērt galerijas analītiku</a>.';
     if (!empty($record['deleted_at']) || !efpic_gallery_is_active($meta)) {
         $html .= ' <strong>Statistika saglabāta arī pēc dzēšanas.</strong>';
     }
     $html .= '</p>';
-    $html .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, true);
-    $html .= '</fieldset>';
+    $html .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, false, $galleryToken);
+    $html .= '</div>';
 
     return $html;
 }

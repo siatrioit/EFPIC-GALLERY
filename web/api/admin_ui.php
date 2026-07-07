@@ -25,6 +25,11 @@ function efpic_admin_logged_in(): bool
 function efpic_admin_require_login(array $config): void
 {
     if (efpic_admin_logged_in()) {
+        if (!function_exists('efpic_analytics_register_admin_ip')) {
+            require_once __DIR__ . '/gallery_analytics.php';
+        }
+        efpic_analytics_register_admin_ip($config);
+
         return;
     }
     $pass = (string) ($config['dashboard_password'] ?? '');
@@ -37,6 +42,10 @@ function efpic_admin_require_login(array $config): void
     if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['admin_password'])) {
         if (hash_equals($pass, (string) $_POST['admin_password'])) {
             $_SESSION['efpic_admin'] = true;
+            if (!function_exists('efpic_analytics_register_admin_ip')) {
+                require_once __DIR__ . '/gallery_analytics.php';
+            }
+            efpic_analytics_register_admin_ip($config);
             header('Location: ' . ($_SERVER['REQUEST_URI'] ?? '/admin/'));
             exit;
         }
@@ -2091,6 +2100,7 @@ function efpic_admin_render_edit_tabs_nav(): string
         ['id' => 'admin-tab-images', 'label' => 'Bildes'],
         ['id' => 'admin-tab-favorites', 'label' => 'Favorītbildes'],
         ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
+        ['id' => 'admin-tab-analytics', 'label' => 'Analītika'],
         ['id' => 'admin-tab-media', 'label' => 'Slideshow & video'],
     ];
     $out = '<nav class="admin-edit-tabs" role="tablist" aria-label="Galerijas sadaļas">';
@@ -2194,7 +2204,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_dimensions_debug_line($meta);
         $body .= '</div></fieldset>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
-        $body .= efpic_admin_render_gallery_analytics_panel($config, $meta, $slug);
         $body .= '</div>';
     }
 
@@ -2436,6 +2445,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     if ($isEdit && is_array($meta)) {
         $body .= efpic_admin_render_share_sets($config, $meta);
+        $body .= efpic_admin_tab_panel_close();
+        $body .= efpic_admin_tab_panel_open('admin-tab-analytics');
+        $body .= efpic_admin_render_gallery_analytics_tab($config, $meta, $slug ?? '');
         $body .= efpic_admin_tab_panel_close();
         $body .= efpic_admin_tab_panel_open('admin-tab-media');
         $body .= efpic_admin_render_media_tab($config, $meta, (string) ($meta['gallery_token'] ?? ''), $slug);

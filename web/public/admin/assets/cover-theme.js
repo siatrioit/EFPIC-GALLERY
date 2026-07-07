@@ -872,7 +872,7 @@
       scale = boxH / designH;
       frameH = boxH;
       frameW = Math.max(1, Math.round(designW * scale));
-      shell.style.width = frameW + 'px';
+      shell.style.width = '';
       viewport.style.width = frameW + 'px';
       viewport.style.height = frameH + 'px';
     } else {

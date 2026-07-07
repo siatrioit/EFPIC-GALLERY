@@ -1302,7 +1302,7 @@ function efpic_gallery_log_download(
     if (!function_exists('efpic_analytics_record_download')) {
         require_once __DIR__ . '/gallery_analytics.php';
     }
-    efpic_analytics_record_download($config, $slug, $meta);
+    efpic_analytics_record_download($config, $slug, $meta, $type, $detail);
 }
 
 function efpic_handle_client_gallery(array $config, string $galleryToken, string $method): void
