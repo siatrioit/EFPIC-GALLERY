@@ -868,31 +868,38 @@
     if (!hero) return;
     var layer = hero.querySelector('.gallery-intro-text-layer');
     if (!layer) return;
-    var byline = layer.querySelector('[data-intro-role="byline"]');
-    var date = layer.querySelector('[data-intro-role="date"]');
-    if (!byline || !date) return;
+    var roles = ['byline', 'date', 'title'];
+    var els = roles.map(function (role) {
+      return layer.querySelector('[data-intro-role="' + role + '"]');
+    }).filter(Boolean);
+    if (els.length < 2) return;
 
-    byline.style.removeProperty('--intro-shift-y');
-    date.style.removeProperty('--intro-shift-y');
+    els.forEach(function (el) {
+      el.style.removeProperty('--intro-shift-y');
+    });
 
-    // Only care on narrow screens where overlap is likely.
-    var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
-    if (vw >= 820) return;
-
-    var b = byline.getBoundingClientRect();
-    var d = date.getBoundingClientRect();
-
-    // If they don't overlap horizontally, we're good.
-    var xOverlap = Math.max(0, Math.min(b.right, d.right) - Math.max(b.left, d.left));
-    var yOverlap = Math.max(0, Math.min(b.bottom, d.bottom) - Math.max(b.top, d.top));
-    if (xOverlap <= 0 || yOverlap <= 0) return;
-
-    // Move the text that is closer to the nearest screen edge down.
-    var bEdge = Math.min(b.left, vw - b.right);
-    var dEdge = Math.min(d.left, vw - d.right);
-    var moveEl = bEdge <= dEdge ? byline : date;
-    var shift = Math.ceil(yOverlap + 10);
-    moveEl.style.setProperty('--intro-shift-y', shift + 'px');
+    var pass;
+    for (pass = 0; pass < 8; pass++) {
+      var changed = false;
+      var sorted = els.slice().sort(function (a, b) {
+        return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+      });
+      var i;
+      for (i = 0; i < sorted.length - 1; i++) {
+        var upper = sorted[i];
+        var lower = sorted[i + 1];
+        var u = upper.getBoundingClientRect();
+        var l = lower.getBoundingClientRect();
+        var xOverlap = Math.min(u.right, l.right) - Math.max(u.left, l.left);
+        var yOverlap = Math.min(u.bottom, l.bottom) - Math.max(u.top, l.top);
+        if (xOverlap > 4 && yOverlap > 0) {
+          var shift = parseFloat(lower.style.getPropertyValue('--intro-shift-y')) || 0;
+          lower.style.setProperty('--intro-shift-y', (shift - yOverlap - 8) + 'px');
+          changed = true;
+        }
+      }
+      if (!changed) break;
+    }
   }
 
   function scheduleMosaicRelayout() {
@@ -1051,6 +1058,16 @@
   initMosaicGalleries(function () {
     restoreGalleryFocus();
     resolveIntroTextOverlaps();
+  });
+
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(function () {
+      resolveIntroTextOverlaps();
+    });
+  }
+  window.addEventListener('load', function () {
+    resolveIntroTextOverlaps();
+    setTimeout(resolveIntroTextOverlaps, 150);
   });
 
   document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (item) {

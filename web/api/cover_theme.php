@@ -317,6 +317,20 @@ function efpic_gallery_intro_text_layout_defaults(string $coverStyle, string $la
             'title' => ['x' => 50.0, 'y' => 88.0, 'align' => 'center', 'width' => 72.0],
         ];
     }
+    if ($coverStyle === 'standard' && $layout === 'half-right') {
+        return [
+            'byline' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
+            'date' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'title' => ['x' => 6.0, 'y' => 88.0, 'align' => 'left', 'width' => 88.0],
+        ];
+    }
+    if ($coverStyle === 'standard' && $layout === 'half-left') {
+        return [
+            'byline' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'date' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
+            'title' => ['x' => 94.0, 'y' => 88.0, 'align' => 'right', 'width' => 88.0],
+        ];
+    }
 
     $placements = efpic_gallery_intro_text_placement_defaults($coverStyle, $layout);
     $out = [];
@@ -434,7 +448,7 @@ function efpic_gallery_intro_text_layout_style_attr(string $role, array $meta): 
     $style = 'left:' . round((float) ($item['x'] ?? 50.0), 2) . '%;top:'
         . round((float) ($item['y'] ?? 50.0), 2) . '%;';
     if ($role === 'title' && isset($item['width'])) {
-        $style .= '--intro-title-box-width:' . round((float) $item['width'], 2) . '%;';
+        $style .= '--intro-title-box-width:' . round((float) $item['width'], 2) . ';';
     }
 
     return ' style="' . efpic_client_esc($style) . '"';
@@ -1253,9 +1267,9 @@ function efpic_gallery_intro_title_tracking_caps_css(array $meta): string
 function efpic_gallery_mood_title_size_css(array $meta): string
 {
     return match (efpic_gallery_mood_title_size_key($meta)) {
-        'sm' => 'clamp(1.15rem, 3vw, 1.55rem)',
-        'lg' => 'clamp(2.35rem, 6.5vw, 3.75rem)',
-        default => 'clamp(1.65rem, 4.8vw, 2.5rem)',
+        'sm' => 'clamp(1.15rem, min(3vw, 43.2px), 1.55rem)',
+        'lg' => 'clamp(2.35rem, min(6.5vw, 93.6px), 3.75rem)',
+        default => 'clamp(1.65rem, min(4.8vw, 69.12px), 2.5rem)',
     };
 }
 
@@ -1275,9 +1289,9 @@ function efpic_gallery_intro_title_size_css(array $meta): string
     }
 
     return match (efpic_gallery_mood_title_size_key($meta)) {
-        'sm' => 'clamp(1.25rem, 3.5vw, 1.75rem)',
-        'lg' => 'clamp(2.6rem, 7.5vw, 4.25rem)',
-        default => 'clamp(1.85rem, 5.5vw, 3.15rem)',
+        'sm' => 'clamp(1.25rem, min(3.5vw, 50.4px), 1.75rem)',
+        'lg' => 'clamp(2.6rem, min(7.5vw, 108px), 4.25rem)',
+        default => 'clamp(1.85rem, min(5.5vw, 79.2px), 3.15rem)',
     };
 }
 
@@ -1299,7 +1313,7 @@ function efpic_gallery_intro_byline_size_css(array $meta): string
     return match (efpic_gallery_mood_date_size_key($meta)) {
         'sm' => '0.65rem',
         'lg' => '1.05rem',
-        default => 'clamp(0.75rem, 2vw, 0.95rem)',
+        default => 'clamp(0.75rem, min(2vw, 28.8px), 0.95rem)',
     };
 }
 
@@ -1709,6 +1723,7 @@ function efpic_render_cover_theme_controls(
 
     $previewDevices = [
         ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
+        ['id' => 'large', 'label' => 'Liels ekrāns', 'width' => 1920, 'height' => 1080],
         ['id' => 'tablet', 'label' => 'Planšete', 'width' => 768, 'height' => 1024],
         ['id' => 'phone', 'label' => 'Telefons', 'width' => 390, 'height' => 844],
     ];
