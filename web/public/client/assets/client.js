@@ -98,6 +98,37 @@
     });
   }
 
+  var infoModal = document.getElementById('galleryInfoModal');
+
+  function openInfoModal() {
+    if (!infoModal) return;
+    infoModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+  }
+
+  function closeInfoModal() {
+    if (!infoModal) return;
+    infoModal.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  document.querySelectorAll('[data-gallery-info-open]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      openInfoModal();
+    });
+  });
+
+  document.querySelectorAll('[data-gallery-info-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeInfoModal);
+  });
+
+  if (infoModal) {
+    infoModal.addEventListener('click', function (evt) {
+      if (evt.target === infoModal) closeInfoModal();
+    });
+  }
+
   document.querySelectorAll('[data-share-copy]').forEach(function (btn) {
     btn.addEventListener('click', copyLink);
   });
@@ -105,6 +136,7 @@
   document.addEventListener('keydown', function (evt) {
     if (evt.key !== 'Escape') return;
     closeModal();
+    closeInfoModal();
     closeDlModal();
     closeZipProgress();
     closeGalleryDlModal();

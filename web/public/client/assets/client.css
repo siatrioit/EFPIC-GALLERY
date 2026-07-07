@@ -1622,6 +1622,33 @@ input[type="password"],
   height: 18px;
 }
 
+.float-btn--icon {
+  padding: 10px 12px;
+}
+
+.gallery-info-expiry {
+  margin: 0 0 1rem;
+  font-size: 0.95rem;
+  line-height: 1.45;
+}
+
+.gallery-info-expiry strong {
+  font-weight: 600;
+}
+
+.gallery-info-text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: var(--muted, #666);
+  white-space: pre-wrap;
+}
+
+.modal--gallery-info .gallery-info-expiry:last-child,
+.modal--gallery-info .gallery-info-text:last-child {
+  margin-bottom: 0;
+}
+
 .theme-pic-time .gallery-main {
   max-width: 100%;
   padding: 0;

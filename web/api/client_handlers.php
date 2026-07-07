@@ -80,6 +80,7 @@ function efpic_client_icon(string $name): string
         'pick-empty' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/></svg>',
         'zip' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
         'play' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+        'info' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="10" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.75" fill="currentColor" stroke="none"/></svg>',
     ];
 
     return $icons[$name] ?? '';
@@ -88,6 +89,31 @@ function efpic_client_icon(string $name): string
 function efpic_client_effective_theme(array $meta): string
 {
     return efpic_gallery_effective_theme($meta);
+}
+
+function efpic_client_gallery_info_modal(array $meta): string
+{
+    if (!efpic_gallery_client_info_panel_available($meta)) {
+        return '';
+    }
+
+    $expires = efpic_gallery_expires_display($meta);
+    $infoText = efpic_gallery_client_info_text($meta);
+
+    $html = '<div class="modal-backdrop" id="galleryInfoModal" hidden role="dialog" aria-labelledby="galleryInfoModalTitle">';
+    $html .= '<div class="modal modal--gallery-info"><button type="button" class="icon-btn modal-close" data-gallery-info-close aria-label="Aizvērt">';
+    $html .= efpic_client_icon('close') . '</button>';
+    $html .= '<h2 id="galleryInfoModalTitle">Informācija</h2>';
+    if ($expires !== '') {
+        $html .= '<p class="gallery-info-expiry"><strong>Galerija pieejama līdz:</strong> '
+            . efpic_client_esc($expires) . '</p>';
+    }
+    if ($infoText !== '') {
+        $html .= '<div class="gallery-info-text">' . efpic_client_esc($infoText) . '</div>';
+    }
+    $html .= '</div></div>';
+
+    return $html;
 }
 
 function efpic_client_share_modal(string $title): string
@@ -1493,7 +1519,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= '</main>';
     }
 
+    $hasInfoPanel = efpic_gallery_client_info_panel_available($meta);
+
     $body .= efpic_client_share_modal($name);
+    $body .= efpic_client_gallery_info_modal($meta);
     $body .= $galleryDlModal;
     if ($canPublicCollection) {
         $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
@@ -1507,12 +1536,18 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     if ($canPublicCollection) {
         $body .= efpic_client_render_collection_tray($galleryUrl, $collectionCount, $meta, $ctx, $visitorStatus);
     }
-    $expiresNotice = efpic_client_render_gallery_expiry_notice($meta);
-    if ($expiresNotice !== '') {
-        $body .= $expiresNotice;
+    if (!$usesShell || !$hasInfoPanel) {
+        $expiresNotice = efpic_client_render_gallery_expiry_notice($meta);
+        if ($expiresNotice !== '') {
+            $body .= $expiresNotice;
+        }
     }
     if ($usesShell) {
         $body .= '<nav class="gallery-float-bar" aria-label="Galerijas darbības">';
+        if ($hasInfoPanel) {
+            $body .= '<button type="button" class="float-btn float-btn--icon" data-gallery-info-open aria-label="Informācija">';
+            $body .= efpic_client_icon('info') . '</button>';
+        }
         if ($usesMosaicSlideshow) {
             $resolvedSlideshow = efpic_resolve_public_slideshow($meta, $ctx, $config);
             $showFloatSlideshow = $resolvedSlideshow !== null && ($resolvedSlideshow['mode'] ?? '') === 'interactive';

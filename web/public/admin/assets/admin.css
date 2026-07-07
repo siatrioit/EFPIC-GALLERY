@@ -1486,6 +1486,18 @@
   margin: 0 0 8px;
 }
 
+.admin-client-messages .admin-client-info-panel {
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--admin-border);
+}
+
+.admin-client-messages .admin-client-info-panel textarea {
+  width: 100%;
+  min-height: 120px;
+  resize: vertical;
+}
+
 .admin-client-messages {
   margin-top: 0;
 }

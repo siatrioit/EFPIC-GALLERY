@@ -1187,6 +1187,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
             'allow_access_requests' => false,
             'hide_client_hidden_from_public' => true,
             'expires_at' => null,
+            'client_info_text' => '',
             'downloads' => [
                 'main_client' => ['web', 'full', 'zip'],
                 'guest' => ['web', 'full', 'zip'],
@@ -1509,6 +1510,20 @@ function efpic_gallery_expires_display(array $meta): string
     }
 
     return efpic_gallery_format_expires_lv($date);
+}
+
+function efpic_gallery_client_info_text(array $meta): string
+{
+    return trim((string) (efpic_gallery_settings($meta)['client_info_text'] ?? ''));
+}
+
+function efpic_gallery_client_info_panel_available(array $meta): bool
+{
+    if (efpic_gallery_expired($meta)) {
+        return false;
+    }
+
+    return efpic_gallery_expires_display($meta) !== '' || efpic_gallery_client_info_text($meta) !== '';
 }
 
 function efpic_gallery_expired(array $meta): bool

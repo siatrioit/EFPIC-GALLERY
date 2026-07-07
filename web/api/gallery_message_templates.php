@@ -199,11 +199,19 @@ function efpic_message_template_content(array $config, array $meta, string $slug
 /** @param array<string, mixed> $meta */
 function efpic_apply_gallery_client_messages_from_post(array &$meta): void
 {
-    if (!array_key_exists('client_msg_gallery_ready_email', $_POST)) {
+    $hasMessages = array_key_exists('client_msg_gallery_ready_email', $_POST);
+    $hasInfo = array_key_exists('client_info_text', $_POST);
+    if (!$hasMessages && !$hasInfo) {
         return;
     }
     if (!isset($meta['settings']) || !is_array($meta['settings'])) {
         $meta['settings'] = efpic_gallery_defaults('delivery')['settings'];
+    }
+    if ($hasInfo) {
+        $meta['settings']['client_info_text'] = trim((string) ($_POST['client_info_text'] ?? ''));
+    }
+    if (!$hasMessages) {
+        return;
     }
     $messages = [];
     foreach (array_keys(efpic_message_template_groups()) as $group) {
@@ -489,6 +497,13 @@ function efpic_admin_render_gallery_client_messages(array $config, array $meta, 
     $hasPhone = efpic_gallery_client_phone($meta) !== '';
 
     $html = '<fieldset class="admin-fieldset-full admin-client-messages" id="admin-fs-client-messages"><legend>Ziņojumi klientam</legend>';
+    $html .= '<div class="admin-client-info-panel">';
+    $html .= '<h3 class="admin-share-block-title">Info publiskajā galerijā</h3>';
+    $html .= '<p class="muted">Apmeklētāji redzēs info pogu <strong>i</strong> apakšējā joslā. Tur parādās galerijas termiņš un šeit ievadītais teksts.</p>';
+    $html .= '<label class="admin-field-block">Papildu informācija klientam';
+    $html .= '<textarea name="client_info_text" rows="5" placeholder="Piemēram: Lejupielādes pieejamas WEB un PRINT izmērā. Jautājumi — rakstiet uz info@...">'
+        . efpic_admin_esc(efpic_gallery_client_info_text($meta)) . '</textarea></label>';
+    $html .= '</div>';
     $html .= '<p class="muted">Izvēlies sagatavi katrai grupai. Sagataves veido <a href="settings.php">Iestatījumi → Ziņu sagataves</a>. '
         . 'Nospied <strong>Sagatavot un sūtīt e-pastu</strong> — zemāk atvērsies redaktors, kur vari pielabot tekstu pirms nosūtīšanas. '
         . 'Pēc sagatavju izvēles maiņas saglabā galeriju — WhatsApp saite atjaunojas pēc saglabāšanas.</p>';
