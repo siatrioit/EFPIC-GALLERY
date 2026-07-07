@@ -2313,6 +2313,11 @@ input[type="password"],
     min-height: 50vh;
     min-height: 50dvh;
   }
+
+  /* Date looks slightly too large on phones vs tablets. */
+  .gallery-intro-text-layer .gallery-intro-date {
+    font-size: calc(var(--intro-date-size, 1.05rem) * 0.92);
+  }
 }
 
 @media (min-width: 768px) {

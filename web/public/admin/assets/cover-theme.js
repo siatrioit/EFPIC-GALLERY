@@ -231,6 +231,7 @@
       + links
       + '<link rel="stylesheet" href="' + escapeHtml(assets.clientCss) + '">'
       + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111;}'
+      + 'body.page-gallery{background:var(--page-bg,#fff);color:var(--page-text,#111);}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free{cursor:grab;touch-action:none;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free.is-selected{outline:2px solid rgba(255,255,255,.55);outline-offset:4px;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free.is-dragging{cursor:grabbing;outline:2px dashed rgba(255,255,255,.55);outline-offset:4px;}'
@@ -238,7 +239,7 @@
       + '.intro-text-resize-handle{position:absolute;top:50%;right:-10px;width:10px;height:28px;margin-top:-14px;border-radius:3px;background:rgba(255,255,255,.45);cursor:ew-resize;display:none;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free--title .intro-text-resize-handle{display:block;}'
       + '</style>'
-      + '</head><body>' + html + '</body></html>';
+      + '</head><body class="page-gallery">' + html + '</body></html>';
   }
 
   function readCoverVideoUrl() {
@@ -294,6 +295,28 @@
 
   function cloneIntroLayoutItem(item) {
     return { x: item.x, y: item.y, align: item.align };
+  }
+
+  function near(a, b, eps) {
+    eps = eps == null ? 0.25 : eps;
+    return Math.abs((a || 0) - (b || 0)) <= eps;
+  }
+
+  function introLayoutLooksLikeDefaults(layout, defaults) {
+    if (!layout || !defaults) return true;
+    var roles = ['byline', 'date', 'title'];
+    for (var i = 0; i < roles.length; i++) {
+      var role = roles[i];
+      var a = layout[role] || {};
+      var d = defaults[role] || {};
+      if (!near(Number(a.x), Number(d.x))) return false;
+      if (!near(Number(a.y), Number(d.y))) return false;
+      if ((a.align || 'left') !== (d.align || 'left')) return false;
+      if (role === 'title') {
+        if (!near(Number(a.width || 72), Number(d.width || 72), 0.75)) return false;
+      }
+    }
+    return true;
   }
 
   function sanitizeIntroLayoutRole(role, raw, fallback) {
@@ -902,14 +925,22 @@
 
     layoutInputs.forEach(function (input) {
       input.addEventListener('change', function () {
+        // If current text positions still match defaults for the previous layout,
+        // snap to defaults for the newly selected layout. If user already moved texts,
+        // do not overwrite their custom placement.
+        var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+        var prevLayout = base.layout || 'right';
+        var currentLayout = readIntroTextLayout(base, coverStyle, prevLayout);
+        var prevDefaults = defaultIntroTextLayout(coverStyle, prevLayout);
+        var looksDefault = introLayoutLooksLikeDefaults(currentLayout, prevDefaults);
+
         updateCropAspect();
-        // When user changes cover layout, start from sensible defaults (once),
-        // then allow manual dragging afterwards.
-        if (!introLayoutDirty) {
-          var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
-          var nextLayout = getSelectedLayout();
+        var nextLayout = getSelectedLayout();
+        if (looksDefault) {
           writeIntroTextLayout(defaultIntroTextLayout(coverStyle, nextLayout));
+          introLayoutDirty = false;
         }
+        base.layout = nextLayout;
         refreshPreview();
       });
     });
