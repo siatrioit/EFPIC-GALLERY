@@ -297,7 +297,7 @@ function efpic_client_render_face_person_modal(): string
     return '<div class="face-search-modal" id="facePersonModal" hidden>'
         . '<div class="face-search-dialog face-person-dialog" role="dialog" aria-labelledby="facePersonTitle" aria-modal="true">'
         . '<button type="button" class="face-search-close" data-face-person-close aria-label="Aizvērt">&times;</button>'
-        . '<h2 id="facePersonTitle">Meklēt pēc sejas</h2>'
+        . '<h2 id="facePersonTitle">Meklēt pēc sejas (Beta vers.)</h2>'
         . '<p class="muted">Izvēlies vienu vai vairākas sejas — parādīsim tikai attiecīgās fotogrāfijas.</p>'
         . '<div class="face-person-grid" id="facePersonGrid" aria-live="polite"></div>'
         . '<p class="face-search-status muted" id="facePersonStatus" hidden></p>'
