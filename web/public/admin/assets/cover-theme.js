@@ -220,13 +220,16 @@
     };
   }
 
-  function buildPreviewDocument(html, assets, pageBg) {
+  function buildPreviewDocument(html, assets, pageBg, viewportWidth) {
     var links = (assets.fontUrls || []).map(function (url) {
       return '<link rel="stylesheet" href="' + escapeHtml(url) + '">';
     }).join('');
     var bg = pageBg || '#ffffff';
+    var vp = viewportWidth > 0
+      ? ('width=' + viewportWidth + ',initial-scale=1')
+      : 'width=device-width,initial-scale=1';
     return '<!DOCTYPE html><html lang="lv"><head><meta charset="utf-8">'
-      + '<meta name="viewport" content="width=device-width,initial-scale=1">'
+      + '<meta name="viewport" content="' + vp + '">'
       + '<link rel="preconnect" href="https://fonts.googleapis.com">'
       + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
       + links
@@ -843,14 +846,16 @@
     if (!iframe || !viewport) return;
 
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
-    var designH = parseInt(deviceEl.getAttribute('data-visible-height'), 10)
-      || parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
+    var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
     if (!designW || !designH) return;
 
     var boxW = Math.max(1, viewport.clientWidth || 1);
     var boxH = Math.max(1, viewport.clientHeight || PREVIEW_DISPLAY_H);
+    var fillWidth = deviceEl.getAttribute('data-fit') === 'width';
 
-    var scale = Math.min(boxW / designW, boxH / designH);
+    var scaleW = boxW / designW;
+    var scaleH = boxH / designH;
+    var scale = fillWidth ? scaleW : Math.min(scaleW, scaleH);
     if (!isFinite(scale) || scale <= 0) {
       scale = 0.1;
     }
@@ -863,8 +868,13 @@
     iframe.style.height = designH + 'px';
     iframe.style.transform = 'scale(' + scale + ')';
     iframe.style.transformOrigin = 'top left';
-    iframe.style.left = Math.max(0, (boxW - scaledW) / 2) + 'px';
-    iframe.style.top = Math.max(0, (boxH - scaledH) / 2) + 'px';
+    if (fillWidth) {
+      iframe.style.left = '0px';
+      iframe.style.top = '0px';
+    } else {
+      iframe.style.left = Math.max(0, (boxW - scaledW) / 2) + 'px';
+      iframe.style.top = Math.max(0, (boxH - scaledH) / 2) + 'px';
+    }
   }
 
   function updateAllDeviceScales(root) {
@@ -882,14 +892,14 @@
     if (!root) return;
     withPreservedFocus(function () {
       var html = renderCoverHtml(state, fontMap, groupMap);
-      var doc = buildPreviewDocument(html, assets, state.pageBg);
-      root.querySelectorAll('.admin-cover-live-device__iframe').forEach(function (iframe) {
+      root.querySelectorAll('.admin-cover-live-device').forEach(function (deviceEl) {
+        var iframe = deviceEl.querySelector('.admin-cover-live-device__iframe');
+        if (!iframe) return;
+        var viewportWidth = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
+        var doc = buildPreviewDocument(html, assets, state.pageBg, viewportWidth);
         iframe.setAttribute('tabindex', '-1');
         iframe.onload = function () {
-          var deviceEl = iframe.closest('.admin-cover-live-device');
-          if (deviceEl) {
-            updateDeviceScale(deviceEl);
-          }
+          updateDeviceScale(deviceEl);
           if (layoutHandlers) {
             setupIntroTextDragInIframe(iframe, layoutHandlers.getLayout, layoutHandlers.onChange);
           }
