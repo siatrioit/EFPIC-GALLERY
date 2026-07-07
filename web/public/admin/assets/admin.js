@@ -2887,4 +2887,22 @@
       });
     });
   })();
+
+  document.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-analytics-apply]');
+    if (!btn) return;
+    var wrap = btn.closest('.admin-analytics-filters');
+    if (!wrap) return;
+    var fromInput = wrap.querySelector('input[name="from"]');
+    var toInput = wrap.querySelector('input[name="to"]');
+    if (!fromInput || !toInput) return;
+    var params = new URLSearchParams();
+    var galleryToken = wrap.getAttribute('data-analytics-gallery') || '';
+    if (galleryToken !== '') {
+      params.set('gallery', galleryToken);
+    }
+    params.set('from', fromInput.value);
+    params.set('to', toInput.value);
+    window.location.href = 'analytics.php?' + params.toString();
+  });
 })();

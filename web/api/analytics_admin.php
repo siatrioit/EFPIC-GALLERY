@@ -40,18 +40,35 @@ function efpic_admin_analytics_render_chart(array $daily, string $metric = 'uniq
 }
 
 /** @param array<string, mixed> $summary */
-function efpic_admin_render_analytics_filters(string $fromDate, string $toDate, string $galleryToken = ''): string
-{
-    $html = '<form method="get" class="admin-analytics-filters"';
-    $html .= $galleryToken !== '' ? ' action="analytics.php"' : '';
-    $html .= '>';
-    if ($galleryToken !== '') {
-        $html .= '<input type="hidden" name="gallery" value="' . efpic_admin_esc($galleryToken) . '">';
+function efpic_admin_render_analytics_filters(
+    string $fromDate,
+    string $toDate,
+    string $galleryToken = '',
+    bool $embeddedInForm = false,
+): string {
+    if ($embeddedInForm) {
+        $html = '<div class="admin-analytics-filters admin-analytics-filters--embedded"';
+        if ($galleryToken !== '') {
+            $html .= ' data-analytics-gallery="' . efpic_admin_esc($galleryToken) . '"';
+        }
+        $html .= '>';
+    } else {
+        $html = '<form method="get" class="admin-analytics-filters"';
+        $html .= $galleryToken !== '' ? ' action="analytics.php"' : '';
+        $html .= '>';
+        if ($galleryToken !== '') {
+            $html .= '<input type="hidden" name="gallery" value="' . efpic_admin_esc($galleryToken) . '">';
+        }
     }
     $html .= '<label>No<input type="date" name="from" value="' . efpic_admin_esc($fromDate) . '"></label>';
     $html .= '<label>Līdz<input type="date" name="to" value="' . efpic_admin_esc($toDate) . '"></label>';
-    $html .= '<button type="submit" class="btn primary">Rādīt</button>';
-    $html .= '</form>';
+    if ($embeddedInForm) {
+        $html .= '<button type="button" class="btn primary" data-analytics-apply="1">Rādīt</button>';
+        $html .= '</div>';
+    } else {
+        $html .= '<button type="submit" class="btn primary">Rādīt</button>';
+        $html .= '</form>';
+    }
 
     return $html;
 }
@@ -64,6 +81,7 @@ function efpic_admin_render_analytics_dashboard(
     string $toDate,
     bool $globalSections = true,
     string $galleryToken = '',
+    bool $embeddedInForm = false,
 ): string {
     $deviceTotal = (int) $summary['phone'] + (int) $summary['tablet'] + (int) $summary['desktop'];
     $phonePct = efpic_analytics_device_percent((int) $summary['phone'], $deviceTotal);
@@ -75,7 +93,7 @@ function efpic_admin_render_analytics_dashboard(
     $html .= '<strong>' . (int) $summary['unique_visitors'] . '</strong> apmeklētāji periodā</p>';
     $html .= '</div>';
 
-    $html .= efpic_admin_render_analytics_filters($fromDate, $toDate, $galleryToken);
+    $html .= efpic_admin_render_analytics_filters($fromDate, $toDate, $galleryToken, $embeddedInForm);
 
     $html .= '<p class="muted admin-analytics-period">Periods: ' . efpic_admin_esc($fromDate) . ' — ' . efpic_admin_esc($toDate);
     $html .= ' · Pēdējais apmeklējums: ' . efpic_admin_esc(efpic_analytics_format_last_visit($summary['last_visit_at'] ?? null));
@@ -267,7 +285,7 @@ function efpic_admin_render_gallery_analytics_tab(array $config, array $meta, st
         $html .= ' <strong>Statistika saglabāta arī pēc dzēšanas.</strong>';
     }
     $html .= '</p>';
-    $html .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, false, $galleryToken);
+    $html .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, false, $galleryToken, true);
     $html .= '</div>';
 
     return $html;
