@@ -3723,16 +3723,25 @@
   border-radius: 10px;
   overflow: hidden;
   background: #ececec;
-  min-height: 400px;
+  box-sizing: border-box;
+  width: 100%;
+  height: 400px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
+.admin-cover-live-device__shell--portrait {
+  width: auto;
+  max-width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .admin-cover-live-device__viewport {
   position: relative;
-  width: auto;
-  height: auto;
+  width: 100%;
+  height: 100%;
   overflow: hidden;
   background: #fff;
   flex-shrink: 0;

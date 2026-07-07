@@ -844,25 +844,50 @@
     var iframe = deviceEl.querySelector('.admin-cover-live-device__iframe');
     var viewport = deviceEl.querySelector('.admin-cover-live-device__viewport');
     var shell = deviceEl.querySelector('.admin-cover-live-device__shell');
-    if (!iframe || !viewport) return;
+    if (!iframe || !viewport || !shell) return;
 
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
     var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
     if (!designW || !designH) return;
 
-    var maxH = PREVIEW_DISPLAY_H;
-    var shellW = Math.max(1, (shell && shell.clientWidth) || viewport.parentElement.clientWidth || 1);
+    var boxH = PREVIEW_DISPLAY_H;
+    var boxW = shell.parentElement ? shell.parentElement.clientWidth : 0;
+    if (boxW < 48) {
+      requestAnimationFrame(function () {
+        updateDeviceScale(deviceEl);
+      });
+      return;
+    }
 
-    var scale = Math.min(shellW / designW, maxH / designH);
+    var isPortrait = designH > designW;
+    deviceEl.classList.toggle('admin-cover-live-device--portrait', isPortrait);
+    shell.classList.toggle('admin-cover-live-device__shell--portrait', isPortrait);
+
+    var scale;
+    var frameW;
+    var frameH;
+
+    if (isPortrait) {
+      // Garā mala (augstums) = lodziņa augstums; īsā mala proporcionāli.
+      scale = boxH / designH;
+      frameH = boxH;
+      frameW = Math.max(1, Math.round(designW * scale));
+      shell.style.width = frameW + 'px';
+      viewport.style.width = frameW + 'px';
+      viewport.style.height = frameH + 'px';
+    } else {
+      shell.style.width = '';
+      var shellInnerW = Math.max(1, Math.min(boxW, shell.clientWidth || boxW));
+      scale = Math.min(shellInnerW / designW, boxH / designH);
+      frameW = Math.max(1, Math.round(designW * scale));
+      frameH = Math.max(1, Math.round(designH * scale));
+      viewport.style.width = frameW + 'px';
+      viewport.style.height = frameH + 'px';
+    }
+
     if (!isFinite(scale) || scale <= 0) {
       scale = 0.1;
     }
-
-    var frameW = Math.max(1, Math.round(designW * scale));
-    var frameH = Math.max(1, Math.round(designH * scale));
-
-    viewport.style.width = frameW + 'px';
-    viewport.style.height = frameH + 'px';
 
     iframe.style.position = 'absolute';
     iframe.style.width = designW + 'px';
