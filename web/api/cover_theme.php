@@ -1739,14 +1739,18 @@ function efpic_render_cover_theme_controls(
         ['id' => 'large', 'label' => 'Liels ekrāns', 'width' => 1920, 'height' => 1080],
         ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
         ['id' => 'tablet', 'label' => 'Planšete', 'width' => 820, 'height' => 1180],
-        ['id' => 'phone', 'label' => 'Telefons', 'width' => 384, 'height' => 824],
+        ['id' => 'phone', 'label' => 'Telefons', 'width' => 384, 'height' => 824, 'visible_height' => 752],
     ];
     $html .= '<div class="admin-cover-live" id="admin-cover-live">';
     $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā)</span></p>';
     $html .= '<div class="admin-cover-live-grid" id="admin-cover-live-grid">';
     foreach ($previewDevices as $device) {
         $html .= '<div class="admin-cover-live-device" data-device="' . efpic_cover_theme_esc($device['id']) . '"'
-            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '">';
+            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '"';
+        if (!empty($device['visible_height'])) {
+            $html .= ' data-visible-height="' . (int) $device['visible_height'] . '"';
+        }
+        $html .= '>';
         $html .= '<p class="admin-cover-live-device__label">' . efpic_cover_theme_esc($device['label']) . '</p>';
         $html .= '<div class="admin-cover-live-device__shell">';
         $html .= '<div class="admin-cover-live-device__viewport">';
