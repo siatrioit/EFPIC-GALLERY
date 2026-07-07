@@ -1703,7 +1703,6 @@ function efpic_admin_list_delivery_galleries(array $config): void
         $stats = $meta['failiem']['sync_stats'] ?? null;
         $paired = is_array($stats) ? (int) ($stats['paired'] ?? 0) : 0;
         $syncAt = (string) ($meta['failiem']['last_sync_at'] ?? '—');
-        $views = (int) ($meta['analytics']['views'] ?? 0);
         $date = substr((string) ($meta['event_date'] ?? ''), 0, 10);
         $rows .= '<tr>';
         $rows .= '<td><input type="checkbox" name="gallery_slugs[]" value="' . efpic_admin_esc($slug) . '" class="admin-gallery-pick"></td>';
@@ -1718,7 +1717,7 @@ function efpic_admin_list_delivery_galleries(array $config): void
         }
         $rows .= '<td>' . efpic_admin_esc($date !== '' ? $date : '—') . '<br>' . $expiresCell . '</td>';
         $rows .= '<td>' . count($meta['images'] ?? []) . ' / ' . $paired . '</td>';
-        $rows .= '<td class="muted">' . efpic_admin_esc($syncAt) . ' · skat. ' . $views . '</td>';
+        $rows .= '<td class="muted">' . efpic_admin_esc($syncAt) . '</td>';
         $rows .= '<td>';
         if ($view === 'active' && $gt !== '') {
             $rows .= '<a href="' . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '" target="_blank" rel="noopener">Skatīt</a>';

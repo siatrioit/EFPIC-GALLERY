@@ -1519,6 +1519,13 @@ function efpic_gallery_apply_expires_from_post(array &$meta): bool
 
 function efpic_record_gallery_view(array $config, string $slug, array &$meta): void
 {
+    if (!function_exists('efpic_analytics_should_skip_tracking')) {
+        require_once __DIR__ . '/gallery_analytics.php';
+    }
+    if (efpic_analytics_should_skip_tracking($config)) {
+        return;
+    }
+
     $a = $meta['analytics'] ?? [];
     if (!is_array($a)) {
         $a = [];
