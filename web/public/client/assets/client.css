@@ -1258,23 +1258,41 @@ input[type="password"],
 }
 
 .gallery-intro--layout-half-right.gallery-intro--text-overlay .gallery-intro-text-layer {
+  left: 0;
   right: 50%;
-  width: 50%;
+  width: auto;
 }
 
 .gallery-intro--layout-half-left.gallery-intro--text-overlay .gallery-intro-text-layer {
   left: 50%;
-  width: 50%;
+  right: 0;
+  width: auto;
 }
 
 .gallery-intro--layout-right.gallery-intro--text-overlay .gallery-intro-text-layer {
-  right: 34%;
-  width: 66%;
+  left: 0;
+  right: 66.67%;
+  width: auto;
 }
 
 .gallery-intro--layout-left.gallery-intro--text-overlay .gallery-intro-text-layer {
-  left: 34%;
-  width: 66%;
+  left: 66.67%;
+  right: 0;
+  width: auto;
+}
+
+/* Teksts virs bildes tikai pilnekrāna vākiem — pārējos ierobežo pretējā pusē */
+.gallery-intro--text-overlay.gallery-intro--split .gallery-intro-text-layer .gallery-intro-byline,
+.gallery-intro--text-overlay.gallery-intro--split .gallery-intro-text-layer .gallery-intro-date,
+.gallery-intro--layout-left.gallery-intro--text-overlay .gallery-intro-text-layer .gallery-intro-byline,
+.gallery-intro--layout-left.gallery-intro--text-overlay .gallery-intro-text-layer .gallery-intro-date,
+.gallery-intro--layout-right.gallery-intro--text-overlay .gallery-intro-text-layer .gallery-intro-byline,
+.gallery-intro--layout-right.gallery-intro--text-overlay .gallery-intro-text-layer .gallery-intro-date,
+.gallery-intro--layout-center.gallery-intro--text-overlay .gallery-intro-text-layer .gallery-intro-byline,
+.gallery-intro--layout-center.gallery-intro--text-overlay .gallery-intro-text-layer .gallery-intro-date {
+  max-width: 48%;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .gallery-intro--text-overlay.gallery-intro--split .gallery-intro-stage {
@@ -2325,6 +2343,24 @@ input[type="password"],
 @media (max-width: 767px) {
   .gallery-intro-split {
     flex-direction: column;
+  }
+
+  .gallery-intro--layout-half-right.gallery-intro--text-overlay .gallery-intro-text-layer {
+    left: 0;
+    right: 0;
+    top: 0;
+    bottom: 50%;
+    width: auto;
+    height: auto;
+  }
+
+  .gallery-intro--layout-half-left.gallery-intro--text-overlay .gallery-intro-text-layer {
+    left: 0;
+    right: 0;
+    top: 50%;
+    bottom: 0;
+    width: auto;
+    height: auto;
   }
 
   .gallery-intro-split-text {

@@ -1722,8 +1722,8 @@ function efpic_render_cover_theme_controls(
     $html .= '</div></fieldset>';
 
     $previewDevices = [
-        ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
         ['id' => 'large', 'label' => 'Liels ekrāns', 'width' => 1920, 'height' => 1080],
+        ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
         ['id' => 'tablet', 'label' => 'Planšete', 'width' => 768, 'height' => 1024],
         ['id' => 'phone', 'label' => 'Telefons', 'width' => 390, 'height' => 844],
     ];

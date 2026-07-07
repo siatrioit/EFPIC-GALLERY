@@ -878,23 +878,45 @@
       el.style.removeProperty('--intro-shift-y');
     });
 
+    function fixPair(upper, lower) {
+      var upperRole = upper.getAttribute('data-intro-role') || '';
+      var lowerRole = lower.getAttribute('data-intro-role') || '';
+      var u = upper.getBoundingClientRect();
+      var l = lower.getBoundingClientRect();
+      var xOverlap = Math.min(u.right, l.right) - Math.max(u.left, l.left);
+      var yOverlap = Math.min(u.bottom, l.bottom) - Math.max(u.top, l.top);
+      if (xOverlap <= 4 || yOverlap <= 0) return false;
+
+      var sameRow = Math.abs(u.top - l.top) < 24;
+      var isHeaderCollision = sameRow && (
+        (upperRole === 'byline' && lowerRole === 'date')
+        || (upperRole === 'date' && lowerRole === 'byline')
+      );
+      var moveEl = lower;
+      var delta = -(yOverlap + 10);
+
+      if (isHeaderCollision) {
+        moveEl = lowerRole === 'date' ? lower : upper;
+        delta = yOverlap + 12;
+      }
+
+      var shift = parseFloat(moveEl.style.getPropertyValue('--intro-shift-y')) || 0;
+      moveEl.style.setProperty('--intro-shift-y', (shift + delta) + 'px');
+      return true;
+    }
+
     var pass;
-    for (pass = 0; pass < 8; pass++) {
+    for (pass = 0; pass < 10; pass++) {
       var changed = false;
       var sorted = els.slice().sort(function (a, b) {
-        return a.getBoundingClientRect().top - b.getBoundingClientRect().top;
+        var at = a.getBoundingClientRect().top;
+        var bt = b.getBoundingClientRect().top;
+        if (Math.abs(at - bt) > 2) return at - bt;
+        return a.getBoundingClientRect().left - b.getBoundingClientRect().left;
       });
       var i;
       for (i = 0; i < sorted.length - 1; i++) {
-        var upper = sorted[i];
-        var lower = sorted[i + 1];
-        var u = upper.getBoundingClientRect();
-        var l = lower.getBoundingClientRect();
-        var xOverlap = Math.min(u.right, l.right) - Math.max(u.left, l.left);
-        var yOverlap = Math.min(u.bottom, l.bottom) - Math.max(u.top, l.top);
-        if (xOverlap > 4 && yOverlap > 0) {
-          var shift = parseFloat(lower.style.getPropertyValue('--intro-shift-y')) || 0;
-          lower.style.setProperty('--intro-shift-y', (shift - yOverlap - 8) + 'px');
+        if (fixPair(sorted[i], sorted[i + 1])) {
           changed = true;
         }
       }
