@@ -843,38 +843,34 @@
   function updateDeviceScale(deviceEl) {
     var iframe = deviceEl.querySelector('.admin-cover-live-device__iframe');
     var viewport = deviceEl.querySelector('.admin-cover-live-device__viewport');
+    var shell = deviceEl.querySelector('.admin-cover-live-device__shell');
     if (!iframe || !viewport) return;
 
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
     var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
     if (!designW || !designH) return;
 
-    var boxW = Math.max(1, viewport.clientWidth || 1);
-    var boxH = Math.max(1, viewport.clientHeight || PREVIEW_DISPLAY_H);
-    var fillWidth = deviceEl.getAttribute('data-fit') === 'width';
+    var maxH = PREVIEW_DISPLAY_H;
+    var shellW = Math.max(1, (shell && shell.clientWidth) || viewport.parentElement.clientWidth || 1);
 
-    var scaleW = boxW / designW;
-    var scaleH = boxH / designH;
-    var scale = fillWidth ? scaleW : Math.min(scaleW, scaleH);
+    var scale = Math.min(shellW / designW, maxH / designH);
     if (!isFinite(scale) || scale <= 0) {
       scale = 0.1;
     }
 
-    var scaledW = designW * scale;
-    var scaledH = designH * scale;
+    var frameW = Math.max(1, Math.round(designW * scale));
+    var frameH = Math.max(1, Math.round(designH * scale));
+
+    viewport.style.width = frameW + 'px';
+    viewport.style.height = frameH + 'px';
 
     iframe.style.position = 'absolute';
     iframe.style.width = designW + 'px';
     iframe.style.height = designH + 'px';
     iframe.style.transform = 'scale(' + scale + ')';
     iframe.style.transformOrigin = 'top left';
-    if (fillWidth) {
-      iframe.style.left = '0px';
-      iframe.style.top = '0px';
-    } else {
-      iframe.style.left = Math.max(0, (boxW - scaledW) / 2) + 'px';
-      iframe.style.top = Math.max(0, (boxH - scaledH) / 2) + 'px';
-    }
+    iframe.style.left = '0px';
+    iframe.style.top = '0px';
   }
 
   function updateAllDeviceScales(root) {

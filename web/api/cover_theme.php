@@ -1745,10 +1745,8 @@ function efpic_render_cover_theme_controls(
     $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā)</span></p>';
     $html .= '<div class="admin-cover-live-grid" id="admin-cover-live-grid">';
     foreach ($previewDevices as $device) {
-        $fitMode = in_array($device['id'], ['phone', 'tablet'], true) ? 'width' : 'contain';
         $html .= '<div class="admin-cover-live-device" data-device="' . efpic_cover_theme_esc($device['id']) . '"'
-            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '"'
-            . ' data-fit="' . efpic_cover_theme_esc($fitMode) . '">';
+            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '">';
         $html .= '<p class="admin-cover-live-device__label">' . efpic_cover_theme_esc($device['label']) . '</p>';
         $html .= '<div class="admin-cover-live-device__shell">';
         $html .= '<div class="admin-cover-live-device__viewport">';
