@@ -24,6 +24,12 @@
   };
 
   var PREVIEW_DISPLAY_H = 400;
+  var PREVIEW_DEVICE_MAX_H = {
+    large: 300,
+    desktop: 380,
+    tablet: 460,
+    phone: 500,
+  };
   var previewFocusLock = null;
   var INTRO_TEXT_ROLES = ['byline', 'date', 'title'];
   var OVERLAY_CLASS = ' gallery-intro--text-overlay';
@@ -840,21 +846,38 @@
   function updateDeviceScale(deviceEl) {
     var iframe = deviceEl.querySelector('.admin-cover-live-device__iframe');
     var viewport = deviceEl.querySelector('.admin-cover-live-device__viewport');
+    var shell = deviceEl.querySelector('.admin-cover-live-device__shell');
     if (!iframe || !viewport) return;
+    var deviceId = deviceEl.getAttribute('data-device') || '';
     var designW = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
     var designH = parseInt(deviceEl.getAttribute('data-height'), 10) || 900;
-    var vw = viewport.clientWidth || 1;
-    var scale = Math.min(vw / designW, PREVIEW_DISPLAY_H / designH);
-    var scaledW = designW * scale;
-    var scaledH = designH * scale;
+    if (!designW || !designH) return;
+
+    var aspect = designW / designH;
+    var maxDisplayH = PREVIEW_DEVICE_MAX_H[deviceId] || PREVIEW_DISPLAY_H;
+    var shellW = Math.max(1, (shell && shell.clientWidth) || viewport.clientWidth || 1);
+    var availW = Math.max(1, shellW - 2);
+
+    var scale = Math.min(availW / designW, maxDisplayH / designH);
+    if (!isFinite(scale) || scale <= 0) {
+      scale = 0.1;
+    }
+
+    var displayW = Math.max(1, Math.round(designW * scale));
+    var displayH = Math.max(1, Math.round(designH * scale));
+
+    viewport.style.width = displayW + 'px';
+    viewport.style.height = displayH + 'px';
+    viewport.style.margin = '0 auto';
+    viewport.setAttribute('data-aspect', aspect.toFixed(4));
+
     iframe.style.position = 'absolute';
-    iframe.style.left = Math.max(0, (vw - scaledW) / 2) + 'px';
-    iframe.style.top = Math.max(0, (PREVIEW_DISPLAY_H - scaledH) / 2) + 'px';
+    iframe.style.left = '0';
+    iframe.style.top = '0';
     iframe.style.width = designW + 'px';
     iframe.style.height = designH + 'px';
     iframe.style.transform = 'scale(' + scale + ')';
     iframe.style.transformOrigin = 'top left';
-    viewport.style.height = PREVIEW_DISPLAY_H + 'px';
   }
 
   function updateAllDeviceScales(root) {
