@@ -6,6 +6,7 @@ require_once __DIR__ . '/handlers.php';
 require_once __DIR__ . '/gallery_assets.php';
 require_once __DIR__ . '/slideshow_render.php';
 require_once __DIR__ . '/face_handlers.php';
+require_once __DIR__ . '/analytics_admin.php';
 
 function efpic_admin_session_start(): void
 {
@@ -125,6 +126,7 @@ function efpic_admin_layout(
     }
     echo '<a href="index.php"' . ($active === 'list' ? ' class="active"' : '') . '>Galerijas</a>';
     echo '<a href="delivery_new.php"' . ($active === 'new' ? ' class="active"' : '') . '>Jauna Galerija</a>';
+    echo '<a href="analytics.php"' . ($active === 'analytics' ? ' class="active"' : '') . '>Analītika</a>';
     echo '<a href="index.php?view=deleted"' . ($active === 'deleted' ? ' class="active"' : '') . '>Dzēstās galerijas';
     if ($deletedCount > 0) {
         echo ' <span class="admin-nav-badge">' . $deletedCount . '</span>';
@@ -2192,6 +2194,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_render_dimensions_debug_line($meta);
         $body .= '</div></fieldset>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
+        $body .= efpic_admin_render_gallery_analytics_panel($config, $meta, $slug);
         $body .= '</div>';
     }
 

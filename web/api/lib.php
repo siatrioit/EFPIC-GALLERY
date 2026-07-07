@@ -1238,6 +1238,15 @@ function efpic_soft_delete_gallery(array $config, string $slug): void
     $meta['status'] = 'deleted';
     $meta['deleted_at'] = gmdate('c');
     efpic_save_gallery_meta($config, $slug, $meta);
+    if (!function_exists('efpic_analytics_mark_gallery_deleted')) {
+        require_once __DIR__ . '/gallery_analytics.php';
+    }
+    efpic_analytics_mark_gallery_deleted(
+        $config,
+        (string) ($meta['gallery_token'] ?? ''),
+        $slug,
+        (string) ($meta['name'] ?? $slug),
+    );
 }
 
 function efpic_restore_gallery(array $config, string $slug): void
@@ -1249,10 +1258,21 @@ function efpic_restore_gallery(array $config, string $slug): void
     $meta['status'] = 'active';
     $meta['deleted_at'] = null;
     efpic_save_gallery_meta($config, $slug, $meta);
+    if (!function_exists('efpic_analytics_mark_gallery_restored')) {
+        require_once __DIR__ . '/gallery_analytics.php';
+    }
+    efpic_analytics_mark_gallery_restored($config, (string) ($meta['gallery_token'] ?? ''));
 }
 
 function efpic_purge_gallery(array $config, string $slug): void
 {
+    $meta = efpic_load_gallery_meta($config, $slug);
+    if (is_array($meta)) {
+        if (!function_exists('efpic_analytics_archive_before_purge')) {
+            require_once __DIR__ . '/gallery_analytics.php';
+        }
+        efpic_analytics_archive_before_purge($config, $slug, $meta);
+    }
     $dir = efpic_gallery_dir($config, $slug);
     if (!is_dir($dir)) {
         return;
@@ -1530,6 +1550,11 @@ function efpic_record_gallery_view(array $config, string $slug, array &$meta): v
             efpic_gallery_process_expiry_reminders($config);
         }
     }
+
+    if (!function_exists('efpic_analytics_record_view')) {
+        require_once __DIR__ . '/gallery_analytics.php';
+    }
+    efpic_analytics_record_view($config, $slug, $meta);
 }
 
 /** Admin on/off slēdzis (vienāds ar Tēma «Nosaukums ar lielajiem burtiem»). */

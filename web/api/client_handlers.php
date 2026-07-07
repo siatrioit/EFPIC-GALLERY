@@ -1296,10 +1296,13 @@ function efpic_gallery_log_download(
     string $detail,
     array $extra = [],
 ): void {
-    if (!function_exists('efpic_gallery_log_activity')) {
-        return;
+    if (function_exists('efpic_gallery_log_activity')) {
+        efpic_gallery_log_activity($config, $slug, $meta, $type, $detail, 'guest', $extra);
     }
-    efpic_gallery_log_activity($config, $slug, $meta, $type, $detail, 'guest', $extra);
+    if (!function_exists('efpic_analytics_record_download')) {
+        require_once __DIR__ . '/gallery_analytics.php';
+    }
+    efpic_analytics_record_download($config, $slug, $meta);
 }
 
 function efpic_handle_client_gallery(array $config, string $galleryToken, string $method): void
