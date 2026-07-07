@@ -3843,17 +3843,27 @@
   font-weight: 600;
 }
 
-.admin-intro-text-placements__grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 12px 16px;
-  margin-top: 8px;
-}
-
-.admin-intro-text-placements__grid label {
+.admin-intro-text-width {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
+  margin-top: 12px;
+  max-width: 420px;
+}
+
+.admin-intro-text-width__control {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-intro-text-width__control input[type="range"] {
+  flex: 1 1 auto;
+}
+
+.admin-intro-text-width__value {
+  min-width: 3rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .admin-dims-progress-wrap {

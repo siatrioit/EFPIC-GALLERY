@@ -1098,10 +1098,10 @@ function efpic_gallery_defaults(string $type = 'live'): array
         'theme' => 'efpic-base',
         'client_theme' => null,
         'cover_style' => 'standard',
-        'intro_text_placements' => [
-            'byline' => 'top-left',
-            'date' => 'top-right',
-            'title' => 'bottom-left',
+        'intro_text_layout' => [
+            'byline' => ['x' => 6.0, 'y' => 8.0, 'align' => 'left'],
+            'date' => ['x' => 94.0, 'y' => 8.0, 'align' => 'right'],
+            'title' => ['x' => 6.0, 'y' => 88.0, 'align' => 'left', 'width' => 72.0],
         ],
         'mosaic_max_columns' => 4,
         'status' => 'active',

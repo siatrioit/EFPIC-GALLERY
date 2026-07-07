@@ -25,13 +25,19 @@
 
   var PREVIEW_DISPLAY_H = 400;
   var previewFocusLock = null;
-  var INTRO_TEXT_SLOTS = [
-    'top-left', 'top-center', 'top-right',
-    'center-left', 'center', 'center-right',
-    'bottom-left', 'bottom-center', 'bottom-right',
-  ];
   var INTRO_TEXT_ROLES = ['byline', 'date', 'title'];
   var OVERLAY_CLASS = ' gallery-intro--text-overlay';
+  var INTRO_SLOT_COORDS = {
+    'top-left': { x: 6, y: 8, align: 'left' },
+    'top-center': { x: 50, y: 8, align: 'center' },
+    'top-right': { x: 94, y: 8, align: 'right' },
+    'center-left': { x: 6, y: 50, align: 'left' },
+    center: { x: 50, y: 50, align: 'center' },
+    'center-right': { x: 94, y: 50, align: 'right' },
+    'bottom-left': { x: 6, y: 88, align: 'left' },
+    'bottom-center': { x: 50, y: 88, align: 'center' },
+    'bottom-right': { x: 94, y: 88, align: 'right' },
+  };
 
   function lockPreviewFocus(el) {
     if (!el || typeof el.focus !== 'function') {
@@ -224,7 +230,13 @@
       + '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
       + links
       + '<link rel="stylesheet" href="' + escapeHtml(assets.clientCss) + '">'
-      + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#fff;}</style>'
+      + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111;}'
+      + '.gallery-intro-text-layer.is-editable .intro-text-free{cursor:grab;touch-action:none;}'
+      + '.gallery-intro-text-layer.is-editable .intro-text-free.is-dragging{cursor:grabbing;outline:2px dashed rgba(255,255,255,.55);outline-offset:4px;}'
+      + '.gallery-intro-text-layer.is-editable .intro-text-free--title.is-resizing{cursor:ew-resize;}'
+      + '.intro-text-resize-handle{position:absolute;top:50%;right:-10px;width:10px;height:28px;margin-top:-14px;border-radius:3px;background:rgba(255,255,255,.45);cursor:ew-resize;display:none;}'
+      + '.gallery-intro-text-layer.is-editable .intro-text-free--title .intro-text-resize-handle{display:block;}'
+      + '</style>'
       + '</head><body>' + html + '</body></html>';
   }
 
@@ -268,61 +280,109 @@
     return { byline: 'top-left', date: 'top-right', title: 'bottom-left' };
   }
 
-  function resolveIntroTextPlacementCollisions(placements) {
-    var used = {};
+  function defaultIntroTextLayout(coverStyle, layout) {
+    var placements = defaultIntroTextPlacements(coverStyle, layout);
     var out = {};
-    ['byline', 'title', 'date'].forEach(function (role) {
-      var want = String((placements && placements[role]) || '').trim();
-      if (!want || INTRO_TEXT_SLOTS.indexOf(want) < 0) {
-        want = 'bottom-center';
-      }
-      if (used[want]) {
-        INTRO_TEXT_SLOTS.some(function (slot) {
-          if (!used[slot]) {
-            want = slot;
-            return true;
-          }
-          return false;
-        });
-      }
-      out[role] = want;
-      used[want] = role;
+    INTRO_TEXT_ROLES.forEach(function (role) {
+      var slot = placements[role] || 'bottom-center';
+      out[role] = cloneIntroLayoutItem(INTRO_SLOT_COORDS[slot] || INTRO_SLOT_COORDS['bottom-center']);
+      if (role === 'title') out[role].width = 72;
     });
     return out;
   }
 
-  function readIntroTextPlacements(base, coverStyle, layout) {
-    var placements = defaultIntroTextPlacements(coverStyle, layout);
-    if (base && base.introTextPlacements) {
+  function cloneIntroLayoutItem(item) {
+    return { x: item.x, y: item.y, align: item.align };
+  }
+
+  function sanitizeIntroLayoutRole(role, raw, fallback) {
+    var out = {
+      x: clampPercent(raw && raw.x != null ? raw.x : fallback.x),
+      y: clampPercent(raw && raw.y != null ? raw.y : fallback.y),
+      align: raw && raw.align ? String(raw.align) : fallback.align,
+    };
+    if (['left', 'center', 'right'].indexOf(out.align) < 0) out.align = fallback.align;
+    if (role === 'title') {
+      out.width = clampPercent(raw && raw.width != null ? raw.width : (fallback.width || 72), 20, 100);
+    }
+    return out;
+  }
+
+  function clampPercent(value, min, max) {
+    var n = parseFloat(value);
+    if (!isFinite(n)) n = 50;
+    var lo = min != null ? min : 0;
+    var hi = max != null ? max : 100;
+    return Math.max(lo, Math.min(hi, n));
+  }
+
+  function readIntroTextLayout(base, coverStyle, layout) {
+    var defaults = defaultIntroTextLayout(coverStyle, layout);
+    var raw = null;
+    var hidden = document.getElementById('intro_text_layout');
+    if (hidden && hidden.value) {
+      try { raw = JSON.parse(hidden.value); } catch (e) { raw = null; }
+    }
+    if (!raw && base && base.introTextLayout) raw = base.introTextLayout;
+    if (!raw && base && base.introTextPlacements) {
+      raw = {};
       INTRO_TEXT_ROLES.forEach(function (role) {
         var slot = base.introTextPlacements[role];
-        if (slot && INTRO_TEXT_SLOTS.indexOf(slot) >= 0) {
-          placements[role] = slot;
+        if (slot && INTRO_SLOT_COORDS[slot]) {
+          raw[role] = cloneIntroLayoutItem(INTRO_SLOT_COORDS[slot]);
+          if (role === 'title') raw[role].width = 72;
         }
       });
     }
-    INTRO_TEXT_ROLES.forEach(function (role) {
-      var sel = document.getElementById('intro_text_placement_' + role);
-      if (sel && sel.value && INTRO_TEXT_SLOTS.indexOf(sel.value) >= 0) {
-        placements[role] = sel.value;
-      }
-    });
-    return resolveIntroTextPlacementCollisions(placements);
+    if (raw) {
+      INTRO_TEXT_ROLES.forEach(function (role) {
+        if (raw[role]) defaults[role] = sanitizeIntroLayoutRole(role, raw[role], defaults[role]);
+      });
+    }
+    var widthInput = document.getElementById('intro_title_layout_width');
+    if (widthInput && widthInput.value) {
+      defaults.title.width = clampPercent(widthInput.value, 20, 100);
+    }
+    return defaults;
   }
 
-  function introTextSlotClass(role, placements) {
-    var slot = (placements && placements[role]) || 'bottom-center';
-    return ' intro-text-at-' + slot.replace(/[^a-z0-9-]/g, '');
+  function writeIntroTextLayout(layout) {
+    var hidden = document.getElementById('intro_text_layout');
+    if (hidden) hidden.value = JSON.stringify(layout);
+    var widthInput = document.getElementById('intro_title_layout_width');
+    var widthLabel = document.getElementById('intro_title_layout_width_label');
+    if (widthInput && layout.title && layout.title.width != null) {
+      widthInput.value = String(Math.round(layout.title.width));
+      if (widthLabel) widthLabel.textContent = Math.round(layout.title.width) + '%';
+    }
+  }
+
+  function introTextAlignClass(role, layout) {
+    var align = (layout && layout[role] && layout[role].align) || 'left';
+    return ' intro-text-align-' + align.replace(/[^a-z]/g, '');
+  }
+
+  function introTextStyleAttr(role, layout) {
+    var item = (layout && layout[role]) || { x: 50, y: 50, align: 'center' };
+    var style = 'left:' + item.x + '%;top:' + item.y + '%;';
+    if (role === 'title' && item.width != null) {
+      style += '--intro-title-box-width:' + item.width + '%;';
+    }
+    return ' style="' + style + '"';
   }
 
   function introTextLayerHtml(state) {
-    var placements = state.introTextPlacements || defaultIntroTextPlacements(state.coverStyle, state.layout);
-    var html = '<div class="gallery-intro-text-layer">';
-    html += '<p class="gallery-intro-byline' + introTextSlotClass('byline', placements) + '">' + escapeHtml(state.byline) + '</p>';
+    var layout = state.introTextLayout || defaultIntroTextLayout(state.coverStyle, state.layout);
+    var html = '<div class="gallery-intro-text-layer is-editable">';
+    html += '<p class="gallery-intro-byline intro-text-free' + introTextAlignClass('byline', layout) + '" data-intro-role="byline"'
+      + introTextStyleAttr('byline', layout) + '>' + escapeHtml(state.byline) + '</p>';
     if (state.dateFormatted) {
-      html += '<p class="gallery-intro-date' + introTextSlotClass('date', placements) + '">' + escapeHtml(state.dateFormatted) + '</p>';
+      html += '<p class="gallery-intro-date intro-text-free' + introTextAlignClass('date', layout) + '" data-intro-role="date"'
+        + introTextStyleAttr('date', layout) + '>' + escapeHtml(state.dateFormatted) + '</p>';
     }
-    html += '<h1 class="gallery-intro-title' + introTextSlotClass('title', placements) + '">' + escapeHtml(state.name) + '</h1>';
+    html += '<h1 class="gallery-intro-title intro-text-free intro-text-free--title' + introTextAlignClass('title', layout)
+      + '" data-intro-role="title"' + introTextStyleAttr('title', layout) + '>'
+      + escapeHtml(state.name) + '<span class="intro-text-resize-handle" data-resize-title="1" aria-hidden="true"></span></h1>';
     html += '</div>';
     return html;
   }
@@ -331,29 +391,99 @@
     return '<div class="gallery-intro-stage">' + mediaHtml + introTextLayerHtml(state) + '</div>';
   }
 
+  function setupIntroTextDragInIframe(iframe, getLayout, onLayoutChange) {
+    if (!iframe || !iframe.contentDocument) return;
+    var doc = iframe.contentDocument;
+    var layer = doc.querySelector('.gallery-intro-text-layer.is-editable');
+    if (!layer) return;
+
+    layer.querySelectorAll('.intro-text-free').forEach(function (el) {
+      if (el.dataset.dragBound === '1') return;
+      el.dataset.dragBound = '1';
+      var role = el.getAttribute('data-intro-role');
+      if (!role) return;
+
+      el.addEventListener('pointerdown', function (evt) {
+        if (evt.target && evt.target.getAttribute('data-resize-title') === '1') return;
+        evt.preventDefault();
+        var rect = layer.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        el.classList.add('is-dragging');
+        var startX = evt.clientX;
+        var startY = evt.clientY;
+        var layout = getLayout();
+        var item = layout[role] || { x: 50, y: 50, align: 'center' };
+        var originX = item.x;
+        var originY = item.y;
+
+        function move(ev) {
+          var nx = originX + ((ev.clientX - startX) / rect.width) * 100;
+          var ny = originY + ((ev.clientY - startY) / rect.height) * 100;
+          nx = clampPercent(nx);
+          ny = clampPercent(ny);
+          el.style.left = nx + '%';
+          el.style.top = ny + '%';
+        }
+
+        function up(ev) {
+          el.classList.remove('is-dragging');
+          doc.removeEventListener('pointermove', move);
+          doc.removeEventListener('pointerup', up);
+          doc.removeEventListener('pointercancel', up);
+          var nx = originX + ((ev.clientX - startX) / rect.width) * 100;
+          var ny = originY + ((ev.clientY - startY) / rect.height) * 100;
+          layout[role].x = clampPercent(nx);
+          layout[role].y = clampPercent(ny);
+          onLayoutChange(layout);
+        }
+
+        doc.addEventListener('pointermove', move);
+        doc.addEventListener('pointerup', up);
+        doc.addEventListener('pointercancel', up);
+      });
+    });
+
+    var titleEl = layer.querySelector('.intro-text-free--title');
+    var handle = titleEl ? titleEl.querySelector('.intro-text-resize-handle') : null;
+    if (handle && handle.dataset.resizeBound !== '1') {
+      handle.dataset.resizeBound = '1';
+      handle.addEventListener('pointerdown', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (!titleEl) return;
+        titleEl.classList.add('is-resizing');
+        var rect = layer.getBoundingClientRect();
+        var layout = getLayout();
+        var startX = evt.clientX;
+        var startW = layout.title.width || 72;
+
+        function move(ev) {
+          var delta = ((ev.clientX - startX) / rect.width) * 100;
+          var nw = clampPercent(startW + delta, 20, 100);
+          titleEl.style.setProperty('--intro-title-box-width', nw + '%');
+        }
+
+        function up(ev) {
+          titleEl.classList.remove('is-resizing');
+          doc.removeEventListener('pointermove', move);
+          doc.removeEventListener('pointerup', up);
+          doc.removeEventListener('pointercancel', up);
+          var delta = ((ev.clientX - startX) / rect.width) * 100;
+          layout.title.width = clampPercent(startW + delta, 20, 100);
+          onLayoutChange(layout);
+        }
+
+        doc.addEventListener('pointermove', move);
+        doc.addEventListener('pointerup', up);
+        doc.addEventListener('pointercancel', up);
+      });
+    }
+  }
+
   function triggerDesignAutoSave() {
     if (typeof window.efpicRunAdminAutoSave === 'function') {
       window.efpicRunAdminAutoSave();
     }
-  }
-
-  function syncPlacementSelects(coverStyle, layout) {
-    var resolved = readIntroTextPlacements({}, coverStyle, layout);
-    INTRO_TEXT_ROLES.forEach(function (role) {
-      var sel = document.getElementById('intro_text_placement_' + role);
-      if (!sel) return;
-      if (sel.value !== resolved[role]) {
-        sel.value = resolved[role];
-      }
-      var taken = {};
-      INTRO_TEXT_ROLES.forEach(function (other) {
-        if (other !== role) taken[resolved[other]] = true;
-      });
-      Array.prototype.forEach.call(sel.options, function (opt) {
-        opt.disabled = !!taken[opt.value];
-      });
-    });
-    return resolved;
   }
 
   function collectState(root, base) {
@@ -381,11 +511,11 @@
     var coverAnimSel = document.getElementById('cover_animation');
     var coverMediaType = readCoverMediaType();
     var coverVideoSel = document.getElementById('cover_video_id');
-    var introTextPlacements = readIntroTextPlacements(base, coverStyle, layout);
+    var introTextLayout = readIntroTextLayout(base, coverStyle, layout);
 
     return {
       coverStyle: coverStyle,
-      introTextPlacements: introTextPlacements,
+      introTextLayout: introTextLayout,
       layout: layout,
       name: nameInput ? nameInput.value : (base.name || 'Galerija'),
       dateRaw: dateRaw,
@@ -534,7 +664,7 @@
     restorePreviewFocus();
   }
 
-  function refreshAllPreviews(root, state, fontMap, groupMap, assets) {
+  function refreshAllPreviews(root, state, fontMap, groupMap, assets, layoutHandlers) {
     if (!root) return;
     withPreservedFocus(function () {
       var html = renderCoverHtml(state, fontMap, groupMap);
@@ -545,6 +675,9 @@
           var deviceEl = iframe.closest('.admin-cover-live-device');
           if (deviceEl) {
             updateDeviceScale(deviceEl);
+          }
+          if (layoutHandlers) {
+            setupIntroTextDragInIframe(iframe, layoutHandlers.getLayout, layoutHandlers.onChange);
           }
           restorePreviewFocus();
         };
@@ -664,16 +797,26 @@
       cropImg.style.objectPosition = fx.value + '% ' + fy.value + '%';
     }
 
+    var layoutHandlers = {
+      getLayout: function () {
+        return readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
+      },
+      onChange: function (layout) {
+        writeIntroTextLayout(layout);
+        triggerDesignAutoSave();
+      },
+    };
+
     function refreshPreview() {
       withPreservedFocus(function () {
         var state = collectState(root, base);
         var url = getCoverUrl(cropImg, base);
         state.coverUrl = url;
-        state.introTextPlacements = syncPlacementSelects(state.coverStyle, state.layout);
+        writeIntroTextLayout(state.introTextLayout);
         if (cropImg && url && cropImg.getAttribute('src') !== url) {
           cropImg.setAttribute('src', url);
         }
-        refreshAllPreviews(root, state, fontMap, groupMap, assets);
+        refreshAllPreviews(root, state, fontMap, groupMap, assets, layoutHandlers);
         syncFontSelectPreview(fontSel, fontMap);
         syncThemePanels();
         updateCropAspect();
@@ -711,16 +854,24 @@
         el.addEventListener('input', refreshPreview);
       });
     });
-    INTRO_TEXT_ROLES.forEach(function (role) {
-      var sel = document.getElementById('intro_text_placement_' + role);
-      if (!sel) return;
-      sel.addEventListener('change', function () {
-        var coverStyle = coverStyleSel ? coverStyleSel.value : 'standard';
-        syncPlacementSelects(coverStyle, getSelectedLayout());
+    var titleWidthInput = document.getElementById('intro_title_layout_width');
+    if (titleWidthInput) {
+      titleWidthInput.addEventListener('input', function () {
+        var layout = readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
+        layout.title.width = clampPercent(titleWidthInput.value, 20, 100);
+        writeIntroTextLayout(layout);
         refreshPreview();
+      });
+      titleWidthInput.addEventListener('change', function () {
         triggerDesignAutoSave();
       });
-    });
+    }
+
+    if (base.introTextLayout) {
+      writeIntroTextLayout(base.introTextLayout);
+    } else if (base.introTextPlacements) {
+      writeIntroTextLayout(readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout()));
+    }
 
     var mosaicSel = document.getElementById('mosaic_max_columns');
     if (mosaicSel && base.mosaicMaxColumns != null) {
@@ -755,13 +906,10 @@
     function applyDesignSettings(s) {
       if (!s) return;
       if (coverStyleSel && s.cover_style) coverStyleSel.value = s.cover_style;
-      if (s.intro_text_placements) {
-        INTRO_TEXT_ROLES.forEach(function (role) {
-          var el = document.getElementById('intro_text_placement_' + role);
-          if (el && s.intro_text_placements[role]) {
-            el.value = s.intro_text_placements[role];
-          }
-        });
+      if (s.intro_text_layout) {
+        writeIntroTextLayout(s.intro_text_layout);
+      } else if (s.intro_text_placements) {
+        writeIntroTextLayout(readIntroTextLayout({ introTextPlacements: s.intro_text_placements }, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout()));
       }
       var mosaicSel = document.getElementById('mosaic_max_columns');
       if (mosaicSel && s.mosaic_max_columns != null) mosaicSel.value = String(s.mosaic_max_columns);
@@ -853,7 +1001,6 @@
     syncThemePanels();
     updateCropAspect();
     applyFocal();
-    syncPlacementSelects(coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
     refreshPreview();
     window.addEventListener('resize', function () {
       updateAllDeviceScales(root);
