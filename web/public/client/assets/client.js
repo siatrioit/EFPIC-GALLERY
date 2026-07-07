@@ -863,6 +863,38 @@
   var mosaicRelayoutRaf = 0;
   var mosaicRelayoutAgain = false;
 
+  function resolveIntroTextOverlaps() {
+    var hero = document.getElementById('galleryHero');
+    if (!hero) return;
+    var layer = hero.querySelector('.gallery-intro-text-layer');
+    if (!layer) return;
+    var byline = layer.querySelector('[data-intro-role="byline"]');
+    var date = layer.querySelector('[data-intro-role="date"]');
+    if (!byline || !date) return;
+
+    byline.style.removeProperty('--intro-shift-y');
+    date.style.removeProperty('--intro-shift-y');
+
+    // Only care on narrow screens where overlap is likely.
+    var vw = Math.max(1, window.innerWidth || document.documentElement.clientWidth || 1);
+    if (vw >= 820) return;
+
+    var b = byline.getBoundingClientRect();
+    var d = date.getBoundingClientRect();
+
+    // If they don't overlap horizontally, we're good.
+    var xOverlap = Math.max(0, Math.min(b.right, d.right) - Math.max(b.left, d.left));
+    var yOverlap = Math.max(0, Math.min(b.bottom, d.bottom) - Math.max(b.top, d.top));
+    if (xOverlap <= 0 || yOverlap <= 0) return;
+
+    // Move the text that is closer to the nearest screen edge down.
+    var bEdge = Math.min(b.left, vw - b.right);
+    var dEdge = Math.min(d.left, vw - d.right);
+    var moveEl = bEdge <= dEdge ? byline : date;
+    var shift = Math.ceil(yOverlap + 10);
+    moveEl.style.setProperty('--intro-shift-y', shift + 'px');
+  }
+
   function scheduleMosaicRelayout() {
     if (!mosaicContainers.length) {
       return;
@@ -992,6 +1024,7 @@
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(function () {
       scheduleMosaicRelayout();
+      resolveIntroTextOverlaps();
     }, 150);
   });
 
@@ -1015,7 +1048,10 @@
     setTimeout(scrollToThumb, 1200);
   }
 
-  initMosaicGalleries(restoreGalleryFocus);
+  initMosaicGalleries(function () {
+    restoreGalleryFocus();
+    resolveIntroTextOverlaps();
+  });
 
   document.querySelectorAll('.pic-feed-item[data-token]').forEach(function (item) {
     var link = item.querySelector('.pic-feed-link');

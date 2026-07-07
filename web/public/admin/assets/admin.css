@@ -3738,7 +3738,8 @@
   display: block;
   border: 0;
   transform-origin: top left;
-  pointer-events: none;
+  /* Allow interacting with preview (drag intro text). */
+  pointer-events: auto;
   background: transparent;
 }
 

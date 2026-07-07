@@ -431,6 +431,14 @@ function efpic_render_intro_text_placement_controls(array $formMeta): string
         . 'Paraksts un datums vienmēr paliek vienā rindā.</p>';
     $html .= '<input type="hidden" name="intro_text_layout" id="intro_text_layout" value="'
         . efpic_cover_theme_esc($layoutJson !== false ? $layoutJson : '{}') . '">';
+    $html .= '<input type="hidden" id="intro_text_selected_role" value="title">';
+    $html .= '<div class="admin-intro-text-align" id="admin-intro-text-align">';
+    $html .= '<p class="muted">Izvēlies tekstu priekšskatījumā, tad vari ātri pielikt pa kreisi / centrā / pa labi (augstums nemainās).</p>';
+    $html .= '<div class="admin-intro-text-align__btns" role="group" aria-label="Teksta līdzinājums">';
+    $html .= '<button type="button" class="btn" data-intro-align="left">Pa kreisi</button>';
+    $html .= '<button type="button" class="btn" data-intro-align="center">Centrēts</button>';
+    $html .= '<button type="button" class="btn" data-intro-align="right">Pa labi</button>';
+    $html .= '</div></div>';
     $html .= '<label class="admin-intro-text-width">Galerijas nosaukuma platums'
         . '<span class="admin-intro-text-width__control">'
         . '<input type="range" name="intro_title_layout_width" id="intro_title_layout_width" min="20" max="100" step="1" value="'

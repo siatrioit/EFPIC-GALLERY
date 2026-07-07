@@ -1116,17 +1116,17 @@ input[type="password"],
 }
 
 .intro-text-free.intro-text-align-left {
-  transform: translate(0, -50%);
+  transform: translate(0, calc(-50% + var(--intro-shift-y, 0px)));
   text-align: left;
 }
 
 .intro-text-free.intro-text-align-center {
-  transform: translate(-50%, -50%);
+  transform: translate(-50%, calc(-50% + var(--intro-shift-y, 0px)));
   text-align: center;
 }
 
 .intro-text-free.intro-text-align-right {
-  transform: translate(-100%, -50%);
+  transform: translate(-100%, calc(-50% + var(--intro-shift-y, 0px)));
   text-align: right;
 }
 

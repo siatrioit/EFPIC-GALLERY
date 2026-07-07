@@ -232,6 +232,7 @@
       + '<link rel="stylesheet" href="' + escapeHtml(assets.clientCss) + '">'
       + '<style>html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#111;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free{cursor:grab;touch-action:none;}'
+      + '.gallery-intro-text-layer.is-editable .intro-text-free.is-selected{outline:2px solid rgba(255,255,255,.55);outline-offset:4px;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free.is-dragging{cursor:grabbing;outline:2px dashed rgba(255,255,255,.55);outline-offset:4px;}'
       + '.gallery-intro-text-layer.is-editable .intro-text-free--title.is-resizing{cursor:ew-resize;}'
       + '.intro-text-resize-handle{position:absolute;top:50%;right:-10px;width:10px;height:28px;margin-top:-14px;border-radius:3px;background:rgba(255,255,255,.45);cursor:ew-resize;display:none;}'
@@ -406,13 +407,17 @@
       el.addEventListener('pointerdown', function (evt) {
         if (evt.target && evt.target.getAttribute('data-resize-title') === '1') return;
         evt.preventDefault();
+        if (typeof window.efpicIntroTextSelectRole === 'function') {
+          window.efpicIntroTextSelectRole(role);
+        }
         var rect = layer.getBoundingClientRect();
         if (!rect.width || !rect.height) return;
         el.classList.add('is-dragging');
         var startX = evt.clientX;
         var startY = evt.clientY;
         var layout = getLayout();
-        var item = layout[role] || { x: 50, y: 50, align: 'center' };
+        if (!layout[role]) layout[role] = { x: 50, y: 50, align: 'center' };
+        var item = layout[role];
         var originX = item.x;
         var originY = item.y;
 
@@ -432,6 +437,7 @@
           doc.removeEventListener('pointercancel', up);
           var nx = originX + ((ev.clientX - startX) / rect.width) * 100;
           var ny = originY + ((ev.clientY - startY) / rect.height) * 100;
+          if (!layout[role]) layout[role] = { x: 50, y: 50, align: 'center' };
           layout[role].x = clampPercent(nx);
           layout[role].y = clampPercent(ny);
           onLayoutChange(layout);
@@ -714,6 +720,59 @@
     var fontSel = document.getElementById('mood_font_family');
     var layoutInputs = root.querySelectorAll('input[name="cover_layout"]');
     var previewRefreshTimer = 0;
+    var selectedRoleInput = document.getElementById('intro_text_selected_role');
+    var alignPanel = document.getElementById('admin-intro-text-align');
+    var selectedRole = (selectedRoleInput && selectedRoleInput.value) ? selectedRoleInput.value : 'title';
+    var introLayoutDirty = false;
+
+    function setSelectedRole(role) {
+      if (!role) return;
+      selectedRole = role;
+      if (selectedRoleInput) selectedRoleInput.value = role;
+
+      // Highlight selected element in all preview iframes.
+      root.querySelectorAll('.admin-cover-live-device__iframe').forEach(function (iframe) {
+        try {
+          var doc = iframe.contentDocument;
+          if (!doc) return;
+          var layer = doc.querySelector('.gallery-intro-text-layer');
+          if (!layer) return;
+          layer.querySelectorAll('[data-intro-role]').forEach(function (el) {
+            if (el.getAttribute('data-intro-role') === role) {
+              el.classList.add('is-selected');
+            } else {
+              el.classList.remove('is-selected');
+            }
+          });
+        } catch (e) {}
+      });
+    }
+
+    // Expose for iframe pointer handlers.
+    window.efpicIntroTextSelectRole = setSelectedRole;
+
+    function applyAlignPreset(preset) {
+      var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+      var layoutKey = getSelectedLayout();
+      var layout = readIntroTextLayout(base, coverStyle, layoutKey);
+      var role = selectedRole || 'title';
+      if (!layout[role]) layout[role] = { x: 50, y: 50, align: 'center' };
+      if (preset === 'left') {
+        layout[role].x = 6;
+        layout[role].align = 'left';
+      } else if (preset === 'center') {
+        layout[role].x = 50;
+        layout[role].align = 'center';
+      } else if (preset === 'right') {
+        layout[role].x = 94;
+        layout[role].align = 'right';
+      }
+      writeIntroTextLayout(layout);
+      introLayoutDirty = true;
+      triggerDesignAutoSave();
+      refreshPreview();
+      setSelectedRole(role);
+    }
 
     function schedulePreviewRefresh() {
       if (previewRefreshTimer) {
@@ -803,6 +862,7 @@
       },
       onChange: function (layout) {
         writeIntroTextLayout(layout);
+        introLayoutDirty = true;
         triggerDesignAutoSave();
       },
     };
@@ -843,6 +903,13 @@
     layoutInputs.forEach(function (input) {
       input.addEventListener('change', function () {
         updateCropAspect();
+        // When user changes cover layout, start from sensible defaults (once),
+        // then allow manual dragging afterwards.
+        if (!introLayoutDirty) {
+          var coverStyle = coverStyleSel ? coverStyleSel.value : (base.coverStyle || 'standard');
+          var nextLayout = getSelectedLayout();
+          writeIntroTextLayout(defaultIntroTextLayout(coverStyle, nextLayout));
+        }
         refreshPreview();
       });
     });
@@ -860,10 +927,20 @@
         var layout = readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout());
         layout.title.width = clampPercent(titleWidthInput.value, 20, 100);
         writeIntroTextLayout(layout);
+        introLayoutDirty = true;
         refreshPreview();
       });
       titleWidthInput.addEventListener('change', function () {
         triggerDesignAutoSave();
+      });
+    }
+
+    if (alignPanel) {
+      alignPanel.querySelectorAll('[data-intro-align]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          var preset = btn.getAttribute('data-intro-align');
+          applyAlignPreset(preset);
+        });
       });
     }
 
@@ -872,6 +949,8 @@
     } else if (base.introTextPlacements) {
       writeIntroTextLayout(readIntroTextLayout(base, coverStyleSel ? coverStyleSel.value : 'standard', getSelectedLayout()));
     }
+
+    setSelectedRole(selectedRole);
 
     var mosaicSel = document.getElementById('mosaic_max_columns');
     if (mosaicSel && base.mosaicMaxColumns != null) {
