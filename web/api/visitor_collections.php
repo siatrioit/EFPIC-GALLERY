@@ -1034,7 +1034,7 @@ function efpic_visitor_zip_download_url(array $config, string $galleryToken, str
 
 function efpic_visitor_zip_size_label(string $size): string
 {
-    return strtolower($size) === 'full' ? 'PRINT' : 'WEB';
+    return efpic_gallery_download_size_label($size);
 }
 
 function efpic_visitor_zip_ready_intro(int $collectionCount, string $size): string

@@ -295,7 +295,16 @@ function efpic_email_multipart_body(string $plainBody, string $htmlBody, array $
 
 function efpic_email_zip_size_label(string $size): string
 {
-    return strtolower($size) === 'full' ? 'PRINT' : 'WEB';
+    return efpic_gallery_download_size_label($size);
+}
+
+function efpic_gallery_format_notify_message(string $message): string
+{
+    return (string) preg_replace_callback(
+        '/\((web|full|both)\)/i',
+        static fn (array $m): string => '(' . efpic_gallery_download_size_label($m[1]) . ')',
+        $message,
+    );
 }
 
 function efpic_email_zip_ready_intro(int $collectionCount, string $size): string
@@ -1042,7 +1051,7 @@ function efpic_gallery_on_activity(
     }
 
     $text = $icon . ' <b>' . htmlspecialchars($galleryTitle, ENT_QUOTES | ENT_HTML5, 'UTF-8') . '</b>' . "\n"
-        . htmlspecialchars($message, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        . htmlspecialchars(efpic_gallery_format_notify_message($message), ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     $imageLabels = efpic_gallery_resolve_activity_image_labels($meta, $extra);
     if ($imageLabels !== []) {

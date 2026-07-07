@@ -803,7 +803,7 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
             $slug,
             $meta,
             'download_zip',
-            'Klienta panelis: visas bildes (' . $size . ')',
+            'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
             'client',
         );
         efpic_client_zip_prepare_response($config, $foundZip, $meta, $ctx, $size, 'portal', $galleryToken, 'portal');
@@ -831,7 +831,7 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
                 $slug,
                 $meta,
                 'download_zip',
-                'Klienta panelis: visas bildes (' . $size . ')',
+                'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
                 'client',
             );
             header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
@@ -845,7 +845,7 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
             $slug,
             $meta,
             'download_zip',
-            'Klienta panelis: visas bildes (' . $size . ')',
+            'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
             'client',
         );
         exit;
@@ -856,7 +856,7 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
         $slug,
         $meta,
         'download_zip',
-        'Klienta panelis: visas bildes (' . $size . ')',
+        'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
         'client',
     );
     efpic_client_build_delivery_zip($config, $foundZip, $meta, $images, $size, $filename);

@@ -1864,15 +1864,15 @@ function efpic_handle_client_image_download(array $config, string $imageToken): 
     }
 
     $img = $found['image'] ?? [];
-    $imageLabel = is_array($img) ? efpic_gallery_image_label($img) : 'bilde';
+    $imageLabel = is_array($img) ? efpic_gallery_image_label_for_size($img, $size) : 'bilde';
     $imageToken = is_array($img) ? (string) ($img['token'] ?? '') : '';
     efpic_gallery_log_download(
         $config,
         $found['slug'],
         $meta,
         'download_image',
-        'Lejupielāde (' . $size . ')',
-        ['image_token' => $imageToken, 'image_label' => $imageLabel],
+        'Lejupielāde (' . efpic_gallery_download_size_label($size) . ')',
+        ['image_token' => $imageToken, 'image_label' => $imageLabel, 'size' => $size],
     );
 
     $hash = efpic_delivery_file_hash(is_array($img) ? $img : [], $size);
@@ -2271,7 +2271,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
     $filename = efpic_client_zip_filename($found['slug'], $size, 'all');
 
     if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
-        efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . $size . ')');
+        efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . efpic_gallery_download_size_label($size) . ')');
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'all', $galleryToken);
     }
 
@@ -2292,7 +2292,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
     if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
         if ($folderHash !== '') {
-            efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . $size . ')');
+            efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . efpic_gallery_download_size_label($size) . ')');
             header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
             exit;
         }
@@ -2453,7 +2453,7 @@ function efpic_handle_client_subset_zip(
     if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
         $zipType = $stashScope === 'collection' ? 'download_collection' : 'download_zip';
         $zipLabel = $stashScope === 'collection' ? 'Izlase' : $scope;
-        efpic_gallery_log_download($config, $found['slug'], $meta, $zipType, $zipLabel . ' (' . $size . ')');
+        efpic_gallery_log_download($config, $found['slug'], $meta, $zipType, $zipLabel . ' (' . efpic_gallery_download_size_label($size) . ')');
         efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, $scope, $galleryToken);
     }
 

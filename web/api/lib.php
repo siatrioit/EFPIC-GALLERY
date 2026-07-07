@@ -229,7 +229,31 @@ function efpic_gallery_whatsapp_template_defaults(): array
 /** Cilvēkam lasāms bildes nosaukums (faila vārds). */
 function efpic_gallery_image_label(array $img): string
 {
-    $name = (string) ($img['basename'] ?? '');
+    return efpic_gallery_image_label_for_size($img, '');
+}
+
+function efpic_gallery_download_size_label(string $size): string
+{
+    return match (strtolower(trim($size))) {
+        'full' => 'PRINT',
+        'both' => 'WEB+PRINT',
+        default => 'WEB',
+    };
+}
+
+/** Cilvēkam lasāms bildes nosaukums konkrētam lejupielādes izmēram. */
+function efpic_gallery_image_label_for_size(array $img, string $size = ''): string
+{
+    $size = strtolower(trim($size));
+    $name = '';
+    if ($size === 'web' && is_array($img['failiem_web'] ?? null)) {
+        $name = (string) ($img['failiem_web']['name'] ?? '');
+    } elseif (($size === 'full' || $size === '') && is_array($img['failiem_full'] ?? null)) {
+        $name = (string) ($img['failiem_full']['name'] ?? '');
+    }
+    if ($name === '') {
+        $name = (string) ($img['basename'] ?? '');
+    }
     if ($name === '' && is_array($img['failiem_full'] ?? null)) {
         $name = (string) ($img['failiem_full']['name'] ?? '');
     }
@@ -294,15 +318,18 @@ function efpic_gallery_resolve_activity_image_labels(array $meta, array $extra):
     }
 
     $labels = [];
-    $single = trim((string) ($extra['image_label'] ?? ''));
-    if ($single !== '') {
-        $labels[] = $single;
-    }
-
+    $size = strtolower(trim((string) ($extra['size'] ?? '')));
     $byToken = efpic_gallery_images_by_token($meta);
     $token = trim((string) ($extra['image_token'] ?? ''));
     if ($token !== '' && isset($byToken[$token])) {
-        $labels[] = efpic_gallery_image_label($byToken[$token]);
+        $labels[] = $size !== ''
+            ? efpic_gallery_image_label_for_size($byToken[$token], $size)
+            : efpic_gallery_image_label($byToken[$token]);
+    } else {
+        $single = trim((string) ($extra['image_label'] ?? ''));
+        if ($single !== '') {
+            $labels[] = $single;
+        }
     }
 
     $tokens = $extra['image_tokens'] ?? [];
@@ -310,7 +337,9 @@ function efpic_gallery_resolve_activity_image_labels(array $meta, array $extra):
         foreach ($tokens as $tok) {
             $tok = trim((string) $tok);
             if ($tok !== '' && isset($byToken[$tok])) {
-                $labels[] = efpic_gallery_image_label($byToken[$tok]);
+                $labels[] = $size !== ''
+                    ? efpic_gallery_image_label_for_size($byToken[$tok], $size)
+                    : efpic_gallery_image_label($byToken[$tok]);
             }
         }
     }

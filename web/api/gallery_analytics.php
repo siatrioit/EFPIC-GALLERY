@@ -407,10 +407,13 @@ function efpic_analytics_download_counter_keys(string $type, string $detail): ar
     if (stripos($detail, 'Visa galerija') === false) {
         return [];
     }
-    if (preg_match('/\((web|full|both)\)/i', $detail, $m) !== 1) {
+    if (preg_match('/\((web|full|both|print)\)/i', $detail, $m) !== 1) {
         return [];
     }
     $size = strtolower($m[1]);
+    if ($size === 'print') {
+        $size = 'full';
+    }
     if ($size === 'web') {
         return ['gallery_dl_web'];
     }
