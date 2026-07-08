@@ -1852,6 +1852,23 @@
     }
   }
 
+  var analyticsDeleteForm = document.getElementById('admin-analytics-delete-form');
+  if (analyticsDeleteForm) {
+    analyticsDeleteForm.addEventListener('submit', function (evt) {
+      var submitter = evt.submitter;
+      if (!submitter || submitter.getAttribute('data-confirm-delete') !== '1') {
+        return;
+      }
+      var typed = window.prompt('Lai apstiprinātu, ievadiet DELETE:');
+      if (typed !== 'DELETE') {
+        evt.preventDefault();
+        return;
+      }
+      var hidden = document.getElementById('analytics_confirm_delete');
+      if (hidden) hidden.value = 'DELETE';
+    });
+  }
+
   var list = document.getElementById('sortable');
   var input = document.getElementById('image_order');
   var orderDirty = document.getElementById('image_order_dirty');

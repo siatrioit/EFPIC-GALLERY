@@ -4164,6 +4164,28 @@
   color: var(--admin-muted);
 }
 
+.admin-analytics-gallery-date {
+  color: var(--admin-muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-analytics-danger {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-analytics-delete-btn {
+  color: #b42318;
+  border-color: #fecdca;
+}
+
+.admin-analytics-delete-btn:hover {
+  background: #fef3f2;
+  border-color: #fda29b;
+}
+
 .admin-analytics-gallery-tab {
   display: flex;
   flex-direction: column;

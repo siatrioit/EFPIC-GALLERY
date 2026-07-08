@@ -4,6 +4,68 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/gallery_analytics.php';
 
+/** @param array<string, mixed> $gallery */
+function efpic_admin_analytics_gallery_name_cell(array $gallery): string
+{
+    $name = (string) ($gallery['name'] ?? '—');
+    $slug = (string) ($gallery['slug'] ?? '');
+    $deleted = !empty($gallery['deleted_at']);
+    $date = substr((string) ($gallery['event_date'] ?? ''), 0, 10);
+    $datePrefix = $date !== ''
+        ? '<span class="admin-analytics-gallery-date">' . efpic_admin_esc($date) . '</span> '
+        : '';
+    $nameCell = $deleted || $slug === ''
+        ? $datePrefix . '<span class="muted">' . efpic_admin_esc($name) . '</span>'
+        : $datePrefix . '<a href="delivery_edit.php?slug=' . rawurlencode($slug) . '">' . efpic_admin_esc($name) . '</a>';
+    if ($deleted) {
+        $nameCell .= ' <span class="admin-analytics-deleted">(dzēsta)</span>';
+    }
+
+    return $nameCell;
+}
+
+function efpic_admin_handle_analytics_actions(array $config): void
+{
+    if ($_SERVER['REQUEST_METHOD'] !== 'POST' || empty($_POST['analytics_action'])) {
+        return;
+    }
+    $action = (string) $_POST['analytics_action'];
+    if ($action !== 'delete_stats') {
+        return;
+    }
+    efpic_admin_require_delete_confirm();
+    $galleryToken = trim((string) ($_POST['gallery_token'] ?? ''));
+    if ($galleryToken === '') {
+        throw new InvalidArgumentException('Nav norādīta galerija.');
+    }
+    if (!efpic_analytics_delete_gallery($config, $galleryToken)) {
+        throw new InvalidArgumentException('Analītikas dati nav atrasti.');
+    }
+    header('Location: analytics.php?stats_deleted=1');
+    exit;
+}
+
+/** @param array<string, mixed> $record */
+function efpic_admin_render_analytics_delete_section(string $galleryToken, array $record): string
+{
+    $galleryName = (string) ($record['name'] ?? 'galerija');
+    $date = substr((string) ($record['event_date'] ?? ''), 0, 10);
+    $label = ($date !== '' ? $date . ' ' : '') . $galleryName;
+
+    $html = '<section class="admin-analytics-section admin-analytics-danger">';
+    $html .= '<h2 class="admin-analytics-section__title">Dzēst statistiku</h2>';
+    $html .= '<p class="muted">Neatgriezeniski izdzēš <strong>' . efpic_admin_esc($label)
+        . '</strong> apmeklējumu statistiku. Pati galerija netiek dzēsta.</p>';
+    $html .= '<form method="post" class="admin-analytics-delete-form" id="admin-analytics-delete-form">';
+    $html .= '<input type="hidden" name="analytics_action" value="delete_stats">';
+    $html .= '<input type="hidden" name="gallery_token" value="' . efpic_admin_esc($galleryToken) . '">';
+    $html .= '<input type="hidden" name="confirm_delete" id="analytics_confirm_delete" value="">';
+    $html .= '<button type="submit" class="btn admin-analytics-delete-btn" data-confirm-delete="1">Dzēst statistiku</button>';
+    $html .= '</form></section>';
+
+    return $html;
+}
+
 function efpic_admin_analytics_stat_card(string $value, string $label, string $modifier = ''): string
 {
     $cls = 'admin-analytics-stat' . ($modifier !== '' ? ' admin-analytics-stat--' . $modifier : '');
@@ -131,7 +193,7 @@ function efpic_admin_render_analytics_dashboard(
             if ((int) ($gallery['online'] ?? 0) <= 0) {
                 continue;
             }
-            $onlineRows .= '<tr><td>' . efpic_admin_esc((string) ($gallery['name'] ?? '')) . '</td>';
+            $onlineRows .= '<tr><td>' . efpic_admin_analytics_gallery_name_cell($gallery) . '</td>';
             $onlineRows .= '<td>' . (int) ($gallery['online'] ?? 0) . '</td></tr>';
         }
         if ($onlineRows === '') {
@@ -147,18 +209,9 @@ function efpic_admin_render_analytics_dashboard(
             . count(is_array($summary['galleries'] ?? null) ? $summary['galleries'] : []) . ' galerijas)</span></h2>';
         $rows = '';
         foreach (is_array($summary['galleries'] ?? null) ? $summary['galleries'] : [] as $gallery) {
-            $name = (string) ($gallery['name'] ?? '—');
-            $slug = (string) ($gallery['slug'] ?? '');
             $token = (string) ($gallery['gallery_token'] ?? '');
-            $deleted = !empty($gallery['deleted_at']);
-            $nameCell = $deleted || $slug === ''
-                ? '<span class="muted">' . efpic_admin_esc($name) . '</span>'
-                : '<a href="delivery_edit.php?slug=' . rawurlencode($slug) . '">' . efpic_admin_esc($name) . '</a>';
-            if ($deleted) {
-                $nameCell .= ' <span class="admin-analytics-deleted">(dzēsta)</span>';
-            }
             $rows .= '<tr>';
-            $rows .= '<td>' . $nameCell . '</td>';
+            $rows .= '<td>' . efpic_admin_analytics_gallery_name_cell($gallery) . '</td>';
             $rows .= '<td>' . (int) ($gallery['online'] ?? 0) . '</td>';
             $rows .= '<td>' . (int) ($gallery['today'] ?? 0) . '</td>';
             $rows .= '<td>' . (int) ($gallery['unique_visitors'] ?? 0) . '</td>';
@@ -195,6 +248,7 @@ function efpic_admin_analytics_resolve_gallery_record(array $config, string $gal
     }
     $record = efpic_analytics_load_gallery($config, $galleryToken);
     if ($record !== null) {
+        efpic_analytics_enrich_record($config, $record);
         return [$record, (string) ($record['name'] ?? '')];
     }
     foreach (efpic_list_gallery_slugs($config) as $slug) {
@@ -230,14 +284,20 @@ function efpic_admin_analytics_page(array $config): void
         }
         $summary = efpic_analytics_aggregate([$record], $fromDate, $toDate);
         $body = '<section class="admin-analytics-page">';
+        if (isset($_GET['error']) && trim((string) $_GET['error']) !== '') {
+            $body .= '<p class="err">' . efpic_admin_esc((string) $_GET['error']) . '</p>';
+        }
         $body .= '<p class="muted"><a href="analytics.php">← Kopējā analītika</a></p>';
         $body .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, false, $galleryToken);
+        $body .= efpic_admin_render_analytics_delete_section($galleryToken, $record);
         $body .= '</section>';
+        $eventDate = substr((string) ($record['event_date'] ?? ''), 0, 10);
+        $displayName = $eventDate !== '' ? $eventDate . ' ' . $galleryName : $galleryName;
         efpic_admin_layout(
-            'Analītika — ' . $galleryName,
+            'Analītika — ' . $displayName,
             $body,
             'analytics',
-            $galleryName,
+            $displayName,
             'Galerijas apmeklējumu statistika. Dati saglabājas arī pēc dzēšanas.',
             $config,
         );
@@ -249,6 +309,12 @@ function efpic_admin_analytics_page(array $config): void
     $summary = efpic_analytics_aggregate($records, $fromDate, $toDate);
 
     $body = '<section class="admin-analytics-page">';
+    if (!empty($_GET['stats_deleted'])) {
+        $body .= '<p class="admin-flash">Galerijas statistika izdzēsta.</p>';
+    }
+    if (isset($_GET['error']) && trim((string) $_GET['error']) !== '') {
+        $body .= '<p class="err">' . efpic_admin_esc((string) $_GET['error']) . '</p>';
+    }
     $body .= efpic_admin_render_analytics_dashboard($config, $summary, $fromDate, $toDate, true, '');
     $body .= '</section>';
 

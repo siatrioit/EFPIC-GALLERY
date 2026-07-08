@@ -1276,6 +1276,7 @@ function efpic_soft_delete_gallery(array $config, string $slug): void
         (string) ($meta['gallery_token'] ?? ''),
         $slug,
         (string) ($meta['name'] ?? $slug),
+        $meta,
     );
 }
 

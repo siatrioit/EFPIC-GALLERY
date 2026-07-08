@@ -270,10 +270,52 @@ function efpic_analytics_sync_gallery_meta(array &$record, array $meta, string $
     $record['gallery_token'] = (string) ($meta['gallery_token'] ?? $record['gallery_token'] ?? '');
     $record['slug'] = $slug;
     $record['name'] = (string) ($meta['name'] ?? $record['name'] ?? $slug);
+    $eventDate = substr((string) ($meta['event_date'] ?? ''), 0, 10);
+    if ($eventDate !== '') {
+        $record['event_date'] = $eventDate;
+    }
     if (!efpic_gallery_is_active($meta)) {
         $record['deleted_at'] = (string) ($meta['deleted_at'] ?? $record['deleted_at'] ?? gmdate('c'));
     } else {
         $record['deleted_at'] = null;
+    }
+}
+
+/** @param array<string, mixed> $record */
+function efpic_analytics_enrich_record(array $config, array &$record): void
+{
+    $eventDate = substr((string) ($record['event_date'] ?? ''), 0, 10);
+    if ($eventDate !== '') {
+        return;
+    }
+    $slug = (string) ($record['slug'] ?? '');
+    if ($slug !== '') {
+        $meta = efpic_load_gallery_meta($config, $slug);
+        if ($meta !== null) {
+            $eventDate = substr((string) ($meta['event_date'] ?? ''), 0, 10);
+            if ($eventDate !== '') {
+                $record['event_date'] = $eventDate;
+            }
+        }
+
+        return;
+    }
+    $token = (string) ($record['gallery_token'] ?? '');
+    if ($token === '') {
+        return;
+    }
+    foreach (efpic_list_gallery_slugs($config) as $candidateSlug) {
+        $meta = efpic_load_gallery_meta($config, $candidateSlug);
+        if ($meta === null) {
+            continue;
+        }
+        if (hash_equals((string) ($meta['gallery_token'] ?? ''), $token)) {
+            $eventDate = substr((string) ($meta['event_date'] ?? ''), 0, 10);
+            if ($eventDate !== '') {
+                $record['event_date'] = $eventDate;
+            }
+            break;
+        }
     }
 }
 
@@ -473,17 +515,35 @@ function efpic_analytics_record_download(array $config, string $slug, array $met
     });
 }
 
-function efpic_analytics_mark_gallery_deleted(array $config, string $galleryToken, string $slug, string $name): void
+function efpic_analytics_mark_gallery_deleted(array $config, string $galleryToken, string $slug, string $name, ?array $meta = null): void
 {
     if ($galleryToken === '') {
         return;
     }
-    efpic_analytics_update_gallery($config, $galleryToken, static function (array &$record) use ($galleryToken, $slug, $name): void {
-        $record['gallery_token'] = $galleryToken;
-        $record['slug'] = $slug;
-        $record['name'] = $name;
+    efpic_analytics_update_gallery($config, $galleryToken, static function (array &$record) use ($galleryToken, $slug, $name, $meta): void {
+        if (is_array($meta)) {
+            efpic_analytics_sync_gallery_meta($record, $meta, $slug);
+        } else {
+            $record['gallery_token'] = $galleryToken;
+            $record['slug'] = $slug;
+            $record['name'] = $name;
+        }
         $record['deleted_at'] = gmdate('c');
     });
+}
+
+function efpic_analytics_delete_gallery(array $config, string $galleryToken): bool
+{
+    $safe = preg_replace('/[^a-f0-9]/', '', strtolower($galleryToken)) ?? '';
+    if ($safe === '') {
+        return false;
+    }
+    $path = efpic_analytics_gallery_path($config, $safe);
+    if (!is_file($path)) {
+        return false;
+    }
+
+    return unlink($path);
 }
 
 function efpic_analytics_mark_gallery_restored(array $config, string $galleryToken): void
@@ -539,9 +599,15 @@ function efpic_analytics_list_gallery_records(array $config): array
             continue;
         }
         efpic_analytics_prune_presence($data);
+        efpic_analytics_enrich_record($config, $data);
         $out[] = $data;
     }
     usort($out, static function (array $a, array $b): int {
+        $da = (string) ($a['event_date'] ?? '');
+        $db = (string) ($b['event_date'] ?? '');
+        if ($da !== $db) {
+            return $db <=> $da;
+        }
         $na = (string) ($a['name'] ?? '');
         $nb = (string) ($b['name'] ?? '');
 
@@ -663,6 +729,7 @@ function efpic_analytics_aggregate(array $records, string $fromDate, string $toD
             'gallery_token' => (string) ($record['gallery_token'] ?? ''),
             'slug' => (string) ($record['slug'] ?? ''),
             'name' => (string) ($record['name'] ?? ''),
+            'event_date' => substr((string) ($record['event_date'] ?? ''), 0, 10),
             'deleted_at' => $record['deleted_at'] ?? null,
             'online' => $galleryOnline,
             'today' => $galleryToday,
