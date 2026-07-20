@@ -222,17 +222,10 @@ function efpic_admin_render_new_gallery_scenes_fieldset(string $sceneTitle): str
 
 function efpic_admin_render_theme_fieldset(array $config, array $formMeta): string
 {
-    $heroAccent = efpic_client_hero_accent_color($formMeta);
-    $pageBg = efpic_client_page_bg_color($config, $formMeta);
     $html = '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Dizains</legend>';
     $html .= '<input type="hidden" name="theme" value="efpic-base">';
     $html .= efpic_render_design_template_controls($config, $formMeta);
-    $html .= efpic_render_design_palette_picker($formMeta);
-    $html .= '<div class="admin-form-layout admin-form-layout--basic">';
-    $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
-    $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
-    $html .= '<p class="muted admin-fieldset-full">Saliec izskatu pa daļām — vāks, krāsas, fonti un kolonnas. Klients var mainīt krāsas panelī.</p>';
-    $html .= '</div>';
+    $html .= efpic_render_design_palette_picker($config, $formMeta);
     $html .= efpic_render_cover_theme_controls($config, $formMeta, false);
     $html .= '</fieldset>';
 

@@ -797,9 +797,11 @@ function efpic_design_template_delete(array $config, string $id): bool
     return true;
 }
 
-function efpic_render_design_palette_picker(array $formMeta): string
+function efpic_render_design_palette_picker(array $config, array $formMeta): string
 {
     $active = efpic_gallery_design_palette_key($formMeta);
+    $heroAccent = efpic_client_hero_accent_color($formMeta);
+    $pageBg = efpic_client_page_bg_color($config, $formMeta);
     $html = '<fieldset class="admin-fieldset-full admin-design-palettes" id="admin-design-palettes">';
     $html .= '<legend>Krāsu palete</legend>';
     $html .= '<input type="hidden" name="design_palette" id="design_palette" value="' . efpic_cover_theme_esc($active) . '">';
@@ -819,6 +821,12 @@ function efpic_render_design_palette_picker(array $formMeta): string
         $html .= '</span>';
         $html .= '<span class="admin-design-palette__name">' . efpic_cover_theme_esc($palette['label']) . '</span>';
         $html .= '</button>';
+    }
+    $html .= '</div>';
+    $html .= '<div class="admin-form-layout admin-form-layout--basic admin-design-palettes__colors">';
+    if (function_exists('efpic_admin_color_field')) {
+        $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
+        $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
     }
     $html .= '</div>';
     $html .= '<p class="muted">Palete aizpilda vāka, fona un teksta krāsas. Pēc tam vari tās pielāgot manuāli.</p>';

@@ -3793,6 +3793,11 @@
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(148px, 1fr));
   gap: 10px;
+  margin-bottom: 14px;
+}
+
+.admin-design-palettes__colors {
+  margin-bottom: 10px;
 }
 
 .admin-design-palette {
