@@ -157,6 +157,20 @@ function efpic_client_zip_progress_modal(): string
         . '</div></div>';
 }
 
+function efpic_client_video_modal(): string
+{
+    return '<div class="modal-backdrop modal-backdrop--video" id="galleryVideoModal" hidden role="dialog" aria-modal="true" aria-labelledby="galleryVideoModalTitle">'
+        . '<div class="modal modal--video">'
+        . '<button type="button" class="icon-btn modal-close" data-video-modal-close aria-label="Aizvērt">'
+        . efpic_client_icon('close') . '</button>'
+        . '<h2 id="galleryVideoModalTitle" class="gallery-video-modal__title">Video</h2>'
+        . '<div class="gallery-video-modal__frame">'
+        . '<video id="galleryVideoModalPlayer" controls playsinline preload="metadata"></video>'
+        . '</div>'
+        . '<p class="gallery-video-modal__actions" id="galleryVideoModalActions" hidden></p>'
+        . '</div></div>';
+}
+
 function efpic_client_gallery_download_modal(array $meta, array $ctx): string
 {
     $isShare = efpic_viewer_is_restricted_share($ctx);
@@ -1057,6 +1071,84 @@ function efpic_client_render_inline_video_player(string $videoUrl, bool $withPla
     return $html;
 }
 
+/** @return array{width: int, height: int}|null */
+function efpic_client_video_dimensions(array $video): ?array
+{
+    $w = (int) ($video['width'] ?? $video['failiem']['width'] ?? 0);
+    $h = (int) ($video['height'] ?? $video['failiem']['height'] ?? 0);
+    if ($w > 0 && $h > 0) {
+        return ['width' => $w, 'height' => $h];
+    }
+
+    return null;
+}
+
+function efpic_client_video_feed_item_attrs(array $video): string
+{
+    $dims = efpic_client_video_dimensions($video);
+    if ($dims === null) {
+        return '';
+    }
+    $aspect = efpic_format_layout_aspect($dims['width'] / $dims['height']);
+    $orient = $dims['width'] >= $dims['height'] * 1.12
+        ? 'landscape'
+        : ($dims['height'] >= $dims['width'] * 1.12 ? 'portrait' : 'square');
+
+    return ' data-aspect="' . efpic_client_esc($aspect) . '" data-orient="' . efpic_client_esc($orient) . '"'
+        . ' style="aspect-ratio: ' . $dims['width'] . ' / ' . $dims['height'] . '"';
+}
+
+function efpic_client_render_video_feed_item(array $config, array $meta, array $video, array $ctx = []): string
+{
+    $gt = (string) ($meta['gallery_token'] ?? '');
+    $guest = efpic_viewer_guest_token($ctx);
+    $guestQ = $guest !== '' ? $guest : null;
+    $kind = (string) ($video['kind'] ?? 'file');
+    $title = trim((string) ($video['title'] ?? ''));
+    $videoId = (string) ($video['id'] ?? '');
+    $streamUrl = '';
+    $downloadUrl = '';
+
+    if ($kind === 'failiem') {
+        $hash = efpic_delivery_video_hash($video);
+        if ($videoId === '' || $hash === '') {
+            return '';
+        }
+        $streamUrl = efpic_gallery_video_stream_url($config, $gt, $videoId, $guestQ);
+        if (efpic_can_download_gallery_videos($meta, $ctx)) {
+            $downloadUrl = efpic_gallery_video_download_url($config, $gt, $videoId, $guestQ);
+        }
+    } else {
+        $file = (string) ($video['file'] ?? '');
+        if ($file === '') {
+            return '';
+        }
+        $streamUrl = efpic_gallery_asset_url($config, $gt, $file, $guestQ);
+    }
+
+    if ($streamUrl === '') {
+        return '';
+    }
+
+    $label = $title !== '' ? $title : 'Video';
+    $html = '<div class="pic-feed-item pic-feed-item--video" data-video-id="' . efpic_client_esc($videoId) . '"'
+        . efpic_client_video_feed_item_attrs($video) . '>';
+    $html .= '<button type="button" class="pic-feed-video-open" data-video-modal-open'
+        . ' data-video-src="' . efpic_client_esc($streamUrl) . '"'
+        . ' data-video-title="' . efpic_client_esc($label) . '"'
+        . ($downloadUrl !== '' ? ' data-video-download="' . efpic_client_esc($downloadUrl) . '"' : '')
+        . ' aria-label="Atskaņot: ' . efpic_client_esc($label) . '">';
+    $html .= '<video class="pic-feed-video-preview" preload="metadata" muted playsinline'
+        . ' src="' . efpic_client_esc($streamUrl) . '"></video>';
+    $html .= '<span class="pic-feed-video-play" aria-hidden="true">'
+        . '<span class="pic-feed-video-play__icon">' . efpic_client_icon('play') . '</span>'
+        . '</span>';
+    $html .= '</button>';
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_client_render_single_video(array $config, array $meta, array $video, ?array $ctx = null): string
 {
     $gt = (string) ($meta['gallery_token'] ?? '');
@@ -1080,27 +1172,14 @@ function efpic_client_render_single_video(array $config, array $meta, array $vid
             : 'https://www.youtube-nocookie.com/embed/' . rawurlencode($embedId);
         $html .= '<div class="gallery-video-embed"><iframe src="' . efpic_client_esc($src) . '" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
     } elseif ($kind === 'failiem') {
-        $videoId = (string) ($video['id'] ?? '');
-        $hash = efpic_delivery_video_hash($video);
-        if ($videoId === '' || $hash === '') {
-            return $html;
-        }
-        $streamUrl = efpic_gallery_video_stream_url($config, $gt, $videoId, $guestQ);
-        $html .= '<div class="gallery-video-file gallery-video-file--failiem">';
-        $html .= efpic_client_render_inline_video_player($streamUrl, true);
-        if (efpic_can_download_gallery_videos($meta, $ctx)) {
-            $dlUrl = efpic_gallery_video_download_url($config, $gt, $videoId, $guestQ);
-            $html .= '<p class="gallery-video-actions"><a class="btn gallery-video-download" href="'
-                . efpic_client_esc($dlUrl) . '">Lejupielādēt video</a></p>';
-        }
-        $html .= '</div>';
+        return efpic_client_render_video_feed_item($config, $meta, $video, $ctx);
     } else {
         $file = (string) ($video['file'] ?? '');
         if ($file === '') {
             return $html;
         }
-        $url = efpic_gallery_asset_url($config, $gt, $file, $guestQ);
-        $html .= '<div class="gallery-video-file">' . efpic_client_render_inline_video_player($url) . '</div>';
+
+        return efpic_client_render_video_feed_item($config, $meta, $video, $ctx);
     }
 
     return $html;
@@ -1136,13 +1215,35 @@ function efpic_client_render_videos_for_scene(array $config, array $meta, string
     if ($list === []) {
         return '';
     }
-    $html = '<div class="gallery-videos-inline" data-scene-id="' . efpic_client_esc($sceneId) . '">';
+
+    $mosaicItems = [];
+    $blockHtml = '';
     foreach ($list as $video) {
         if (!is_array($video)) {
             continue;
         }
-        $html .= efpic_client_render_single_video($config, $meta, $video, $ctx);
+        $kind = (string) ($video['kind'] ?? 'file');
+        if ($kind === 'embed') {
+            $blockHtml .= efpic_client_render_single_video($config, $meta, $video, $ctx);
+            continue;
+        }
+        $item = efpic_client_render_video_feed_item($config, $meta, $video, $ctx);
+        if ($item !== '') {
+            $mosaicItems[] = $item;
+        }
     }
+
+    if ($mosaicItems === [] && $blockHtml === '') {
+        return '';
+    }
+
+    $html = '<div class="gallery-videos-inline" data-scene-id="' . efpic_client_esc($sceneId) . '">';
+    if ($mosaicItems !== []) {
+        $html .= efpic_client_mosaic_feed_open($meta);
+        $html .= implode('', $mosaicItems);
+        $html .= '</div>';
+    }
+    $html .= $blockHtml;
     $html .= '</div>';
 
     return $html;
@@ -1557,6 +1658,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_render_visitor_manage_modal();
     }
     $body .= efpic_client_zip_progress_modal();
+    $body .= efpic_client_video_modal();
     if ($faceSearchReady) {
         $body .= efpic_client_render_face_person_modal();
     }

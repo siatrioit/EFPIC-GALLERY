@@ -622,7 +622,6 @@
     function syncPlayOverlay() {
       var playing = !video.paused && !video.ended;
       wrap.classList.toggle('is-playing', playing);
-      // Viena play poga: pauzē paslēpj pārlūka kontroles, rāda tikai overlay.
       video.controls = playing;
     }
     playBtn.addEventListener('click', function () {
@@ -632,6 +631,89 @@
     video.addEventListener('pause', syncPlayOverlay);
     video.addEventListener('ended', syncPlayOverlay);
     syncPlayOverlay();
+  });
+
+  var videoModal = document.getElementById('galleryVideoModal');
+  var videoModalPlayer = document.getElementById('galleryVideoModalPlayer');
+  var videoModalActions = document.getElementById('galleryVideoModalActions');
+  var videoModalTitle = document.getElementById('galleryVideoModalTitle');
+
+  function closeGalleryVideoModal() {
+    if (!videoModal) return;
+    if (videoModalPlayer) {
+      try {
+        videoModalPlayer.pause();
+      } catch (e) {}
+      videoModalPlayer.removeAttribute('src');
+      videoModalPlayer.load();
+      videoModalPlayer.onloadedmetadata = null;
+    }
+    videoModal.classList.remove('is-portrait');
+    if (videoModalActions) {
+      videoModalActions.hidden = true;
+      videoModalActions.innerHTML = '';
+    }
+    videoModal.hidden = true;
+    document.body.style.overflow = '';
+  }
+
+  function openGalleryVideoModal(src, title, downloadUrl) {
+    if (!videoModal || !videoModalPlayer || !src) return;
+    if (videoModalTitle) {
+      videoModalTitle.textContent = title || 'Video';
+    }
+    if (videoModalActions) {
+      videoModalActions.innerHTML = '';
+      if (downloadUrl) {
+        var dl = document.createElement('a');
+        dl.className = 'btn gallery-video-download';
+        dl.href = downloadUrl;
+        dl.textContent = 'Lejupielādēt video';
+        videoModalActions.appendChild(dl);
+        videoModalActions.hidden = false;
+      } else {
+        videoModalActions.hidden = true;
+      }
+    }
+    videoModal.classList.remove('is-portrait');
+    videoModalPlayer.onloadedmetadata = function () {
+      if (videoModalPlayer.videoHeight > videoModalPlayer.videoWidth) {
+        videoModal.classList.add('is-portrait');
+      } else {
+        videoModal.classList.remove('is-portrait');
+      }
+    };
+    videoModalPlayer.src = src;
+    videoModal.hidden = false;
+    document.body.style.overflow = 'hidden';
+    videoModalPlayer.play().catch(function () {});
+  }
+
+  document.querySelectorAll('[data-video-modal-open]').forEach(function (btn) {
+    btn.addEventListener('click', function (evt) {
+      evt.preventDefault();
+      openGalleryVideoModal(
+        btn.getAttribute('data-video-src') || '',
+        btn.getAttribute('data-video-title') || 'Video',
+        btn.getAttribute('data-video-download') || ''
+      );
+    });
+  });
+
+  document.querySelectorAll('[data-video-modal-close]').forEach(function (btn) {
+    btn.addEventListener('click', closeGalleryVideoModal);
+  });
+
+  if (videoModal) {
+    videoModal.addEventListener('click', function (evt) {
+      if (evt.target === videoModal) closeGalleryVideoModal();
+    });
+  }
+
+  document.addEventListener('keydown', function (evt) {
+    if (evt.key === 'Escape' && videoModal && !videoModal.hidden) {
+      closeGalleryVideoModal();
+    }
   });
 
   if (hero) {
@@ -697,14 +779,17 @@
   }
 
   function isDeferredFeedImage(img) {
-    return !!(img && img.hasAttribute('data-src') && !img.getAttribute('src'));
+    return !!(img && img.tagName === 'IMG' && img.hasAttribute('data-src') && !img.getAttribute('src'));
   }
 
   function isBrokenFeedImage(img) {
+    if (!img || img.tagName !== 'IMG') {
+      return false;
+    }
     if (isDeferredFeedImage(img)) {
       return false;
     }
-    return !!(img && img.complete && img.naturalWidth === 0);
+    return !!(img.complete && img.naturalWidth === 0);
   }
 
   function markBrokenFeedItem(item) {
@@ -715,14 +800,37 @@
     item.style.display = 'none';
   }
 
-  function feedItemHasKnownAspect(img) {
-    if (!img) {
+  function getFeedMedia(item) {
+    if (!item) {
+      return null;
+    }
+    return item.querySelector('img') || item.querySelector('.pic-feed-video-preview');
+  }
+
+  function mediaNaturalSize(media) {
+    if (!media) {
+      return null;
+    }
+    if (media.tagName === 'VIDEO') {
+      if (media.videoWidth > 0 && media.videoHeight > 0) {
+        return { w: media.videoWidth, h: media.videoHeight };
+      }
+      return null;
+    }
+    if (media.naturalWidth > 0 && media.naturalHeight > 0) {
+      return { w: media.naturalWidth, h: media.naturalHeight };
+    }
+    return null;
+  }
+
+  function feedItemHasKnownAspect(media) {
+    if (!media) {
       return false;
     }
-    if (img.getAttribute('data-aspect')) {
+    if (media.getAttribute('data-aspect')) {
       return true;
     }
-    var item = img.closest('.pic-feed-item');
+    var item = media.closest('.pic-feed-item');
     return !!(item && item.getAttribute('data-aspect'));
   }
 
@@ -733,18 +841,19 @@
     return Math.abs(natural - stored) / stored > 0.1;
   }
 
-  function readAspectRatio(img) {
-    if (!img) {
+  function readAspectRatio(media) {
+    if (!media) {
       return LAYOUT_ASPECT_DEFAULT;
     }
-    var item = img.closest('.pic-feed-item');
-    var stored = parseFloat(img.getAttribute('data-aspect'));
+    var item = media.closest('.pic-feed-item');
+    var stored = parseFloat(media.getAttribute('data-aspect'));
     if (!(stored > 0) || !isFinite(stored)) {
       stored = item ? parseFloat(item.getAttribute('data-aspect')) : NaN;
     }
     var natural = 0;
-    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-      natural = clampLayoutAspect(img.naturalWidth / img.naturalHeight);
+    var size = mediaNaturalSize(media);
+    if (size) {
+      natural = clampLayoutAspect(size.w / size.h);
     }
     if (natural > 0 && (!(stored > 0) || !isFinite(stored) || aspectRatioMismatch(stored, natural))) {
       return natural;
@@ -752,8 +861,8 @@
     if (stored > 0 && isFinite(stored)) {
       return clampLayoutAspect(stored);
     }
-    var dw = parseInt(img.getAttribute('width'), 10);
-    var dh = parseInt(img.getAttribute('height'), 10);
+    var dw = parseInt(media.getAttribute('width'), 10);
+    var dh = parseInt(media.getAttribute('height'), 10);
     if (dw > 0 && dh > 0) {
       return clampLayoutAspect(dw / dh);
     }
@@ -763,27 +872,28 @@
     return LAYOUT_ASPECT_DEFAULT;
   }
 
-  function measureFeedItemHeight(item, img, itemWidth, aspect) {
+  function measureFeedItemHeight(item, media, itemWidth, aspect) {
     var estimated = itemWidth / aspect;
-    var hasKnownAspect = !!(img && img.getAttribute('data-aspect'))
+    var hasKnownAspect = !!(media && media.getAttribute('data-aspect'))
       || !!(item && item.getAttribute('data-aspect'));
     if (hasKnownAspect) {
       return estimated;
     }
-    if (img && img.naturalWidth > 0 && img.naturalHeight > 0) {
-      return itemWidth * (img.naturalHeight / img.naturalWidth);
+    var size = mediaNaturalSize(media);
+    if (size) {
+      return itemWidth * (size.h / size.w);
     }
     return estimated;
   }
 
   /** Cik kolonnu platuma bilde aizņem (1–3), mosaic layout. Span tikai kad zināmi patiesie izmēri. */
-  function pickColumnSpan(aspect, index, columns, img) {
+  function pickColumnSpan(aspect, index, columns, media) {
     if (columns <= 1) {
       return 1;
     }
-    var hasKnownAspect = !!(img && img.getAttribute('data-aspect'))
-      || !!(img && img.closest('.pic-feed-item') && img.closest('.pic-feed-item').getAttribute('data-aspect'));
-    if (!hasKnownAspect && (!img || img.naturalWidth <= 0 || isDeferredFeedImage(img))) {
+    var hasKnownAspect = feedItemHasKnownAspect(media);
+    var size = mediaNaturalSize(media);
+    if (!hasKnownAspect && (!size || isDeferredFeedImage(media))) {
       return 1;
     }
     if (aspect < 1.12) {
@@ -834,14 +944,14 @@
     }
 
     items.forEach(function (item, index) {
-      var img = item.querySelector('img');
-      if (isBrokenFeedImage(img)) {
+      var media = getFeedMedia(item);
+      if (isBrokenFeedImage(media)) {
         markBrokenFeedItem(item);
         return;
       }
 
-      var aspect = readAspectRatio(img);
-      var span = pickColumnSpan(aspect, index, columns, img);
+      var aspect = readAspectRatio(media);
+      var span = pickColumnSpan(aspect, index, columns, media);
       var itemWidth = span * colWidth + gap * (span - 1);
 
       var bestCol = 0;
@@ -874,14 +984,14 @@
       );
       item.setAttribute('data-span', String(span));
 
-      if (img) {
-        img.style.width = '100%';
-        img.style.height = 'auto';
-        img.style.objectFit = '';
-        img.style.display = 'block';
+      if (media && media.tagName === 'IMG') {
+        media.style.width = '100%';
+        media.style.height = 'auto';
+        media.style.objectFit = '';
+        media.style.display = 'block';
       }
 
-      var itemHeight = measureFeedItemHeight(item, img, itemWidth, aspect);
+      var itemHeight = measureFeedItemHeight(item, media, itemWidth, aspect);
       item.style.height = Math.max(1, Math.round(itemHeight)) + 'px';
       var newBottom = bestTop + itemHeight + gap;
       for (s = 0; s < span; s++) {
@@ -1084,6 +1194,37 @@
     });
   }
 
+  function applyVideoPreviewAspect(videoEl) {
+    if (!videoEl || videoEl.videoWidth <= 0 || videoEl.videoHeight <= 0) {
+      return false;
+    }
+    var item = videoEl.closest('.pic-feed-item--video');
+    if (!item) return false;
+    var aspect = clampLayoutAspect(videoEl.videoWidth / videoEl.videoHeight);
+    var aspectStr = String(Math.round(aspect * 1000000) / 1000000);
+    var prev = item.getAttribute('data-aspect') || '';
+    item.setAttribute('data-aspect', aspectStr);
+    item.style.aspectRatio = videoEl.videoWidth + ' / ' + videoEl.videoHeight;
+    item.setAttribute(
+      'data-orient',
+      aspect >= 1.12 ? 'landscape' : aspect <= 0.88 ? 'portrait' : 'square'
+    );
+    videoEl.setAttribute('data-aspect', aspectStr);
+    return prev !== aspectStr;
+  }
+
+  function bindVideoPreviewAspect(videoEl) {
+    function onMeta() {
+      applyVideoPreviewAspect(videoEl);
+      scheduleMosaicRelayout();
+    }
+    if (videoEl.readyState >= 1) {
+      onMeta();
+    } else {
+      videoEl.addEventListener('loadedmetadata', onMeta);
+    }
+  }
+
   function initMosaicGalleries(done) {
     mosaicContainers = Array.prototype.slice.call(
       document.querySelectorAll('[data-masonry-gallery], [data-justified-gallery]')
@@ -1100,6 +1241,7 @@
 
     mosaicContainers.forEach(function (container) {
       container.querySelectorAll('.pic-feed-item img').forEach(bindFeedImageLoad);
+      container.querySelectorAll('.pic-feed-video-preview').forEach(bindVideoPreviewAspect);
     });
 
     scheduleMosaicRelayout();
