@@ -196,7 +196,7 @@ function efpic_client_gallery_download_modal(array $meta, array $ctx): string
     if ($canVideos && $videoCount > 0) {
         $html .= '<p class="modal-kicker">Visi video (' . $videoCount . ')</p>';
         $html .= '<div class="dl-size-row">';
-        $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="videos" data-gdl-size="video">Lejupielādēt ZIP</a>';
+        $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="videos" data-gdl-size="video">Video</a>';
         $html .= '</div>';
     }
     $html .= '</div></div>';
@@ -2649,8 +2649,13 @@ function efpic_handle_client_gallery_videos_zip(array $config, string $galleryTo
         http_response_code(403);
         exit;
     }
+    if (efpic_gallery_has_password($meta) && !efpic_gallery_session_unlocked($galleryToken)) {
+        http_response_code(403);
+        exit;
+    }
+
     $ctx = efpic_viewer_context($config, $meta);
-    if (!efpic_can_download_gallery_videos($meta, $ctx)) {
+    if (efpic_viewer_context_access_denied($ctx) || !efpic_can_download_gallery_videos($meta, $ctx)) {
         http_response_code(403);
         exit;
     }

@@ -551,17 +551,18 @@
     });
   }
 
-  document.querySelectorAll('[data-gdl-scope="all"][data-gdl-size]').forEach(function (btn) {
+  document.querySelectorAll('[data-gdl-scope][data-gdl-size]').forEach(function (btn) {
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
+      var scope = btn.getAttribute('data-gdl-scope') || 'all';
       var size = btn.getAttribute('data-gdl-size') || 'web';
-      if (window.EFPIC_IS_SHARE_LINK && window.EFPIC_SHARE_DOWNLOAD_URL) {
+      if (scope === 'all' && window.EFPIC_IS_SHARE_LINK && window.EFPIC_SHARE_DOWNLOAD_URL) {
         requestShareCollectionEmail(size);
         closeGalleryDlModal();
         return;
       }
       if (!gdlBase) return;
-      startZipDownload('all', size);
+      startZipDownload(scope, size);
     });
   });
 
