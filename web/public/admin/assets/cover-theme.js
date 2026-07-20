@@ -1389,8 +1389,6 @@
       buttons.forEach(function (el) {
         el.style.width = '';
         el.style.minWidth = '';
-        el.style.height = '';
-        el.style.minHeight = '';
         el.style.flex = '';
       });
 
@@ -1399,18 +1397,13 @@
         el.style.flex = '0 0 auto';
       });
       var maxBtnW = 0;
-      var maxBtnH = 0;
       buttons.forEach(function (el) {
-        var rect = el.getBoundingClientRect();
-        maxBtnW = Math.max(maxBtnW, Math.ceil(rect.width));
-        maxBtnH = Math.max(maxBtnH, Math.ceil(rect.height));
+        maxBtnW = Math.max(maxBtnW, Math.ceil(el.getBoundingClientRect().width));
       });
-      if (maxBtnW > 0 && maxBtnH > 0) {
+      if (maxBtnW > 0) {
         buttons.forEach(function (el) {
           el.style.width = maxBtnW + 'px';
           el.style.minWidth = maxBtnW + 'px';
-          el.style.height = maxBtnH + 'px';
-          el.style.minHeight = maxBtnH + 'px';
           el.style.flex = '0 0 ' + maxBtnW + 'px';
         });
       }

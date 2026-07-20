@@ -983,9 +983,9 @@ function efpic_render_design_preset_picker(): string
 {
     $presets = efpic_gallery_design_presets();
     $json = json_encode($presets, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $html = '<div class="admin-design-presets admin-fieldset-full" id="admin-design-presets"'
+    $html = '<fieldset class="admin-fieldset-full admin-design-presets" id="admin-design-presets"'
         . ' data-presets="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '">';
-    $html .= '<p class="admin-design-presets__label">Ātrais starts</p>';
+    $html .= '<legend>Ātrais starts</legend>';
     $html .= '<div class="admin-design-presets__grid">';
     foreach ($presets as $key => $preset) {
         $html .= '<button type="button" class="btn admin-btn-inline admin-design-preset" data-preset="'
@@ -993,7 +993,7 @@ function efpic_render_design_preset_picker(): string
     }
     $html .= '</div>';
     $html .= '<p class="muted">Iestata vāka stilu, paleti, kolonnas un fontus. Pēc tam vari pielāgot katru daļu atsevišķi.</p>';
-    $html .= '</div>';
+    $html .= '</fieldset>';
 
     return $html;
 }
