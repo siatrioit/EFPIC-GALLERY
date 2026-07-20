@@ -2653,6 +2653,8 @@ function efpic_admin_render_gallery_whatsapp_settings_fieldset(array $settings):
 
 function efpic_admin_save_settings_from_post(array $config): void
 {
+    efpic_admin_apply_design_templates_from_post($config);
+
     $byline = trim((string) ($_POST['gallery_byline'] ?? ''));
     if ($byline === '') {
         throw new InvalidArgumentException('Galerijas paraksts obligāts');
@@ -2800,6 +2802,122 @@ function efpic_admin_render_email_signature_editor(array $config, array $setting
     return $html;
 }
 
+function efpic_admin_apply_design_templates_from_post(array $config): void
+{
+    $postedNames = $_POST['design_template_name'] ?? null;
+    $postedDeletes = $_POST['design_template_delete'] ?? [];
+    if (!is_array($postedNames) && !is_array($postedDeletes)) {
+        return;
+    }
+
+    $templates = efpic_load_design_templates($config);
+    if ($templates === []) {
+        return;
+    }
+
+    $deleteIds = [];
+    if (is_array($postedDeletes)) {
+        foreach ($postedDeletes as $id) {
+            $id = trim((string) $id);
+            if ($id !== '') {
+                $deleteIds[$id] = true;
+            }
+        }
+    }
+
+    $next = [];
+    foreach ($templates as $tpl) {
+        if (!is_array($tpl)) {
+            continue;
+        }
+        $id = (string) ($tpl['id'] ?? '');
+        if ($id === '' || isset($deleteIds[$id])) {
+            continue;
+        }
+        if (is_array($postedNames) && array_key_exists($id, $postedNames)) {
+            $name = trim((string) $postedNames[$id]);
+            if ($name === '') {
+                throw new InvalidArgumentException('Dizaina šablona nosaukums nevar būt tukšs');
+            }
+            if ($name !== (string) ($tpl['name'] ?? '')) {
+                $tpl['name'] = $name;
+                $tpl['updated_at'] = gmdate('c');
+            }
+        }
+        $next[] = $tpl;
+    }
+
+    efpic_save_design_templates($config, $next);
+}
+
+function efpic_admin_render_design_templates_settings_fieldset(array $config): string
+{
+    $templates = efpic_load_design_templates($config);
+    $fontsJson = json_encode(efpic_gallery_intro_fonts_family_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $fontGroupsJson = json_encode(efpic_gallery_intro_fonts_group_map(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $fontUrlsJson = json_encode(efpic_gallery_intro_fonts_google_urls(), JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $clientCssUrl = efpic_asset_url('/client/assets/client.css');
+
+    $html = '<fieldset class="admin-fieldset-full" id="admin-fs-design-templates"><legend>Dizaina šabloni</legend>';
+    $html .= '<p class="muted">Globāli saglabātie dizaina šabloni. Tos vari lietot jebkurā galerijā cilnē <strong>Dizains</strong>.</p>';
+    $html .= '<div id="admin-design-templates-settings-root"'
+        . ' data-fonts="' . efpic_admin_esc($fontsJson !== false ? $fontsJson : '{}') . '"'
+        . ' data-font-groups="' . efpic_admin_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '"'
+        . ' data-font-urls="' . efpic_admin_esc($fontUrlsJson !== false ? $fontUrlsJson : '[]') . '"'
+        . ' data-client-css="' . efpic_admin_esc($clientCssUrl) . '">';
+
+    if ($templates === []) {
+        $html .= '<p class="muted">Vēl nav saglabātu šablonu. Izveido tos galerijas rediģēšanas formā — cilne <strong>Dizains → Dizaina šabloni → Saglabāt</strong>.</p>';
+    } else {
+        $html .= '<div class="admin-design-templates-settings__list">';
+        foreach ($templates as $tpl) {
+            if (!is_array($tpl)) {
+                continue;
+            }
+            $id = (string) ($tpl['id'] ?? '');
+            $name = (string) ($tpl['name'] ?? '');
+            if ($id === '' || $name === '') {
+                continue;
+            }
+            $settings = is_array($tpl['settings'] ?? null) ? $tpl['settings'] : [];
+            $previewJson = json_encode(
+                efpic_design_template_preview_payload($config, $settings),
+                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+            );
+            $created = substr((string) ($tpl['created_at'] ?? ''), 0, 10);
+            $updated = substr((string) ($tpl['updated_at'] ?? ''), 0, 10);
+            $metaLine = 'Izveidots: ' . ($created !== '' ? $created : '—');
+            if ($updated !== '' && $updated !== $created) {
+                $metaLine .= ' · Atjaunots: ' . $updated;
+            }
+
+            $html .= '<article class="admin-design-template-card" data-template-id="' . efpic_admin_esc($id) . '"'
+                . ' data-preview="' . efpic_admin_esc($previewJson !== false ? $previewJson : '{}') . '">';
+            $html .= '<div class="admin-design-template-card__main">';
+            $html .= '<label class="admin-design-template-card__name">Nosaukums<input type="text" name="design_template_name['
+                . efpic_admin_esc($id) . ']" value="' . efpic_admin_esc($name) . '" required maxlength="120"></label>';
+            $html .= '<p class="muted admin-design-template-card__meta">' . efpic_admin_esc($metaLine) . '</p>';
+            $html .= '<label class="admin-check admin-design-template-card__delete"><input type="checkbox" name="design_template_delete[]" value="'
+                . efpic_admin_esc($id) . '"> Dzēst šablonu</label>';
+            $html .= '</div>';
+            $html .= '<div class="admin-design-template-card__preview-wrap">';
+            $html .= '<p class="admin-design-template-card__preview-label">Reāllaika priekšskatījums</p>';
+            $html .= '<div class="admin-design-template-card__device admin-cover-live-device" data-width="1440" data-height="900">';
+            $html .= '<div class="admin-cover-live-device__shell">';
+            $html .= '<div class="admin-cover-live-device__viewport">';
+            $html .= '<iframe class="admin-cover-live-device__iframe admin-design-template-card__iframe" title="Priekšskatījums: '
+                . efpic_admin_esc($name) . '" loading="lazy" tabindex="-1"></iframe>';
+            $html .= '</div></div></div>';
+            $html .= '</div></article>';
+        }
+        $html .= '</div>';
+    }
+
+    $html .= '</div></fieldset>';
+
+    return $html;
+}
+
 function efpic_admin_settings_page(array $config): void
 {
     $settings = efpic_load_app_settings($config);
@@ -2845,6 +2963,7 @@ function efpic_admin_settings_page(array $config): void
         . efpic_admin_esc((string) $gapDesktop) . '"></label>';
     $body .= '<p class="muted">Attiecas uz visām tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
     $body .= '</fieldset>';
+    $body .= efpic_admin_render_design_templates_settings_fieldset($config);
     $body .= efpic_admin_render_gallery_email_settings_fieldset($settings);
     $body .= efpic_admin_render_email_signature_editor($config, $settings);
     $body .= efpic_admin_render_gallery_whatsapp_settings_fieldset($settings);

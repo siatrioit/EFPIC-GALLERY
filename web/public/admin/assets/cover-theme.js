@@ -1528,4 +1528,94 @@
   } else {
     initCoverTheme();
   }
+
+  function payloadToPreviewState(payload) {
+    payload = payload || {};
+    var coverStyle = payload.coverStyle || 'standard';
+    var layout = payload.layout || 'right';
+    var introTextLayouts = payload.introTextLayouts || {};
+    var introTextLayout = defaultIntroTextLayout(coverStyle, layout);
+    var layoutKey = layoutStorageKey(coverStyle, layout);
+    if (introTextLayouts[layoutKey]) {
+      introTextLayout = cloneIntroTextLayout(introTextLayouts[layoutKey]);
+    } else if (payload.introTextLayout) {
+      introTextLayout = cloneIntroTextLayout(payload.introTextLayout);
+    }
+    var dateFormat = payload.dateFormat || 'lv';
+    var dateRaw = payload.dateRaw || '';
+    return {
+      coverStyle: coverStyle,
+      introTextLayout: introTextLayout,
+      introTextLayouts: introTextLayouts,
+      layout: layout,
+      name: payload.name || 'Galerija',
+      dateRaw: dateRaw,
+      dateFormatted: payload.dateFormatted || formatDate(dateRaw, dateFormat),
+      byline: payload.byline || 'GALLERY',
+      coverUrl: payload.coverUrl || '',
+      coverMediaType: payload.coverMediaType || 'image',
+      coverVideoUrl: '',
+      coverVideoId: payload.coverVideoId || '',
+      coverAnimation: payload.coverAnimation || 'none',
+      heroAccent: payload.heroAccent || '#9a9578',
+      introTextColor: payload.introTextColor || '#1a1a1a',
+      pageBg: payload.pageBg || '#ffffff',
+      focalX: payload.focalX != null ? payload.focalX : 50,
+      focalY: payload.focalY != null ? payload.focalY : 50,
+      fontFamily: payload.fontFamily || 'cormorant',
+      dateFormat: dateFormat,
+      titleSize: payload.titleSize || 'md',
+      dateSize: payload.dateSize || 'md',
+      allCaps: !!payload.allCaps,
+    };
+  }
+
+  function initDesignTemplateSettingsPreviews() {
+    var panel = document.getElementById('admin-design-templates-settings-root');
+    if (!panel) return;
+
+    var fontMap = readFontMap(panel);
+    var groupMap = readFontGroupMap(panel);
+    var assets = readPreviewAssets(panel);
+
+    function refreshCard(card) {
+      var payload = {};
+      try {
+        payload = JSON.parse(card.getAttribute('data-preview') || '{}');
+      } catch (e) {
+        payload = {};
+      }
+      var state = payloadToPreviewState(payload);
+      var deviceEl = card.querySelector('.admin-design-template-card__device');
+      if (!deviceEl) return;
+      var iframe = deviceEl.querySelector('iframe');
+      if (!iframe) return;
+      var viewportWidth = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
+      var html = renderCoverHtml(state, fontMap, groupMap);
+      var doc = buildPreviewDocument(html, assets, state.pageBg, viewportWidth);
+      iframe.onload = function () {
+        updateDeviceScale(deviceEl);
+      };
+      iframe.srcdoc = doc;
+      updateDeviceScale(deviceEl);
+    }
+
+    panel.querySelectorAll('.admin-design-template-card').forEach(refreshCard);
+
+    window.addEventListener('resize', function () {
+      panel.querySelectorAll('.admin-design-template-card__device').forEach(updateDeviceScale);
+    });
+
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(function () {
+        panel.querySelectorAll('.admin-design-template-card__device').forEach(updateDeviceScale);
+      }).observe(panel);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initDesignTemplateSettingsPreviews);
+  } else {
+    initDesignTemplateSettingsPreviews();
+  }
 })();

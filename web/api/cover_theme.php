@@ -797,6 +797,43 @@ function efpic_design_template_delete(array $config, string $id): bool
     return true;
 }
 
+function efpic_design_template_rename(array $config, string $id, string $name): bool
+{
+    $id = trim($id);
+    $name = trim($name);
+    if ($id === '' || $name === '') {
+        return false;
+    }
+    $templates = efpic_load_design_templates($config);
+    $found = false;
+    foreach ($templates as $i => $tpl) {
+        if (!is_array($tpl) || (string) ($tpl['id'] ?? '') !== $id) {
+            continue;
+        }
+        $templates[$i]['name'] = $name;
+        $templates[$i]['updated_at'] = gmdate('c');
+        $found = true;
+        break;
+    }
+    if (!$found) {
+        return false;
+    }
+    efpic_save_design_templates($config, $templates);
+
+    return true;
+}
+
+/** @return array<string, mixed> */
+function efpic_design_template_preview_payload(array $config, array $settings): array
+{
+    $meta = efpic_gallery_defaults('delivery');
+    $meta['name'] = 'Priekšskatījums';
+    $meta['event_date'] = date('Y-m-d');
+    efpic_design_template_apply_to_meta($meta, $settings);
+
+    return efpic_cover_theme_preview_payload($config, $meta);
+}
+
 function efpic_render_design_palette_picker(array $config, array $formMeta): string
 {
     $active = efpic_gallery_design_palette_key($formMeta);
