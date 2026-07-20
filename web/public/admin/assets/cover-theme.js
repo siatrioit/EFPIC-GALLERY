@@ -1371,6 +1371,94 @@
       });
     }
 
+    function equalizeDesignTemplateControls() {
+      var tplRoot = document.getElementById('admin-design-templates');
+      if (!tplRoot) return;
+      var panel = tplRoot.closest('[data-admin-tab-panel]');
+      if (panel && panel.hasAttribute('hidden')) return;
+
+      var fields = tplRoot.querySelectorAll('.admin-design-templates__field');
+      var buttons = tplRoot.querySelectorAll('.admin-design-templates__btn');
+      if (!fields.length || !buttons.length) return;
+
+      fields.forEach(function (el) {
+        el.style.width = '';
+        el.style.minWidth = '';
+        el.style.flex = '';
+      });
+      buttons.forEach(function (el) {
+        el.style.width = '';
+        el.style.minWidth = '';
+        el.style.height = '';
+        el.style.minHeight = '';
+        el.style.flex = '';
+      });
+
+      buttons.forEach(function (el) {
+        el.style.width = 'auto';
+        el.style.flex = '0 0 auto';
+      });
+      var maxBtnW = 0;
+      var maxBtnH = 0;
+      buttons.forEach(function (el) {
+        var rect = el.getBoundingClientRect();
+        maxBtnW = Math.max(maxBtnW, Math.ceil(rect.width));
+        maxBtnH = Math.max(maxBtnH, Math.ceil(rect.height));
+      });
+      if (maxBtnW > 0 && maxBtnH > 0) {
+        buttons.forEach(function (el) {
+          el.style.width = maxBtnW + 'px';
+          el.style.minWidth = maxBtnW + 'px';
+          el.style.height = maxBtnH + 'px';
+          el.style.minHeight = maxBtnH + 'px';
+          el.style.flex = '0 0 ' + maxBtnW + 'px';
+        });
+      }
+
+      fields.forEach(function (el) {
+        el.style.width = 'auto';
+        el.style.flex = '1 1 auto';
+      });
+      var maxFieldW = 0;
+      fields.forEach(function (el) {
+        maxFieldW = Math.max(maxFieldW, Math.ceil(el.getBoundingClientRect().width));
+      });
+      if (maxFieldW > 0) {
+        fields.forEach(function (el) {
+          el.style.width = maxFieldW + 'px';
+          el.style.minWidth = maxFieldW + 'px';
+          el.style.flex = '1 1 ' + maxFieldW + 'px';
+        });
+      }
+    }
+
+    window.efpicEqualizeDesignTemplateControls = equalizeDesignTemplateControls;
+
+    var tplResizeTimer = null;
+    function scheduleEqualizeDesignTemplates() {
+      if (tplResizeTimer) window.clearTimeout(tplResizeTimer);
+      tplResizeTimer = window.setTimeout(function () {
+        equalizeDesignTemplateControls();
+      }, 50);
+    }
+
+    scheduleEqualizeDesignTemplates();
+    window.addEventListener('resize', scheduleEqualizeDesignTemplates);
+
+    var tplRoot = document.getElementById('admin-design-templates');
+    if (tplRoot && typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(scheduleEqualizeDesignTemplates).observe(tplRoot);
+    }
+    if (tplRoot) {
+      var tplPanel = tplRoot.closest('[data-admin-tab-panel]');
+      if (tplPanel && typeof MutationObserver !== 'undefined') {
+        new MutationObserver(scheduleEqualizeDesignTemplates).observe(tplPanel, {
+          attributes: true,
+          attributeFilter: ['hidden'],
+        });
+      }
+    }
+
     document.addEventListener('change', function (evt) {
       if (evt.target && evt.target.matches && evt.target.matches('input[name="cover_image_token"]')) {
         refreshPreview();

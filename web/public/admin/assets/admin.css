@@ -602,13 +602,6 @@
   display: flex;
   flex-direction: column;
   gap: 20px;
-  max-width: 1200px;
-}
-
-@media (min-width: 1100px) {
-  .admin-form--tabbed .admin-tab-panel:not(#admin-tab-images):not(#admin-tab-favorites):not(#admin-tab-media) {
-    max-width: 1200px;
-  }
 }
 
 @media (min-width: 800px) {
@@ -3845,24 +3838,29 @@
 }
 
 .admin-design-templates__intro {
-  margin: 0 0 10px;
-  font-size: 0.88rem;
+  margin-bottom: 12px;
 }
 
 .admin-design-templates__toolbar {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 6.75rem;
-  gap: 8px 10px;
-  align-items: end;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+  align-items: flex-end;
 }
 
-.admin-design-templates__toolbar--full {
-  grid-template-columns: minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem;
+.admin-design-templates__group {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 10px;
+  align-items: flex-end;
+  flex: 1 1 280px;
+  min-width: 0;
 }
 
 .admin-design-templates__field {
-  margin-bottom: 0;
+  flex: 1 1 auto;
   min-width: 0;
+  margin-bottom: 0;
 }
 
 .admin-design-templates__field select,
@@ -3871,28 +3869,30 @@
 }
 
 .admin-design-templates__btn {
-  width: 6.75rem;
-  min-width: 6.75rem;
-  max-width: 6.75rem;
-  padding-left: 0.35rem;
-  padding-right: 0.35rem;
-  text-align: center;
-  justify-self: end;
-}
-
-@media (min-width: 700px) {
-  .admin-design-templates__toolbar:not(.admin-design-templates__toolbar--full) {
-    grid-template-columns: minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem;
-  }
-}
-
-@media (min-width: 900px) {
-  .admin-design-templates__toolbar--full {
-    grid-template-columns: minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem;
-  }
+  flex: 0 0 auto;
+  width: auto;
+  margin-top: 0;
+  box-sizing: border-box;
 }
 
 @media (min-width: 1100px) {
+  .admin-design-templates__toolbar {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    flex-wrap: unset;
+    gap: 20px;
+  }
+
+  .admin-design-templates__group {
+    flex: unset;
+    min-width: 0;
+  }
+
+  .admin-design-templates__field {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
   #admin-fs-theme .admin-form-layout--basic {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));

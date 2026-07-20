@@ -2002,6 +2002,11 @@
           sessionStorage.setItem(storageKey, tabId);
         } catch (e) {}
       }
+      if (tabId === 'admin-tab-theme' && typeof window.efpicEqualizeDesignTemplateControls === 'function') {
+        window.requestAnimationFrame(function () {
+          window.efpicEqualizeDesignTemplateControls();
+        });
+      }
     }
 
     tabs.forEach(function (tab) {
