@@ -197,12 +197,36 @@ function efpic_admin_color_field(string $name, string $label, string $value): st
 }
 
 
+function efpic_admin_render_failiem_fieldset(array $failiem): string
+{
+    $html = '<fieldset class="admin-fieldset-full" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
+    $html .= '<p class="muted admin-fieldset-full">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
+    $html .= '<div class="admin-form-row admin-form-row--failiem">';
+    $html .= '<label>Galvenā mape (AI meklēšanai, opcija)<input name="folder_parent_url" value="'
+        . efpic_admin_esc((string) ($failiem['folder_parent_url'] ?? '')) . '" placeholder="https://failiem.lv/u/3989fkmbt7"></label>';
+    $html .= '<label>Mapes pilns<input name="folder_full_url" value="' . efpic_admin_esc((string) ($failiem['folder_full_url'] ?? '')) . '"></label>';
+    $html .= '<label>Mapes web<input name="folder_web_url" value="' . efpic_admin_esc((string) ($failiem['folder_web_url'] ?? '')) . '"></label>';
+    $html .= '</div></fieldset>';
+
+    return $html;
+}
+
+function efpic_admin_render_new_gallery_scenes_fieldset(string $sceneTitle): string
+{
+    $html = '<fieldset class="admin-fieldset-full" id="admin-fs-scenes"><legend>Galerijas sadaļas</legend>';
+    $html .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
+    $html .= '<p class="muted">Pēc izveides varēs pievienot vairākas sadaļas.</p></fieldset>';
+
+    return $html;
+}
+
 function efpic_admin_render_theme_fieldset(array $config, array $formMeta): string
 {
     $heroAccent = efpic_client_hero_accent_color($formMeta);
     $pageBg = efpic_client_page_bg_color($config, $formMeta);
     $html = '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Dizains</legend>';
     $html .= '<input type="hidden" name="theme" value="efpic-base">';
+    $html .= efpic_render_design_template_controls($config, $formMeta);
     $html .= efpic_render_design_preset_picker();
     $coverFromFav = efpic_gallery_cover_from_favorites($formMeta);
     $html .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
@@ -216,7 +240,6 @@ function efpic_admin_render_theme_fieldset(array $config, array $formMeta): stri
     $html .= '<p class="muted admin-fieldset-full">Saliec izskatu pa daļām — vāks, krāsas, fonti un kolonnas. Klients var mainīt krāsas panelī.</p>';
     $html .= '</div>';
     $html .= efpic_render_cover_theme_controls($config, $formMeta, false);
-    $html .= efpic_render_design_template_controls($config, $formMeta);
     $html .= '</fieldset>';
 
     return $html;
@@ -2091,11 +2114,11 @@ function efpic_admin_media_thumb_url(array $config, array $img): string
 function efpic_admin_render_edit_tabs_nav(): string
 {
     $tabs = [
-        ['id' => 'admin-tab-basic', 'label' => 'Pamati'],
-        ['id' => 'admin-tab-messages', 'label' => 'Ziņojumi klientam'],
-        ['id' => 'admin-tab-theme', 'label' => 'Dizains'],
         ['id' => 'admin-tab-failiem', 'label' => 'Failiem'],
+        ['id' => 'admin-tab-basic', 'label' => 'Pamati'],
         ['id' => 'admin-tab-scenes', 'label' => 'Sadaļas'],
+        ['id' => 'admin-tab-theme', 'label' => 'Dizains'],
+        ['id' => 'admin-tab-messages', 'label' => 'Ziņojumi klientam'],
         ['id' => 'admin-tab-images', 'label' => 'Bildes'],
         ['id' => 'admin-tab-favorites', 'label' => 'Favorītbildes'],
         ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
@@ -2166,16 +2189,23 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     if ($isEdit) {
         $body .= efpic_admin_render_edit_tabs_nav();
+        $body .= efpic_admin_tab_panel_open('admin-tab-failiem', true);
+        $body .= efpic_admin_render_failiem_fieldset($failiem);
+        $body .= efpic_admin_tab_panel_close();
+        $body .= efpic_admin_tab_panel_open('admin-tab-basic', false);
+    } elseif (!$isEdit) {
+        $body .= '<div class="admin-delivery-sections">';
+        $body .= efpic_admin_render_failiem_fieldset($failiem);
     }
 
     if (!$isEdit) {
-        $body .= '<fieldset class="admin-fieldset-full"><legend>Galerijas sadaļas</legend>';
-        $body .= '<label>Pirmās sadaļas virsraksts<input name="scene_title" value="' . efpic_admin_esc($sceneTitle) . '"></label>';
-        $body .= '<p class="muted">Pēc izveides varēs pievienot vairākas sadaļas.</p></fieldset>';
+        $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-links-panel" id="admin-fs-saites"><legend>Saites</legend>';
+        $body .= efpic_admin_render_portal_links_block($config, $formMeta, false);
+        $body .= '<p class="muted admin-field-hint">Publiskā galerijas saite būs redzama pēc izveides.</p>';
+        $body .= '</fieldset>';
     }
 
     if ($isEdit) {
-        $body .= efpic_admin_tab_panel_open('admin-tab-basic', true);
         if (!efpic_gallery_is_active($meta)) {
             $body .= '<p class="admin-warn">Šī galerija ir <strong>dzēsta</strong> — publiski nav pieejama. Atjauno no saraksta «Dzēstās galerijas».</p>';
         }
@@ -2206,19 +2236,8 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '</div>';
     }
 
-    if (!$isEdit) {
-        $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact admin-links-panel" id="admin-fs-saites"><legend>Saites</legend>';
-        $body .= efpic_admin_render_portal_links_block($config, $formMeta, false);
-        $body .= '<p class="muted admin-field-hint">Publiskā galerijas saite būs redzama pēc izveides.</p>';
-        $body .= '</fieldset>';
-        $body .= '<div class="admin-form-layout">';
-    }
-
     $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-pamatinformacija"><legend>Pamatinformācija</legend>';
     $body .= '<div class="admin-form-layout admin-form-layout--pamati">';
-    if (!$isEdit) {
-        $body .= '<label class="admin-field-full">Slug (URL)<input name="slug" placeholder="pasakuma-foto"></label>';
-    }
     $eventDate = substr((string) ($formMeta['event_date'] ?? ''), 0, 10);
     if ($eventDate === '' && !$isEdit) {
         $eventDate = date('Y-m-d');
@@ -2307,39 +2326,24 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
 
     if ($isEdit) {
         $body .= efpic_admin_tab_panel_close();
-        $body .= efpic_admin_tab_panel_open('admin-tab-messages');
-        if (is_array($meta) && $slug !== null) {
-            $body .= efpic_admin_render_gallery_client_messages($config, $meta, $slug);
+        $body .= efpic_admin_tab_panel_open('admin-tab-scenes');
+        if (is_array($meta)) {
+            $body .= efpic_admin_render_scenes_fieldset($meta);
         }
         $body .= efpic_admin_tab_panel_close();
         $body .= efpic_admin_tab_panel_open('admin-tab-theme');
         $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
         $body .= efpic_admin_tab_panel_close();
-        $body .= efpic_admin_tab_panel_open('admin-tab-failiem');
-    } else {
-        $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
-    }
-
-    $body .= '<fieldset class="admin-fieldset-full" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
-    $body .= '<div class="admin-form-layout admin-form-layout--failiem admin-form-layout--pairs">';
-    $body .= '<p class="muted admin-fieldset-full">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
-    $body .= '<label class="admin-fieldset-full">Galvenā mape (AI meklēšanai, opcija)<input name="folder_parent_url" value="'
-        . efpic_admin_esc((string) ($failiem['folder_parent_url'] ?? '')) . '" placeholder="https://failiem.lv/u/3989fkmbt7"></label>';
-    $body .= '<label>Mapes pilns<input name="folder_full_url" value="' . efpic_admin_esc((string) ($failiem['folder_full_url'] ?? '')) . '"></label>';
-    $body .= '<label>Mapes web<input name="folder_web_url" value="' . efpic_admin_esc((string) ($failiem['folder_web_url'] ?? '')) . '"></label>';
-    $body .= '</div></fieldset>';
-
-    if ($isEdit) {
-        $body .= efpic_admin_tab_panel_close();
-        $body .= efpic_admin_tab_panel_open('admin-tab-scenes');
-    } elseif (!$isEdit) {
-        $body .= '</div>';
-    }
-
-    if ($isEdit && is_array($meta)) {
-        $body .= efpic_admin_render_scenes_fieldset($meta);
+        $body .= efpic_admin_tab_panel_open('admin-tab-messages');
+        if (is_array($meta) && $slug !== null) {
+            $body .= efpic_admin_render_gallery_client_messages($config, $meta, $slug);
+        }
         $body .= efpic_admin_tab_panel_close();
         $body .= efpic_admin_tab_panel_open('admin-tab-images');
+    } else {
+        $body .= efpic_admin_render_new_gallery_scenes_fieldset($sceneTitle);
+        $body .= efpic_admin_render_theme_fieldset($config, $formMeta);
+        $body .= '</div>';
     }
 
     if ($isEdit && ($meta['images'] ?? []) !== []) {
@@ -2474,7 +2478,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body,
         $isEdit ? 'list' : 'new',
         $isEdit ? 'Rediģēt galeriju' : 'Jauna galerija',
-        $isEdit ? 'Sadaļas cilnēs: pamati, ziņojumi klientam, Failiem, bildes, kopīgošana un mediji.' : 'Izveido jaunu galeriju un piesaisti Failiem mapes.',
+        $isEdit ? 'Cilnes: Failiem, pamati, sadaļas, dizains, bildes un citas.' : 'Secība: Failiem mapes → saites → pamatinformācija → sadaļas → dizains.',
         $config,
         '',
         $footExtra,

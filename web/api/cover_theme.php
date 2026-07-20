@@ -849,8 +849,9 @@ function efpic_render_design_template_controls(array $config, array $formMeta): 
     $html = '<fieldset class="admin-fieldset-full admin-design-templates" id="admin-design-templates"'
         . ' data-templates="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '">';
     $html .= '<legend>Dizaina šabloni</legend>';
-    $html .= '<p class="muted">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
-    $html .= '<div class="admin-design-templates__row">';
+    $html .= '<p class="muted admin-design-templates__intro">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
+    $html .= '<div class="admin-design-templates__toolbar">';
+    $html .= '<div class="admin-design-templates__group">';
     $html .= '<label>Lietot šablonu<select id="design_template_apply" name="design_template_apply">';
     $html .= '<option value="">— Izvēlēties —</option>';
     foreach ($templates as $tpl) {
@@ -867,12 +868,12 @@ function efpic_render_design_template_controls(array $config, array $formMeta): 
     $html .= '</select></label>';
     $html .= '<button type="button" class="btn admin-btn-inline" id="design_template_apply_btn">Lietot</button>';
     $html .= '</div>';
-    $html .= '<div class="admin-design-templates__row">';
+    $html .= '<div class="admin-design-templates__group">';
     $html .= '<label>Jauns šablons<input type="text" name="design_template_name" id="design_template_name" placeholder="piem. Kāzas 2026"></label>';
     $html .= '<button type="submit" class="btn admin-btn-inline" name="design_template_save" value="1" formnovalidate>Saglabāt kā šablonu</button>';
     $html .= '</div>';
     if ($templates !== []) {
-        $html .= '<div class="admin-design-templates__row">';
+        $html .= '<div class="admin-design-templates__group">';
         $html .= '<label>Dzēst šablonu<select name="design_template_id" id="design_template_delete_select">';
         $html .= '<option value="">— Izvēlēties —</option>';
         foreach ($templates as $tpl) {
@@ -890,6 +891,7 @@ function efpic_render_design_template_controls(array $config, array $formMeta): 
         $html .= '<button type="submit" class="btn admin-btn-danger admin-btn-inline" name="design_template_delete" value="1" formnovalidate>Dzēst šablonu</button>';
         $html .= '</div>';
     }
+    $html .= '</div>';
     $html .= '</fieldset>';
 
     return $html;
