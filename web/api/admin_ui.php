@@ -200,12 +200,13 @@ function efpic_admin_color_field(string $name, string $label, string $value): st
 function efpic_admin_render_failiem_fieldset(array $failiem): string
 {
     $html = '<fieldset class="admin-fieldset-full" id="admin-fs-failiem"><legend>Failiem.lv mapes</legend>';
-    $html .= '<p class="muted admin-fieldset-full">Pilns izmērs (PRINT) un web (mazāks). Piem. https://failiem.lv/u/…</p>';
+    $html .= '<p class="muted admin-fieldset-full">Pilns izmērs (PRINT) un web (mazāks). Video — atsevišķā mapē. Piem. https://failiem.lv/u/…</p>';
     $html .= '<div class="admin-form-row admin-form-row--failiem">';
     $html .= '<label>Galvenā mape (AI meklēšanai, opcija)<input name="folder_parent_url" value="'
         . efpic_admin_esc((string) ($failiem['folder_parent_url'] ?? '')) . '" placeholder="https://failiem.lv/u/3989fkmbt7"></label>';
     $html .= '<label>Mapes pilns<input name="folder_full_url" value="' . efpic_admin_esc((string) ($failiem['folder_full_url'] ?? '')) . '"></label>';
     $html .= '<label>Mapes web<input name="folder_web_url" value="' . efpic_admin_esc((string) ($failiem['folder_web_url'] ?? '')) . '"></label>';
+    $html .= '<label>Mapes video<input name="folder_video_url" value="' . efpic_admin_esc((string) ($failiem['folder_video_url'] ?? '')) . '" placeholder="https://failiem.lv/u/…"></label>';
     $html .= '</div></fieldset>';
 
     return $html;
@@ -1789,6 +1790,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'folder_parent_url' => trim((string) ($_POST['folder_parent_url'] ?? '')),
             'folder_full_url' => trim((string) ($_POST['folder_full_url'] ?? '')),
             'folder_web_url' => trim((string) ($_POST['folder_web_url'] ?? '')),
+            'folder_video_url' => trim((string) ($_POST['folder_video_url'] ?? '')),
             'theme' => efpic_normalize_gallery_theme((string) ($_POST['theme'] ?? 'efpic-modern')),
         ]);
         $slug = $created['slug'];
@@ -1878,8 +1880,10 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         $meta['failiem']['folder_parent_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_parent_url']);
         $meta['failiem']['folder_full_url'] = trim((string) ($_POST['folder_full_url'] ?? ''));
         $meta['failiem']['folder_web_url'] = trim((string) ($_POST['folder_web_url'] ?? ''));
+        $meta['failiem']['folder_video_url'] = trim((string) ($_POST['folder_video_url'] ?? ''));
         $meta['failiem']['folder_full_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_full_url']);
         $meta['failiem']['folder_web_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_web_url']);
+        $meta['failiem']['folder_video_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_video_url']);
 
         $meta['scenes'] = efpic_parse_scenes_from_post();
         efpic_reassign_orphan_scene_images($meta);
@@ -2212,6 +2216,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $stats = $failiem['sync_stats'] ?? null;
         if (is_array($stats)) {
             $body .= '<p class="muted admin-links-sync">Sync: ' . (int) ($stats['paired'] ?? 0) . ' pāri';
+            if ((int) ($stats['video_count'] ?? 0) > 0) {
+                $body .= ' · ' . (int) ($stats['video_count'] ?? 0) . ' video';
+            }
             if ((int) ($stats['orphans_full'] ?? 0) > 0 || (int) ($stats['orphans_web'] ?? 0) > 0) {
                 $body .= ' · brīdinājumi: pilns ' . (int) ($stats['orphans_full'] ?? 0) . ', web ' . (int) ($stats['orphans_web'] ?? 0);
             }

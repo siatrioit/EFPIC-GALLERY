@@ -89,6 +89,59 @@ function efpic_failiem_list_folder(array $config, string $folderHash): array
     return $files;
 }
 
+function efpic_failiem_is_video_file(string $mime, string $name): bool
+{
+    if ($mime !== '' && str_starts_with($mime, 'video/')) {
+        return true;
+    }
+    $ext = strtolower(pathinfo($name, PATHINFO_EXTENSION));
+
+    return in_array($ext, ['mp4', 'mov', 'webm', 'm4v', 'avi', 'mkv'], true);
+}
+
+/** @return array<int, array{hash: string, name: string, size_bytes: int, mime_type: string}> */
+function efpic_failiem_list_video_folder(array $config, string $folderHash): array
+{
+    $folderHash = efpic_failiem_parse_folder_hash($folderHash);
+    if ($folderHash === '') {
+        throw new InvalidArgumentException('Nederīga video mapes saite vai hash');
+    }
+
+    $url = efpic_failiem_api_base($config)
+        . '/api/get_file_list_for_upload.php?hash='
+        . rawurlencode($folderHash)
+        . '&include_folders=1';
+
+    $data = efpic_failiem_http_get($config, $url);
+    if (!is_array($data)) {
+        throw new RuntimeException('Failiem atbilde nav masīvs');
+    }
+
+    $files = [];
+    foreach ($data as $item) {
+        if (!is_array($item) || ($item['type'] ?? '') !== 'File') {
+            continue;
+        }
+        $name = (string) ($item['name'] ?? '');
+        $mime = (string) ($item['mime_type'] ?? '');
+        if (!efpic_failiem_is_video_file($mime, $name)) {
+            continue;
+        }
+        $hash = (string) ($item['hash'] ?? '');
+        if ($hash === '') {
+            continue;
+        }
+        $files[] = [
+            'hash' => $hash,
+            'name' => $name,
+            'size_bytes' => (int) ($item['Size'] ?? $item['size'] ?? 0),
+            'mime_type' => $mime !== '' ? $mime : 'video/mp4',
+        ];
+    }
+
+    return $files;
+}
+
 function efpic_failiem_normalize_basename(string $filename, array $stripSuffixes): string
 {
     $base = pathinfo($filename, PATHINFO_FILENAME);
@@ -273,6 +326,34 @@ function efpic_failiem_file_hashes_from_images(array $images, string $size): arr
     }
 
     return $hashes;
+}
+
+/** @return list<string> */
+function efpic_failiem_file_hashes_from_videos(array $videos): array
+{
+    $hashes = [];
+    foreach ($videos as $video) {
+        if (!is_array($video) || ($video['kind'] ?? '') !== 'failiem') {
+            continue;
+        }
+        $hash = (string) ($video['failiem']['file_hash'] ?? '');
+        if ($hash !== '') {
+            $hashes[] = $hash;
+        }
+    }
+
+    return $hashes;
+}
+
+function efpic_failiem_video_folder_hash(array $meta): string
+{
+    $failiem = $meta['failiem'] ?? [];
+    if (!is_array($failiem)) {
+        return '';
+    }
+
+    return efpic_failiem_parse_folder_hash((string) ($failiem['folder_video_hash'] ?? ''))
+        ?: efpic_failiem_parse_folder_hash((string) ($failiem['folder_video_url'] ?? ''));
 }
 
 function efpic_failiem_cookie_phpsessid(string $cookieFile): string

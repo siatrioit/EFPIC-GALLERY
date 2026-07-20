@@ -98,6 +98,18 @@ try {
         efpic_handle_gallery_asset($config, strtolower($m[1]), $m[2]);
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/videos/download\.zip$#i', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_gallery_videos_zip($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/video/([a-zA-Z0-9_-]+)/stream$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_video_stream($config, strtolower($m[1]), $m[2]);
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/video/([a-zA-Z0-9_-]+)/download$#', $uri, $m) && $method === 'GET') {
+        efpic_handle_client_video_download($config, strtolower($m[1]), $m[2]);
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/download\.zip$#i', $uri, $m) && $method === 'GET') {
         efpic_handle_client_gallery_zip($config, strtolower($m[1]));
     }

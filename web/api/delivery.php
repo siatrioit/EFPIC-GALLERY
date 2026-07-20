@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/failiem_client.php';
 require_once __DIR__ . '/image_dimensions.php';
+require_once __DIR__ . '/gallery_assets.php';
 
 /**
  * Sinhronizē delivery galeriju no divām Failiem mapēm.
@@ -142,6 +143,9 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         $meta['cover_image_token'] = $newImages[0]['token'];
     }
 
+    $videoSync = efpic_sync_delivery_videos($config, $meta);
+    $meta['failiem']['sync_stats']['video_count'] = $videoSync['video_count'];
+
     efpic_save_gallery_meta($config, $slug, $meta);
 
     // Pārrēķina izmērus visām bildēm, kur Failiem fails ir mainījies (bez partijas limita).
@@ -183,7 +187,9 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     if ($pairResult['orphans_web'] !== []) {
         $warnings[] = 'Web mapē bez pāra: ' . count($pairResult['orphans_web']) . ' faili';
     }
-
+    if ($videoSync['removed'] > 0) {
+        $warnings[] = 'Noņemti ' . $videoSync['removed'] . ' video, kas vairs nav Failiem mapē';
+    }
 
     return [
         'ok' => true,
@@ -192,7 +198,104 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         'dimensions_backfilled' => $dimResult['updated'],
         'dimensions_reprobed' => $dimResult['reprobed'],
         'dimensions_stats' => $dimResult['stats'],
+        'video_count' => $videoSync['video_count'],
     ];
+}
+
+/**
+ * Sinhronizē video no Failiem mapes uz meta.videos (kind=failiem).
+ *
+ * @return array{video_count: int, removed: int}
+ */
+function efpic_sync_delivery_videos(array $config, array &$meta): array
+{
+    $videoFolderHash = efpic_failiem_video_folder_hash($meta);
+    $manualVideos = [];
+    $existingFailiem = [];
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video)) {
+            continue;
+        }
+        if (($video['kind'] ?? '') === 'failiem') {
+            $hash = (string) ($video['failiem']['file_hash'] ?? '');
+            if ($hash !== '') {
+                $existingFailiem[$hash] = $video;
+            }
+        } else {
+            $manualVideos[] = $video;
+        }
+    }
+
+    if ($videoFolderHash === '') {
+        $removed = count($existingFailiem);
+        $meta['videos'] = $manualVideos;
+        if (!is_array($meta['failiem'] ?? null)) {
+            $meta['failiem'] = [];
+        }
+        $meta['failiem']['folder_video_hash'] = '';
+
+        return ['video_count' => 0, 'removed' => $removed];
+    }
+
+    $videoFiles = efpic_failiem_list_video_folder($config, $videoFolderHash);
+    if ($videoFiles !== []) {
+        efpic_ensure_gallery_video_scene($meta);
+    }
+
+    usort($videoFiles, static fn ($a, $b) => strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? '')));
+
+    $syncedVideos = [];
+    $sort = 10;
+    foreach ($videoFiles as $file) {
+        $hash = (string) ($file['hash'] ?? '');
+        if ($hash === '') {
+            continue;
+        }
+        $prev = $existingFailiem[$hash] ?? null;
+        $id = is_array($prev) ? (string) ($prev['id'] ?? '') : '';
+        if ($id === '') {
+            $id = 'fv_' . efpic_random_hex(12);
+        }
+        $title = is_array($prev) ? trim((string) ($prev['title'] ?? '')) : '';
+        if ($title === '') {
+            $title = pathinfo((string) ($file['name'] ?? ''), PATHINFO_FILENAME);
+        }
+        $sceneId = is_array($prev) ? (string) ($prev['scene_id'] ?? 'video') : 'video';
+        if ($sceneId === '') {
+            $sceneId = 'video';
+        }
+        $entrySort = is_array($prev) ? (int) ($prev['sort'] ?? $sort) : $sort;
+        $syncedVideos[] = [
+            'id' => $id,
+            'kind' => 'failiem',
+            'failiem' => [
+                'file_hash' => $hash,
+                'name' => (string) ($file['name'] ?? ''),
+                'size_bytes' => (int) ($file['size_bytes'] ?? 0),
+                'mime_type' => (string) ($file['mime_type'] ?? 'video/mp4'),
+            ],
+            'title' => $title,
+            'scene_id' => $sceneId,
+            'sort' => $entrySort > 0 ? $entrySort : $sort,
+        ];
+        $sort += 10;
+    }
+
+    usort($syncedVideos, static fn ($a, $b) => ((int) ($a['sort'] ?? 0)) <=> ((int) ($b['sort'] ?? 0)));
+    $sort = 10;
+    foreach ($syncedVideos as $i => $video) {
+        $syncedVideos[$i]['sort'] = $sort;
+        $sort += 10;
+    }
+
+    $removed = max(0, count($existingFailiem) - count($syncedVideos));
+    $meta['videos'] = array_merge($manualVideos, $syncedVideos);
+    if (!is_array($meta['failiem'] ?? null)) {
+        $meta['failiem'] = [];
+    }
+    $meta['failiem']['folder_video_hash'] = $videoFolderHash;
+
+    return ['video_count' => count($syncedVideos), 'removed' => $removed];
 }
 
 function efpic_create_delivery_gallery(array $config, array $input): array
@@ -222,8 +325,10 @@ function efpic_create_delivery_gallery(array $config, array $input): array
     $meta['failiem']['folder_parent_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_parent_url']);
     $meta['failiem']['folder_full_url'] = trim((string) ($input['folder_full_url'] ?? ''));
     $meta['failiem']['folder_web_url'] = trim((string) ($input['folder_web_url'] ?? ''));
+    $meta['failiem']['folder_video_url'] = trim((string) ($input['folder_video_url'] ?? ''));
     $meta['failiem']['folder_full_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_full_url']);
     $meta['failiem']['folder_web_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_web_url']);
+    $meta['failiem']['folder_video_hash'] = efpic_failiem_parse_folder_hash($meta['failiem']['folder_video_url']);
     $meta['failiem']['pair_suffix_strip'] = efpic_failiem_strip_suffixes($config);
 
     $meta['client_access']['email'] = trim((string) ($input['client_email'] ?? ''));

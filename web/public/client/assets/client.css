@@ -3392,6 +3392,36 @@ button.gallery-scene-nav__link {
   margin-bottom: 0;
 }
 
+.gallery-video-file video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  max-height: min(80vh, 900px);
+  margin: 0 auto;
+  border-radius: 10px;
+  background: #111;
+}
+
+.gallery-video-actions {
+  margin: 10px 0 20px;
+  text-align: center;
+}
+
+.gallery-video-download {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  text-decoration: none;
+  border-radius: 8px;
+  border: 1px solid color-mix(in srgb, var(--page-text, var(--text)) 20%, transparent);
+  color: var(--page-text, var(--text));
+  background: var(--page-bg, var(--surface));
+}
+
 .scene-block--pic .scene-title {
   max-width: 100%;
   box-sizing: border-box;

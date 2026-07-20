@@ -1413,4 +1413,43 @@ function efpic_can_download_scene_zip(array $meta, array $ctx, string $size): bo
     return efpic_can_download_collection_zip($meta, $ctx, $size);
 }
 
+function efpic_can_download_gallery_videos(array $meta, array $ctx): bool
+{
+    if (($meta['type'] ?? '') !== 'delivery') {
+        return false;
+    }
+    if (efpic_gallery_failiem_videos($meta) === []) {
+        return false;
+    }
+    if (is_array($ctx['share_image_tokens'] ?? null)) {
+        return false;
+    }
+    if (function_exists('efpic_gallery_has_client_content_filtering')
+        && efpic_gallery_has_client_content_filtering($meta)) {
+        return false;
+    }
+
+    return efpic_can_download_size($meta, $ctx, 'full') || efpic_can_download_size($meta, $ctx, 'web');
+}
+
+function efpic_gallery_video_stream_url(array $config, string $galleryToken, string $videoId, ?string $guestToken = null): string
+{
+    $url = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken) . '/video/' . rawurlencode($videoId) . '/stream';
+    if ($guestToken !== null && $guestToken !== '') {
+        $url .= '?guest=' . rawurlencode($guestToken);
+    }
+
+    return $url;
+}
+
+function efpic_gallery_video_download_url(array $config, string $galleryToken, string $videoId, ?string $guestToken = null): string
+{
+    $url = efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken) . '/video/' . rawurlencode($videoId) . '/download';
+    if ($guestToken !== null && $guestToken !== '') {
+        $url .= '?guest=' . rawurlencode($guestToken);
+    }
+
+    return $url;
+}
+
 require_once __DIR__ . '/cover_theme.php';

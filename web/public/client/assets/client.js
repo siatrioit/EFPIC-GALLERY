@@ -445,6 +445,12 @@
     if (!gdlBase) return;
     closeGalleryDlModal();
     closeCollectionDlModal();
+    if (scope === 'videos') {
+      openZipProgressLoading('Sagatavo video…', 'Sagatavo Failiem ZIP…');
+      triggerBrowserDownload(gdlBase + '/videos/download.zip');
+      closeZipProgress();
+      return;
+    }
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
     var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
     var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';

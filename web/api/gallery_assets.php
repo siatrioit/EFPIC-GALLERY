@@ -82,6 +82,57 @@ function efpic_videos_grouped_by_scene(array $meta): array
     return $byScene;
 }
 
+/** @return list<array<string, mixed>> */
+function efpic_gallery_failiem_videos(array $meta): array
+{
+    $out = [];
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (!is_array($video) || ($video['kind'] ?? '') !== 'failiem') {
+            continue;
+        }
+        $out[] = $video;
+    }
+
+    return $out;
+}
+
+function efpic_delivery_video_hash(array $video): string
+{
+    if (($video['kind'] ?? '') !== 'failiem') {
+        return '';
+    }
+
+    return (string) ($video['failiem']['file_hash'] ?? '');
+}
+
+function efpic_ensure_gallery_video_scene(array &$meta): void
+{
+    $scenes = $meta['scenes'] ?? [];
+    if (!is_array($scenes)) {
+        $scenes = [];
+    }
+    foreach ($scenes as $scene) {
+        if (is_array($scene) && (string) ($scene['id'] ?? '') === 'video') {
+            return;
+        }
+    }
+    $maxSort = 0;
+    foreach ($scenes as $scene) {
+        if (!is_array($scene)) {
+            continue;
+        }
+        $maxSort = max($maxSort, (int) ($scene['sort'] ?? 0));
+    }
+    $scenes[] = [
+        'id' => 'video',
+        'title' => 'Video',
+        'sort' => $maxSort + 1,
+        'header_image_token' => null,
+        'hidden_from_guests' => false,
+    ];
+    $meta['scenes'] = efpic_sanitize_gallery_scenes($scenes);
+}
+
 /**
  * Sadaļas, kurām ir vismaz viena bilde vai video (kārtotas pēc sort).
  *

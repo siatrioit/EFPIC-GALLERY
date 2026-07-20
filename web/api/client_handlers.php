@@ -162,8 +162,10 @@ function efpic_client_gallery_download_modal(array $meta, array $ctx): string
     $isShare = efpic_viewer_is_restricted_share($ctx);
     $canAllWeb = efpic_can_download_all_gallery_zip($meta, $ctx, 'web');
     $canAllFull = efpic_can_download_all_gallery_zip($meta, $ctx, 'full');
+    $canVideos = efpic_can_download_gallery_videos($meta, $ctx);
+    $videoCount = count(efpic_gallery_failiem_videos($meta));
 
-    if (!$canAllWeb && !$canAllFull) {
+    if (!$canAllWeb && !$canAllFull && !$canVideos) {
         return '';
     }
 
@@ -179,16 +181,25 @@ function efpic_client_gallery_download_modal(array $meta, array $ctx): string
     $html .= '<div class="modal"><button type="button" class="icon-btn modal-close" data-gdl-close aria-label="Aizvērt">';
     $html .= efpic_client_icon('close') . '</button>';
     $html .= '<h2 id="galleryDownloadModalTitle">' . efpic_client_esc($title) . '</h2>';
-    $html .= '<p class="modal-kicker">' . efpic_client_esc($kicker) . '</p>';
-    $html .= $hint;
-    $html .= '<div class="dl-size-row">';
-    if ($canAllWeb) {
-        $html .= '<a class="btn primary gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="web">WEB</a>';
+    if ($canAllWeb || $canAllFull) {
+        $html .= '<p class="modal-kicker">' . efpic_client_esc($kicker) . '</p>';
+        $html .= $hint;
+        $html .= '<div class="dl-size-row">';
+        if ($canAllWeb) {
+            $html .= '<a class="btn primary gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="web">WEB</a>';
+        }
+        if ($canAllFull) {
+            $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="full">PRINT</a>';
+        }
+        $html .= '</div>';
     }
-    if ($canAllFull) {
-        $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="all" data-gdl-size="full">PRINT</a>';
+    if ($canVideos && $videoCount > 0) {
+        $html .= '<p class="modal-kicker">Visi video (' . $videoCount . ')</p>';
+        $html .= '<div class="dl-size-row">';
+        $html .= '<a class="btn gdl-btn" href="#" data-gdl-scope="videos" data-gdl-size="video">Lejupielādēt ZIP</a>';
+        $html .= '</div>';
     }
-    $html .= '</div></div></div>';
+    $html .= '</div></div>';
 
     return $html;
 }
@@ -1005,7 +1016,6 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
                 . efpic_client_esc($sid) . '">';
         }
         $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
-        $html .= $sceneVideos;
         if ($multiScene) {
             $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         }
@@ -1014,16 +1024,17 @@ function efpic_client_render_modern_scenes(array $config, array $meta, array $im
             $html .= efpic_client_render_pic_feed_items($config, $sceneImages, $gridCtx, $ctx, $meta);
             $html .= '</div>';
         }
+        $html .= $sceneVideos;
         if ($multiScene) {
             $html .= '</section>';
         }
     }
 
     if ($html === '') {
-        $html = efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
         $html .= efpic_client_mosaic_feed_open($meta);
         $html .= efpic_client_render_pic_feed_items($config, $images, $gridCtx, $ctx, $meta);
         $html .= '</div>';
+        $html .= efpic_client_render_videos_for_scene($config, $meta, 'main', $ctx);
     }
 
     $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'bottom');
@@ -1057,6 +1068,7 @@ function efpic_client_render_single_video(array $config, array $meta, array $vid
         $html .= '<h3 class="gallery-video-title">' . efpic_client_esc($title) . '</h3>';
     }
     $kind = (string) ($video['kind'] ?? 'file');
+    $ctx = $ctx ?? [];
     if ($kind === 'embed') {
         $provider = (string) ($video['provider'] ?? '');
         $embedId = (string) ($video['embed_id'] ?? '');
@@ -1067,6 +1079,21 @@ function efpic_client_render_single_video(array $config, array $meta, array $vid
             ? 'https://player.vimeo.com/video/' . rawurlencode($embedId)
             : 'https://www.youtube-nocookie.com/embed/' . rawurlencode($embedId);
         $html .= '<div class="gallery-video-embed"><iframe src="' . efpic_client_esc($src) . '" allowfullscreen loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe></div>';
+    } elseif ($kind === 'failiem') {
+        $videoId = (string) ($video['id'] ?? '');
+        $hash = efpic_delivery_video_hash($video);
+        if ($videoId === '' || $hash === '') {
+            return $html;
+        }
+        $streamUrl = efpic_gallery_video_stream_url($config, $gt, $videoId, $guestQ);
+        $html .= '<div class="gallery-video-file gallery-video-file--failiem">';
+        $html .= efpic_client_render_inline_video_player($streamUrl, true);
+        if (efpic_can_download_gallery_videos($meta, $ctx)) {
+            $dlUrl = efpic_gallery_video_download_url($config, $gt, $videoId, $guestQ);
+            $html .= '<p class="gallery-video-actions"><a class="btn gallery-video-download" href="'
+                . efpic_client_esc($dlUrl) . '">Lejupielādēt video</a></p>';
+        }
+        $html .= '</div>';
     } else {
         $file = (string) ($video['file'] ?? '');
         if ($file === '') {
@@ -1270,7 +1297,6 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
         $html .= '<section id="' . efpic_client_esc($anchor) . '" class="scene-block" data-scene-id="'
             . efpic_client_esc($sid) . '">';
         $html .= efpic_client_render_public_slideshow_video_inline($config, $meta, $ctx, 'before_scene', $sid);
-        $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $html .= '<h2 class="scene-title">' . efpic_client_esc($title) . '</h2>';
         if ($sceneImages !== []) {
             $html .= '<div class="grid">';
@@ -1288,6 +1314,7 @@ function efpic_client_render_gallery_grid(array $config, array $meta, array $ima
             }
             $html .= '</div>';
         }
+        $html .= efpic_client_render_videos_for_scene($config, $meta, $sid, $ctx);
         $html .= '</section>';
     }
 
@@ -2523,5 +2550,126 @@ function efpic_handle_client_collection_zip(array $config, string $galleryToken)
         static fn (array $meta, array $ctx, string $size): bool => efpic_can_download_collection_zip($meta, $ctx, $size),
         'collection',
     );
+}
+
+/** @return array{slug: string, meta: array, video: array}|null */
+function efpic_find_gallery_failiem_video(array $config, string $galleryToken, string $videoId): ?array
+{
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        return null;
+    }
+    $video = efpic_gallery_video_by_id($found['meta'], $videoId);
+    if ($video === null || ($video['kind'] ?? '') !== 'failiem') {
+        return null;
+    }
+
+    return [
+        'slug' => (string) ($found['slug'] ?? ''),
+        'meta' => $found['meta'],
+        'video' => $video,
+    ];
+}
+
+function efpic_handle_client_video_stream(array $config, string $galleryToken, string $videoId): void
+{
+    $found = efpic_find_gallery_failiem_video($config, $galleryToken, $videoId);
+    if ($found === null) {
+        http_response_code(404);
+        exit;
+    }
+    $meta = $found['meta'];
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
+    $ctx = efpic_viewer_context($config, $meta);
+    if (efpic_viewer_context_access_denied($ctx)) {
+        http_response_code(403);
+        exit;
+    }
+
+    $hash = efpic_delivery_video_hash($found['video']);
+    if ($hash === '') {
+        http_response_code(404);
+        exit;
+    }
+
+    header('Location: ' . efpic_failiem_download_url($config, $hash), true, 302);
+    exit;
+}
+
+function efpic_handle_client_video_download(array $config, string $galleryToken, string $videoId): void
+{
+    $found = efpic_find_gallery_failiem_video($config, $galleryToken, $videoId);
+    if ($found === null) {
+        http_response_code(404);
+        exit;
+    }
+    $meta = $found['meta'];
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
+    $ctx = efpic_viewer_context($config, $meta);
+    if (!efpic_can_download_gallery_videos($meta, $ctx)) {
+        http_response_code(403);
+        exit;
+    }
+
+    $hash = efpic_delivery_video_hash($found['video']);
+    if ($hash === '') {
+        http_response_code(404);
+        exit;
+    }
+
+    $name = (string) ($found['video']['failiem']['name'] ?? 'video.mp4');
+    efpic_gallery_log_download(
+        $config,
+        $found['slug'],
+        $meta,
+        'download_video',
+        'Video: ' . $name,
+        ['video_id' => $videoId, 'video_name' => $name],
+    );
+
+    header('Location: ' . efpic_failiem_download_url($config, $hash), true, 302);
+    exit;
+}
+
+function efpic_handle_client_gallery_videos_zip(array $config, string $galleryToken): void
+{
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        http_response_code(404);
+        exit;
+    }
+    $meta = $found['meta'];
+    if (efpic_gallery_expired($meta)) {
+        http_response_code(403);
+        exit;
+    }
+    $ctx = efpic_viewer_context($config, $meta);
+    if (!efpic_can_download_gallery_videos($meta, $ctx)) {
+        http_response_code(403);
+        exit;
+    }
+
+    $folderHash = efpic_failiem_video_folder_hash($meta);
+    if ($folderHash === '') {
+        http_response_code(404);
+        exit;
+    }
+
+    efpic_gallery_log_download(
+        $config,
+        (string) ($found['slug'] ?? ''),
+        $meta,
+        'download_video_zip',
+        'Visi video (ZIP)',
+    );
+
+    header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
+    exit;
 }
 
