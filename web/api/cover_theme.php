@@ -800,8 +800,8 @@ function efpic_design_template_delete(array $config, string $id): bool
 function efpic_render_design_palette_picker(array $formMeta): string
 {
     $active = efpic_gallery_design_palette_key($formMeta);
-    $html = '<div class="admin-design-palettes admin-fieldset-full" id="admin-design-palettes">';
-    $html .= '<p class="admin-design-palettes__label">Krāsu palete</p>';
+    $html = '<fieldset class="admin-fieldset-full admin-design-palettes" id="admin-design-palettes">';
+    $html .= '<legend>Krāsu palete</legend>';
     $html .= '<input type="hidden" name="design_palette" id="design_palette" value="' . efpic_cover_theme_esc($active) . '">';
     $html .= '<div class="admin-design-palettes__grid" role="listbox" aria-label="Krāsu paletes">';
     foreach (efpic_gallery_design_palette_catalog() as $key => $palette) {
@@ -822,7 +822,7 @@ function efpic_render_design_palette_picker(array $formMeta): string
     }
     $html .= '</div>';
     $html .= '<p class="muted">Palete aizpilda vāka, fona un teksta krāsas. Pēc tam vari tās pielāgot manuāli.</p>';
-    $html .= '</div>';
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -845,10 +845,26 @@ function efpic_render_design_template_controls(array $config, array $formMeta): 
         ];
     }
     $json = json_encode($map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $presets = efpic_gallery_design_presets();
+    $presetsJson = json_encode($presets, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $mosaicCols = efpic_gallery_mosaic_max_columns($formMeta);
 
     $html = '<fieldset class="admin-fieldset-full admin-design-templates" id="admin-design-templates"'
-        . ' data-templates="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '">';
+        . ' data-templates="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '"'
+        . ' data-presets="' . efpic_cover_theme_esc($presetsJson !== false ? $presetsJson : '{}') . '">';
     $html .= '<legend>Dizaina šabloni</legend>';
+    $html .= '<div class="admin-design-templates__presets-grid">';
+    foreach ($presets as $key => $preset) {
+        $html .= '<button type="button" class="btn admin-btn-inline admin-design-preset" data-preset="'
+            . efpic_cover_theme_esc($key) . '">' . efpic_cover_theme_esc((string) $preset['label']) . '</button>';
+    }
+    $html .= '</div>';
+    $html .= '<label class="admin-design-templates__mosaic">Mozaīkas kolonnas (lielos ekrānos)<select name="mosaic_max_columns" id="mosaic_max_columns">';
+    foreach (efpic_gallery_mosaic_max_column_options() as $k => $lbl) {
+        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ((string) $mosaicCols === $k ? ' selected' : '') . '>'
+            . efpic_cover_theme_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
     $html .= '<p class="muted admin-design-templates__intro">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
     $html .= '<div class="admin-design-templates__toolbar">';
     $html .= '<div class="admin-design-templates__group">';
@@ -977,25 +993,6 @@ function efpic_gallery_design_presets(): array
             ],
         ],
     ];
-}
-
-function efpic_render_design_preset_picker(): string
-{
-    $presets = efpic_gallery_design_presets();
-    $json = json_encode($presets, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $html = '<fieldset class="admin-fieldset-full admin-design-presets" id="admin-design-presets"'
-        . ' data-presets="' . efpic_cover_theme_esc($json !== false ? $json : '{}') . '">';
-    $html .= '<legend>Ātrais starts</legend>';
-    $html .= '<div class="admin-design-presets__grid">';
-    foreach ($presets as $key => $preset) {
-        $html .= '<button type="button" class="btn admin-btn-inline admin-design-preset" data-preset="'
-            . efpic_cover_theme_esc($key) . '">' . efpic_cover_theme_esc((string) $preset['label']) . '</button>';
-    }
-    $html .= '</div>';
-    $html .= '<p class="muted">Iestata vāka stilu, paleti, kolonnas un fontus. Pēc tam vari pielāgot katru daļu atsevišķi.</p>';
-    $html .= '</fieldset>';
-
-    return $html;
 }
 
 /** @return array<string, array{label: string, group: string, family: string, google: string}> */
@@ -1588,7 +1585,6 @@ function efpic_render_cover_theme_controls(
     $layoutLocked = efpic_gallery_cover_style_locks_layout($formMeta);
     $isMoodBlob = efpic_gallery_uses_mood_blob_cover($formMeta);
     $coverStyle = efpic_gallery_cover_style($formMeta);
-    $mosaicCols = efpic_gallery_mosaic_max_columns($formMeta);
     $layout = efpic_gallery_cover_layout($formMeta);
     $focal = efpic_gallery_cover_focal($formMeta);
     $coverUrl = efpic_admin_cover_preview_url($config, $formMeta);
@@ -1614,21 +1610,6 @@ function efpic_render_cover_theme_controls(
         . ' data-font-groups="' . efpic_cover_theme_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '"'
         . ' data-font-urls="' . efpic_cover_theme_esc($fontUrlsJson !== false ? $fontUrlsJson : '[]') . '"'
         . ' data-client-css="' . efpic_cover_theme_esc($clientCssUrl) . '">';
-
-    $html .= '<div class="admin-form-layout admin-form-layout--basic admin-fieldset-full">';
-    $html .= '<label>Vāka stils<select name="cover_style" id="cover_style">';
-    foreach (efpic_gallery_cover_style_options() as $k => $lbl) {
-        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $coverStyle ? ' selected' : '') . '>'
-            . efpic_cover_theme_esc($lbl) . '</option>';
-    }
-    $html .= '</select></label>';
-    $html .= '<label>Mozaīkas kolonnas (lielos ekrānos)<select name="mosaic_max_columns" id="mosaic_max_columns">';
-    foreach (efpic_gallery_mosaic_max_column_options() as $k => $lbl) {
-        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ((string) $mosaicCols === $k ? ' selected' : '') . '>'
-            . efpic_cover_theme_esc($lbl) . '</option>';
-    }
-    $html .= '</select></label>';
-    $html .= '</div>';
 
     $coverMediaType = efpic_gallery_cover_media_type($formMeta);
     $coverVideoId = efpic_gallery_cover_video_id($formMeta);
@@ -1663,10 +1644,20 @@ function efpic_render_cover_theme_controls(
     }
     $html .= '</select></label>';
     $html .= '<p class="muted">Video vāks automātiski atskaņojas (bez skaņas). Animācija darbojas arī ar bildi.</p>';
+    $coverFromFav = efpic_gallery_cover_from_favorites($formMeta);
+    $html .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
+        'name' => 'cover_from_favorites',
+    ]);
     $html .= '</fieldset>';
 
     $html .= '<fieldset class="admin-cover-theme__block' . ($layoutLocked ? ' is-disabled' : '') . '" id="admin-cover-layout-block">';
     $html .= '<legend>Vāka bildes novietojums</legend>';
+    $html .= '<label class="admin-cover-layout-style">Vāka stils<select name="cover_style" id="cover_style">';
+    foreach (efpic_gallery_cover_style_options() as $k => $lbl) {
+        $html .= '<option value="' . efpic_cover_theme_esc($k) . '"' . ($k === $coverStyle ? ' selected' : '') . '>'
+            . efpic_cover_theme_esc($lbl) . '</option>';
+    }
+    $html .= '</select></label>';
     if ($isMoodBlob) {
         $html .= '<p class="muted" id="admin-cover-layout-mood-note">Mood burbuļa stilā izkārtojumu nevar mainīt — tiek rādīts centrēts burbulis.</p>';
     } else {

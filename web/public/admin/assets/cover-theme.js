@@ -1346,7 +1346,7 @@
       applyDesignSettings(entry.settings);
     }
 
-    var presetRoot = document.getElementById('admin-design-presets');
+    var presetRoot = document.getElementById('admin-design-templates');
     if (presetRoot) {
       var presets = {};
       try {

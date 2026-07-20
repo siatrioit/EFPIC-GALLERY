@@ -227,12 +227,6 @@ function efpic_admin_render_theme_fieldset(array $config, array $formMeta): stri
     $html = '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Dizains</legend>';
     $html .= '<input type="hidden" name="theme" value="efpic-base">';
     $html .= efpic_render_design_template_controls($config, $formMeta);
-    $html .= efpic_render_design_preset_picker();
-    $coverFromFav = efpic_gallery_cover_from_favorites($formMeta);
-    $html .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
-        'name' => 'cover_from_favorites',
-        'class' => 'admin-fieldset-full',
-    ]);
     $html .= efpic_render_design_palette_picker($formMeta);
     $html .= '<div class="admin-form-layout admin-form-layout--basic">';
     $html .= efpic_admin_color_field('hero_accent_color', 'Vāka krāsa (sākuma ekrāns)', $heroAccent);
