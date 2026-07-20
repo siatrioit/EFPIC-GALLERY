@@ -1574,42 +1574,79 @@
     var panel = document.getElementById('admin-design-templates-settings-root');
     if (!panel) return;
 
+    var templates = {};
+    try {
+      templates = JSON.parse(panel.getAttribute('data-templates') || '{}');
+    } catch (e) {
+      templates = {};
+    }
+
+    var select = document.getElementById('design_template_settings_select');
+    var card = document.getElementById('admin-design-template-settings-card');
+    var idInput = document.getElementById('design_template_settings_id');
+    var nameInput = document.getElementById('design_template_settings_name');
+    var metaEl = document.getElementById('design_template_settings_meta');
+    if (!select || !card) return;
+
     var fontMap = readFontMap(panel);
     var groupMap = readFontGroupMap(panel);
     var assets = readPreviewAssets(panel);
 
-    function refreshCard(card) {
-      var payload = {};
-      try {
-        payload = JSON.parse(card.getAttribute('data-preview') || '{}');
-      } catch (e) {
-        payload = {};
+    function formatMeta(entry) {
+      entry = entry || {};
+      var created = entry.created || '';
+      var updated = entry.updated || '';
+      var line = 'Izveidots: ' + (created || '—');
+      if (updated && updated !== created) {
+        line += ' · Atjaunots: ' + updated;
       }
-      var state = payloadToPreviewState(payload);
-      var deviceEl = card.querySelector('.admin-design-template-card__device');
-      if (!deviceEl) return;
-      var iframe = deviceEl.querySelector('iframe');
-      if (!iframe) return;
-      var viewportWidth = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
-      var html = renderCoverHtml(state, fontMap, groupMap);
-      var doc = buildPreviewDocument(html, assets, state.pageBg, viewportWidth);
-      iframe.onload = function () {
-        updateDeviceScale(deviceEl);
-      };
-      iframe.srcdoc = doc;
-      updateDeviceScale(deviceEl);
+      return line;
     }
 
-    panel.querySelectorAll('.admin-design-template-card').forEach(refreshCard);
+    function refreshCardPreview(entry) {
+      var payload = (entry && entry.preview) || {};
+      var state = payloadToPreviewState(payload);
+      var html = renderCoverHtml(state, fontMap, groupMap);
+      card.querySelectorAll('.admin-cover-live-device').forEach(function (deviceEl) {
+        var iframe = deviceEl.querySelector('.admin-cover-live-device__iframe');
+        if (!iframe) return;
+        var viewportWidth = parseInt(deviceEl.getAttribute('data-width'), 10) || 1440;
+        var doc = buildPreviewDocument(html, assets, state.pageBg, viewportWidth);
+        iframe.onload = function () {
+          updateDeviceScale(deviceEl);
+        };
+        iframe.srcdoc = doc;
+        updateDeviceScale(deviceEl);
+      });
+    }
 
-    window.addEventListener('resize', function () {
-      panel.querySelectorAll('.admin-design-template-card__device').forEach(updateDeviceScale);
+    function showTemplate(id) {
+      var entry = templates[id];
+      if (!entry) return;
+      if (idInput) idInput.value = id;
+      if (nameInput) nameInput.value = entry.name || '';
+      if (metaEl) metaEl.textContent = formatMeta(entry);
+      if (select.value !== id) select.value = id;
+      refreshCardPreview(entry);
+    }
+
+    select.addEventListener('change', function () {
+      showTemplate(select.value);
     });
 
+    var initialId = select.value || Object.keys(templates)[0];
+    if (initialId) {
+      showTemplate(initialId);
+    }
+
+    function refreshAllCardScales() {
+      panel.querySelectorAll('.admin-cover-live-device').forEach(updateDeviceScale);
+    }
+
+    window.addEventListener('resize', refreshAllCardScales);
+
     if (typeof ResizeObserver !== 'undefined') {
-      new ResizeObserver(function () {
-        panel.querySelectorAll('.admin-design-template-card__device').forEach(updateDeviceScale);
-      }).observe(panel);
+      new ResizeObserver(refreshAllCardScales).observe(panel);
     }
   }
 

@@ -2805,8 +2805,7 @@ function efpic_admin_render_email_signature_editor(array $config, array $setting
 function efpic_admin_apply_design_templates_from_post(array $config): void
 {
     $postedNames = $_POST['design_template_name'] ?? null;
-    $postedDeletes = $_POST['design_template_delete'] ?? [];
-    if (!is_array($postedNames) && !is_array($postedDeletes)) {
+    if (!is_array($postedNames)) {
         return;
     }
 
@@ -2815,26 +2814,16 @@ function efpic_admin_apply_design_templates_from_post(array $config): void
         return;
     }
 
-    $deleteIds = [];
-    if (is_array($postedDeletes)) {
-        foreach ($postedDeletes as $id) {
-            $id = trim((string) $id);
-            if ($id !== '') {
-                $deleteIds[$id] = true;
-            }
-        }
-    }
-
     $next = [];
     foreach ($templates as $tpl) {
         if (!is_array($tpl)) {
             continue;
         }
         $id = (string) ($tpl['id'] ?? '');
-        if ($id === '' || isset($deleteIds[$id])) {
+        if ($id === '') {
             continue;
         }
-        if (is_array($postedNames) && array_key_exists($id, $postedNames)) {
+        if (array_key_exists($id, $postedNames)) {
             $name = trim((string) $postedNames[$id]);
             if ($name === '') {
                 throw new InvalidArgumentException('Dizaina šablona nosaukums nevar būt tukšs');
@@ -2850,6 +2839,21 @@ function efpic_admin_apply_design_templates_from_post(array $config): void
     efpic_save_design_templates($config, $next);
 }
 
+function efpic_admin_save_design_template_one_from_post(array $config, string $id): void
+{
+    $id = trim($id);
+    if ($id === '') {
+        throw new InvalidArgumentException('Nav norādīts šablons');
+    }
+    $name = trim((string) ($_POST['design_template_name'] ?? ''));
+    if ($name === '') {
+        throw new InvalidArgumentException('Dizaina šablona nosaukums nevar būt tukšs');
+    }
+    if (!efpic_design_template_rename($config, $id, $name)) {
+        throw new InvalidArgumentException('Dizaina šablons nav atrasts');
+    }
+}
+
 function efpic_admin_render_design_templates_settings_fieldset(array $config): string
 {
     $templates = efpic_load_design_templates($config);
@@ -2860,59 +2864,86 @@ function efpic_admin_render_design_templates_settings_fieldset(array $config): s
 
     $html = '<fieldset class="admin-fieldset-full" id="admin-fs-design-templates"><legend>Dizaina šabloni</legend>';
     $html .= '<p class="muted">Globāli saglabātie dizaina šabloni. Tos vari lietot jebkurā galerijā cilnē <strong>Dizains</strong>.</p>';
+
+    if ($templates === []) {
+        $html .= '<p class="muted">Vēl nav saglabātu šablonu. Izveido tos galerijas rediģēšanas formā — cilne <strong>Dizains → Dizaina šabloni → Saglabāt</strong>.</p>';
+        $html .= '</fieldset>';
+
+        return $html;
+    }
+
+    $map = [];
+    $firstId = '';
+    foreach ($templates as $tpl) {
+        if (!is_array($tpl)) {
+            continue;
+        }
+        $id = (string) ($tpl['id'] ?? '');
+        $name = (string) ($tpl['name'] ?? '');
+        if ($id === '' || $name === '') {
+            continue;
+        }
+        if ($firstId === '') {
+            $firstId = $id;
+        }
+        $settings = is_array($tpl['settings'] ?? null) ? $tpl['settings'] : [];
+        $map[$id] = [
+            'name' => $name,
+            'preview' => efpic_design_template_preview_payload($config, $settings),
+            'created' => substr((string) ($tpl['created_at'] ?? ''), 0, 10),
+            'updated' => substr((string) ($tpl['updated_at'] ?? ''), 0, 10),
+        ];
+    }
+
+    if ($map === []) {
+        $html .= '<p class="muted">Vēl nav saglabātu šablonu. Izveido tos galerijas rediģēšanas formā — cilne <strong>Dizains → Dizaina šabloni → Saglabāt</strong>.</p>';
+        $html .= '</fieldset>';
+
+        return $html;
+    }
+
+    $selectedId = trim((string) ($_GET['template'] ?? ''));
+    if ($selectedId === '' || !isset($map[$selectedId])) {
+        $selectedId = $firstId;
+    }
+    $selected = $map[$selectedId];
+    $templatesJson = json_encode($map, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    $created = (string) ($selected['created'] ?? '');
+    $updated = (string) ($selected['updated'] ?? '');
+    $metaLine = 'Izveidots: ' . ($created !== '' ? $created : '—');
+    if ($updated !== '' && $updated !== $created) {
+        $metaLine .= ' · Atjaunots: ' . $updated;
+    }
+
     $html .= '<div id="admin-design-templates-settings-root"'
         . ' data-fonts="' . efpic_admin_esc($fontsJson !== false ? $fontsJson : '{}') . '"'
         . ' data-font-groups="' . efpic_admin_esc($fontGroupsJson !== false ? $fontGroupsJson : '{}') . '"'
         . ' data-font-urls="' . efpic_admin_esc($fontUrlsJson !== false ? $fontUrlsJson : '[]') . '"'
-        . ' data-client-css="' . efpic_admin_esc($clientCssUrl) . '">';
-
-    if ($templates === []) {
-        $html .= '<p class="muted">Vēl nav saglabātu šablonu. Izveido tos galerijas rediģēšanas formā — cilne <strong>Dizains → Dizaina šabloni → Saglabāt</strong>.</p>';
-    } else {
-        $html .= '<div class="admin-design-templates-settings__list">';
-        foreach ($templates as $tpl) {
-            if (!is_array($tpl)) {
-                continue;
-            }
-            $id = (string) ($tpl['id'] ?? '');
-            $name = (string) ($tpl['name'] ?? '');
-            if ($id === '' || $name === '') {
-                continue;
-            }
-            $settings = is_array($tpl['settings'] ?? null) ? $tpl['settings'] : [];
-            $previewJson = json_encode(
-                efpic_design_template_preview_payload($config, $settings),
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-            );
-            $created = substr((string) ($tpl['created_at'] ?? ''), 0, 10);
-            $updated = substr((string) ($tpl['updated_at'] ?? ''), 0, 10);
-            $metaLine = 'Izveidots: ' . ($created !== '' ? $created : '—');
-            if ($updated !== '' && $updated !== $created) {
-                $metaLine .= ' · Atjaunots: ' . $updated;
-            }
-
-            $html .= '<article class="admin-design-template-card" data-template-id="' . efpic_admin_esc($id) . '"'
-                . ' data-preview="' . efpic_admin_esc($previewJson !== false ? $previewJson : '{}') . '">';
-            $html .= '<div class="admin-design-template-card__main">';
-            $html .= '<label class="admin-design-template-card__name">Nosaukums<input type="text" name="design_template_name['
-                . efpic_admin_esc($id) . ']" value="' . efpic_admin_esc($name) . '" required maxlength="120"></label>';
-            $html .= '<p class="muted admin-design-template-card__meta">' . efpic_admin_esc($metaLine) . '</p>';
-            $html .= '<label class="admin-check admin-design-template-card__delete"><input type="checkbox" name="design_template_delete[]" value="'
-                . efpic_admin_esc($id) . '"> Dzēst šablonu</label>';
-            $html .= '</div>';
-            $html .= '<div class="admin-design-template-card__preview-wrap">';
-            $html .= '<p class="admin-design-template-card__preview-label">Reāllaika priekšskatījums</p>';
-            $html .= '<div class="admin-design-template-card__device admin-cover-live-device" data-width="1440" data-height="900">';
-            $html .= '<div class="admin-cover-live-device__shell">';
-            $html .= '<div class="admin-cover-live-device__viewport">';
-            $html .= '<iframe class="admin-cover-live-device__iframe admin-design-template-card__iframe" title="Priekšskatījums: '
-                . efpic_admin_esc($name) . '" loading="lazy" tabindex="-1"></iframe>';
-            $html .= '</div></div></div>';
-            $html .= '</div></article>';
-        }
-        $html .= '</div>';
+        . ' data-client-css="' . efpic_admin_esc($clientCssUrl) . '"'
+        . ' data-templates="' . efpic_admin_esc($templatesJson !== false ? $templatesJson : '{}') . '">';
+    $html .= '<div class="admin-design-templates-settings__toolbar">';
+    $html .= '<label class="admin-design-templates__field">Apskatīt šablonu<select id="design_template_settings_select">';
+    foreach ($map as $id => $entry) {
+        $html .= '<option value="' . efpic_admin_esc($id) . '"' . ($id === $selectedId ? ' selected' : '') . '>'
+            . efpic_admin_esc((string) ($entry['name'] ?? '')) . '</option>';
     }
-
+    $html .= '</select></label>';
+    $html .= '</div>';
+    $html .= '<article class="admin-design-template-card" id="admin-design-template-settings-card">';
+    $html .= '<input type="hidden" name="design_template_id" id="design_template_settings_id" value="' . efpic_admin_esc($selectedId) . '">';
+    $html .= '<div class="admin-design-template-card__main">';
+    $html .= '<label class="admin-design-template-card__name">Nosaukums<input type="text" name="design_template_name" id="design_template_settings_name" value="'
+        . efpic_admin_esc((string) ($selected['name'] ?? '')) . '" required maxlength="120"></label>';
+    $html .= '<p class="muted admin-design-template-card__meta" id="design_template_settings_meta">' . efpic_admin_esc($metaLine) . '</p>';
+    $html .= '<div class="admin-design-template-card__actions">';
+    $html .= '<button type="submit" class="btn primary admin-btn-inline" name="design_template_save_one" value="1" formnovalidate>Saglabāt</button>';
+    $html .= '<button type="submit" class="btn admin-btn-danger admin-btn-inline" name="design_template_delete_one" value="1" formnovalidate data-confirm-delete="1">Dzēst</button>';
+    $html .= '</div>';
+    $html .= '</div>';
+    $html .= '<div class="admin-design-template-card__preview-wrap">';
+    $html .= '<p class="admin-design-template-card__preview-label">Reāllaika priekšskatījums</p>';
+    $html .= efpic_admin_render_cover_preview_devices_grid('admin-cover-live-grid admin-design-template-card__live-grid');
+    $html .= '</div></article>';
     $html .= '</div></fieldset>';
 
     return $html;
@@ -2936,7 +2967,8 @@ function efpic_admin_settings_page(array $config): void
         $body .= '<p class="err">' . efpic_admin_esc($error) . '</p>';
     }
 
-    $body .= '<form method="post" class="admin-form" enctype="multipart/form-data">';
+    $body .= '<form method="post" class="admin-form" id="admin-settings-form" enctype="multipart/form-data">';
+    $body .= '<input type="hidden" name="confirm_delete" id="settings_confirm_delete" value="">';
     $body .= '<div class="admin-sticky-bar"><button type="submit" class="btn primary" name="save" value="1">Saglabāt</button></div>';
     $body .= '<div class="admin-form-layout">';
     $body .= '<fieldset><legend>Galerijas izskats</legend>';

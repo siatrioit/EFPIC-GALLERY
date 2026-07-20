@@ -51,6 +51,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             header('Location: settings.php?saved=1');
             exit;
         }
+        if (!empty($_POST['design_template_save_one'])) {
+            $tplSaveId = trim((string) ($_POST['design_template_id'] ?? ''));
+            efpic_admin_save_design_template_one_from_post($config, $tplSaveId);
+            header('Location: settings.php?saved=1&template=' . rawurlencode($tplSaveId) . '#admin-fs-design-templates');
+            exit;
+        }
+        if (!empty($_POST['design_template_delete_one'])) {
+            $tplDeleteId = trim((string) ($_POST['design_template_id'] ?? ''));
+            efpic_admin_require_delete_confirm();
+            if (!efpic_design_template_delete($config, $tplDeleteId)) {
+                throw new InvalidArgumentException('Dizaina šablons nav atrasts');
+            }
+            header('Location: settings.php?saved=1#admin-fs-design-templates');
+            exit;
+        }
     } catch (Throwable $e) {
         header('Location: settings.php?error=' . rawurlencode($e->getMessage()));
         exit;

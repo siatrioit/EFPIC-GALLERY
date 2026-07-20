@@ -1869,6 +1869,23 @@
     });
   }
 
+  var settingsForm = document.getElementById('admin-settings-form');
+  if (settingsForm) {
+    settingsForm.addEventListener('submit', function (evt) {
+      var submitter = evt.submitter;
+      if (!submitter || submitter.getAttribute('data-confirm-delete') !== '1') {
+        return;
+      }
+      var typed = window.prompt('Lai apstiprinātu dzēšanu, ievadiet DELETE:');
+      if (typed !== 'DELETE') {
+        evt.preventDefault();
+        return;
+      }
+      var hidden = document.getElementById('settings_confirm_delete');
+      if (hidden) hidden.value = 'DELETE';
+    });
+  }
+
   var list = document.getElementById('sortable');
   var input = document.getElementById('image_order');
   var orderDirty = document.getElementById('image_order_dirty');

@@ -3789,16 +3789,19 @@
   }
 }
 
-.admin-design-templates-settings__list {
-  display: flex;
-  flex-direction: column;
-  gap: 18px;
+.admin-design-templates-settings__toolbar {
+  max-width: 420px;
+  margin-bottom: 16px;
+}
+
+.admin-design-templates-settings__toolbar .admin-design-templates__field {
+  margin-bottom: 0;
 }
 
 .admin-design-template-card {
-  display: grid;
-  grid-template-columns: minmax(240px, 320px) minmax(0, 1fr);
-  gap: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
   padding: 16px;
   border: 1px solid var(--admin-border);
   border-radius: 12px;
@@ -3813,8 +3816,11 @@
   margin: 0 0 12px;
 }
 
-.admin-design-template-card__delete {
-  margin: 0;
+.admin-design-template-card__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
 }
 
 .admin-design-template-card__preview-label {
@@ -3826,20 +3832,15 @@
 
 .admin-design-template-card__preview-wrap {
   min-width: 0;
+  width: 100%;
 }
 
-.admin-design-template-card__device {
-  max-width: 100%;
+.admin-design-template-card__main {
+  max-width: 420px;
 }
 
-.admin-design-template-card__device .admin-cover-live-device__shell {
-  margin: 0 auto;
-}
-
-@media (max-width: 960px) {
-  .admin-design-template-card {
-    grid-template-columns: 1fr;
-  }
+.admin-design-template-card__live-grid {
+  width: 100%;
 }
 
 .admin-design-palettes__grid {

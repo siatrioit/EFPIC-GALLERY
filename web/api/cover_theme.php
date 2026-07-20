@@ -1610,6 +1610,41 @@ function efpic_cover_theme_preview_payload(array $config, array $formMeta): arra
     ];
 }
 
+/** @return list<array{id: string, label: string, width: int, height: int}> */
+function efpic_admin_cover_preview_devices(): array
+{
+    return [
+        ['id' => 'large', 'label' => 'Liels ekrāns', 'width' => 1920, 'height' => 1080],
+        ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
+        ['id' => 'tablet', 'label' => 'Planšete', 'width' => 820, 'height' => 1180],
+        // Redzamā pārlūka zona portretā (mērīts no ekrānšāva ar statusa joslu + pārlūka UI + apakšējām pogām).
+        ['id' => 'phone', 'label' => 'Telefons', 'width' => 452, 'height' => 824],
+    ];
+}
+
+function efpic_admin_render_cover_preview_devices_grid(string $gridClass = 'admin-cover-live-grid', string $gridId = ''): string
+{
+    $html = '<div class="' . efpic_cover_theme_esc($gridClass) . '"';
+    if ($gridId !== '') {
+        $html .= ' id="' . efpic_cover_theme_esc($gridId) . '"';
+    }
+    $html .= '>';
+    foreach (efpic_admin_cover_preview_devices() as $device) {
+        $html .= '<div class="admin-cover-live-device" data-device="' . efpic_cover_theme_esc($device['id']) . '"'
+            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '">';
+        $html .= '<p class="admin-cover-live-device__label">' . efpic_cover_theme_esc($device['label']) . '</p>';
+        $html .= '<div class="admin-cover-live-device__shell">';
+        $html .= '<div class="admin-cover-live-device__viewport">';
+        $html .= '<iframe class="admin-cover-live-device__iframe" title="Priekšskatījums: '
+            . efpic_cover_theme_esc($device['label']) . '" loading="lazy" tabindex="-1"'
+            . ' style="width:' . (int) $device['width'] . 'px;height:' . (int) $device['height'] . 'px"></iframe>';
+        $html .= '</div></div></div>';
+    }
+    $html .= '</div>';
+
+    return $html;
+}
+
 function efpic_render_cover_theme_controls(
     array $config,
     array $formMeta,
@@ -1773,28 +1808,9 @@ function efpic_render_cover_theme_controls(
     $html .= '</select></label>';
     $html .= '</div></fieldset>';
 
-    $previewDevices = [
-        ['id' => 'large', 'label' => 'Liels ekrāns', 'width' => 1920, 'height' => 1080],
-        ['id' => 'desktop', 'label' => 'WEB', 'width' => 1440, 'height' => 900],
-        ['id' => 'tablet', 'label' => 'Planšete', 'width' => 820, 'height' => 1180],
-        // Redzamā pārlūka zona portretā (mērīts no ekrānšāva ar statusa joslu + pārlūka UI + apakšējām pogām).
-        ['id' => 'phone', 'label' => 'Telefons', 'width' => 452, 'height' => 824],
-    ];
     $html .= '<div class="admin-cover-live" id="admin-cover-live">';
     $html .= '<p class="admin-cover-live__heading">Priekšskatījums <span class="muted">(reāllaikā)</span></p>';
-    $html .= '<div class="admin-cover-live-grid" id="admin-cover-live-grid">';
-    foreach ($previewDevices as $device) {
-        $html .= '<div class="admin-cover-live-device" data-device="' . efpic_cover_theme_esc($device['id']) . '"'
-            . ' data-width="' . (int) $device['width'] . '" data-height="' . (int) $device['height'] . '">';
-        $html .= '<p class="admin-cover-live-device__label">' . efpic_cover_theme_esc($device['label']) . '</p>';
-        $html .= '<div class="admin-cover-live-device__shell">';
-        $html .= '<div class="admin-cover-live-device__viewport">';
-        $html .= '<iframe class="admin-cover-live-device__iframe" title="Priekšskatījums: '
-            . efpic_cover_theme_esc($device['label']) . '" loading="lazy" tabindex="-1"'
-            . ' style="width:' . (int) $device['width'] . 'px;height:' . (int) $device['height'] . 'px"></iframe>';
-        $html .= '</div></div></div>';
-    }
-    $html .= '</div>';
+    $html .= efpic_admin_render_cover_preview_devices_grid('admin-cover-live-grid', 'admin-cover-live-grid');
     if (!$hasCover) {
         $html .= '<p class="muted admin-cover-theme__hint" id="admin-cover-crop-hint">Izvēlieties vāka bildi cilnē <strong>Bildes</strong>, lai redzētu bildi priekšskatījumā.</p>';
     }
