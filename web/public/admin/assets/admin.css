@@ -3844,56 +3844,55 @@
   line-height: 1.25;
 }
 
-.admin-design-templates__row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px 14px;
-  align-items: flex-end;
-  margin-bottom: 12px;
-}
-
 .admin-design-templates__intro {
-  margin-bottom: 12px;
+  margin: 0 0 10px;
+  font-size: 0.88rem;
 }
 
 .admin-design-templates__toolbar {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 6.75rem;
+  gap: 8px 10px;
+  align-items: end;
 }
 
-.admin-design-templates__group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: flex-end;
+.admin-design-templates__toolbar--full {
+  grid-template-columns: minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem;
 }
 
-.admin-design-templates__group label {
-  flex: 1 1 180px;
-  min-width: 0;
+.admin-design-templates__field {
   margin-bottom: 0;
+  min-width: 0;
 }
 
-.admin-design-templates__group .btn {
-  flex: 0 0 auto;
-  align-self: flex-end;
-  white-space: nowrap;
+.admin-design-templates__field select,
+.admin-design-templates__field input {
+  width: 100%;
+}
+
+.admin-design-templates__btn {
+  width: 6.75rem;
+  min-width: 6.75rem;
+  max-width: 6.75rem;
+  padding-left: 0.35rem;
+  padding-right: 0.35rem;
+  text-align: center;
+  justify-self: end;
+}
+
+@media (min-width: 700px) {
+  .admin-design-templates__toolbar:not(.admin-design-templates__toolbar--full) {
+    grid-template-columns: minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem;
+  }
+}
+
+@media (min-width: 900px) {
+  .admin-design-templates__toolbar--full {
+    grid-template-columns: minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem minmax(0, 1fr) 6.75rem;
+  }
 }
 
 @media (min-width: 1100px) {
-  .admin-design-templates__toolbar {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 16px 24px;
-    align-items: flex-end;
-  }
-
-  .admin-design-templates__group {
-    flex: 1 1 280px;
-    flex-wrap: nowrap;
-  }
-
   #admin-fs-theme .admin-form-layout--basic {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
