@@ -5,7 +5,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/visitor_collections.php';
 require_once __DIR__ . '/visitor_zip_queue.php';
 
-function efpic_visitor_collection_gallery_context(array $config, string $galleryToken): ?array
+function efpic_visitor_gallery_base_context(array $config, string $galleryToken): ?array
 {
     $found = efpic_find_gallery_by_token($config, $galleryToken);
     if ($found === null) {
@@ -22,9 +22,6 @@ function efpic_visitor_collection_gallery_context(array $config, string $gallery
     if (efpic_viewer_context_access_denied($ctx)) {
         return null;
     }
-    if (!efpic_can_use_public_collection($meta)) {
-        return null;
-    }
 
     return [
         'found' => $found,
@@ -34,10 +31,47 @@ function efpic_visitor_collection_gallery_context(array $config, string $gallery
     ];
 }
 
+function efpic_visitor_collection_gallery_context(array $config, string $galleryToken): ?array
+{
+    $pack = efpic_visitor_gallery_base_context($config, $galleryToken);
+    if ($pack === null) {
+        return null;
+    }
+    if (!efpic_can_use_public_collection($pack['meta'])) {
+        return null;
+    }
+
+    return $pack;
+}
+
+/** Auth konteksts publiskajai izlasei un/vai kopīgojamās izlases e-pasta lejupielādei. */
+function efpic_visitor_auth_gallery_context(array $config, string $galleryToken): ?array
+{
+    $pack = efpic_visitor_gallery_base_context($config, $galleryToken);
+    if ($pack === null) {
+        return null;
+    }
+    if (efpic_can_use_public_collection($pack['meta'])) {
+        return $pack;
+    }
+    $ctx = $pack['ctx'];
+    if (!efpic_viewer_is_restricted_share($ctx)) {
+        return null;
+    }
+    if (
+        !efpic_can_download_share_set_zip($pack['meta'], $ctx, 'web')
+        && !efpic_can_download_share_set_zip($pack['meta'], $ctx, 'full')
+    ) {
+        return null;
+    }
+
+    return $pack;
+}
+
 function efpic_handle_visitor_identify(array $config, string $galleryToken): void
 {
     efpic_csrf_require();
-    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    $ctxPack = efpic_visitor_auth_gallery_context($config, $galleryToken);
     if ($ctxPack === null) {
         efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
     }
@@ -98,7 +132,7 @@ function efpic_handle_visitor_identify(array $config, string $galleryToken): voi
 
 function efpic_handle_visitor_status(array $config, string $galleryToken): void
 {
-    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    $ctxPack = efpic_visitor_auth_gallery_context($config, $galleryToken);
     if ($ctxPack === null) {
         efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
     }
@@ -371,7 +405,7 @@ function efpic_handle_visitor_all_collections_download_request(array $config, st
 function efpic_handle_visitor_share_download_request(array $config, string $galleryToken): void
 {
     efpic_csrf_require();
-    $ctxPack = efpic_visitor_collection_gallery_context($config, $galleryToken);
+    $ctxPack = efpic_visitor_auth_gallery_context($config, $galleryToken);
     if ($ctxPack === null) {
         efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
     }

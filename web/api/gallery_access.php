@@ -813,7 +813,7 @@ function efpic_find_image_by_token(array $config, string $imageToken): ?array
     ];
 }
 
-/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string, share_include_videos: bool, access_denied?: bool} */
+/** @return array{role: string, guest_token: string, hide_client_hidden: bool, share_image_tokens: ?array<string, true>, share_label: string, share_include_videos: bool, share_include_slideshow: bool, access_denied?: bool} */
 function efpic_viewer_context(array $config, array $meta): array
 {
     $guestToken = trim((string) ($_GET['g'] ?? ''));
@@ -850,6 +850,8 @@ function efpic_viewer_context(array $config, array $meta): array
                 'share_image_tokens' => $whitelist,
                 'share_label' => (string) ($g['label'] ?? ''),
                 'share_include_videos' => !empty($g['include_videos']),
+                // Vecajām izlasēm bez lauka — slideshow paliek ieslēgts (kā iepriekš).
+                'share_include_slideshow' => !array_key_exists('include_slideshow', $g) || !empty($g['include_slideshow']),
             ];
         }
 
@@ -860,6 +862,7 @@ function efpic_viewer_context(array $config, array $meta): array
             'share_image_tokens' => null,
             'share_label' => '',
             'share_include_videos' => false,
+            'share_include_slideshow' => false,
             'access_denied' => true,
         ];
     }
@@ -876,6 +879,7 @@ function efpic_viewer_context(array $config, array $meta): array
         'share_image_tokens' => null,
         'share_label' => '',
         'share_include_videos' => false,
+        'share_include_slideshow' => true,
     ];
 }
 
@@ -896,6 +900,15 @@ function efpic_viewer_include_videos_in_scenes(array $ctx): bool
     }
 
     return !empty($ctx['share_include_videos']);
+}
+
+function efpic_viewer_include_slideshow(array $ctx): bool
+{
+    if (!efpic_viewer_is_restricted_share($ctx)) {
+        return true;
+    }
+
+    return !empty($ctx['share_include_slideshow']);
 }
 
 function efpic_viewer_guest_token(array $ctx): string

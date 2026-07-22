@@ -223,6 +223,7 @@
       guestToken: guestToken || null,
       label: opts.label || '',
       includeVideos: !!opts.includeVideos,
+      includeSlideshow: opts.includeSlideshow !== false,
       isNew: !guestToken,
     };
     selectShareEditTokens(opts.tokens || []);
@@ -258,10 +259,9 @@
         share_action: 'create',
         share_set_label: shareEditMode.label,
         share_set_tokens: tokens.join(','),
+        share_include_videos: shareEditMode.includeVideos ? '1' : '0',
+        share_include_slideshow: shareEditMode.includeSlideshow ? '1' : '0',
       };
-      if (shareEditMode.includeVideos) {
-        extra.share_include_videos = '1';
-      }
     } else {
       var guestToken = normalizeShareGuestToken(shareEditMode.guestToken);
       if (!guestToken) {
@@ -274,9 +274,6 @@
         share_set_label: shareEditMode.label,
         share_set_tokens: tokens.join(','),
       };
-      if (shareEditMode.includeVideos) {
-        extra.share_include_videos = '1';
-      }
     }
     var saveBtn = document.getElementById('admin-share-edit-save');
     if (saveBtn) saveBtn.disabled = true;
@@ -307,9 +304,11 @@
           return;
         }
         var videosEl = document.getElementById('admin-share-new-videos');
+        var slideshowEl = document.getElementById('admin-share-new-slideshow');
         enterShareEditMode({
           label: label,
           includeVideos: !!(videosEl && videosEl.checked),
+          includeSlideshow: !slideshowEl || slideshowEl.checked,
           tokens: [],
         });
       });
@@ -330,6 +329,7 @@
           guestToken: guestToken || null,
           label: item.getAttribute('data-share-label') || '',
           includeVideos: item.getAttribute('data-share-videos') === '1',
+          includeSlideshow: item.getAttribute('data-share-slideshow') !== '0',
           tokens: tokens,
         });
       });
@@ -372,6 +372,31 @@
         };
         if (cb.checked) {
           extra.share_include_videos = '1';
+        }
+        postPortalShareRequest(extra)
+          .then(function (data) {
+            showPortalToast('Saglabāts', false);
+            applyPortalShareAutosavePayload(data);
+          })
+          .catch(function (err) {
+            showPortalToast(err && err.message ? err.message : 'Kļūda', true);
+            cb.checked = !cb.checked;
+          });
+      });
+    });
+
+    document.querySelectorAll('.admin-share-slideshow-cb').forEach(function (cb) {
+      if (cb.dataset.bound === '1') return;
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', function () {
+        var gtok = cb.getAttribute('data-guest-token');
+        if (!gtok) return;
+        var extra = {
+          share_action: 'update_slideshow',
+          share_guest_token: gtok,
+        };
+        if (cb.checked) {
+          extra.share_include_slideshow = '1';
         }
         postPortalShareRequest(extra)
           .then(function (data) {
@@ -566,42 +591,79 @@
       });
     }
 
-    function readScenesFromDatalist() {
-      var list = document.getElementById('admin-scene-datalist');
+    function readScenesList() {
       var scenes = [];
-      if (!list) return scenes;
-      list.querySelectorAll('option').forEach(function (opt) {
-        var title = (opt.getAttribute('value') || opt.textContent || '').trim();
+      var seen = {};
+      function pushScene(id, title) {
+        title = (title || '').trim();
         if (!title) return;
-        scenes.push({ id: '', title: title });
-      });
-      imageGrid.querySelectorAll('.admin-media-card[data-scene-id]').forEach(function (card) {
-        var id = card.getAttribute('data-scene-id') || '';
-        var input = card.querySelector('.admin-scene-input');
-        var title = input ? (input.value || '').trim() : '';
-        if (!id || !title) return;
-        if (
-          !scenes.some(function (s) {
-            return s.id === id || (s.title || '').toLowerCase() === title.toLowerCase();
-          })
-        ) {
-          scenes.push({ id: id, title: title });
-        }
-      });
+        var key = title.toLowerCase();
+        if (seen[key]) return;
+        seen[key] = true;
+        scenes.push({ id: id || '', title: title });
+      }
+
+      if (imageGrid) {
+        try {
+          var raw = imageGrid.getAttribute('data-scenes') || '[]';
+          var parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            parsed.forEach(function (scene) {
+              if (!scene) return;
+              pushScene(scene.id || '', scene.title || '');
+            });
+          }
+        } catch (e) {}
+      }
+
+      var list = document.getElementById('admin-scene-datalist');
+      if (list) {
+        list.querySelectorAll('option').forEach(function (opt) {
+          pushScene('', opt.getAttribute('value') || opt.textContent || '');
+        });
+      }
+
+      var editor = document.getElementById('portal-scenes-editor');
+      if (editor) {
+        try {
+          var editorScenes = JSON.parse(editor.getAttribute('data-scenes') || '[]');
+          if (Array.isArray(editorScenes)) {
+            editorScenes.forEach(function (scene) {
+              if (!scene) return;
+              pushScene(scene.id || '', scene.title || '');
+            });
+          }
+        } catch (e) {}
+      }
+
+      if (imageGrid) {
+        imageGrid.querySelectorAll('.admin-media-card[data-scene-id]').forEach(function (card) {
+          var id = card.getAttribute('data-scene-id') || '';
+          var input = card.querySelector('.admin-scene-input');
+          var title = input ? input.value || '' : '';
+          pushScene(id, title);
+        });
+      }
+
       return scenes;
     }
 
     function syncSceneDatalist(scenes) {
+      if (!Array.isArray(scenes)) return;
+      if (imageGrid) {
+        imageGrid.setAttribute('data-scenes', JSON.stringify(scenes));
+      }
       var list = document.getElementById('admin-scene-datalist');
-      if (!list || !Array.isArray(scenes)) return;
-      list.innerHTML = '';
-      scenes.forEach(function (scene) {
-        var title = ((scene && scene.title) || '').trim();
-        if (!title) return;
-        var opt = document.createElement('option');
-        opt.value = title;
-        list.appendChild(opt);
-      });
+      if (list) {
+        list.innerHTML = '';
+        scenes.forEach(function (scene) {
+          var title = ((scene && scene.title) || '').trim();
+          if (!title) return;
+          var opt = document.createElement('option');
+          opt.value = title;
+          list.appendChild(opt);
+        });
+      }
       var editor = document.getElementById('portal-scenes-editor');
       var hiddenInput = document.getElementById('portal_scenes_json');
       if (editor && scenes.length) {
@@ -776,17 +838,20 @@
       });
     }
 
-    function openScenePopover(input) {
+    function openScenePopover(input, options) {
+      options = options || {};
       if (!input) return;
       var card = input.closest('.admin-media-card');
       if (!card) return;
-      if (scenePopover && scenePopoverAnchor === input) {
-        filterScenePopover(input.value || '');
+
+      if (options.toggle && scenePopover && scenePopoverAnchor === input) {
+        closeScenePopover();
         return;
       }
+
       closeScenePopover();
       scenePopoverAnchor = input;
-      var scenes = readScenesFromDatalist();
+      var scenes = readScenesList();
       var pop = document.createElement('div');
       pop.className = 'admin-scene-popover';
       pop.setAttribute('role', 'listbox');
@@ -806,11 +871,9 @@
         input.select();
       });
       pop.appendChild(custom);
-      var seen = {};
       scenes.forEach(function (scene) {
         var title = (scene.title || '').trim();
-        if (!title || seen[title.toLowerCase()]) return;
-        seen[title.toLowerCase()] = true;
+        if (!title) return;
         var btn = document.createElement('button');
         btn.type = 'button';
         btn.className = 'admin-scene-popover-item';
@@ -832,7 +895,12 @@
       scenePopover = pop;
       positionScenePopover(pop, input);
       bindScenePopoverScrollClose();
-      filterScenePopover(input.value || '');
+      // Opening via ▾ / click shows full list; typing filters later.
+      if (options.filterQuery != null && options.filterQuery !== '') {
+        filterScenePopover(options.filterQuery);
+      } else {
+        filterScenePopover('');
+      }
     }
 
     function scheduleSceneCommit(input) {
@@ -900,7 +968,7 @@
       var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
       if (!input) return;
       if (!scenePopover || scenePopoverAnchor !== input) {
-        openScenePopover(input);
+        openScenePopover(input, { filterQuery: input.value || '' });
       } else {
         filterScenePopover(input.value || '');
       }
@@ -934,7 +1002,7 @@
         var input = wrap ? wrap.querySelector('.admin-scene-input') : null;
         if (input) {
           input.focus();
-          openScenePopover(input);
+          openScenePopover(input, { toggle: true });
         }
         window.setTimeout(function () {
           scenePopoverIgnoreBlur = false;
@@ -1202,10 +1270,18 @@
     if (!lightbox) return;
     var lightImg = lightbox.querySelector('img');
     var closeBtn = lightbox.querySelector('.admin-lightbox-close');
+    var shareActions = lightbox.querySelector('#admin-lightbox-share-actions')
+      || lightbox.querySelector('.admin-lightbox-actions');
+    var removeBtn = lightbox.querySelector('#admin-lightbox-share-remove');
+    var shareContext = null;
 
-    function openLightbox(url) {
+    function openLightbox(url, shareOpts) {
       if (!url || !lightImg) return;
       lightImg.src = url;
+      shareContext = shareOpts || null;
+      if (shareActions) {
+        shareActions.hidden = !(shareContext && shareContext.guestToken && shareContext.token);
+      }
       lightbox.hidden = false;
       document.body.style.overflow = 'hidden';
     }
@@ -1213,22 +1289,59 @@
     function closeLightbox() {
       lightbox.hidden = true;
       if (lightImg) lightImg.removeAttribute('src');
+      shareContext = null;
+      if (shareActions) shareActions.hidden = true;
       document.body.style.overflow = '';
     }
 
     document.addEventListener('click', function (evt) {
+      var shareThumb =
+        evt.target && evt.target.closest ? evt.target.closest('.admin-share-set-thumb') : null;
+      if (shareThumb) {
+        evt.preventDefault();
+        openLightbox(shareThumb.getAttribute('data-preview'), {
+          guestToken: shareThumb.getAttribute('data-guest-token') || '',
+          token: shareThumb.getAttribute('data-token') || '',
+        });
+        return;
+      }
       var thumb = evt.target && evt.target.closest ? evt.target.closest('.admin-media-thumb, .admin-fav-preview') : null;
       if (thumb) {
         if (evt.shiftKey) return;
         if (thumb.closest('.portal-share-pick-label, .admin-bulk-pick')) return;
         evt.preventDefault();
-        openLightbox(thumb.getAttribute('data-preview'));
+        openLightbox(thumb.getAttribute('data-preview'), null);
         return;
       }
       if (evt.target === lightbox || evt.target === closeBtn) {
         closeLightbox();
       }
     });
+
+    if (removeBtn && removeBtn.dataset.bound !== '1') {
+      removeBtn.dataset.bound = '1';
+      removeBtn.addEventListener('click', function () {
+        if (!shareContext || !shareContext.guestToken || !shareContext.token) return;
+        if (!window.confirm('Izņemt šo bildi no izlases?')) return;
+        removeBtn.disabled = true;
+        postPortalShareRequest({
+          share_action: 'remove_image',
+          share_guest_token: shareContext.guestToken,
+          share_image_token: shareContext.token,
+        })
+          .then(function (data) {
+            showPortalToast('Bilde izņemta no izlases', false);
+            applyPortalShareAutosavePayload(data);
+            closeLightbox();
+          })
+          .catch(function (err) {
+            showPortalToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            removeBtn.disabled = false;
+          });
+      });
+    }
 
     document.addEventListener('keydown', function (evt) {
       if (evt.key === 'Escape' && !lightbox.hidden) {

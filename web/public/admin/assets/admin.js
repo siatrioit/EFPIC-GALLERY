@@ -897,6 +897,7 @@
       guestToken: guestToken || null,
       label: opts.label || '',
       includeVideos: !!opts.includeVideos,
+      includeSlideshow: opts.includeSlideshow !== false,
       isNew: !guestToken,
     };
     selectShareEditTokens(opts.tokens || []);
@@ -936,10 +937,9 @@
         share_action: 'create',
         share_set_label: shareEditMode.label,
         share_set_tokens: tokens.join(','),
+        share_include_videos: shareEditMode.includeVideos ? '1' : '0',
+        share_include_slideshow: shareEditMode.includeSlideshow ? '1' : '0',
       };
-      if (shareEditMode.includeVideos) {
-        extra.share_include_videos = '1';
-      }
     } else {
       var guestToken = normalizeShareGuestToken(shareEditMode.guestToken);
       if (!guestToken) {
@@ -952,9 +952,6 @@
         share_set_label: shareEditMode.label,
         share_set_tokens: tokens.join(','),
       };
-      if (shareEditMode.includeVideos) {
-        extra.share_include_videos = '1';
-      }
     }
     var saveBtn = document.getElementById('admin-share-edit-save');
     if (saveBtn) saveBtn.disabled = true;
@@ -985,9 +982,11 @@
           return;
         }
         var videosEl = document.getElementById('admin-share-new-videos');
+        var slideshowEl = document.getElementById('admin-share-new-slideshow');
         enterShareEditMode({
           label: label,
           includeVideos: !!(videosEl && videosEl.checked),
+          includeSlideshow: !slideshowEl || slideshowEl.checked,
           tokens: [],
         });
       });
@@ -1008,6 +1007,7 @@
           guestToken: guestToken || null,
           label: item.getAttribute('data-share-label') || '',
           includeVideos: item.getAttribute('data-share-videos') === '1',
+          includeSlideshow: item.getAttribute('data-share-slideshow') !== '0',
           tokens: tokens,
         });
       });
@@ -1050,6 +1050,31 @@
         };
         if (cb.checked) {
           extra.share_include_videos = '1';
+        }
+        postAdminShareRequest(extra)
+          .then(function (data) {
+            showAdminAutoSaveToast('Saglabāts', false);
+            applyAdminShareAutosavePayload(data);
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+            cb.checked = !cb.checked;
+          });
+      });
+    });
+
+    document.querySelectorAll('.admin-share-slideshow-cb').forEach(function (cb) {
+      if (cb.dataset.bound === '1') return;
+      cb.dataset.bound = '1';
+      cb.addEventListener('change', function () {
+        var gtok = cb.getAttribute('data-guest-token');
+        if (!gtok) return;
+        var extra = {
+          share_action: 'update_slideshow',
+          share_guest_token: gtok,
+        };
+        if (cb.checked) {
+          extra.share_include_slideshow = '1';
         }
         postAdminShareRequest(extra)
           .then(function (data) {
@@ -1956,10 +1981,18 @@
   if (lightbox) {
     var lightImg = lightbox.querySelector('img');
     var closeBtn = lightbox.querySelector('.admin-lightbox-close');
+    var shareActions = lightbox.querySelector('#admin-lightbox-share-actions')
+      || lightbox.querySelector('.admin-lightbox-actions');
+    var removeBtn = lightbox.querySelector('#admin-lightbox-share-remove');
+    var shareContext = null;
 
-    function openLightbox(url) {
+    function openLightbox(url, shareOpts) {
       if (!url || !lightImg) return;
       lightImg.src = url;
+      shareContext = shareOpts || null;
+      if (shareActions) {
+        shareActions.hidden = !(shareContext && shareContext.guestToken && shareContext.token);
+      }
       lightbox.hidden = false;
       document.body.style.overflow = 'hidden';
     }
@@ -1967,21 +2000,58 @@
     function closeLightbox() {
       lightbox.hidden = true;
       if (lightImg) lightImg.removeAttribute('src');
+      shareContext = null;
+      if (shareActions) shareActions.hidden = true;
       document.body.style.overflow = '';
     }
 
     document.addEventListener('click', function (evt) {
+      var shareThumb =
+        evt.target && evt.target.closest ? evt.target.closest('.admin-share-set-thumb') : null;
+      if (shareThumb) {
+        evt.preventDefault();
+        openLightbox(shareThumb.getAttribute('data-preview'), {
+          guestToken: shareThumb.getAttribute('data-guest-token') || '',
+          token: shareThumb.getAttribute('data-token') || '',
+        });
+        return;
+      }
       var btn = evt.target && evt.target.closest ? evt.target.closest('.admin-media-thumb, .admin-fav-preview') : null;
       if (btn) {
         if (evt.shiftKey) return;
         evt.preventDefault();
-        openLightbox(btn.getAttribute('data-preview'));
+        openLightbox(btn.getAttribute('data-preview'), null);
         return;
       }
       if (evt.target === lightbox || evt.target === closeBtn) {
         closeLightbox();
       }
     });
+
+    if (removeBtn && removeBtn.dataset.bound !== '1') {
+      removeBtn.dataset.bound = '1';
+      removeBtn.addEventListener('click', function () {
+        if (!shareContext || !shareContext.guestToken || !shareContext.token) return;
+        if (!window.confirm('Izņemt šo bildi no izlases?')) return;
+        removeBtn.disabled = true;
+        postAdminShareRequest({
+          share_action: 'remove_image',
+          share_guest_token: shareContext.guestToken,
+          share_image_token: shareContext.token,
+        })
+          .then(function (data) {
+            showAdminAutoSaveToast('Bilde izņemta no izlases', false);
+            applyAdminShareAutosavePayload(data);
+            closeLightbox();
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            removeBtn.disabled = false;
+          });
+      });
+    }
 
     document.addEventListener('keydown', function (evt) {
       if (evt.key === 'Escape' && !lightbox.hidden) {

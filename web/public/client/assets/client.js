@@ -1549,6 +1549,7 @@
   var visitorModal = document.getElementById('visitorCollectionModal');
   var visitorManageModal = document.getElementById('visitorManageModal');
   var pendingCollectionImageToken = '';
+  var pendingShareDownloadSize = '';
   var visitorRenameEditingId = '';
 
   var visitorState = {
@@ -1780,6 +1781,7 @@
   function openVisitorCollectionEntry() {
     if (!collectionEnabled) return;
     pendingCollectionImageToken = '';
+    pendingShareDownloadSize = '';
     if (visitorState.authenticated) {
       openVisitorManageModal();
     } else {
@@ -2176,7 +2178,13 @@
   function requestShareCollectionEmail(size) {
     var shareUrl = window.EFPIC_SHARE_DOWNLOAD_URL || '';
     if (!shareUrl) return;
+    if (!visitorBaseUrl) {
+      window.alert('Lejupielāde uz e-pastu šobrīd nav pieejama.');
+      return;
+    }
     if (!visitorState.authenticated) {
+      pendingCollectionImageToken = '';
+      pendingShareDownloadSize = size || 'web';
       openVisitorModal();
       return;
     }
@@ -2250,10 +2258,16 @@
     visitorForm.addEventListener('submit', function (evt) {
       evt.preventDefault();
       submitVisitorIdentify().then(function (data) {
-        if (data && pendingCollectionImageToken) {
+        if (!data) return;
+        if (pendingCollectionImageToken) {
           var tok = pendingCollectionImageToken;
           pendingCollectionImageToken = '';
           toggleVisitorCollectionImage(tok);
+        }
+        if (pendingShareDownloadSize) {
+          var size = pendingShareDownloadSize;
+          pendingShareDownloadSize = '';
+          requestShareCollectionEmail(size);
         }
       });
     });

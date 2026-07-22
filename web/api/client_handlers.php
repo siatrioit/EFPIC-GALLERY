@@ -245,18 +245,24 @@ function efpic_client_collection_download_modal(array $meta, array $ctx, int $co
     return $html;
 }
 
-function efpic_client_render_visitor_collection_modal(): string
+function efpic_client_render_visitor_collection_modal(bool $shareDownloadOnly = false): string
 {
+    $title = $shareDownloadOnly ? 'Lejupielāde uz e-pastu' : 'Mana izlase';
+    $hint = $shareDownloadOnly
+        ? 'Ievadi vārdu un e-pastu — ZIP ar izlases bildēm nosūtīsim uz e-pastu.'
+        : 'Ievadi vārdu un e-pastu, lai atlasītu bildes. Saņemsi saiti, ar kuru vari turpināt vēlāk.';
+    $submit = $shareDownloadOnly ? 'Turpināt' : 'Sākt';
     $html = '<div class="modal-backdrop" id="visitorCollectionModal" hidden role="dialog" aria-labelledby="visitorCollectionModalTitle">';
     $html .= '<div class="modal visitor-collection-modal"><button type="button" class="icon-btn modal-close" data-visitor-modal-close aria-label="Aizvērt">';
     $html .= efpic_client_icon('close') . '</button>';
-    $html .= '<h2 id="visitorCollectionModalTitle">Mana izlase</h2>';
-    $html .= '<p class="muted">Ievadi vārdu un e-pastu, lai atlasītu bildes. Saņemsi saiti, ar kuru vari turpināt vēlāk.</p>';
+    $html .= '<h2 id="visitorCollectionModalTitle">' . efpic_client_esc($title) . '</h2>';
+    $html .= '<p class="muted">' . efpic_client_esc($hint) . '</p>';
     $html .= '<form class="stack visitor-collection-form" id="visitorCollectionForm">';
     $html .= '<label class="field">Vārds<input type="text" name="name" id="visitorNameInput" required autocomplete="name"></label>';
     $html .= '<label class="field">E-pasts<input type="email" name="email" id="visitorEmailInput" required autocomplete="email"></label>';
     $html .= '<p class="visitor-form-error err" id="visitorFormError" hidden></p>';
-    $html .= '<button type="submit" class="btn primary visitor-submit-btn" id="visitorCollectionSubmit">Sākt</button>';
+    $html .= '<button type="submit" class="btn primary visitor-submit-btn" id="visitorCollectionSubmit">'
+        . efpic_client_esc($submit) . '</button>';
     $html .= '</form></div></div>';
 
     return $html;
@@ -1552,7 +1558,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $images = efpic_client_navigable_images($meta, $ctx);
     $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
     $canPublicCollection = efpic_can_use_public_collection($meta);
-    $visitorStatus = $canPublicCollection
+    $canShareEmailDl = efpic_viewer_is_restricted_share($ctx)
+        && (efpic_can_download_share_set_zip($meta, $ctx, 'web') || efpic_can_download_share_set_zip($meta, $ctx, 'full'));
+    $needsVisitorAuth = $canPublicCollection || $canShareEmailDl;
+    $visitorStatus = $needsVisitorAuth
         ? efpic_visitor_public_status($config, $slug, $meta, $galleryToken, $ctx)
         : null;
     $gridCtx = efpic_client_build_grid_context($config, $galleryToken, $meta, $ctx, $slug);
@@ -1654,8 +1663,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $body .= $galleryDlModal;
     if ($canPublicCollection) {
         $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
-        $body .= efpic_client_render_visitor_collection_modal();
+        $body .= efpic_client_render_visitor_collection_modal(false);
         $body .= efpic_client_render_visitor_manage_modal();
+    } elseif ($canShareEmailDl) {
+        $body .= efpic_client_render_visitor_collection_modal(true);
     }
     $body .= efpic_client_zip_progress_modal();
     $body .= efpic_client_video_modal();
@@ -1710,7 +1721,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_GALLERY_DL_URL' => $galleryUrl,
         'EFPIC_COLLECTION_ENABLED' => $canPublicCollection,
         'EFPIC_COLLECTION_COUNT' => $canPublicCollection ? $collectionCount : 0,
-        'EFPIC_VISITOR_BASE_URL' => $canPublicCollection ? $galleryUrl . '/visitor' : '',
+        'EFPIC_VISITOR_BASE_URL' => $needsVisitorAuth ? $galleryUrl . '/visitor' : '',
         'EFPIC_VISITOR_AUTHENTICATED' => $visitorStatus !== null,
         'EFPIC_VISITOR_NAME' => $visitorStatus !== null ? (string) ($visitorStatus['visitor']['name'] ?? '') : '',
         'EFPIC_VISITOR_EMAIL' => $visitorStatus !== null ? (string) ($visitorStatus['visitor']['email'] ?? '') : '',
@@ -1727,7 +1738,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         'EFPIC_FACE_PERSON_TOKENS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons/tokens' : '',
         'EFPIC_FACE_NO_FACE_TOKENS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons/no-face-tokens' : '',
         'EFPIC_IS_SHARE_LINK' => efpic_viewer_is_restricted_share($ctx),
-        'EFPIC_SHARE_DOWNLOAD_URL' => efpic_viewer_is_restricted_share($ctx) && $canPublicCollection
+        'EFPIC_SHARE_DOWNLOAD_URL' => $canShareEmailDl
             ? $galleryUrl . '/visitor/share/download-all'
             : '',
     ], $meta, $headExtra, null, $ctx);

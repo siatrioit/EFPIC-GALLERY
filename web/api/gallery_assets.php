@@ -859,6 +859,9 @@ function efpic_try_resolve_public_slideshow_owner(
  */
 function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config): ?array
 {
+    if (!efpic_viewer_include_slideshow($ctx)) {
+        return null;
+    }
     $storage = efpic_gallery_slideshow_storage($meta);
     $clientSlot = $storage['client'];
     if (efpic_slideshow_slot_public_video_enabled($clientSlot)) {
@@ -922,6 +925,9 @@ function efpic_resolve_public_slideshow(array $meta, array $ctx, array $config):
  */
 function efpic_collect_public_slideshow_video_sections(array $meta, array $ctx, array $config): array
 {
+    if (!efpic_viewer_include_slideshow($ctx)) {
+        return [];
+    }
     $storage = efpic_gallery_slideshow_storage($meta);
     $out = [];
     $adminIndex = 0;
@@ -2174,23 +2180,24 @@ function efpic_can_view_gallery_asset(array $config, array $meta, string $galler
     }
 
     $storage = efpic_gallery_slideshow_storage($meta);
+    $allowSlideshow = efpic_viewer_include_slideshow($ctx);
     foreach ($storage['items'] as $item) {
         if (efpic_slideshow_slot_owns_video_file($item, $filename)) {
-            return efpic_slideshow_slot_public_video_enabled($item);
+            return $allowSlideshow && efpic_slideshow_slot_public_video_enabled($item);
         }
         foreach (efpic_slideshow_slot_audio_files($item) as $audioFile) {
             if ($audioFile === $filename) {
-                return efpic_slideshow_slot_public_video_enabled($item);
+                return $allowSlideshow && efpic_slideshow_slot_public_video_enabled($item);
             }
         }
     }
     $clientSlot = $storage['client'];
     if (efpic_slideshow_slot_owns_video_file($clientSlot, $filename)) {
-        return efpic_slideshow_slot_public_video_enabled($clientSlot);
+        return $allowSlideshow && efpic_slideshow_slot_public_video_enabled($clientSlot);
     }
     foreach (efpic_slideshow_slot_audio_files($clientSlot) as $audioFile) {
         if ($audioFile === $filename) {
-            return efpic_slideshow_slot_public_video_enabled($clientSlot);
+            return $allowSlideshow && efpic_slideshow_slot_public_video_enabled($clientSlot);
         }
     }
 
@@ -2280,7 +2287,8 @@ function efpic_create_share_set(
     string $label,
     array $imageTokens,
     string $createdBy = 'admin',
-    bool $includeVideos = false
+    bool $includeVideos = false,
+    bool $includeSlideshow = true,
 ): array
 {
     $index = [];
@@ -2310,6 +2318,7 @@ function efpic_create_share_set(
         'label' => $label !== '' ? $label : 'Izlase',
         'image_tokens' => $valid,
         'include_videos' => $includeVideos,
+        'include_slideshow' => $includeSlideshow,
         'created_at' => gmdate('c'),
         'created_by' => $createdBy,
     ];
@@ -2507,18 +2516,71 @@ function efpic_append_to_share_set(array &$meta, string $guestToken, array $imag
     $meta['guests'] = $guests;
 }
 
-function efpic_update_share_set_meta(array &$meta, string $guestToken, bool $includeVideos): void
+function efpic_remove_from_share_set(array &$meta, string $guestToken, string $imageToken): void
 {
+    $guestToken = trim($guestToken);
+    $imageToken = trim($imageToken);
+    if ($guestToken === '' || $imageToken === '') {
+        throw new InvalidArgumentException('Nav izvēlēta bilde vai izlase.');
+    }
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        throw new InvalidArgumentException('Izlase nav atrasta.');
+    }
+    foreach ($guests as $gi => $guest) {
+        if (!is_array($guest) || (string) ($guest['guest_token'] ?? '') !== $guestToken) {
+            continue;
+        }
+        $tokens = [];
+        foreach ($guest['image_tokens'] ?? [] as $tok) {
+            $tok = (string) $tok;
+            if ($tok !== '' && $tok !== $imageToken) {
+                $tokens[] = $tok;
+            }
+        }
+        if ($tokens === []) {
+            throw new InvalidArgumentException('Izlasei jāpaliek vismaz viena bilde.');
+        }
+        $guests[$gi]['image_tokens'] = $tokens;
+        $meta['guests'] = $guests;
+
+        return;
+    }
+    throw new InvalidArgumentException('Izlase nav atrasta.');
+}
+
+function efpic_update_share_set_meta(
+    array &$meta,
+    string $guestToken,
+    ?bool $includeVideos = null,
+    ?bool $includeSlideshow = null,
+): void {
     $guestToken = trim($guestToken);
     foreach ($meta['guests'] ?? [] as $gi => $guest) {
         if (!is_array($guest) || (string) ($guest['guest_token'] ?? '') !== $guestToken) {
             continue;
         }
-        $meta['guests'][$gi]['include_videos'] = $includeVideos;
+        if ($includeVideos !== null) {
+            $meta['guests'][$gi]['include_videos'] = $includeVideos;
+        }
+        if ($includeSlideshow !== null) {
+            $meta['guests'][$gi]['include_slideshow'] = $includeSlideshow;
+        }
 
         return;
     }
     throw new InvalidArgumentException('Izlase nav atrasta.');
+}
+
+function efpic_gallery_has_shareable_client_slideshow(array $meta): bool
+{
+    $clientSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshow_storage($meta)['client']);
+    if (efpic_slideshow_slot_video_ready($clientSlot)) {
+        return true;
+    }
+    $favCount = efpic_count_favorites($meta, 'client');
+
+    return efpic_slideshow_slot_audio_files($clientSlot) !== [] && $favCount > 0;
 }
 
 function efpic_apply_share_actions_from_post(
@@ -2531,7 +2593,17 @@ function efpic_apply_share_actions_from_post(
         $label = trim((string) ($_POST['share_set_label'] ?? ''));
         $raw = trim((string) ($_POST['share_set_tokens'] ?? ''));
         $tokens = array_values(array_filter(array_map('trim', explode(',', $raw))));
-        $entry = efpic_create_share_set($meta, $label, $tokens, $createdBy, !empty($_POST['share_include_videos']));
+        $includeSlideshow = array_key_exists('share_include_slideshow', $_POST)
+            ? !empty($_POST['share_include_slideshow'])
+            : true;
+        $entry = efpic_create_share_set(
+            $meta,
+            $label,
+            $tokens,
+            $createdBy,
+            !empty($_POST['share_include_videos']),
+            $includeSlideshow,
+        );
         if (is_array($logContext) && isset($logContext['config'], $logContext['slug'])) {
             efpic_log_share_set_created($logContext['config'], (string) $logContext['slug'], $meta, $entry, $createdBy);
         }
@@ -2558,9 +2630,22 @@ function efpic_apply_share_actions_from_post(
 
         return;
     }
+    if ($action === 'remove_image') {
+        $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
+        $imageToken = trim((string) ($_POST['share_image_token'] ?? ''));
+        efpic_remove_from_share_set($meta, $guestToken, $imageToken);
+
+        return;
+    }
     if ($action === 'update_videos') {
         $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
-        efpic_update_share_set_meta($meta, $guestToken, !empty($_POST['share_include_videos']));
+        efpic_update_share_set_meta($meta, $guestToken, !empty($_POST['share_include_videos']), null);
+
+        return;
+    }
+    if ($action === 'update_slideshow') {
+        $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
+        efpic_update_share_set_meta($meta, $guestToken, null, !empty($_POST['share_include_slideshow']));
     }
 }
 

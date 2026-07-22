@@ -126,7 +126,7 @@ function efpic_handle_portal_face_persons(array $config, string $portalToken): v
     if (!efpic_gallery_face_search_enabled($meta)) {
         efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
     }
-    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false];
+    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false, 'share_include_slideshow' => true];
     $refresh = (($_GET['refresh'] ?? '') === '1');
     $payload = efpic_failiem_face_public_persons($config, $slug, $meta, $ctx, $refresh);
     efpic_json_response(200, $payload);
@@ -152,7 +152,7 @@ function efpic_handle_portal_face_person_tokens(array $config, string $portalTok
     if ($personIds === []) {
         efpic_json_response(400, ['ok' => false, 'error' => 'missing_ids']);
     }
-    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false];
+    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false, 'share_include_slideshow' => true];
     $bundle = efpic_failiem_face_fetch_bundle($config, $slug, $meta);
     if (empty($bundle['ok'])) {
         efpic_json_response(502, ['ok' => false, 'error' => (string) ($bundle['error'] ?? 'failiem_error')]);
@@ -183,7 +183,7 @@ function efpic_handle_portal_face_no_face_tokens(array $config, string $portalTo
     if (!efpic_gallery_face_search_enabled($meta)) {
         efpic_json_response(403, ['ok' => false, 'error' => 'disabled']);
     }
-    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false];
+    $ctx = ['role' => 'client', 'guest_token' => '', 'hide_client_hidden' => false, 'share_image_tokens' => null, 'share_label' => '', 'share_include_videos' => false, 'share_include_slideshow' => true];
     $bundle = efpic_failiem_face_fetch_bundle($config, $slug, $meta);
     if (empty($bundle['ok'])) {
         efpic_json_response(502, ['ok' => false, 'error' => (string) ($bundle['error'] ?? 'failiem_error')]);

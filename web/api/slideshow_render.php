@@ -261,7 +261,7 @@ function efpic_audio_duration_sec_estimate(string $path): ?float
  */
 function efpic_slideshow_collect_images_for_render(array $config, array $meta, string $owner, string $source, array $sceneIds = []): array
 {
-    $ctx = ['guest_token' => '', 'share_image_tokens' => null, 'share_include_videos' => false];
+    $ctx = ['guest_token' => '', 'share_image_tokens' => null, 'share_include_videos' => false, 'share_include_slideshow' => true];
     if ($source === 'all') {
         $out = [];
         foreach (efpic_sort_images_for_display($meta) as $img) {

@@ -638,7 +638,10 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled, $meta);
         $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
         $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
-        $body .= '<img src="" alt=""></div>';
+        $body .= '<img src="" alt="">';
+        $body .= '<div class="admin-lightbox-actions" id="admin-lightbox-share-actions" hidden>';
+        $body .= '<button type="button" class="btn primary" id="admin-lightbox-share-remove">Izņemt no izlases</button>';
+        $body .= '</div></div>';
         $body .= efpic_admin_tab_panel_close();
     }
 
@@ -657,6 +660,14 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if (!empty($portalSections['share'])) {
         $body .= efpic_admin_tab_panel_open('admin-tab-share', $firstPanelId === 'admin-tab-share');
         $body .= efpic_admin_render_share_sets($config, $meta);
+        if (empty($portalSections['images'])) {
+            $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
+            $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
+            $body .= '<img src="" alt="">';
+            $body .= '<div class="admin-lightbox-actions" id="admin-lightbox-share-actions" hidden>';
+            $body .= '<button type="button" class="btn primary" id="admin-lightbox-share-remove">Izņemt no izlases</button>';
+            $body .= '</div></div>';
+        }
         $body .= efpic_admin_tab_panel_close();
     }
 
@@ -750,6 +761,10 @@ function efpic_portal_render_image_grid(array $config, array $images, bool $comm
 {
     $coverTok = trim((string) ($meta['cover_image_token'] ?? ''));
     $sceneOptions = efpic_gallery_scene_options($meta !== [] ? $meta : ['scenes' => [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]]]);
+    $scenesJson = json_encode($sceneOptions, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($scenesJson === false) {
+        $scenesJson = '[]';
+    }
 
     $html = '<datalist id="admin-scene-datalist">';
     foreach ($sceneOptions as $scene) {
@@ -757,7 +772,8 @@ function efpic_portal_render_image_grid(array $config, array $images, bool $comm
     }
     $html .= '</datalist>';
 
-    $html .= '<ul id="portal-image-grid" class="admin-media-grid">';
+    $html .= '<ul id="portal-image-grid" class="admin-media-grid" data-scenes="'
+        . efpic_client_esc($scenesJson) . '">';
     foreach ($images as $img) {
         if (!is_array($img)) {
             continue;
@@ -1150,7 +1166,6 @@ function efpic_portal_render_images_action_bar(
         ],
     ];
     $html = '<div class="portal-images-action-bar">';
-    $html .= '<div class="portal-images-action-bar__sticky">';
     $html .= '<div class="portal-images-action-bar__btns">';
     if ($flags['web']) {
         $html .= '<button type="button" class="btn primary portal-images-action-bar__btn" data-portal-dl-size="web">Lejupielādēt WEB</button>';
@@ -1181,7 +1196,6 @@ function efpic_portal_render_images_action_bar(
     if ($faceSearchReady) {
         $html .= efpic_client_render_face_filter_toolbar_panel();
     }
-    $html .= '</div>';
 
     $html .= '<div class="portal-images-info-modal" id="portalImagesInfoModal" hidden>';
     $html .= '<div class="portal-images-info-dialog" role="dialog" aria-modal="true" aria-labelledby="portalImagesInfoTitle">';
