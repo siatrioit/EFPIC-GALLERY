@@ -2206,6 +2206,12 @@
     try {
       saved = sessionStorage.getItem(storageKey) || '';
     } catch (e) {}
+    try {
+      var tabParam = new URLSearchParams(window.location.search).get('tab');
+      if (tabParam && form.querySelector('#' + tabParam + '[data-admin-tab-panel]')) {
+        saved = tabParam;
+      }
+    } catch (e) {}
     if (saved && form.querySelector('#' + saved + '[data-admin-tab-panel]')) {
       activate(saved, false);
     }

@@ -2315,6 +2315,7 @@ function efpic_admin_render_edit_tabs_nav(): string
         ['id' => 'admin-tab-share', 'label' => 'Kopīgošana'],
         ['id' => 'admin-tab-analytics', 'label' => 'Analītika'],
         ['id' => 'admin-tab-media', 'label' => 'Slideshow & video'],
+        ['id' => 'admin-tab-emails', 'label' => 'E-pasts'],
     ];
     $out = '<nav class="admin-edit-tabs" role="tablist" aria-label="Galerijas sadaļas">';
     foreach ($tabs as $i => $tab) {
@@ -2646,6 +2647,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= efpic_admin_tab_panel_open('admin-tab-media');
         $body .= efpic_admin_render_media_tab($config, $meta, (string) ($meta['gallery_token'] ?? ''), $slug);
         $body .= efpic_admin_tab_panel_close();
+        $body .= efpic_admin_tab_panel_open('admin-tab-emails');
+        $body .= efpic_admin_render_visitor_email_zips_tab($config, $meta, (string) ($slug ?? ''));
+        $body .= efpic_admin_tab_panel_close();
     }
 
     if ($isEdit && is_array($meta) && $slug !== null) {
@@ -2677,6 +2681,106 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         '',
         $footExtra,
     );
+}
+
+function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, string $slug): string
+{
+    if ($slug === '') {
+        return '<p class="muted">E-pastu vēsture būs pieejama pēc galerijas saglabāšanas.</p>';
+    }
+
+    // Atjaunina rindā gaidošos job, lai statuss būtu aktuāls.
+    efpic_visitor_zip_run_pending($config, 3);
+
+    $jobs = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
+    $data = efpic_visitor_collections_load($config, $slug);
+    $emailReady = efpic_gallery_email_ready($config);
+
+    $html = '<section class="admin-fieldset-full admin-visitor-emails-panel">';
+    $html .= '<h2 class="admin-share-block-title">ZIP e-pasti viesiem</h2>';
+    $html .= '<p class="muted">Šeit redzami pieprasījumi, kad viesis (vai kopīgošanas saites saņēmējs) lūdz ZIP uz e-pastu. '
+        . 'Statuss rāda, vai ZIP vēl veidojas, vai e-pasts jau nosūtīts, vai ir kļūda.</p>';
+    if (!$emailReady) {
+        $html .= '<p class="err">E-pasta sūtīšana nav gatava (skaties Admin → Iestatījumi). ZIP var sagatavoties, bet vēstule netiks nosūtīta.</p>';
+    }
+
+    if ($jobs === []) {
+        $html .= '<p class="muted">Šajā galerijā vēl nav ZIP e-pasta pieprasījumu.</p></section>';
+
+        return $html;
+    }
+
+    $html .= '<div class="admin-table-wrap"><table class="admin-table admin-visitor-emails-table">';
+    $html .= '<thead><tr>';
+    $html .= '<th>Laiks</th><th>Saņēmējs</th><th>Tips</th><th>Izmērs</th><th>Statuss</th><th>Darbība</th>';
+    $html .= '</tr></thead><tbody>';
+
+    foreach ($jobs as $job) {
+        $jobId = (string) ($job['id'] ?? '');
+        $status = (string) ($job['status'] ?? '');
+        $emailSent = !empty($job['email_sent']);
+        $visitorId = (string) ($job['visitor_id'] ?? '');
+        $visitor = $visitorId !== '' ? efpic_visitor_get_visitor($data, $visitorId) : null;
+        $name = is_array($visitor) ? trim((string) ($visitor['name'] ?? '')) : '';
+        $email = is_array($visitor) ? trim((string) ($visitor['email'] ?? '')) : '';
+        if ($email === '' && is_array($visitor)) {
+            $email = trim((string) ($visitor['email'] ?? ''));
+        }
+        $created = (string) ($job['created_at'] ?? $job['updated_at'] ?? '');
+        $createdLabel = $created !== '' ? substr(str_replace('T', ' ', $created), 0, 16) . ' UTC' : '—';
+        $size = (string) ($job['size'] ?? 'web');
+        $sizeLabel = function_exists('efpic_visitor_zip_size_label')
+            ? efpic_visitor_zip_size_label($size)
+            : strtoupper($size);
+        $typeLabel = efpic_visitor_zip_type_label((string) ($job['type'] ?? ''));
+        $statusLabel = efpic_visitor_zip_status_label($status, $emailSent);
+        $error = efpic_visitor_zip_error_label((string) ($job['error'] ?? ''));
+        $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
+        $preparedN = count($prepared);
+        $canRetry = $status === 'failed' || ($status === 'done' && !$emailSent);
+
+        $html .= '<tr>';
+        $html .= '<td><span class="muted">' . efpic_admin_esc($createdLabel) . '</span></td>';
+        $html .= '<td>';
+        if ($name !== '') {
+            $html .= '<strong>' . efpic_admin_esc($name) . '</strong><br>';
+        }
+        $html .= $email !== ''
+            ? '<a href="mailto:' . efpic_admin_esc($email) . '">' . efpic_admin_esc($email) . '</a>'
+            : '<span class="muted">—</span>';
+        $html .= '</td>';
+        $html .= '<td>' . efpic_admin_esc($typeLabel);
+        if ($preparedN > 0) {
+            $html .= '<br><span class="muted">' . $preparedN . ' ZIP</span>';
+        }
+        $html .= '</td>';
+        $html .= '<td>' . efpic_admin_esc($sizeLabel) . '</td>';
+        $html .= '<td><span class="admin-visitor-email-status admin-visitor-email-status--'
+            . efpic_admin_esc($status) . ($emailSent ? ' is-sent' : '') . '">'
+            . efpic_admin_esc($statusLabel) . '</span>';
+        if ($error !== '') {
+            $html .= '<br><span class="err admin-visitor-email-error">' . efpic_admin_esc($error) . '</span>';
+        }
+        if ($status === 'processing' || $status === 'queued') {
+            $done = (int) ($job['collections_prepared'] ?? 0);
+            $html .= '<br><span class="muted">Progres: ' . $done . ' kolekcijas sagatavotas</span>';
+        }
+        $html .= '</td>';
+        $html .= '<td>';
+        if ($canRetry && $jobId !== '') {
+            $html .= '<button type="submit" class="btn admin-btn-sm primary" name="visitor_zip_retry" value="'
+                . efpic_admin_esc($jobId) . '" formaction="delivery_edit.php?slug=' . rawurlencode($slug)
+                . '" formnovalidate>Mēģināt vēlreiz</button>';
+        } else {
+            $html .= '<span class="muted">—</span>';
+        }
+        $html .= '</td>';
+        $html .= '</tr>';
+    }
+
+    $html .= '</tbody></table></div></section>';
+
+    return $html;
 }
 
 function efpic_admin_render_render_queue_panel(array $config): string

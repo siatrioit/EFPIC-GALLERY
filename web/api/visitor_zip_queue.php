@@ -330,7 +330,8 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
                 $job['email_sent'] = true;
             } catch (Throwable $e) {
                 $job['status'] = 'failed';
-                $job['error'] = 'zip_verify_failed';
+                $msg = trim($e->getMessage());
+                $job['error'] = $msg !== '' ? $msg : 'email_send_failed';
                 efpic_visitor_zip_save_job($config, $job);
 
                 return;
@@ -465,4 +466,116 @@ function efpic_handle_visitor_zip_queue_run(array $config): void
     @ignore_user_abort(true);
     $count = efpic_visitor_zip_run_pending($config, 5);
     efpic_json_response(200, ['ok' => true, 'processed' => $count]);
+}
+
+/**
+ * @return list<array<string, mixed>>
+ */
+function efpic_visitor_zip_list_jobs_for_slug(array $config, string $slug): array
+{
+    $slug = trim($slug);
+    if ($slug === '') {
+        return [];
+    }
+    $dir = efpic_visitor_zip_queue_dir($config);
+    if (!is_dir($dir)) {
+        return [];
+    }
+    $files = glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [];
+    $jobs = [];
+    foreach ($files as $path) {
+        $job = efpic_read_json_file($path);
+        if (!is_array($job)) {
+            continue;
+        }
+        if ((string) ($job['slug'] ?? '') !== $slug) {
+            continue;
+        }
+        $jobs[] = $job;
+    }
+    usort($jobs, static function (array $a, array $b): int {
+        $ta = (string) ($a['created_at'] ?? $a['updated_at'] ?? '');
+        $tb = (string) ($b['created_at'] ?? $b['updated_at'] ?? '');
+
+        return strcmp($tb, $ta);
+    });
+
+    return $jobs;
+}
+
+function efpic_visitor_zip_status_label(string $status, bool $emailSent = false): string
+{
+    return match ($status) {
+        'queued' => 'Rindā — gaida sagatavošanu',
+        'processing' => 'Sagatavo ZIP…',
+        'done' => $emailSent ? 'Nosūtīts' : 'Sagatavots (e-pasts nav atzīmēts)',
+        'failed' => 'Neizdevās',
+        default => $status !== '' ? $status : 'Nezināms',
+    };
+}
+
+function efpic_visitor_zip_error_label(string $error): string
+{
+    $error = trim($error);
+    if ($error === '') {
+        return '';
+    }
+
+    return match ($error) {
+        'gallery_not_found' => 'Galerija nav atrasta.',
+        'not_found' => 'Apmeklētājs nav atrasts.',
+        'empty_collection' => 'Nav bilžu, ko ievietot ZIP.',
+        'zip_build_failed' => 'ZIP izveide neizdevās.',
+        'zip_verify_failed' => 'ZIP fails nav derīgs pēc izveides.',
+        'email_send_failed' => 'E-pasta sūtīšana neizdevās.',
+        'download_disabled' => 'Lejupielāde šai izlasei ir atslēgta.',
+        'not_share_link' => 'Nav derīga kopīgošanas saite.',
+        default => $error,
+    };
+}
+
+function efpic_visitor_zip_type_label(string $type): string
+{
+    return match ($type) {
+        'share_all' => 'Kopīgojamā izlase',
+        'visitor_collections' => 'Apmeklētāja izlases',
+        default => $type !== '' ? $type : 'ZIP e-pasts',
+    };
+}
+
+/**
+ * @return array{ok: bool, error?: string, job_id?: string}
+ */
+function efpic_visitor_zip_admin_retry_job(array $config, string $slug, string $jobId): array
+{
+    $job = efpic_visitor_zip_load_job($config, $jobId);
+    if ($job === null) {
+        return ['ok' => false, 'error' => 'Job nav atrasts.'];
+    }
+    if ((string) ($job['slug'] ?? '') !== $slug) {
+        return ['ok' => false, 'error' => 'Job nepieder šai galerijai.'];
+    }
+    $status = (string) ($job['status'] ?? '');
+    if ($status !== 'failed' && !($status === 'done' && empty($job['email_sent']))) {
+        if (in_array($status, ['queued', 'processing'], true)) {
+            return ['ok' => false, 'error' => 'Job jau ir rindā vai apstrādē.'];
+        }
+        if ($status === 'done' && !empty($job['email_sent'])) {
+            return ['ok' => false, 'error' => 'E-pasts jau ir nosūtīts. Ja vajag jaunu, viesim jālūdz vēlreiz.'];
+        }
+    }
+
+    // Saglabā sagatavotos ZIP, bet mēģina e-pastu / atlikušo sagatavošanu no jauna.
+    if ($status === 'failed' && !empty($job['email_sent'])) {
+        $job['email_sent'] = false;
+    }
+    $job['status'] = 'queued';
+    $job['claimed_at'] = '';
+    $job['error'] = '';
+    $job['retry_count'] = (int) ($job['retry_count'] ?? 0) + 1;
+    efpic_visitor_zip_save_job($config, $job);
+    efpic_visitor_zip_process_job_chain($config, $jobId, 50);
+    efpic_visitor_zip_run_pending($config, 2);
+
+    return ['ok' => true, 'job_id' => $jobId];
 }

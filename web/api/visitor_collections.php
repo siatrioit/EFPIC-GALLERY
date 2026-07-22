@@ -1389,19 +1389,24 @@ function efpic_visitor_send_all_zips_ready_email(
     string $size,
 ): void {
     if (!efpic_gallery_email_ready($config)) {
-        return;
+        throw new RuntimeException('E-pasta sūtīšana nav konfigurēta (SMTP / nosūtītājs).');
     }
     $to = (string) ($visitor['email'] ?? '');
     if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
-        return;
+        throw new RuntimeException('Nederīga apmeklētāja e-pasta adrese.');
     }
     $galleryName = (string) ($meta['name'] ?? 'Galerija');
     $subject = 'Izlases lejupielāde — ' . $galleryName;
 
     try {
         efpic_visitor_deliver_zip_ready_email($config, $to, $subject, $meta, $visitor, $prepared, $size);
-    } catch (Throwable) {
-        /* ignore */
+    } catch (Throwable $e) {
+        $msg = trim($e->getMessage());
+        throw new RuntimeException(
+            $msg !== '' ? ('E-pasta sūtīšana neizdevās: ' . $msg) : 'E-pasta sūtīšana neizdevās.',
+            0,
+            $e,
+        );
     }
 }
 

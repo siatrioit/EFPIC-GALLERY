@@ -3458,8 +3458,45 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: flex-start;
   gap: 10px 14px;
   flex-shrink: 0;
+  width: 100%;
+}
+
+.admin-share-set-toggles .admin-toggle-field,
+.admin-share-set-toggles .admin-toggle-field--inline {
+  flex: 0 0 auto;
+  width: auto;
+  max-width: none;
+  justify-content: flex-start;
+  gap: 8px;
+}
+
+.admin-visitor-emails-table .admin-visitor-email-status {
+  display: inline-block;
+  font-weight: 600;
+  font-size: 0.88rem;
+}
+
+.admin-visitor-email-status--queued,
+.admin-visitor-email-status--processing {
+  color: #8a6d00;
+}
+
+.admin-visitor-email-status--done.is-sent {
+  color: #1b7a3d;
+}
+
+.admin-visitor-email-status--failed {
+  color: #b42318;
+}
+
+.admin-visitor-email-error {
+  display: inline-block;
+  margin-top: 4px;
+  font-size: 0.82rem;
+  max-width: 28rem;
 }
 
 .admin-share-set-foot {
@@ -3723,6 +3760,32 @@
   text-align: center;
 }
 
+.portal-images-action-bar__stats {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.55rem 1rem;
+  min-width: 0;
+  font-size: 0.84rem;
+  line-height: 1.3;
+  color: var(--admin-text-muted);
+  white-space: nowrap;
+}
+
+.portal-images-action-bar__stat strong {
+  color: var(--admin-text);
+  font-weight: 600;
+}
+
+.portal-images-action-bar__end {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 10px;
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
 .portal-images-action-bar__info {
   flex: 0 0 auto;
   align-self: center;
@@ -3747,6 +3810,10 @@
   align-items: center;
   justify-content: center;
   transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.portal-images-action-bar__end .portal-images-action-bar__info {
+  margin-left: 0;
 }
 
 .portal-images-action-bar__info:hover,
@@ -3853,6 +3920,12 @@ body.portal-images-info-open {
   line-height: 1.45;
 }
 
+@media (max-width: 900px) {
+  .portal-images-action-bar__stats {
+    display: none;
+  }
+}
+
 @media (max-width: 767px) {
   .portal-images-action-bar {
     flex-wrap: wrap;
@@ -3866,6 +3939,7 @@ body.portal-images-info-open {
     width: 100%;
   }
 
+  .portal-images-action-bar__end,
   .portal-images-action-bar__info {
     margin-left: auto;
   }

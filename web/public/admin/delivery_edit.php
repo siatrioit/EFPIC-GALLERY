@@ -83,6 +83,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) 
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['visitor_zip_retry'])) {
+    $jobId = trim((string) ($_POST['visitor_zip_retry'] ?? ''));
+    if ($jobId === '1') {
+        $jobId = trim((string) ($_POST['visitor_zip_job_id'] ?? ''));
+    }
+    $result = efpic_visitor_zip_admin_retry_job($config, $slug, $jobId);
+    $qs = 'slug=' . rawurlencode($slug) . '&tab=admin-tab-emails';
+    if (!empty($result['ok'])) {
+        $qs .= '&zip_retried=1';
+    } else {
+        $qs .= '&zip_retry_error=' . rawurlencode((string) ($result['error'] ?? 'Neizdevās'));
+    }
+    header('Location: delivery_edit.php?' . $qs);
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_api'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
@@ -376,6 +392,12 @@ if (isset($_GET['link_regenerated'])) {
 }
 if (isset($_GET['email_sent'])) {
     $flash = 'E-pasts nosūtīts klientam.';
+}
+if (isset($_GET['zip_retried'])) {
+    $flash = 'ZIP e-pasta job ievietots rindā un mēģināts no jauna. Pārbaudi statusu cilnē «E-pasts».';
+}
+if (isset($_GET['zip_retry_error'])) {
+    $flash = 'Neizdevās mēģināt vēlreiz: ' . (string) $_GET['zip_retry_error'];
 }
 try {
     efpic_admin_delivery_form($config, $meta, $slug, $flash);

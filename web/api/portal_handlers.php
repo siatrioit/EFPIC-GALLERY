@@ -1243,8 +1243,25 @@ function efpic_portal_render_images_action_bar(
     bool $faceSearchReady,
 ): string {
     $flags = efpic_portal_download_action_flags($meta);
+    $totalCount = 0;
+    $hiddenCount = 0;
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img) || (string) ($img['token'] ?? '') === '') {
+            continue;
+        }
+        $totalCount++;
+        if (!empty($img['client_hidden'])) {
+            $hiddenCount++;
+        }
+    }
+    $favCount = efpic_count_favorites($meta, 'client');
+    $statsLabel = $totalCount . ' bildes · ' . $favCount . ' favorīti · ' . $hiddenCount . ' slēptas';
 
     $infoItems = [
+        [
+            'title' => 'Kopsavilkums',
+            'text' => $statsLabel . '.',
+        ],
         [
             'title' => 'Vāks',
             'text' => 'Atzīmē, kura bilde būs galerijas vāka bilde publiskajā saitē. Vienlaikus var būt tikai viena vāka bilde.',
@@ -1287,10 +1304,16 @@ function efpic_portal_render_images_action_bar(
         ];
     }
     $html .= '</div>';
+    $html .= '<div class="portal-images-action-bar__end">';
+    $html .= '<div class="portal-images-action-bar__stats" aria-label="Bildžu kopsavilkums">';
+    $html .= '<span class="portal-images-action-bar__stat"><strong>' . $totalCount . '</strong> bildes</span>';
+    $html .= '<span class="portal-images-action-bar__stat"><strong>' . $favCount . '</strong> favorīti</span>';
+    $html .= '<span class="portal-images-action-bar__stat"><strong>' . $hiddenCount . '</strong> slēptas</span>';
+    $html .= '</div>';
     $html .= '<button type="button" class="portal-images-action-bar__info" data-portal-images-info-open '
         . 'aria-haspopup="dialog" aria-controls="portalImagesInfoModal" aria-label="Kas ir šīs pogas?">';
     $html .= '<span aria-hidden="true">i</span></button>';
-    $html .= '</div>';
+    $html .= '</div></div>';
     if ($faceSearchReady) {
         $html .= efpic_client_render_face_filter_toolbar_panel();
     }
