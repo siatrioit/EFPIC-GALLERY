@@ -227,6 +227,7 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
     if ($fp === false) {
         throw new RuntimeException('SMTP savienojums: ' . $errstr);
     }
+    stream_set_timeout($fp, 60);
 
     $read = static function () use ($fp): string {
         $data = '';
@@ -240,8 +241,24 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
         return $data;
     };
 
-    $write = static function (string $cmd) use ($fp): void {
-        fwrite($fp, $cmd . "\r\n");
+    $writeRaw = static function (string $payload) use ($fp): void {
+        $len = strlen($payload);
+        $written = 0;
+        while ($written < $len) {
+            $n = fwrite($fp, substr($payload, $written));
+            if ($n === false || $n === 0) {
+                $meta = stream_get_meta_data($fp);
+                $timedOut = !empty($meta['timed_out']);
+                throw new RuntimeException($timedOut
+                    ? 'SMTP rakstīšanas timeout'
+                    : 'SMTP rakstīšana pārtrūka');
+            }
+            $written += $n;
+        }
+    };
+
+    $write = static function (string $cmd) use ($writeRaw): void {
+        $writeRaw($cmd . "\r\n");
     };
 
     $expectOk = static function (string $resp, string $step): void {
@@ -254,55 +271,61 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
         }
     };
 
-    $expectOk($read(), 'savienojums');
-    $write('EHLO efpic.local');
-    $expectOk($read(), 'EHLO');
-
-    if ($secure === 'tls') {
-        $write('STARTTLS');
-        $expectOk($read(), 'STARTTLS');
-        if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
-            fclose($fp);
-            throw new RuntimeException('SMTP STARTTLS kriptēšana neizdevās');
-        }
+    try {
+        $expectOk($read(), 'savienojums');
         $write('EHLO efpic.local');
-        $expectOk($read(), 'EHLO pēc TLS');
-    }
+        $expectOk($read(), 'EHLO');
 
-    if ($user !== '') {
-        $write('AUTH LOGIN');
-        $expectOk($read(), 'AUTH');
-        $write(base64_encode($user));
-        $expectOk($read(), 'AUTH lietotājs');
-        $write(base64_encode($pass));
-        $expectOk($read(), 'AUTH parole');
-    }
+        if ($secure === 'tls') {
+            $write('STARTTLS');
+            $expectOk($read(), 'STARTTLS');
+            if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+                throw new RuntimeException('SMTP STARTTLS kriptēšana neizdevās');
+            }
+            $write('EHLO efpic.local');
+            $expectOk($read(), 'EHLO pēc TLS');
+        }
 
-    $write('MAIL FROM:<' . $from . '>');
-    $expectOk($read(), 'MAIL FROM');
-    $write('RCPT TO:<' . $to . '>');
-    $expectOk($read(), 'RCPT TO');
-    $write('DATA');
-    $expectOk($read(), 'DATA');
+        if ($user !== '') {
+            $write('AUTH LOGIN');
+            $expectOk($read(), 'AUTH');
+            $write(base64_encode($user));
+            $expectOk($read(), 'AUTH lietotājs');
+            $write(base64_encode($pass));
+            $expectOk($read(), 'AUTH parole');
+        }
 
-    $msg = "From: {$fromName} <{$from}>\r\n";
-    $msg .= "To: <{$to}>\r\n";
-    $msg .= 'Subject: =?UTF-8?B?' . base64_encode($subject) . "?=\r\n";
-    $msg .= "MIME-Version: 1.0\r\n";
-    if ($htmlBody !== null && $htmlBody !== '') {
-        $pack = efpic_email_multipart_body($body, $htmlBody, $inlineAttachments);
-        $msg .= 'Content-Type: ' . $pack['contentType'] . "\r\n\r\n";
-        $msg .= $pack['body'] . "\r\n";
-    } else {
-        $msg .= "Content-Type: text/plain; charset=UTF-8\r\n";
-        $msg .= "\r\n";
-        $msg .= $body;
+        $write('MAIL FROM:<' . $from . '>');
+        $expectOk($read(), 'MAIL FROM');
+        $write('RCPT TO:<' . $to . '>');
+        $expectOk($read(), 'RCPT TO');
+        $write('DATA');
+        $expectOk($read(), 'DATA');
+
+        $msg = "From: {$fromName} <{$from}>\r\n";
+        $msg .= "To: <{$to}>\r\n";
+        $msg .= 'Subject: =?UTF-8?B?' . base64_encode($subject) . "?=\r\n";
+        $msg .= "MIME-Version: 1.0\r\n";
+        if ($htmlBody !== null && $htmlBody !== '') {
+            $pack = efpic_email_multipart_body($body, $htmlBody, $inlineAttachments);
+            $msg .= 'Content-Type: ' . $pack['contentType'] . "\r\n\r\n";
+            $msg .= $pack['body'];
+        } else {
+            $msg .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+            $msg .= $body;
+        }
+        // SMTP prasa CRLF un punktiņu escape rindām, kas sākas ar "."
+        $msg = str_replace(["\r\n", "\r", "\n"], ["\n", "\n", "\r\n"], $msg);
+        $msg = preg_replace('/^\./m', '..', $msg) ?? $msg;
+        if (!str_ends_with($msg, "\r\n")) {
+            $msg .= "\r\n";
+        }
+        $writeRaw($msg . ".\r\n");
+        $expectOk($read(), 'sūtīšana');
+        $write('QUIT');
+    } finally {
+        fclose($fp);
     }
-    $msg .= "\r\n.\r\n";
-    $write($msg);
-    $expectOk($read(), 'sūtīšana');
-    $write('QUIT');
-    fclose($fp);
 }
 
 function efpic_guest_send_whatsapp(array $gd, string $to, string $message): void

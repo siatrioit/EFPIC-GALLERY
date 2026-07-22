@@ -48,6 +48,17 @@ function efpic_visitor_zip_run_maintenance(array $config): void
 {
     $dir = efpic_visitor_zip_queue_dir($config);
     if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+    // Pilna ZIP tīrīšana max reizi stundā (visas galerijas).
+    $stampPath = $dir . DIRECTORY_SEPARATOR . '.last_zip_cleanup';
+    $lastCleanup = is_file($stampPath) ? (int) @file_get_contents($stampPath) : 0;
+    if ($lastCleanup <= 0 || (time() - $lastCleanup) >= 3600) {
+        @file_put_contents($stampPath, (string) time());
+        efpic_visitor_zip_cleanup_expired($config);
+    }
+
+    if (!is_dir($dir)) {
         return;
     }
     $now = time();

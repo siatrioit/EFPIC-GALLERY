@@ -28,6 +28,113 @@ function efpic_visitor_zips_dir(array $config, string $slug): string
     return efpic_gallery_dir($config, $slug) . DIRECTORY_SEPARATOR . 'visitor_zips';
 }
 
+/** Lejupielādes saites un ZIP failu glabāšanas laiks (sekundes). */
+function efpic_visitor_zip_link_ttl_seconds(): int
+{
+    return 72 * 3600;
+}
+
+/**
+ * Dzēš beigušās ZIP lejupielādes (meta + fails). Saites beidzas pēc 72h; faili līdz šim palika diskā.
+ *
+ * @return int Dzēsto ZIP failu skaits
+ */
+function efpic_visitor_zip_cleanup_expired(array $config, ?string $onlySlug = null): int
+{
+    $slugs = $onlySlug !== null && $onlySlug !== ''
+        ? [$onlySlug]
+        : efpic_list_gallery_slugs($config);
+    $removed = 0;
+    $now = time();
+    $ttl = efpic_visitor_zip_link_ttl_seconds();
+
+    foreach ($slugs as $slug) {
+        $slug = (string) $slug;
+        $data = efpic_visitor_collections_load($config, $slug);
+        $zipDir = efpic_visitor_zips_dir($config, $slug);
+        $changed = false;
+        $keepFiles = [];
+
+        foreach ($data['zip_downloads'] ?? [] as $token => $job) {
+            if (!is_array($job)) {
+                unset($data['zip_downloads'][$token]);
+                $changed = true;
+                continue;
+            }
+            $expires = strtotime((string) ($job['expires_at'] ?? ''));
+            if ($expires === false) {
+                $created = strtotime((string) ($job['created_at'] ?? '')) ?: 0;
+                $expires = $created > 0 ? $created + $ttl : 0;
+            }
+            $file = (string) ($job['file'] ?? ((string) $token . '.zip'));
+            if ($expires > 0 && $expires < $now) {
+                $path = $zipDir . DIRECTORY_SEPARATOR . $file;
+                if ($file !== '' && is_file($path)) {
+                    @unlink($path);
+                    $removed++;
+                }
+                unset($data['zip_downloads'][$token]);
+                $changed = true;
+                continue;
+            }
+            if ($file !== '') {
+                $keepFiles[$file] = true;
+            }
+        }
+
+        // Orphan .zip faili mapē bez meta (vai vecāki par TTL pēc mtime).
+        if (is_dir($zipDir)) {
+            foreach (glob($zipDir . DIRECTORY_SEPARATOR . '*.zip') ?: [] as $path) {
+                $base = basename($path);
+                if (isset($keepFiles[$base])) {
+                    continue;
+                }
+                $mtime = @filemtime($path) ?: 0;
+                if ($mtime > 0 && ($now - $mtime) < $ttl) {
+                    continue;
+                }
+                @unlink($path);
+                $removed++;
+            }
+        }
+
+        if ($changed) {
+            efpic_visitor_collections_save($config, $slug, $data);
+        }
+    }
+
+    return $removed;
+}
+
+/**
+ * Atjauno ZIP lejupielādes derīgumu (piem. pirms atkārtotas e-pasta sūtīšanas).
+ *
+ * @param list<array{download_token?: string}> $prepared
+ */
+function efpic_visitor_zip_refresh_prepared_expiry(array $config, string $slug, array $prepared): void
+{
+    if ($prepared === []) {
+        return;
+    }
+    $data = efpic_visitor_collections_load($config, $slug);
+    $expiresAt = gmdate('c', time() + efpic_visitor_zip_link_ttl_seconds());
+    $changed = false;
+    foreach ($prepared as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $token = (string) ($item['download_token'] ?? '');
+        if ($token === '' || !isset($data['zip_downloads'][$token]) || !is_array($data['zip_downloads'][$token])) {
+            continue;
+        }
+        $data['zip_downloads'][$token]['expires_at'] = $expiresAt;
+        $changed = true;
+    }
+    if ($changed) {
+        efpic_visitor_collections_save($config, $slug, $data);
+    }
+}
+
 /** @return array<string, mixed> */
 function efpic_visitor_collections_load(array $config, string $slug): array
 {
@@ -715,7 +822,7 @@ function efpic_visitor_ensure_collection_zip(
         return ['ok' => false, 'error' => 'zip_build_failed'];
     }
 
-    $expiresAt = gmdate('c', time() + 72 * 3600);
+    $expiresAt = gmdate('c', time() + efpic_visitor_zip_link_ttl_seconds());
     $data['zip_downloads'][$downloadToken] = [
         'id' => $downloadToken,
         'collection_id' => $collectionId,
@@ -1167,6 +1274,7 @@ function efpic_visitor_zip_finalize_job_email(
             throw new RuntimeException('ZIP nav gatavs');
         }
     }
+    efpic_visitor_zip_refresh_prepared_expiry($config, $slug, $prepared);
     efpic_visitor_send_all_zips_ready_email($config, $meta, $visitor, $prepared, $size);
     $summaries = efpic_visitor_zip_prepared_summaries($prepared);
     efpic_gallery_log_activity(
@@ -1336,7 +1444,7 @@ function efpic_visitor_ensure_virtual_collection_zip(
         return ['ok' => false, 'error' => 'zip_build_failed'];
     }
 
-    $expiresAt = gmdate('c', time() + 72 * 3600);
+    $expiresAt = gmdate('c', time() + efpic_visitor_zip_link_ttl_seconds());
     $data['zip_downloads'][$downloadToken] = [
         'id' => $downloadToken,
         'collection_id' => (string) ($collection['id'] ?? ''),
@@ -1425,7 +1533,17 @@ function efpic_visitor_deliver_zip_ready_email(
         efpic_visitor_zip_email_plain($config, $meta, $visitor, $prepared, $size),
     );
     $htmlPack = efpic_visitor_zip_email_html_pack($config, $meta, $visitor, $prepared, $size);
-    efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $htmlPack['html'], $htmlPack['inline']);
+    try {
+        efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $htmlPack['html'], $htmlPack['inline']);
+    } catch (Throwable $richError) {
+        // HTML/MIME dažkārt neiziet SMTP; vienkāršais teksts bieži aiziet.
+        try {
+            $emailCfg = efpic_gallery_email_cfg($config);
+            efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
+        } catch (Throwable) {
+            throw $richError;
+        }
+    }
 }
 
 /** @param list<array{collection: array<string, mixed>, download_url: string, count: int}> $prepared */

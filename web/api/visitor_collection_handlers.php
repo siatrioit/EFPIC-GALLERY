@@ -597,6 +597,12 @@ function efpic_handle_visitor_collection_download(array $config, string $gallery
     }
     $expires = strtotime((string) ($job['expires_at'] ?? ''));
     if ($expires !== false && $expires < time()) {
+        $zipPathExpired = efpic_visitor_zips_dir($config, $found['slug']) . DIRECTORY_SEPARATOR . (string) ($job['file'] ?? '');
+        if (is_file($zipPathExpired)) {
+            @unlink($zipPathExpired);
+        }
+        unset($data['zip_downloads'][$downloadToken]);
+        efpic_visitor_collections_save($config, $found['slug'], $data);
         http_response_code(410);
         echo 'Saite vairs nav derīga';
         exit;
