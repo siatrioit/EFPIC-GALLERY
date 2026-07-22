@@ -191,6 +191,12 @@
   var cdlModal = document.getElementById('collectionDownloadModal');
   var zipProgressModal = document.getElementById('zipProgressModal');
   var gdlBase = window.EFPIC_GALLERY_DL_URL || '';
+  var shareGuestToken = window.EFPIC_SHARE_GUEST_TOKEN || '';
+
+  function withGuestQuery(url) {
+    if (!url || !shareGuestToken) return url;
+    return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'g=' + encodeURIComponent(shareGuestToken);
+  }
   var zipFetchAbort = null;
   var zipEmailFollowupTimer = null;
 
@@ -447,12 +453,12 @@
     closeCollectionDlModal();
     if (scope === 'videos') {
       openZipProgressLoading('Sagatavo video…', 'Sagatavo Failiem ZIP…');
-      triggerBrowserDownload(gdlBase + '/videos/download.zip');
+      triggerBrowserDownload(withGuestQuery(gdlBase + '/videos/download.zip'));
       closeZipProgress();
       return;
     }
     var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
-    var downloadUrl = gdlBase + path + '?size=' + encodeURIComponent(size);
+    var downloadUrl = withGuestQuery(gdlBase + path + '?size=' + encodeURIComponent(size));
     var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
     var usesFolderZip =
       scope === 'all' &&
@@ -469,7 +475,7 @@
       loadingTitle,
       'Failiem sagatavo ZIP no redzamajām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm — neaizveriet šo logu.'
     );
-    fetch(downloadUrl + '&prepare=1', {
+    fetch(downloadUrl + (downloadUrl.indexOf('?') >= 0 ? '&' : '?') + 'prepare=1', {
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
     })
@@ -1564,7 +1570,7 @@
 
   function visitorUrl(path) {
     if (!visitorBaseUrl) return '';
-    return visitorBaseUrl + path;
+    return withGuestQuery(visitorBaseUrl + path);
   }
 
   function applyActiveTokensFromMap(tokenMap) {
@@ -2431,10 +2437,10 @@
   }
 
   function initFacePersonSearch() {
-    var personsUrl = window.EFPIC_FACE_PERSONS_URL || '';
-    var tokensUrl = window.EFPIC_FACE_PERSON_TOKENS_URL || '';
-    var noFaceTokensUrl = window.EFPIC_FACE_NO_FACE_TOKENS_URL || '';
-    if (!personsUrl || !tokensUrl) return;
+    var personsUrl = withGuestQuery(window.EFPIC_FACE_PERSONS_URL || '');
+    var tokensUrlBase = window.EFPIC_FACE_PERSON_TOKENS_URL || '';
+    var noFaceTokensUrl = withGuestQuery(window.EFPIC_FACE_NO_FACE_TOKENS_URL || '');
+    if (!personsUrl || !tokensUrlBase) return;
     var modal = document.getElementById('facePersonModal');
     var openBtns = document.querySelectorAll('[data-face-search-open]');
     var closeBtns = document.querySelectorAll('[data-face-person-close]');
@@ -2874,7 +2880,7 @@
             });
           return;
         }
-        fetch(tokensUrl + '?ids=' + encodeURIComponent(ids.join(',')), {
+        fetch(withGuestQuery(tokensUrlBase + '?ids=' + encodeURIComponent(ids.join(','))), {
           credentials: 'same-origin',
           headers: { Accept: 'application/json' },
         })

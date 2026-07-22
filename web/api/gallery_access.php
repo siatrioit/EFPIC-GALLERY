@@ -630,6 +630,24 @@ function efpic_gallery_view_url(array $config, string $galleryToken, ?string $gu
     return $url;
 }
 
+/** Galerijas API ceļš bez ?g= (lai var droši pievienot /visitor u.c. sufiksus). */
+function efpic_gallery_api_base_url(array $config, string $galleryToken): string
+{
+    return efpic_base_url($config) . '/v/g/' . rawurlencode($galleryToken);
+}
+
+/** Pievieno ?g= / &g= jau izveidotam galerijas API URL. */
+function efpic_gallery_url_with_guest(string $url, ?string $guestToken): string
+{
+    $guestToken = trim((string) $guestToken);
+    if ($guestToken === '') {
+        return $url;
+    }
+    $sep = str_contains($url, '?') ? '&' : '?';
+
+    return $url . $sep . 'g=' . rawurlencode($guestToken);
+}
+
 function efpic_image_view_url(array $config, string $imageToken, ?string $guestToken = null): string
 {
     $url = efpic_base_url($config) . '/v/i/' . rawurlencode($imageToken);

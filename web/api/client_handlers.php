@@ -1556,7 +1556,9 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     $images = efpic_client_navigable_images($meta, $ctx);
-    $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $ctx['guest_token'] !== '' ? $ctx['guest_token'] : null);
+    $guestTok = (string) ($ctx['guest_token'] ?? '');
+    $galleryApiBase = efpic_gallery_api_base_url($config, $galleryToken);
+    $galleryUrl = efpic_gallery_view_url($config, $galleryToken, $guestTok !== '' ? $guestTok : null);
     $canPublicCollection = efpic_can_use_public_collection($meta);
     $canShareEmailDl = efpic_viewer_is_restricted_share($ctx)
         && (efpic_can_download_share_set_zip($meta, $ctx, 'web') || efpic_can_download_share_set_zip($meta, $ctx, 'full'));
@@ -1718,10 +1720,11 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $pageClass = 'page-gallery theme-efpic-base';
     efpic_client_html($name, $body, $config, $pageClass, $galleryUrl, [
         'EFPIC_GALLERY_TOKEN' => $galleryToken,
-        'EFPIC_GALLERY_DL_URL' => $galleryUrl,
+        'EFPIC_GALLERY_DL_URL' => $galleryApiBase,
+        'EFPIC_SHARE_GUEST_TOKEN' => $guestTok,
         'EFPIC_COLLECTION_ENABLED' => $canPublicCollection,
         'EFPIC_COLLECTION_COUNT' => $canPublicCollection ? $collectionCount : 0,
-        'EFPIC_VISITOR_BASE_URL' => $needsVisitorAuth ? $galleryUrl . '/visitor' : '',
+        'EFPIC_VISITOR_BASE_URL' => $needsVisitorAuth ? $galleryApiBase . '/visitor' : '',
         'EFPIC_VISITOR_AUTHENTICATED' => $visitorStatus !== null,
         'EFPIC_VISITOR_NAME' => $visitorStatus !== null ? (string) ($visitorStatus['visitor']['name'] ?? '') : '',
         'EFPIC_VISITOR_EMAIL' => $visitorStatus !== null ? (string) ($visitorStatus['visitor']['email'] ?? '') : '',
@@ -1734,12 +1737,12 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
         'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
-        'EFPIC_FACE_PERSONS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons' : '',
-        'EFPIC_FACE_PERSON_TOKENS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons/tokens' : '',
-        'EFPIC_FACE_NO_FACE_TOKENS_URL' => $faceSearchReady ? $galleryUrl . '/face-persons/no-face-tokens' : '',
+        'EFPIC_FACE_PERSONS_URL' => $faceSearchReady ? $galleryApiBase . '/face-persons' : '',
+        'EFPIC_FACE_PERSON_TOKENS_URL' => $faceSearchReady ? $galleryApiBase . '/face-persons/tokens' : '',
+        'EFPIC_FACE_NO_FACE_TOKENS_URL' => $faceSearchReady ? $galleryApiBase . '/face-persons/no-face-tokens' : '',
         'EFPIC_IS_SHARE_LINK' => efpic_viewer_is_restricted_share($ctx),
         'EFPIC_SHARE_DOWNLOAD_URL' => $canShareEmailDl
-            ? $galleryUrl . '/visitor/share/download-all'
+            ? efpic_gallery_url_with_guest($galleryApiBase . '/visitor/share/download-all', $guestTok)
             : '',
     ], $meta, $headExtra, null, $ctx);
 }
