@@ -872,7 +872,7 @@ function efpic_render_design_palette_picker(array $config, array $formMeta): str
     return $html;
 }
 
-function efpic_render_design_template_controls(array $config, array $formMeta): string
+function efpic_render_design_template_controls(array $config, array $formMeta, bool $allowManage = true): string
 {
     $templates = efpic_load_design_templates($config);
     $map = [];
@@ -910,7 +910,11 @@ function efpic_render_design_template_controls(array $config, array $formMeta): 
             . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
-    $html .= '<p class="muted admin-design-templates__intro">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
+    if ($allowManage) {
+        $html .= '<p class="muted admin-design-templates__intro">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
+    } else {
+        $html .= '<p class="muted admin-design-templates__intro">Izvēlies gatavu stilu vai saglabāto šablonu. Pēc tam vari pielāgot krāsas un vāku.</p>';
+    }
     $html .= '<div class="admin-design-templates__toolbar">';
     $html .= '<div class="admin-design-templates__group">';
     $html .= '<label class="admin-design-templates__field">Lietot šablonu<select id="design_template_apply" name="design_template_apply">';
@@ -929,28 +933,30 @@ function efpic_render_design_template_controls(array $config, array $formMeta): 
     $html .= '</select></label>';
     $html .= '<button type="button" class="btn admin-btn-inline admin-design-templates__btn" id="design_template_apply_btn">Lietot</button>';
     $html .= '</div>';
-    $html .= '<div class="admin-design-templates__group">';
-    $html .= '<label class="admin-design-templates__field">Jauns šablons<input type="text" name="design_template_name" id="design_template_name" placeholder="piem. Kāzas 2026"></label>';
-    $html .= '<button type="submit" class="btn admin-btn-inline admin-design-templates__btn" name="design_template_save" value="1" formnovalidate>Saglabāt</button>';
-    $html .= '</div>';
-    if ($templates !== []) {
+    if ($allowManage) {
         $html .= '<div class="admin-design-templates__group">';
-        $html .= '<label class="admin-design-templates__field">Dzēst šablonu<select name="design_template_id" id="design_template_delete_select">';
-        $html .= '<option value="">— Izvēlēties —</option>';
-        foreach ($templates as $tpl) {
-            if (!is_array($tpl)) {
-                continue;
-            }
-            $id = (string) ($tpl['id'] ?? '');
-            $name = (string) ($tpl['name'] ?? '');
-            if ($id === '' || $name === '') {
-                continue;
-            }
-            $html .= '<option value="' . efpic_cover_theme_esc($id) . '">' . efpic_cover_theme_esc($name) . '</option>';
-        }
-        $html .= '</select></label>';
-        $html .= '<button type="submit" class="btn admin-btn-danger admin-btn-inline admin-design-templates__btn" name="design_template_delete" value="1" formnovalidate>Dzēst</button>';
+        $html .= '<label class="admin-design-templates__field">Jauns šablons<input type="text" name="design_template_name" id="design_template_name" placeholder="piem. Kāzas 2026"></label>';
+        $html .= '<button type="submit" class="btn admin-btn-inline admin-design-templates__btn" name="design_template_save" value="1" formnovalidate>Saglabāt</button>';
         $html .= '</div>';
+        if ($templates !== []) {
+            $html .= '<div class="admin-design-templates__group">';
+            $html .= '<label class="admin-design-templates__field">Dzēst šablonu<select name="design_template_id" id="design_template_delete_select">';
+            $html .= '<option value="">— Izvēlēties —</option>';
+            foreach ($templates as $tpl) {
+                if (!is_array($tpl)) {
+                    continue;
+                }
+                $id = (string) ($tpl['id'] ?? '');
+                $name = (string) ($tpl['name'] ?? '');
+                if ($id === '' || $name === '') {
+                    continue;
+                }
+                $html .= '<option value="' . efpic_cover_theme_esc($id) . '">' . efpic_cover_theme_esc($name) . '</option>';
+            }
+            $html .= '</select></label>';
+            $html .= '<button type="submit" class="btn admin-btn-danger admin-btn-inline admin-design-templates__btn" name="design_template_delete" value="1" formnovalidate>Dzēst</button>';
+            $html .= '</div>';
+        }
     }
     $html .= '</div>';
     $html .= '</fieldset>';

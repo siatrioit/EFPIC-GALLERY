@@ -98,6 +98,129 @@ function efpic_portal_update_image(array $config, string $slug, array &$meta, st
     throw new RuntimeException('Bilde nav atrasta');
 }
 
+/**
+ * @return array{id: string, title: string}
+ */
+function efpic_portal_ensure_scene_by_title(array &$meta, string $title): array
+{
+    $title = trim($title);
+    $options = efpic_gallery_scene_options($meta);
+    if ($title === '') {
+        foreach ($options as $opt) {
+            if (($opt['id'] ?? '') === 'main') {
+                return $opt;
+            }
+        }
+
+        return ['id' => 'main', 'title' => 'Galerija'];
+    }
+
+    $lower = function_exists('mb_strtolower') ? mb_strtolower($title) : strtolower($title);
+    foreach ($options as $opt) {
+        $optTitle = trim((string) ($opt['title'] ?? ''));
+        $optLower = function_exists('mb_strtolower') ? mb_strtolower($optTitle) : strtolower($optTitle);
+        if ($optLower === $lower) {
+            return ['id' => (string) $opt['id'], 'title' => $optTitle !== '' ? $optTitle : (string) $opt['id']];
+        }
+    }
+
+    $id = 'scene_' . bin2hex(random_bytes(4));
+    if (!isset($meta['scenes']) || !is_array($meta['scenes'])) {
+        $meta['scenes'] = [];
+    }
+    $maxSort = 0;
+    foreach ($meta['scenes'] as $scene) {
+        if (is_array($scene)) {
+            $maxSort = max($maxSort, (int) ($scene['sort'] ?? 0));
+        }
+    }
+    $meta['scenes'][] = [
+        'id' => $id,
+        'title' => $title,
+        'sort' => $maxSort + 1,
+        'hidden_from_guests' => false,
+    ];
+
+    return ['id' => $id, 'title' => $title];
+}
+
+/**
+ * @param list<string> $tokens
+ */
+function efpic_portal_assign_tokens_to_scene(array &$meta, array $tokens, string $sceneId): int
+{
+    $sceneIds = [];
+    foreach ($meta['scenes'] ?? [] as $scene) {
+        if (is_array($scene)) {
+            $sceneIds[(string) ($scene['id'] ?? '')] = true;
+        }
+    }
+    if ($sceneId === '' || !isset($sceneIds[$sceneId])) {
+        throw new InvalidArgumentException('Sadaļa nav atrasta');
+    }
+
+    $tokenSet = [];
+    foreach ($tokens as $tok) {
+        $tok = trim((string) $tok);
+        if ($tok !== '') {
+            $tokenSet[$tok] = true;
+        }
+    }
+    if ($tokenSet === []) {
+        throw new InvalidArgumentException('Nav izvēlēta neviena bilde');
+    }
+
+    $changed = 0;
+    foreach ($meta['images'] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok === '' || !isset($tokenSet[$tok])) {
+            continue;
+        }
+        $oldSid = (string) ($img['scene_id'] ?? 'main');
+        if ($oldSid !== $sceneId) {
+            $meta['images'][$i]['scene_id'] = $sceneId;
+            if (!empty($meta['images'][$i]['sort_manual'])) {
+                efpic_assign_image_sort_in_scene_by_basename($meta, $i);
+            } else {
+                unset($meta['images'][$i]['sort'], $meta['images'][$i]['sort_manual']);
+            }
+            $changed++;
+        } else {
+            $meta['images'][$i]['scene_id'] = $sceneId;
+        }
+    }
+
+    return $changed;
+}
+
+/**
+ * @return list<array{id: string, title: string}>
+ */
+function efpic_portal_scenes_payload(array $meta): array
+{
+    return efpic_gallery_scene_options($meta);
+}
+
+function efpic_portal_set_cover_image(array &$meta, string $imageToken): void
+{
+    $imageToken = trim($imageToken);
+    if ($imageToken === '') {
+        throw new InvalidArgumentException('Nav norādīta bilde');
+    }
+    foreach ($meta['images'] ?? [] as $img) {
+        if (is_array($img) && ($img['token'] ?? '') === $imageToken) {
+            $meta['cover_image_token'] = $imageToken;
+            $meta['cover_from_favorites'] = false;
+
+            return;
+        }
+    }
+    throw new RuntimeException('Bilde nav atrasta');
+}
+
 function efpic_portal_handle(array $config, string $portalToken, string $method): void
 {
     $found = efpic_portal_find_by_token($config, $portalToken);
@@ -191,6 +314,71 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         }
     }
 
+    if ($method === 'POST' && !empty($_POST['portal_images_api'])) {
+        header('Content-Type: application/json; charset=utf-8');
+        if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
+            efpic_json_response(403, ['ok' => false, 'error' => 'Sesijas derīgums beidzies — atjauno lapu.']);
+        }
+        if (!efpic_client_portal_section_enabled($meta, 'images')) {
+            efpic_json_response(403, ['ok' => false, 'error' => 'Bilžu sadaļa nav pieejama.']);
+        }
+        $action = (string) ($_POST['portal_action'] ?? '');
+        try {
+            match ($action) {
+                'set_cover' => (function () use ($config, $slug, &$meta) {
+                    $tok = trim((string) ($_POST['image_token'] ?? $_POST['cover_image_token'] ?? ''));
+                    efpic_portal_set_cover_image($meta, $tok);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                    efpic_json_response(200, [
+                        'ok' => true,
+                        'cover_image_token' => $tok,
+                    ]);
+                })(),
+                'set_image_scene' => (function () use ($config, $slug, &$meta) {
+                    $tokens = $_POST['image_tokens'] ?? [];
+                    if (is_string($tokens)) {
+                        $tokens = [$tokens];
+                    }
+                    if (!is_array($tokens)) {
+                        $tokens = [];
+                    }
+                    $single = trim((string) ($_POST['image_token'] ?? ''));
+                    if ($single !== '') {
+                        $tokens[] = $single;
+                    }
+                    $tokens = array_values(array_unique(array_filter(array_map('strval', $tokens))));
+                    $sceneTitle = trim((string) ($_POST['scene_title'] ?? ''));
+                    $sceneId = trim((string) ($_POST['scene_id'] ?? ''));
+                    if ($sceneId !== '') {
+                        $scene = null;
+                        foreach (efpic_gallery_scene_options($meta) as $opt) {
+                            if ($opt['id'] === $sceneId) {
+                                $scene = $opt;
+                                break;
+                            }
+                        }
+                        if ($scene === null) {
+                            throw new InvalidArgumentException('Sadaļa nav atrasta');
+                        }
+                    } else {
+                        $scene = efpic_portal_ensure_scene_by_title($meta, $sceneTitle);
+                    }
+                    efpic_portal_assign_tokens_to_scene($meta, $tokens, (string) $scene['id']);
+                    efpic_save_gallery_meta($config, $slug, $meta);
+                    efpic_json_response(200, [
+                        'ok' => true,
+                        'scene' => $scene,
+                        'tokens' => $tokens,
+                        'scenes' => efpic_portal_scenes_payload($meta),
+                    ]);
+                })(),
+                default => throw new InvalidArgumentException('Nezināma darbība'),
+            };
+        } catch (Throwable $e) {
+            efpic_json_response(400, ['ok' => false, 'error' => $e->getMessage()]);
+        }
+    }
+
     if ($method === 'POST' && isset($_POST['portal_action'])) {
         if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
             $_SESSION['efpic_portal_flash'] = 'Sesijas derīgums beidzies — atjauno lapu.';
@@ -257,11 +445,20 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                     $_SESSION['efpic_portal_flash'] = 'Krāsas saglabātas.';
                 })(),
                 'save_cover_theme' => (function () use ($config, $slug, &$meta) {
+                    $accent = trim((string) ($_POST['hero_accent_color'] ?? ''));
+                    if (preg_match('/^#[0-9a-fA-F]{6}$/', $accent) === 1) {
+                        $meta['hero_accent_color'] = strtolower($accent);
+                    }
+                    $pageBg = trim((string) ($_POST['page_bg_color'] ?? ''));
+                    if (preg_match('/^#[0-9a-fA-F]{6}$/', $pageBg) === 1) {
+                        $meta['page_bg_color'] = strtolower($pageBg);
+                    }
                     efpic_apply_cover_theme_from_post($meta);
                     efpic_apply_cover_media_from_post($meta);
                     efpic_apply_mood_theme_from_post($meta);
+                    $meta['cover_from_favorites'] = !empty($_POST['cover_from_favorites']);
                     efpic_save_gallery_meta($config, $slug, $meta);
-                    $_SESSION['efpic_portal_flash'] = 'Vāka iestatījumi saglabāti.';
+                    $_SESSION['efpic_portal_flash'] = 'Dizains saglabāts.';
                 })(),
                 'save_download_settings' => (function () use ($config, $slug, &$meta) {
                     if (!isset($meta['settings']) || !is_array($meta['settings'])) {
@@ -401,8 +598,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $disableAllWeb = !empty($settings['disable_public_download_all_web']);
     $disableAllFull = !empty($settings['disable_public_download_all_full']);
     $commentsEnabled = efpic_client_comments_enabled($meta);
-    $heroAccent = efpic_client_hero_accent_color($meta);
-    $pageBg = efpic_client_page_bg_color($config, $meta);
     $portalSections = efpic_client_portal_sections($meta);
     $firstPanelId = null;
     foreach (efpic_client_portal_nav_items() as $navItem) {
@@ -423,7 +618,9 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<header class="admin-page-head admin-page-head--portal">';
     $body .= '<h1>' . efpic_client_esc($name) . '</h1>';
     $body .= '<p class="admin-lead">Klienta panelis — pārvaldi bildes, izlases un publisko galeriju.</p>';
-    $body .= efpic_portal_render_download_actions($config, $portalToken, $meta);
+    if (empty($portalSections['images'])) {
+        $body .= efpic_portal_render_download_actions($config, $portalToken, $meta);
+    }
     $body .= '</header>';
     $body .= '<main class="admin-main">';
     if ($flash !== '') {
@@ -437,13 +634,8 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-edit-save">Saglabāt izlasi</button>';
         $body .= '<button type="button" class="btn admin-btn-sm" id="admin-share-edit-cancel">Atcelt</button>';
         $body .= '</div>';
-        if ($faceSearchReady) {
-            $body .= '<div class="portal-face-toolbar">';
-            $body .= '<button type="button" class="btn admin-btn-sm" data-face-search-open>Meklēt pēc sejas</button>';
-            $body .= efpic_client_render_face_filter_toolbar_panel();
-            $body .= '</div>';
-        }
-        $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled);
+        $body .= efpic_portal_render_images_action_bar($config, $portalToken, $meta, $faceSearchReady);
+        $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled, $meta);
         $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
         $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
         $body .= '<img src="" alt=""></div>';
@@ -458,7 +650,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     if (!empty($portalSections['theme'])) {
         $body .= efpic_admin_tab_panel_open('admin-tab-theme', $firstPanelId === 'admin-tab-theme');
-        $body .= efpic_portal_render_theme_panel($config, $meta, $heroAccent, $pageBg);
+        $body .= efpic_portal_render_theme_panel($config, $meta);
         $body .= efpic_admin_tab_panel_close();
     }
 
@@ -538,23 +730,34 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     ]);
 }
 
-function efpic_portal_render_theme_panel(array $config, array $meta, string $heroAccent, string $pageBg): string
+function efpic_portal_render_theme_panel(array $config, array $meta): string
 {
-    $html = '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Dizains</h2>';
-    $html .= '<form method="post" class="admin-color-form">';
-    $html .= '<input type="hidden" name="portal_action" value="save_gallery_colors">';
-    $html .= efpic_client_color_field('hero_accent_color', 'Vāka krāsa', $heroAccent);
-    $html .= efpic_client_color_field('page_bg_color', 'Galerijas pamatkrāsa', $pageBg);
-    $html .= '<button type="submit" class="btn primary">Saglabāt krāsas</button></form>';
-    $html .= efpic_render_cover_theme_controls($config, $meta, true, 'save_cover_theme');
-    $html .= '</section>';
+    $html = '<section class="admin-fieldset-full" id="admin-fs-theme">';
+    $html .= '<h2 class="admin-share-block-title">Dizains</h2>';
+    $html .= '<form method="post" class="admin-cover-theme-form" id="admin-cover-theme-form">';
+    $html .= '<input type="hidden" name="portal_action" value="save_cover_theme">';
+    $html .= '<input type="hidden" name="theme" value="efpic-base">';
+    $html .= efpic_render_design_template_controls($config, $meta, false);
+    $html .= efpic_render_design_palette_picker($config, $meta);
+    $html .= efpic_render_cover_theme_controls($config, $meta, false);
+    $html .= '<div class="admin-sticky-bar"><button type="submit" class="btn primary">Saglabāt dizainu</button></div>';
+    $html .= '</form></section>';
 
     return $html;
 }
 
-function efpic_portal_render_image_grid(array $config, array $images, bool $commentsEnabled): string
+function efpic_portal_render_image_grid(array $config, array $images, bool $commentsEnabled, array $meta = []): string
 {
-    $html = '<ul id="portal-image-grid" class="admin-media-grid">';
+    $coverTok = trim((string) ($meta['cover_image_token'] ?? ''));
+    $sceneOptions = efpic_gallery_scene_options($meta !== [] ? $meta : ['scenes' => [['id' => 'main', 'title' => 'Galerija', 'sort' => 1]]]);
+
+    $html = '<datalist id="admin-scene-datalist">';
+    foreach ($sceneOptions as $scene) {
+        $html .= '<option value="' . efpic_client_esc($scene['title']) . '"></option>';
+    }
+    $html .= '</datalist>';
+
+    $html .= '<ul id="portal-image-grid" class="admin-media-grid">';
     foreach ($images as $img) {
         if (!is_array($img)) {
             continue;
@@ -565,15 +768,27 @@ function efpic_portal_render_image_grid(array $config, array $images, bool $comm
         }
         $hidden = !empty($img['client_hidden']);
         $fav = efpic_image_favorited_client($img);
+        $isCover = $coverTok !== '' && $tok === $coverTok;
+        $imgScene = (string) ($img['scene_id'] ?? 'main');
+        $imgSceneTitle = 'Galerija';
+        foreach ($sceneOptions as $sceneOpt) {
+            if ($sceneOpt['id'] === $imgScene) {
+                $imgSceneTitle = (string) $sceneOpt['title'];
+                break;
+            }
+        }
         $thumb = efpic_admin_media_thumb_url($config, $img);
         $preview = efpic_client_media_url($config, $img, 'web', 1200);
-        $html .= '<li class="admin-media-card' . ($hidden ? ' is-hidden' : '') . '" data-token="' . efpic_client_esc($tok) . '">';
+        $html .= '<li class="admin-media-card' . ($hidden ? ' is-hidden' : '') . '" data-token="'
+            . efpic_client_esc($tok) . '" data-scene-id="' . efpic_client_esc($imgScene) . '">';
         $html .= '<label class="admin-bulk-pick portal-share-pick-label"><input type="checkbox" class="admin-image-pick portal-share-pick" value="'
             . efpic_client_esc($tok) . '" aria-label="Izlasei"></label>';
         $html .= '<button type="button" class="admin-media-thumb" data-preview="' . efpic_client_esc($preview) . '" aria-label="Priekšskatījums">';
         $html .= '<img src="' . efpic_client_esc($thumb) . '" alt="" width="320" height="240" loading="lazy" decoding="async"></button>';
         $html .= '<div class="admin-media-card__actions">';
         $html .= '<div class="admin-media-card__row admin-media-card__row--toggles">';
+        $html .= '<label class="admin-media-toggle admin-cover-pick"><input type="radio" name="cover_image_token" class="portal-cover-pick" value="'
+            . efpic_client_esc($tok) . '"' . ($isCover ? ' checked' : '') . '><span class="admin-media-toggle__label">Vāks</span></label>';
         $html .= '<form method="post" class="portal-card-toggle-form"><input type="hidden" name="portal_action" value="toggle_favorite">';
         $html .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
         $html .= '<button type="submit" class="admin-media-toggle' . ($fav ? ' is-active' : '') . '"><span class="admin-media-toggle__label">Favorīts</span></button></form>';
@@ -587,9 +802,23 @@ function efpic_portal_render_image_grid(array $config, array $images, bool $comm
             $html .= '<input type="hidden" name="image_token" value="' . efpic_client_esc($tok) . '">';
             $html .= '<input name="comment" placeholder="Komentārs"><button type="submit" class="btn admin-btn-sm">+</button></form>';
         }
-        $html .= '</div></li>';
+        $html .= '</div>';
+        $html .= '<div class="admin-scene-pick"><span class="admin-scene-pick-label">Sadaļa</span>';
+        $html .= '<input type="hidden" class="admin-scene-id" value="' . efpic_client_esc($imgScene) . '">';
+        $html .= '<span class="admin-scene-input-wrap">';
+        $html .= '<input type="text" class="admin-scene-input" value="' . efpic_client_esc($imgSceneTitle)
+            . '" list="admin-scene-datalist" placeholder="Sadaļa…" autocomplete="off" aria-label="Galerijas sadaļa">';
+        $html .= '<button type="button" class="admin-scene-open-btn" aria-label="Izvēlēties sadaļu" title="Esošās sadaļas">▾</button>';
+        $html .= '</span></div>';
+        $html .= '</li>';
     }
     $html .= '</ul>';
+    $html .= '<div id="admin-scene-float-bar" class="admin-scene-float-bar" hidden>';
+    $html .= '<span class="admin-scene-float-count" id="admin-scene-float-count" aria-live="polite"></span>';
+    $html .= '<label class="admin-scene-float-label">Sadaļa<input type="text" id="admin-float-scene-input" list="admin-scene-datalist" placeholder="Visām atlasītajām…" autocomplete="off"></label>';
+    $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-float-apply-scene">Pielietot</button>';
+    $html .= '<button type="button" class="btn admin-btn-inline" id="admin-float-clear-picks">Noņemt atlasi</button>';
+    $html .= '</div>';
 
     return $html;
 }
@@ -862,26 +1091,93 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
     efpic_client_build_delivery_zip($config, $foundZip, $meta, $images, $size, $filename);
 }
 
-function efpic_portal_render_download_actions(array $config, string $portalToken, array $meta): string
+function efpic_portal_download_action_flags(array $meta): array
 {
     if (!efpic_is_delivery_gallery($meta) || efpic_portal_all_gallery_images($meta) === []) {
-        return '';
+        return ['web' => false, 'full' => false];
     }
 
-    $canWeb = efpic_can_portal_download_all_gallery_zip($meta, 'web');
-    $canFull = efpic_can_portal_download_all_gallery_zip($meta, 'full');
-    if (!$canWeb && !$canFull) {
+    return [
+        'web' => efpic_can_portal_download_all_gallery_zip($meta, 'web'),
+        'full' => efpic_can_portal_download_all_gallery_zip($meta, 'full'),
+    ];
+}
+
+function efpic_portal_render_download_actions(array $config, string $portalToken, array $meta): string
+{
+    $flags = efpic_portal_download_action_flags($meta);
+    if (!$flags['web'] && !$flags['full']) {
         return '';
     }
 
     $html = '<div class="portal-download-actions">';
-    if ($canWeb) {
+    if ($flags['web']) {
         $html .= '<button type="button" class="btn primary" data-portal-dl-size="web">Lejupielādēt WEB</button>';
     }
-    if ($canFull) {
+    if ($flags['full']) {
         $html .= '<button type="button" class="btn" data-portal-dl-size="full">Lejupielādēt PRINT</button>';
     }
     $html .= '</div>';
+
+    return $html;
+}
+
+function efpic_portal_render_images_action_bar(
+    array $config,
+    string $portalToken,
+    array $meta,
+    bool $faceSearchReady,
+): string {
+    $flags = efpic_portal_download_action_flags($meta);
+    if (!$flags['web'] && !$flags['full'] && !$faceSearchReady) {
+        return '';
+    }
+
+    $infoItems = [];
+    $html = '<div class="portal-images-action-bar">';
+    $html .= '<div class="portal-images-action-bar__sticky">';
+    $html .= '<div class="portal-images-action-bar__btns">';
+    if ($flags['web']) {
+        $html .= '<button type="button" class="btn primary portal-images-action-bar__btn" data-portal-dl-size="web">Lejupielādēt WEB</button>';
+        $infoItems[] = [
+            'title' => 'Lejupielādēt WEB',
+            'text' => 'Lejupielādē visu galeriju ZIP arhīvā mazākā (WEB) izmērā — ērtāk skatīšanai ekrānā, sūtīšanai un ātrai lejupielādei.',
+        ];
+    }
+    if ($flags['full']) {
+        $html .= '<button type="button" class="btn portal-images-action-bar__btn" data-portal-dl-size="full">Lejupielādēt PRINT</button>';
+        $infoItems[] = [
+            'title' => 'Lejupielādēt PRINT',
+            'text' => 'Lejupielādē visu galeriju ZIP arhīvā pilnā (PRINT) izmērā — drukai, arhivēšanai un maksimālai kvalitātei.',
+        ];
+    }
+    if ($faceSearchReady) {
+        $html .= '<button type="button" class="btn portal-images-action-bar__btn" data-face-search-open>Meklēt pēc sejas</button>';
+        $infoItems[] = [
+            'title' => 'Meklēt pēc sejas',
+            'text' => 'Atver seju izvēli un filtrē galeriju, rādot tikai fotogrāfijas, kurās redzama izvēlētā seja (vai vairākas).',
+        ];
+    }
+    $html .= '</div>';
+    $html .= '<button type="button" class="portal-images-action-bar__info" data-portal-images-info-open '
+        . 'aria-haspopup="dialog" aria-controls="portalImagesInfoModal" aria-label="Kas ir šīs pogas?">';
+    $html .= '<span aria-hidden="true">i</span></button>';
+    $html .= '</div>';
+    if ($faceSearchReady) {
+        $html .= efpic_client_render_face_filter_toolbar_panel();
+    }
+    $html .= '</div>';
+
+    $html .= '<div class="portal-images-info-modal" id="portalImagesInfoModal" hidden>';
+    $html .= '<div class="portal-images-info-dialog" role="dialog" aria-modal="true" aria-labelledby="portalImagesInfoTitle">';
+    $html .= '<button type="button" class="portal-images-info-close" data-portal-images-info-close aria-label="Aizvērt">&times;</button>';
+    $html .= '<h2 id="portalImagesInfoTitle">Bildes — pogu nozīme</h2>';
+    $html .= '<ul class="portal-images-info-list">';
+    foreach ($infoItems as $item) {
+        $html .= '<li><strong>' . efpic_client_esc($item['title']) . '</strong>';
+        $html .= '<p>' . efpic_client_esc($item['text']) . '</p></li>';
+    }
+    $html .= '</ul></div></div>';
 
     return $html;
 }

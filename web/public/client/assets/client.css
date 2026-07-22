@@ -4015,9 +4015,14 @@ body.collection-filter-active .scene-title {
   margin: 0 0 16px;
 }
 
-.portal-face-toolbar .gallery-face-filter-status {
+.portal-face-toolbar .gallery-face-filter-status,
+.portal-images-action-bar .gallery-face-filter-status {
   margin: 0;
   flex: 1 1 auto;
+}
+
+body.portal-images-info-open {
+  overflow: hidden;
 }
 
 .admin-media-card.face-search-hidden {

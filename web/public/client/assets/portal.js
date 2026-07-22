@@ -514,8 +514,393 @@
         return;
       }
       setCardPicked(cb.closest('.admin-media-card'), cb.checked);
-      if (shareEditMode) hideSceneFloatBar();
+      if (shareEditMode) {
+        hideSceneFloatBar();
+      } else if (typeof window.efpicPortalUpdateSceneFloatBar === 'function') {
+        window.efpicPortalUpdateSceneFloatBar();
+      }
     });
+  }
+
+  function initPortalCoverAndScenes() {
+    if (!imageGrid) return;
+
+    var scenePopover = null;
+    var scenePopoverAnchor = null;
+    var scenePopoverIgnoreBlur = false;
+    var sceneBlurTimer = 0;
+    var scenePopoverScrollBound = false;
+
+    function postPortalImagesRequest(extra) {
+      var fd = new FormData();
+      fd.set('portal_images_api', '1');
+      if (window.EFPIC_CSRF_TOKEN) {
+        fd.set('csrf_token', window.EFPIC_CSRF_TOKEN);
+      }
+      Object.keys(extra || {}).forEach(function (key) {
+        var val = extra[key];
+        if (Array.isArray(val)) {
+          val.forEach(function (item) {
+            fd.append(key + '[]', item);
+          });
+        } else if (val !== undefined && val !== null) {
+          fd.set(key, val);
+        }
+      });
+      return fetch(window.location.pathname + window.location.search, {
+        method: 'POST',
+        body: fd,
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      }).then(function (res) {
+        var ct = (res.headers.get('content-type') || '').toLowerCase();
+        if (ct.indexOf('application/json') === -1) {
+          throw new Error('Servera atbilde nav derīga.');
+        }
+        return res.json().then(function (data) {
+          if (!res.ok || !data || !data.ok) {
+            throw new Error((data && data.error) || 'Neizdevās saglabāt');
+          }
+          return data;
+        });
+      });
+    }
+
+    function readScenesFromDatalist() {
+      var list = document.getElementById('admin-scene-datalist');
+      var scenes = [];
+      if (!list) return scenes;
+      list.querySelectorAll('option').forEach(function (opt) {
+        var title = (opt.getAttribute('value') || opt.textContent || '').trim();
+        if (!title) return;
+        scenes.push({ id: '', title: title });
+      });
+      imageGrid.querySelectorAll('.admin-media-card[data-scene-id]').forEach(function (card) {
+        var id = card.getAttribute('data-scene-id') || '';
+        var input = card.querySelector('.admin-scene-input');
+        var title = input ? (input.value || '').trim() : '';
+        if (!id || !title) return;
+        if (
+          !scenes.some(function (s) {
+            return s.id === id || (s.title || '').toLowerCase() === title.toLowerCase();
+          })
+        ) {
+          scenes.push({ id: id, title: title });
+        }
+      });
+      return scenes;
+    }
+
+    function syncSceneDatalist(scenes) {
+      var list = document.getElementById('admin-scene-datalist');
+      if (!list || !Array.isArray(scenes)) return;
+      list.innerHTML = '';
+      scenes.forEach(function (scene) {
+        var title = ((scene && scene.title) || '').trim();
+        if (!title) return;
+        var opt = document.createElement('option');
+        opt.value = title;
+        list.appendChild(opt);
+      });
+      var editor = document.getElementById('portal-scenes-editor');
+      var hiddenInput = document.getElementById('portal_scenes_json');
+      if (editor && scenes.length) {
+        var existing = [];
+        try {
+          existing = JSON.parse(editor.getAttribute('data-scenes') || '[]') || [];
+        } catch (e) {
+          existing = [];
+        }
+        var byId = {};
+        existing.forEach(function (s) {
+          if (s && s.id) byId[s.id] = s;
+        });
+        scenes.forEach(function (scene) {
+          if (!scene || !scene.id) return;
+          if (!byId[scene.id]) {
+            existing.push({
+              id: scene.id,
+              title: scene.title,
+              sort: existing.length + 1,
+              hidden_from_guests: false,
+            });
+          } else {
+            byId[scene.id].title = scene.title;
+          }
+        });
+        editor.setAttribute('data-scenes', JSON.stringify(existing));
+        if (hiddenInput) {
+          hiddenInput.value = JSON.stringify(
+            existing.map(function (s, i) {
+              return {
+                id: s.id,
+                title: s.title,
+                sort: i + 1,
+                hidden_from_guests: !!s.hidden_from_guests,
+              };
+            })
+          );
+        }
+        if (typeof window.efpicPortalRerenderScenes === 'function') {
+          window.efpicPortalRerenderScenes(existing);
+        }
+      }
+    }
+
+    function setCardScene(card, sceneId, sceneTitle) {
+      if (!card) return;
+      var hidden = card.querySelector('.admin-scene-id');
+      var text = card.querySelector('.admin-scene-input');
+      if (hidden) hidden.value = sceneId;
+      if (text) text.value = sceneTitle;
+      card.setAttribute('data-scene-id', sceneId);
+    }
+
+    function pickedImageCards() {
+      return Array.prototype.slice
+        .call(imageGrid.querySelectorAll('.admin-image-pick:checked, .portal-share-pick:checked'))
+        .map(function (cb) {
+          return cb.closest('.admin-media-card');
+        })
+        .filter(Boolean);
+    }
+
+    function sceneChangeTargets(changedCard) {
+      var picks = pickedImageCards();
+      if (picks.length >= 2 && picks.indexOf(changedCard) !== -1) {
+        return picks;
+      }
+      return [changedCard];
+    }
+
+    function updateSceneFloatBar() {
+      var floatBar = document.getElementById('admin-scene-float-bar');
+      var floatCount = document.getElementById('admin-scene-float-count');
+      if (!floatBar) return;
+      var n = pickedImageCards().length;
+      floatBar.hidden = n < 2 || !!shareEditMode;
+      if (floatCount) {
+        floatCount.textContent = n === 1 ? '1 bilde atlasīta' : n + ' atlasītas';
+      }
+    }
+    window.efpicPortalUpdateSceneFloatBar = updateSceneFloatBar;
+
+    function closeScenePopover() {
+      if (scenePopover && scenePopover.parentNode) {
+        scenePopover.parentNode.removeChild(scenePopover);
+      }
+      scenePopover = null;
+      scenePopoverAnchor = null;
+      if (scenePopoverScrollBound) {
+        window.removeEventListener('scroll', closeScenePopover, true);
+        scenePopoverScrollBound = false;
+      }
+    }
+
+    function positionScenePopover(pop, input) {
+      var rect = input.getBoundingClientRect();
+      var width = Math.max(rect.width, 180);
+      pop.style.minWidth = width + 'px';
+      pop.style.left = Math.min(rect.left, window.innerWidth - width - 8) + 'px';
+      var top = rect.bottom + 4;
+      pop.style.top = top + 'px';
+      requestAnimationFrame(function () {
+        var box = pop.getBoundingClientRect();
+        if (box.bottom > window.innerHeight - 8) {
+          pop.style.top = Math.max(8, rect.top - box.height - 4) + 'px';
+        }
+      });
+    }
+
+    function applySceneTitleToCards(cards, title) {
+      if (!cards.length) return;
+      var tokens = cards
+        .map(function (card) {
+          return card.getAttribute('data-token') || '';
+        })
+        .filter(Boolean);
+      if (!tokens.length) return;
+      postPortalImagesRequest({
+        portal_action: 'set_image_scene',
+        scene_title: title || '',
+        image_tokens: tokens,
+      })
+        .then(function (data) {
+          var scene = data.scene || { id: 'main', title: 'Galerija' };
+          cards.forEach(function (card) {
+            setCardScene(card, scene.id, scene.title);
+          });
+          if (data.scenes) syncSceneDatalist(data.scenes);
+          showPortalToast('Sadaļa saglabāta', false);
+        })
+        .catch(function (err) {
+          showPortalToast((err && err.message) || 'Neizdevās saglabāt', true);
+        });
+    }
+
+    function commitSceneInput(input) {
+      var card = input.closest('.admin-media-card');
+      if (!card) return;
+      applySceneTitleToCards(sceneChangeTargets(card), input.value);
+    }
+
+    function openScenePopover(input) {
+      if (!input) return;
+      var card = input.closest('.admin-media-card');
+      if (!card) return;
+      closeScenePopover();
+      scenePopoverAnchor = input;
+      var scenes = readScenesFromDatalist();
+      var pop = document.createElement('div');
+      pop.className = 'admin-scene-popover';
+      pop.setAttribute('role', 'listbox');
+      var custom = document.createElement('button');
+      custom.type = 'button';
+      custom.className = 'admin-scene-popover-item admin-scene-popover-item--custom';
+      custom.setAttribute('role', 'option');
+      custom.textContent = 'Jauns nosaukums…';
+      custom.addEventListener('mousedown', function (evt) {
+        evt.preventDefault();
+        scenePopoverIgnoreBlur = true;
+      });
+      custom.addEventListener('click', function () {
+        closeScenePopover();
+        scenePopoverIgnoreBlur = false;
+        input.focus();
+        input.select();
+      });
+      pop.appendChild(custom);
+      var seen = {};
+      scenes.forEach(function (scene) {
+        var title = (scene.title || '').trim();
+        if (!title || seen[title.toLowerCase()]) return;
+        seen[title.toLowerCase()] = true;
+        var btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'admin-scene-popover-item';
+        btn.setAttribute('role', 'option');
+        btn.textContent = title;
+        btn.addEventListener('mousedown', function (evt) {
+          evt.preventDefault();
+          scenePopoverIgnoreBlur = true;
+        });
+        btn.addEventListener('click', function () {
+          applySceneTitleToCards(sceneChangeTargets(card), title);
+          input.value = title;
+          closeScenePopover();
+          scenePopoverIgnoreBlur = false;
+        });
+        pop.appendChild(btn);
+      });
+      document.body.appendChild(pop);
+      scenePopover = pop;
+      positionScenePopover(pop, input);
+      window.addEventListener('scroll', closeScenePopover, true);
+      scenePopoverScrollBound = true;
+    }
+
+    function scheduleSceneCommit(input) {
+      if (sceneBlurTimer) clearTimeout(sceneBlurTimer);
+      sceneBlurTimer = window.setTimeout(function () {
+        sceneBlurTimer = 0;
+        if (scenePopoverIgnoreBlur) return;
+        commitSceneInput(input);
+        closeScenePopover();
+      }, 120);
+    }
+
+    imageGrid.addEventListener('change', function (evt) {
+      var target = evt.target;
+      if (!target || !target.classList || !target.classList.contains('portal-cover-pick')) return;
+      if (!target.checked) return;
+      var tok = target.value || '';
+      if (!tok) return;
+      postPortalImagesRequest({
+        portal_action: 'set_cover',
+        image_token: tok,
+      })
+        .then(function () {
+          showPortalToast('Vāka bilde saglabāta', false);
+        })
+        .catch(function (err) {
+          showPortalToast((err && err.message) || 'Neizdevās saglabāt', true);
+        });
+    });
+
+    imageGrid.addEventListener('focusin', function (evt) {
+      var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
+      if (input) openScenePopover(input);
+    });
+
+    imageGrid.addEventListener('input', function (evt) {
+      var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
+      if (!input || !scenePopover) return;
+      var q = (input.value || '').trim().toLowerCase();
+      scenePopover.querySelectorAll('.admin-scene-popover-item:not(.admin-scene-popover-item--custom)').forEach(function (btn) {
+        var text = (btn.textContent || '').toLowerCase();
+        btn.hidden = q !== '' && text.indexOf(q) === -1;
+      });
+    });
+
+    imageGrid.addEventListener('focusout', function (evt) {
+      var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
+      if (input) scheduleSceneCommit(input);
+    });
+
+    imageGrid.addEventListener('keydown', function (evt) {
+      var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
+      if (!input) return;
+      if (evt.key === 'Enter') {
+        evt.preventDefault();
+        commitSceneInput(input);
+        closeScenePopover();
+        input.blur();
+      }
+    });
+
+    imageGrid.addEventListener('click', function (evt) {
+      var openBtn = evt.target && evt.target.closest ? evt.target.closest('.admin-scene-open-btn') : null;
+      if (!openBtn) return;
+      evt.preventDefault();
+      var wrap = openBtn.closest('.admin-scene-pick');
+      var input = wrap ? wrap.querySelector('.admin-scene-input') : null;
+      if (input) {
+        input.focus();
+        openScenePopover(input);
+      }
+    });
+
+    var floatApplyBtn = document.getElementById('admin-float-apply-scene');
+    var floatSceneInput = document.getElementById('admin-float-scene-input');
+    var floatClearBtn = document.getElementById('admin-float-clear-picks');
+    if (floatApplyBtn && floatSceneInput) {
+      floatApplyBtn.addEventListener('click', function () {
+        var picks = pickedImageCards();
+        if (!picks.length) {
+          window.alert('Atlasiet bildes, tad izvēlieties sadaļu.');
+          return;
+        }
+        applySceneTitleToCards(picks, floatSceneInput.value);
+        clearAllPicks();
+        updateSceneFloatBar();
+        floatSceneInput.value = '';
+        closeScenePopover();
+      });
+      floatSceneInput.addEventListener('keydown', function (evt) {
+        if (evt.key === 'Enter') {
+          evt.preventDefault();
+          floatApplyBtn.click();
+        }
+      });
+    }
+    if (floatClearBtn) {
+      floatClearBtn.addEventListener('click', function () {
+        clearAllPicks();
+        updateSceneFloatBar();
+      });
+    }
+
+    updateSceneFloatBar();
   }
 
   initPortalTabs();
@@ -524,6 +909,7 @@
   initPortalColorInputs();
   initPortalLightbox();
   initPortalScenesEditor();
+  initPortalCoverAndScenes();
   bindPortalVideoRowEvents();
   initPortalConfirmForms();
   initPortalSlideshowOrderDrag();
@@ -944,6 +1330,11 @@
 
     renderScenes(readScenes());
     setupSceneDrag();
+    window.efpicPortalRerenderScenes = function (scenes) {
+      if (!Array.isArray(scenes)) return;
+      persistScenesJson(scenes);
+      renderScenes(scenes);
+    };
 
     if (form) {
       form.addEventListener('submit', function () {
@@ -1459,6 +1850,45 @@
   }
 
   initPortalFaceSearch();
+
+  function initPortalImagesInfoModal() {
+    var modal = document.getElementById('portalImagesInfoModal');
+    if (!modal) return;
+
+    function openModal() {
+      modal.hidden = false;
+      document.body.classList.add('portal-images-info-open');
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      document.body.classList.remove('portal-images-info-open');
+    }
+
+    document.querySelectorAll('[data-portal-images-info-open]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        openModal();
+      });
+    });
+
+    document.querySelectorAll('[data-portal-images-info-close]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        closeModal();
+      });
+    });
+
+    modal.addEventListener('click', function (evt) {
+      if (evt.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Escape' && !modal.hidden) closeModal();
+    });
+  }
+
+  initPortalImagesInfoModal();
 
   function injectPortalCsrfTokens() {
     var token = window.EFPIC_CSRF_TOKEN || '';

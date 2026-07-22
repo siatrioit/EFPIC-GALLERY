@@ -1448,7 +1448,7 @@ function efpic_client_portal_nav_items(): array
 function efpic_portal_action_section(string $action): ?string
 {
     return match ($action) {
-        'toggle_hidden', 'toggle_favorite', 'add_comment' => 'images',
+        'toggle_hidden', 'toggle_favorite', 'add_comment', 'set_cover', 'set_image_scene' => 'images',
         'save_scenes' => 'scenes',
         'set_theme', 'save_gallery_colors', 'save_cover_theme' => 'theme',
         'save_slideshow', 'save_videos', 'upload_video', 'add_video_embed' => 'media',
