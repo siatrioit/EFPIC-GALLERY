@@ -533,9 +533,8 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
     $hasVideos = efpic_admin_gallery_video_count($meta) > 0;
     $hasSlideshow = efpic_gallery_has_shareable_slideshow($meta);
 
-    $html = '<div class="admin-share-compose">';
-    $html .= '<h3 class="admin-share-block-title">Jauna kopīgojamā izlase</h3>';
-    $html .= '<p class="muted">Ievadi nosaukumu un spied «Sākt» — pārlec uz <strong>Bildes</strong>, kur atzīmē bildes un saglabā izlasi.</p>';
+    $html = '<fieldset class="admin-fieldset-full admin-share-compose-fs" id="admin-share-compose">';
+    $html .= '<legend>Jauna kopīgojamā izlase</legend>';
     $html .= '<div class="admin-share-compose-row">';
     $html .= '<label>Kam / nosaukums<input type="text" id="admin-share-new-label" placeholder="piem. Dekoratore Anna" autocomplete="off"></label>';
     if ($hasVideos) {
@@ -553,101 +552,120 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
         ]);
     }
     $html .= '<button type="button" class="btn admin-btn-sm primary" id="admin-share-start-new">Sākt jaunu izlasi</button>';
-    $html .= '</div></div>';
+    $html .= '</div></fieldset>';
 
-    $html .= '<div class="admin-share-list-wrap"><h3 class="admin-share-block-title">Izveidotās izlases</h3>';
-    if ($guests === []) {
-        $html .= '<p class="muted">Nav nevienas kopīgojamās izlases.</p>';
-    } else {
-        $html .= '<ul class="admin-share-set-list">';
-        foreach ($guests as $g) {
-            if (!is_array($g)) {
-                continue;
-            }
-            $gtok = (string) ($g['guest_token'] ?? '');
-            if ($gtok === '') {
-                continue;
-            }
-            $n = efpic_share_set_image_count($g);
-            if ($n === 0) {
-                continue;
-            }
-            $tokens = [];
-            foreach ($g['image_tokens'] ?? [] as $tok) {
-                $tok = (string) $tok;
-                if ($tok !== '') {
-                    $tokens[] = $tok;
-                }
-            }
-            $url = efpic_gallery_view_url($config, $gt, $gtok);
-            $created = substr((string) ($g['created_at'] ?? ''), 0, 10);
-            $includeVideos = !empty($g['include_videos']);
-            $includeSlideshow = !array_key_exists('include_slideshow', $g) || !empty($g['include_slideshow']);
-            $label = (string) ($g['label'] ?? 'Izlase');
-            $html .= '<li class="admin-share-set-item" data-guest-token="' . efpic_admin_esc($gtok) . '"'
-                . ' data-share-label="' . efpic_admin_esc($label) . '"'
-                . ' data-share-tokens="' . efpic_admin_esc(implode(',', $tokens)) . '"'
-                . ' data-share-videos="' . ($includeVideos ? '1' : '0') . '"'
-                . ' data-share-slideshow="' . ($includeSlideshow ? '1' : '0') . '">';
-            $html .= '<div class="admin-share-set-head">';
-            $html .= '<div><strong class="admin-share-set-name">' . efpic_admin_esc($label) . '</strong>';
-            $html .= '<span class="muted admin-share-set-meta">' . $n . ' bildes · ' . efpic_admin_esc(efpic_admin_share_created_by_label($g));
-            if ($created !== '') {
-                $html .= ' · ' . efpic_admin_esc($created);
-            }
-            $metaBits = [];
-            if ($hasVideos) {
-                $metaBits[] = 'Video: ' . ($includeVideos ? 'jā' : 'nē');
-            }
-            if ($hasSlideshow) {
-                $metaBits[] = 'Slideshow: ' . ($includeSlideshow ? 'jā' : 'nē');
-            }
-            if ($metaBits !== []) {
-                $html .= ' · ' . efpic_admin_esc(implode(' · ', $metaBits));
-            }
-            $html .= '</span></div>';
-            $html .= '<div class="admin-share-set-toggles">';
-            if ($hasVideos) {
-                $html .= efpic_render_admin_toggle('Video izlasē', $includeVideos, [
-                    'inline' => true,
-                    'class' => 'admin-share-videos-toggle',
-                    'input_class' => 'admin-share-videos-cb',
-                    'input_attrs' => 'data-guest-token="' . efpic_admin_esc($gtok) . '"',
-                ]);
-            }
-            if ($hasSlideshow) {
-                $html .= efpic_render_admin_toggle('Slideshow izlasē', $includeSlideshow, [
-                    'inline' => true,
-                    'class' => 'admin-share-slideshow-toggle',
-                    'input_class' => 'admin-share-slideshow-cb',
-                    'input_attrs' => 'data-guest-token="' . efpic_admin_esc($gtok) . '"',
-                ]);
-            }
-            $html .= '</div>';
-            $html .= '</div>';
-            $html .= efpic_admin_render_share_set_thumbs($config, $meta, $g);
-            $html .= '<div class="admin-share-set-foot">';
-            $html .= efpic_admin_render_link_row($url);
-            $html .= '<div class="admin-share-set-actions">';
-            $html .= '<button type="button" class="btn admin-btn-sm primary admin-share-edit" data-guest-token="' . efpic_admin_esc($gtok)
-                . '">Labot izlasi</button>';
-            $html .= '<button type="button" class="btn admin-btn-sm admin-share-delete" data-guest-token="' . efpic_admin_esc($gtok)
-                . '">Dzēst</button>';
-            $html .= '</div></div></li>';
+    $setBlocks = '';
+    foreach ($guests as $g) {
+        if (!is_array($g)) {
+            continue;
         }
-        $html .= '</ul>';
+        $gtok = (string) ($g['guest_token'] ?? '');
+        if ($gtok === '') {
+            continue;
+        }
+        $n = efpic_share_set_image_count($g);
+        if ($n === 0) {
+            continue;
+        }
+        $tokens = [];
+        foreach ($g['image_tokens'] ?? [] as $tok) {
+            $tok = (string) $tok;
+            if ($tok !== '') {
+                $tokens[] = $tok;
+            }
+        }
+        $url = efpic_gallery_view_url($config, $gt, $gtok);
+        $created = substr((string) ($g['created_at'] ?? ''), 0, 10);
+        $includeVideos = !empty($g['include_videos']);
+        $includeSlideshow = !array_key_exists('include_slideshow', $g) || !empty($g['include_slideshow']);
+        $label = (string) ($g['label'] ?? 'Izlase');
+        $fsId = 'admin-share-set-' . preg_replace('/[^a-zA-Z0-9_-]/', '', $gtok);
+        $setBlocks .= '<fieldset class="admin-fieldset-full admin-share-set-item" id="' . efpic_admin_esc($fsId) . '"'
+            . ' data-guest-token="' . efpic_admin_esc($gtok) . '"'
+            . ' data-share-label="' . efpic_admin_esc($label) . '"'
+            . ' data-share-tokens="' . efpic_admin_esc(implode(',', $tokens)) . '"'
+            . ' data-share-videos="' . ($includeVideos ? '1' : '0') . '"'
+            . ' data-share-slideshow="' . ($includeSlideshow ? '1' : '0') . '">';
+        $setBlocks .= '<legend>' . efpic_admin_esc($label) . '</legend>';
+        $setBlocks .= '<p class="muted admin-share-set-meta">' . $n . ' bildes · ' . efpic_admin_esc(efpic_admin_share_created_by_label($g));
+        if ($created !== '') {
+            $setBlocks .= ' · ' . efpic_admin_esc($created);
+        }
+        $metaBits = [];
+        if ($hasVideos) {
+            $metaBits[] = 'Video: ' . ($includeVideos ? 'jā' : 'nē');
+        }
+        if ($hasSlideshow) {
+            $metaBits[] = 'Slideshow: ' . ($includeSlideshow ? 'jā' : 'nē');
+        }
+        if ($metaBits !== []) {
+            $setBlocks .= ' · ' . efpic_admin_esc(implode(' · ', $metaBits));
+        }
+        $setBlocks .= '</p>';
+        $setBlocks .= '<div class="admin-share-set-toggles">';
+        if ($hasVideos) {
+            $setBlocks .= efpic_render_admin_toggle('Video izlasē', $includeVideos, [
+                'inline' => true,
+                'class' => 'admin-share-videos-toggle',
+                'input_class' => 'admin-share-videos-cb',
+                'input_attrs' => 'data-guest-token="' . efpic_admin_esc($gtok) . '"',
+            ]);
+        }
+        if ($hasSlideshow) {
+            $setBlocks .= efpic_render_admin_toggle('Slideshow izlasē', $includeSlideshow, [
+                'inline' => true,
+                'class' => 'admin-share-slideshow-toggle',
+                'input_class' => 'admin-share-slideshow-cb',
+                'input_attrs' => 'data-guest-token="' . efpic_admin_esc($gtok) . '"',
+            ]);
+        }
+        $setBlocks .= '</div>';
+        $setBlocks .= efpic_admin_render_share_set_thumbs($config, $meta, $g);
+        $setBlocks .= '<div class="admin-share-set-foot">';
+        $setBlocks .= efpic_admin_render_link_row($url);
+        $setBlocks .= '<div class="admin-share-set-actions">';
+        $setBlocks .= '<button type="button" class="btn admin-btn-sm primary admin-share-edit" data-guest-token="' . efpic_admin_esc($gtok)
+            . '">Labot izlasi</button>';
+        $setBlocks .= '<button type="button" class="btn admin-btn-sm admin-share-delete" data-guest-token="' . efpic_admin_esc($gtok)
+            . '">Dzēst</button>';
+        $setBlocks .= '</div></div></fieldset>';
     }
-    $html .= '</div>';
+
+    if ($setBlocks === '') {
+        $html .= '<p class="muted admin-share-empty">Nav nevienas kopīgojamās izlases.</p>';
+    } else {
+        $html .= $setBlocks;
+    }
 
     return $html;
 }
 
 function efpic_admin_render_share_sets(array $config, array $meta): string
 {
-    $html = '<fieldset class="admin-fieldset-full admin-share-sets-panel" id="admin-share-sets-panel"><legend>Kopīgojamās izlases</legend>';
-    $html .= '<p class="muted">Atsevišķas saites ar izvēlētām bildēm. Spied <strong>Labot izlasi</strong>, lai mainītu bildes cilnē Bildes — vari pievienot vai noņemt.</p>';
-    $html .= '<div id="admin-share-sets-body">' . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
-    $html .= '</fieldset>';
+    $html = '<div class="admin-form admin-share-sets-panel" id="admin-share-sets-panel">';
+    $html .= '<div class="admin-share-sets-toolbar">';
+    $html .= '<p class="admin-share-sets-toolbar__title">Kopīgojamās izlases</p>';
+    $html .= '<button type="button" class="portal-images-action-bar__info admin-share-info-btn" data-share-info-open'
+        . ' aria-haspopup="dialog" aria-controls="adminShareInfoModal" aria-label="Kā veidot un labot izlases">';
+    $html .= '<span aria-hidden="true">i</span></button>';
+    $html .= '</div>';
+    $html .= '<div id="admin-share-sets-body" class="admin-share-sets-body">'
+        . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
+    $html .= '<div class="portal-images-info-modal" id="adminShareInfoModal" hidden>';
+    $html .= '<div class="portal-images-info-dialog" role="dialog" aria-modal="true" aria-labelledby="adminShareInfoTitle">';
+    $html .= '<button type="button" class="portal-images-info-close" data-share-info-close aria-label="Aizvērt">&times;</button>';
+    $html .= '<h2 id="adminShareInfoTitle">Kā strādā kopīgojamās izlases</h2>';
+    $html .= '<ul class="portal-images-info-list">';
+    $html .= '<li><strong>Jauna izlase</strong>';
+    $html .= '<p>Ievadi nosaukumu (kam paredzēta) un spied «Sākt jaunu izlasi». Atvērsies cilne Bildes — atzīmē bildes un spied «Saglabāt izlasi».</p></li>';
+    $html .= '<li><strong>Labot izlasi</strong>';
+    $html .= '<p>Spied «Labot izlasi» pie esošās izlases. Cilnē Bildes vari pievienot vai noņemt bildes, tad saglabā. Saglabātā saite paliek tā pati.</p></li>';
+    $html .= '<li><strong>Video un Slideshow</strong>';
+    $html .= '<p>Ja galerijā ir video vai slideshow, slēdži ļauj izvēlēties, vai tie rādās šajā izlasē.</p></li>';
+    $html .= '<li><strong>Saites kopīgošana</strong>';
+    $html .= '<p>Katram blokam ir sava saite — to vari nokopēt un nosūtīt. Viesis redzēs tikai izvēlētās bildes.</p></li>';
+    $html .= '</ul></div></div>';
+    $html .= '</div>';
 
     return $html;
 }

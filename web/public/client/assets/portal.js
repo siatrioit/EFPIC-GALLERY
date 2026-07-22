@@ -213,6 +213,7 @@
         shareBody.innerHTML = data.share_sets_html;
         bindPortalShareSetEvents();
         bindPortalLinkActions(shareBody);
+        initPortalFieldsetCollapse();
       }
     }
   }
@@ -1080,6 +1081,9 @@
       if (slug) {
         return 'efpic_portal_fieldset_collapsed_' + slug;
       }
+      if (form.id === 'admin-share-sets-panel' || form.classList.contains('admin-share-sets-panel')) {
+        return 'efpic_portal_fieldset_collapsed_share';
+      }
       return 'efpic_portal_fieldset_collapsed';
     }
 
@@ -1100,7 +1104,7 @@
       }
     }
 
-    document.querySelectorAll('form.admin-form').forEach(function (form) {
+    document.querySelectorAll('.admin-form').forEach(function (form) {
       var storageKey = fieldsetStorageKey(form);
       var collapsedMap = {};
       try {
@@ -2293,7 +2297,46 @@
     });
   }
 
+  function initPortalShareInfoModal() {
+    var modal = document.getElementById('adminShareInfoModal');
+    if (!modal || modal.dataset.bound === '1') return;
+    modal.dataset.bound = '1';
+
+    function openModal() {
+      modal.hidden = false;
+      document.body.classList.add('portal-images-info-open');
+    }
+
+    function closeModal() {
+      modal.hidden = true;
+      document.body.classList.remove('portal-images-info-open');
+    }
+
+    document.querySelectorAll('[data-share-info-open]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        openModal();
+      });
+    });
+
+    document.querySelectorAll('[data-share-info-close]').forEach(function (btn) {
+      btn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        closeModal();
+      });
+    });
+
+    modal.addEventListener('click', function (evt) {
+      if (evt.target === modal) closeModal();
+    });
+
+    document.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Escape' && !modal.hidden) closeModal();
+    });
+  }
+
   initPortalImagesInfoModal();
+  initPortalShareInfoModal();
 
   function injectPortalCsrfTokens() {
     var token = window.EFPIC_CSRF_TOKEN || '';

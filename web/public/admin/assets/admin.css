@@ -3333,6 +3333,44 @@
   color: #fff;
 }
 
+.admin-share-sets-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-share-sets-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0;
+}
+
+.admin-share-sets-toolbar__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
+.admin-share-sets-toolbar .admin-share-info-btn,
+.admin-share-sets-toolbar .portal-images-action-bar__info {
+  width: 32px;
+  height: 32px;
+  font-size: 0.88rem;
+}
+
+.admin-share-sets-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.admin-share-empty {
+  margin: 0;
+}
+
 .admin-share-set-row {
   flex-wrap: wrap;
   gap: 10px 14px;
@@ -3340,24 +3378,15 @@
   border-top: 1px solid var(--admin-border);
 }
 
-.admin-share-sets-panel .admin-share-set-list {
-  list-style: none;
-  margin: 0;
-  padding: 0;
+.admin-form .admin-share-set-item > .admin-fieldset-body,
+.admin-form .admin-share-compose-fs > .admin-fieldset-body {
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
 
-.admin-share-set-item {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--admin-surface);
-  border: 1px solid var(--admin-border);
-  border-radius: 8px;
+.admin-share-set-toggles:empty {
+  display: none;
 }
 
 .admin-share-set-head {
@@ -3372,13 +3401,13 @@
 .admin-share-compose,
 .admin-share-append,
 .admin-share-list-wrap {
-  margin-top: 16px;
-  padding-top: 14px;
-  border-top: 1px solid var(--admin-border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 .admin-share-block-title {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 0.92rem;
   font-weight: 600;
 }
@@ -3412,7 +3441,7 @@
 .admin-share-set-meta {
   display: block;
   font-size: 0.78rem;
-  margin-top: 2px;
+  margin: 0;
 }
 
 .admin-share-set-thumbs {
@@ -3756,6 +3785,10 @@
 
 .admin-body--portal .admin-main {
   overflow-x: visible;
+}
+
+body.portal-images-info-open {
+  overflow: hidden;
 }
 
 .portal-images-info-modal {
