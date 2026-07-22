@@ -1981,17 +1981,70 @@
   if (lightbox) {
     var lightImg = lightbox.querySelector('img');
     var closeBtn = lightbox.querySelector('.admin-lightbox-close');
+    var prevBtn = lightbox.querySelector('[data-lightbox-prev]');
+    var nextBtn = lightbox.querySelector('[data-lightbox-next]');
     var shareActions = lightbox.querySelector('#admin-lightbox-share-actions')
       || lightbox.querySelector('.admin-lightbox-actions');
     var removeBtn = lightbox.querySelector('#admin-lightbox-share-remove');
-    var shareContext = null;
+    var shareItems = [];
+    var shareIndex = -1;
+    var removing = false;
+
+    function updateShareNav() {
+      var showNav = shareItems.length > 1;
+      if (prevBtn) prevBtn.hidden = !showNav;
+      if (nextBtn) nextBtn.hidden = !showNav;
+      if (shareActions) {
+        shareActions.hidden = !(shareItems.length && shareIndex >= 0);
+      }
+    }
+
+    function showShareAt(index) {
+      if (!shareItems.length) {
+        closeLightbox();
+        return;
+      }
+      if (index < 0) index = shareItems.length - 1;
+      if (index >= shareItems.length) index = 0;
+      shareIndex = index;
+      var item = shareItems[shareIndex];
+      if (lightImg) lightImg.src = item.preview || '';
+      updateShareNav();
+    }
+
+    function collectShareItems(thumbBtn) {
+      var wrap = thumbBtn.closest('.admin-share-set-thumbs');
+      var guestToken = thumbBtn.getAttribute('data-guest-token') || '';
+      var items = [];
+      var startIndex = 0;
+      var nodes = wrap
+        ? wrap.querySelectorAll('.admin-share-set-thumb')
+        : [thumbBtn];
+      nodes.forEach(function (el, i) {
+        items.push({
+          token: el.getAttribute('data-token') || '',
+          preview: el.getAttribute('data-preview') || '',
+          guestToken: el.getAttribute('data-guest-token') || guestToken,
+        });
+        if (el === thumbBtn) startIndex = i;
+      });
+      return { items: items, index: startIndex };
+    }
 
     function openLightbox(url, shareOpts) {
       if (!url || !lightImg) return;
-      lightImg.src = url;
-      shareContext = shareOpts || null;
-      if (shareActions) {
-        shareActions.hidden = !(shareContext && shareContext.guestToken && shareContext.token);
+      if (lightbox.parentElement !== document.body) {
+        document.body.appendChild(lightbox);
+      }
+      if (shareOpts && shareOpts.items && shareOpts.items.length) {
+        shareItems = shareOpts.items.slice();
+        shareIndex = typeof shareOpts.index === 'number' ? shareOpts.index : 0;
+        showShareAt(shareIndex);
+      } else {
+        shareItems = [];
+        shareIndex = -1;
+        lightImg.src = url;
+        updateShareNav();
       }
       lightbox.hidden = false;
       document.body.style.overflow = 'hidden';
@@ -2000,9 +2053,16 @@
     function closeLightbox() {
       lightbox.hidden = true;
       if (lightImg) lightImg.removeAttribute('src');
-      shareContext = null;
-      if (shareActions) shareActions.hidden = true;
+      shareItems = [];
+      shareIndex = -1;
+      removing = false;
+      updateShareNav();
       document.body.style.overflow = '';
+    }
+
+    function stepShare(delta) {
+      if (shareItems.length < 2) return;
+      showShareAt(shareIndex + delta);
     }
 
     document.addEventListener('click', function (evt) {
@@ -2010,10 +2070,8 @@
         evt.target && evt.target.closest ? evt.target.closest('.admin-share-set-thumb') : null;
       if (shareThumb) {
         evt.preventDefault();
-        openLightbox(shareThumb.getAttribute('data-preview'), {
-          guestToken: shareThumb.getAttribute('data-guest-token') || '',
-          token: shareThumb.getAttribute('data-token') || '',
-        });
+        var pack = collectShareItems(shareThumb);
+        openLightbox(shareThumb.getAttribute('data-preview'), pack);
         return;
       }
       var btn = evt.target && evt.target.closest ? evt.target.closest('.admin-media-thumb, .admin-fav-preview') : null;
@@ -2028,34 +2086,75 @@
       }
     });
 
+    if (prevBtn && prevBtn.dataset.bound !== '1') {
+      prevBtn.dataset.bound = '1';
+      prevBtn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        stepShare(-1);
+      });
+    }
+    if (nextBtn && nextBtn.dataset.bound !== '1') {
+      nextBtn.dataset.bound = '1';
+      nextBtn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        stepShare(1);
+      });
+    }
+
     if (removeBtn && removeBtn.dataset.bound !== '1') {
       removeBtn.dataset.bound = '1';
-      removeBtn.addEventListener('click', function () {
-        if (!shareContext || !shareContext.guestToken || !shareContext.token) return;
-        if (!window.confirm('Izņemt šo bildi no izlases?')) return;
+      removeBtn.addEventListener('click', function (evt) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        if (removing || shareIndex < 0 || !shareItems[shareIndex]) return;
+        var current = shareItems[shareIndex];
+        if (!current.guestToken || !current.token) return;
+        removing = true;
         removeBtn.disabled = true;
         postAdminShareRequest({
           share_action: 'remove_image',
-          share_guest_token: shareContext.guestToken,
-          share_image_token: shareContext.token,
+          share_guest_token: current.guestToken,
+          share_image_token: current.token,
         })
           .then(function (data) {
             showAdminAutoSaveToast('Bilde izņemta no izlases', false);
             applyAdminShareAutosavePayload(data);
-            closeLightbox();
+            shareItems.splice(shareIndex, 1);
+            if (!shareItems.length) {
+              closeLightbox();
+              return;
+            }
+            if (shareIndex >= shareItems.length) {
+              shareIndex = shareItems.length - 1;
+            }
+            showShareAt(shareIndex);
           })
           .catch(function (err) {
             showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
           })
           .finally(function () {
+            removing = false;
             removeBtn.disabled = false;
           });
       });
     }
 
     document.addEventListener('keydown', function (evt) {
-      if (evt.key === 'Escape' && !lightbox.hidden) {
+      if (lightbox.hidden) return;
+      if (evt.key === 'Escape') {
         closeLightbox();
+        return;
+      }
+      if (evt.key === 'ArrowLeft') {
+        evt.preventDefault();
+        stepShare(-1);
+        return;
+      }
+      if (evt.key === 'ArrowRight') {
+        evt.preventDefault();
+        stepShare(1);
       }
     });
   }

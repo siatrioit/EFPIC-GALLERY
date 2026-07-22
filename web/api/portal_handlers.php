@@ -636,12 +636,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         $body .= '</div>';
         $body .= efpic_portal_render_images_action_bar($config, $portalToken, $meta, $faceSearchReady);
         $body .= efpic_portal_render_image_grid($config, $images, $commentsEnabled, $meta);
-        $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
-        $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
-        $body .= '<img src="" alt="">';
-        $body .= '<div class="admin-lightbox-actions" id="admin-lightbox-share-actions" hidden>';
-        $body .= '<button type="button" class="btn primary" id="admin-lightbox-share-remove">Izņemt no izlases</button>';
-        $body .= '</div></div>';
         $body .= efpic_admin_tab_panel_close();
     }
 
@@ -660,14 +654,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     if (!empty($portalSections['share'])) {
         $body .= efpic_admin_tab_panel_open('admin-tab-share', $firstPanelId === 'admin-tab-share');
         $body .= efpic_admin_render_share_sets($config, $meta);
-        if (empty($portalSections['images'])) {
-            $body .= '<div id="portal-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
-            $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
-            $body .= '<img src="" alt="">';
-            $body .= '<div class="admin-lightbox-actions" id="admin-lightbox-share-actions" hidden>';
-            $body .= '<button type="button" class="btn primary" id="admin-lightbox-share-remove">Izņemt no izlases</button>';
-            $body .= '</div></div>';
-        }
         $body .= efpic_admin_tab_panel_close();
     }
 
@@ -725,6 +711,9 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= efpic_admin_tab_panel_close();
 
     $body .= '</main></div></div>';
+    if (!empty($portalSections['images']) || !empty($portalSections['share'])) {
+        $body .= efpic_admin_render_media_lightbox('portal-lightbox');
+    }
     $body .= efpic_client_zip_progress_modal();
     if ($faceSearchReady) {
         $body .= efpic_client_render_face_person_modal();

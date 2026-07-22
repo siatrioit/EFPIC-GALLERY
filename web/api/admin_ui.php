@@ -474,6 +474,20 @@ function efpic_admin_gallery_links_payload(array $config, array $meta): array
     ];
 }
 
+function efpic_admin_render_media_lightbox(string $id = 'admin-lightbox'): string
+{
+    $html = '<div id="' . efpic_admin_esc($id) . '" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
+    $html .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
+    $html .= '<button type="button" class="admin-lightbox-nav admin-lightbox-prev" data-lightbox-prev aria-label="Iepriekšējā" hidden>‹</button>';
+    $html .= '<button type="button" class="admin-lightbox-nav admin-lightbox-next" data-lightbox-next aria-label="Nākamā" hidden>›</button>';
+    $html .= '<img src="" alt="">';
+    $html .= '<div class="admin-lightbox-actions" id="admin-lightbox-share-actions" hidden>';
+    $html .= '<button type="button" class="btn primary" id="admin-lightbox-share-remove">Izņemt no izlases</button>';
+    $html .= '</div></div>';
+
+    return $html;
+}
+
 function efpic_admin_render_share_set_thumbs(array $config, array $meta, array $guest): string
 {
     $tokens = $guest['image_tokens'] ?? [];
@@ -517,7 +531,7 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
         $guests = [];
     }
     $hasVideos = efpic_admin_gallery_video_count($meta) > 0;
-    $hasSlideshow = efpic_gallery_has_shareable_client_slideshow($meta);
+    $hasSlideshow = efpic_gallery_has_shareable_slideshow($meta);
 
     $html = '<div class="admin-share-compose">';
     $html .= '<h3 class="admin-share-block-title">Jauna kopīgojamā izlase</h3>';
@@ -2573,12 +2587,6 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $body .= '</ul><input type="hidden" name="image_order" id="image_order" value="">';
         $body .= '<input type="hidden" name="image_order_dirty" id="image_order_dirty" value="0">';
         $body .= '</fieldset>';
-        $body .= '<div id="admin-lightbox" class="admin-lightbox" hidden role="dialog" aria-modal="true" aria-label="Bildes priekšskatījums">';
-        $body .= '<button type="button" class="admin-lightbox-close" aria-label="Aizvērt">&times;</button>';
-        $body .= '<img src="" alt="">';
-        $body .= '<div class="admin-lightbox-actions" id="admin-lightbox-share-actions" hidden>';
-        $body .= '<button type="button" class="btn primary" id="admin-lightbox-share-remove">Izņemt no izlases</button>';
-        $body .= '</div></div>';
         $body .= '<div id="admin-scene-float-bar" class="admin-scene-float-bar" hidden>';
         $body .= '<span class="admin-scene-float-count" id="admin-scene-float-count" aria-live="polite"></span>';
         $body .= '<label class="admin-scene-float-label">Sadaļa<input type="text" id="admin-float-scene-input" list="admin-scene-datalist" placeholder="Visām atlasītajām…" autocomplete="off"></label>';
@@ -2616,6 +2624,9 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     }
 
     $body .= '</form>';
+    if ($isEdit) {
+        $body .= efpic_admin_render_media_lightbox('admin-lightbox');
+    }
 
     $footExtra = '';
     if ($isEdit && $slug !== null) {

@@ -2574,13 +2574,41 @@ function efpic_update_share_set_meta(
 
 function efpic_gallery_has_shareable_client_slideshow(array $meta): bool
 {
-    $clientSlot = efpic_slideshow_slot_with_render(efpic_gallery_slideshow_storage($meta)['client']);
+    return efpic_gallery_has_shareable_slideshow($meta);
+}
+
+/** Vai galerijā ir slideshow (klienta vai admin), ko var rādīt publiskajā / kopīgojamā skatā. */
+function efpic_gallery_has_shareable_slideshow(array $meta): bool
+{
+    $storage = efpic_gallery_slideshow_storage($meta);
+    $clientSlot = efpic_slideshow_slot_with_render($storage['client']);
     if (efpic_slideshow_slot_video_ready($clientSlot)) {
         return true;
     }
-    $favCount = efpic_count_favorites($meta, 'client');
+    $clientFavs = efpic_count_favorites($meta, 'client');
+    if (efpic_slideshow_slot_audio_files($clientSlot) !== [] && $clientFavs > 0) {
+        return true;
+    }
+    if (efpic_slideshow_slot_public_video_enabled($clientSlot)
+        || efpic_slideshow_slot_interactive_ready($clientSlot, $clientFavs)) {
+        return true;
+    }
 
-    return efpic_slideshow_slot_audio_files($clientSlot) !== [] && $favCount > 0;
+    $adminFavs = efpic_count_favorites($meta, 'admin');
+    foreach ($storage['items'] as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $item = efpic_slideshow_slot_with_render($item);
+        if (efpic_slideshow_slot_video_ready($item)
+            || efpic_slideshow_slot_public_video_enabled($item)
+            || efpic_slideshow_slot_interactive_ready($item, $adminFavs)
+            || (efpic_slideshow_slot_audio_files($item) !== [] && $adminFavs > 0)) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function efpic_apply_share_actions_from_post(
