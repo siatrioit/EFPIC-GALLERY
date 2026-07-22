@@ -181,6 +181,23 @@ function efpic_admin_scene_image_counts(array $meta): array
     return $counts;
 }
 
+function efpic_admin_gallery_video_count(array $meta): int
+{
+    $stats = $meta['failiem']['sync_stats'] ?? null;
+    if (is_array($stats) && array_key_exists('video_count', $stats)) {
+        return max(0, (int) $stats['video_count']);
+    }
+
+    $count = 0;
+    foreach ($meta['videos'] ?? [] as $video) {
+        if (is_array($video)) {
+            $count++;
+        }
+    }
+
+    return $count;
+}
+
 function efpic_admin_color_field(string $name, string $label, string $value): string
 {
     if (preg_match('/^#[0-9a-fA-F]{6}$/', $value) !== 1) {
@@ -1713,11 +1730,9 @@ function efpic_admin_list_delivery_galleries(array $config): void
         $gt = (string) ($meta['gallery_token'] ?? '');
         $stats = $meta['failiem']['sync_stats'] ?? null;
         $paired = is_array($stats) ? (int) ($stats['paired'] ?? 0) : 0;
+        $videoCount = efpic_admin_gallery_video_count($meta);
         $syncAt = (string) ($meta['failiem']['last_sync_at'] ?? '—');
         $date = substr((string) ($meta['event_date'] ?? ''), 0, 10);
-        $rows .= '<tr>';
-        $rows .= '<td><input type="checkbox" name="gallery_slugs[]" value="' . efpic_admin_esc($slug) . '" class="admin-gallery-pick"></td>';
-        $rows .= '<td><a href="delivery_edit.php?slug=' . rawurlencode($slug) . '">' . efpic_admin_esc($meta['name'] ?? $slug) . '</a></td>';
         $expiresShort = efpic_gallery_expires_at_value($meta) ?? '';
         if ($expiresShort === '') {
             $expiresCell = '<span class="muted">bez termiņa</span>';
@@ -1726,28 +1741,44 @@ function efpic_admin_list_delivery_galleries(array $config): void
         } else {
             $expiresCell = '<span class="muted">līdz ' . efpic_admin_esc($expiresShort) . '</span>';
         }
-        $rows .= '<td>' . efpic_admin_esc($date !== '' ? $date : '—') . '<br>' . $expiresCell . '</td>';
-        $rows .= '<td>' . count($meta['images'] ?? []) . ' / ' . $paired . '</td>';
-        $rows .= '<td class="muted">' . efpic_admin_esc($syncAt) . '</td>';
-        $rows .= '<td>';
-        if ($view === 'active' && $gt !== '') {
-            $rows .= '<a href="' . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '" target="_blank" rel="noopener">Skatīt</a>';
+        $dateCell = efpic_admin_esc($date !== '' ? $date : '—')
+            . ' <span class="admin-gallery-list__expires">' . $expiresCell . '</span>';
+        $imageCell = count($meta['images'] ?? []) . ' / ' . $paired;
+        if ($videoCount > 0) {
+            $videoCell = '<span class="admin-gallery-list__video-yes">' . $videoCount . '</span>';
         } else {
-            $rows .= '<span class="muted">Nav publiska</span>';
+            $videoCell = '<span class="muted">—</span>';
         }
-        $rows .= '</td></tr>';
+        $viewCell = $view === 'active' && $gt !== ''
+            ? '<a href="' . efpic_admin_esc(efpic_gallery_view_url($config, $gt)) . '" target="_blank" rel="noopener">Skatīt</a>'
+            : '<span class="muted">Nav publiska</span>';
+
+        $rows .= '<tr class="admin-gallery-list__row">';
+        $rows .= '<td class="admin-gallery-list__pick" data-label=""><input type="checkbox" name="gallery_slugs[]" value="'
+            . efpic_admin_esc($slug) . '" class="admin-gallery-pick"></td>';
+        $rows .= '<td class="admin-gallery-list__name" data-label="Nosaukums"><a href="delivery_edit.php?slug='
+            . rawurlencode($slug) . '">' . efpic_admin_esc($meta['name'] ?? $slug) . '</a></td>';
+        $rows .= '<td class="admin-gallery-list__date" data-label="Datums / termiņš">' . $dateCell . '</td>';
+        $rows .= '<td class="admin-gallery-list__images" data-label="Bildes">' . efpic_admin_esc($imageCell) . '</td>';
+        $rows .= '<td class="admin-gallery-list__videos" data-label="Video">' . $videoCell . '</td>';
+        $rows .= '<td class="admin-gallery-list__sync muted" data-label="Sync">' . efpic_admin_esc($syncAt) . '</td>';
+        $rows .= '<td class="admin-gallery-list__view" data-label="">' . $viewCell . '</td>';
+        $rows .= '</tr>';
     }
 
     if ($rows === '') {
         $empty = $view === 'deleted'
             ? 'Nav dzēstu galeriju.'
             : 'Vēl nav galeriju. <a href="delivery_new.php">Izveidot jaunu</a>';
-        $rows = '<tr><td colspan="6" class="muted">' . $empty . '</td></tr>';
+        $rows = '<tr><td colspan="7" class="muted">' . $empty . '</td></tr>';
     }
 
-    $body .= '<div class="admin-table-wrap"><table class="admin-table"><thead><tr>';
-    $body .= '<th></th><th>Nosaukums</th><th>Datums / termiņš</th><th>Bildes</th><th>Sync</th><th></th>';
-    $body .= '</tr></thead><tbody>' . $rows . '</tbody></table></div></form>';
+    $body .= '<div class="admin-gallery-list-scroll">';
+    $body .= '<div class="admin-table-wrap admin-gallery-list">';
+    $body .= '<table class="admin-table admin-gallery-list-table"><thead><tr>';
+    $body .= '<th class="admin-gallery-list__pick"></th>';
+    $body .= '<th>Nosaukums</th><th>Datums / termiņš</th><th>Bildes</th><th>Video</th><th>Sync</th><th></th>';
+    $body .= '</tr></thead><tbody>' . $rows . '</tbody></table></div></div></form>';
 
     efpic_admin_layout(
         'Galerijas',

@@ -1386,6 +1386,17 @@
     max-width: 100%;
     overflow-x: clip;
   }
+
+  .admin-main {
+    overflow-x: clip;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .admin-list-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 
 .admin-scenes-panel {
@@ -2910,6 +2921,225 @@
 
 .admin-sticky-bar--list {
   margin-bottom: 12px;
+  flex-shrink: 0;
+}
+
+.admin-gallery-bulk-form {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.admin-gallery-list-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: calc(100dvh - 240px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  border: 1px solid var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  background: var(--admin-surface);
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-gallery-list-scroll .admin-table-wrap {
+  overflow: visible;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+}
+
+.admin-gallery-list-table {
+  min-width: 0;
+}
+
+.admin-gallery-list-table th,
+.admin-gallery-list-table td {
+  padding: 8px 12px;
+  font-size: 0.84rem;
+  line-height: 1.35;
+  vertical-align: middle;
+}
+
+.admin-gallery-list-table th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding-top: 10px;
+  padding-bottom: 10px;
+  font-size: 0.72rem;
+}
+
+.admin-gallery-list__pick {
+  width: 36px;
+  text-align: center;
+}
+
+.admin-gallery-list__pick input {
+  margin: 0;
+}
+
+.admin-gallery-list__name a {
+  font-weight: 600;
+}
+
+.admin-gallery-list__expires {
+  display: inline;
+  white-space: nowrap;
+}
+
+.admin-gallery-list__expires::before {
+  content: "· ";
+}
+
+.admin-gallery-list__images,
+.admin-gallery-list__videos,
+.admin-gallery-list__sync,
+.admin-gallery-list__view {
+  white-space: nowrap;
+}
+
+.admin-gallery-list__video-yes {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.5rem;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--admin-accent);
+  background: var(--admin-accent-soft);
+}
+
+.admin-gallery-list__view {
+  text-align: right;
+}
+
+.admin-gallery-list-table th:last-child,
+.admin-gallery-list-table td.admin-gallery-list__view {
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .admin-gallery-list-scroll {
+    max-height: none;
+    overflow: visible;
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .admin-gallery-list-scroll .admin-table-wrap {
+    overflow: visible;
+  }
+
+  .admin-gallery-list-table {
+    min-width: 0;
+    border-collapse: separate;
+    border-spacing: 0;
+  }
+
+  .admin-gallery-list-table thead {
+    display: none;
+  }
+
+  .admin-gallery-list-table tbody {
+    display: block;
+  }
+
+  .admin-gallery-list-table tr.admin-gallery-list__row {
+    display: block;
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius-lg);
+    background: var(--admin-surface);
+    box-shadow: var(--admin-shadow);
+  }
+
+  .admin-gallery-list-table tr.admin-gallery-list__row:last-child {
+    margin-bottom: 0;
+  }
+
+  .admin-gallery-list-table td {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 6px 0;
+    border-bottom: none;
+    white-space: normal;
+  }
+
+  .admin-gallery-list-table td::before {
+    content: attr(data-label);
+    flex: 0 0 38%;
+    max-width: 9rem;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--admin-text-muted);
+  }
+
+  .admin-gallery-list-table td[data-label=""]::before {
+    content: none;
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__pick {
+    justify-content: flex-start;
+    padding-bottom: 10px;
+    margin-bottom: 6px;
+    border-bottom: 1px solid var(--admin-border);
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__name {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding-top: 0;
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__name::before {
+    content: "Nosaukums";
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__name a {
+    font-size: 1rem;
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__date {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__expires {
+    display: block;
+    white-space: normal;
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__expires::before {
+    content: none;
+  }
+
+  .admin-gallery-list-table td.admin-gallery-list__view {
+    justify-content: flex-end;
+    padding-top: 8px;
+    margin-top: 4px;
+    border-top: 1px solid var(--admin-border);
+  }
+
+  .admin-gallery-list-table td[colspan] {
+    display: block;
+    text-align: center;
+  }
+
+  .admin-gallery-list-table td[colspan]::before {
+    content: none;
+  }
 }
 
 .admin-bulk-scene {
