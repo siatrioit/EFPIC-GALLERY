@@ -3003,6 +3003,7 @@
   color: var(--admin-accent);
 }
 
+.admin-gallery-list__panel,
 .admin-gallery-list__images,
 .admin-gallery-list__videos,
 .admin-gallery-list__sync,
@@ -3011,6 +3012,7 @@
   white-space: nowrap;
 }
 
+.admin-gallery-list__panel-yes,
 .admin-gallery-list__video-yes {
   display: inline-flex;
   align-items: center;

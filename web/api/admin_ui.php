@@ -237,6 +237,7 @@ function efpic_admin_gallery_list_compare_items(array $a, array $b, string $sort
     $cmp = match ($sort) {
         'name' => strnatcasecmp((string) ($ma['name'] ?? ''), (string) ($mb['name'] ?? '')),
         'date' => strcmp((string) ($ma['event_date'] ?? ''), (string) ($mb['event_date'] ?? '')),
+        'panel' => (int) efpic_client_portal_enabled($ma) <=> (int) efpic_client_portal_enabled($mb),
         'images' => count($ma['images'] ?? []) <=> count($mb['images'] ?? []),
         'video' => efpic_admin_gallery_video_count($ma) <=> efpic_admin_gallery_video_count($mb),
         'sync' => strcmp(
@@ -1724,7 +1725,7 @@ function efpic_admin_collect_delivery_galleries(array $config, string $statusFil
 function efpic_admin_list_delivery_galleries(array $config): void
 {
     $view = ($_GET['view'] ?? 'active') === 'deleted' ? 'deleted' : 'active';
-    $allowedSorts = ['date', 'name', 'images', 'video', 'sync', 'expires'];
+    $allowedSorts = ['date', 'name', 'panel', 'images', 'video', 'sync', 'expires'];
     $sort = (string) ($_GET['sort'] ?? 'date');
     if (!in_array($sort, $allowedSorts, true)) {
         $sort = 'date';
@@ -1798,6 +1799,12 @@ function efpic_admin_list_delivery_galleries(array $config): void
             $expiresCell = '<span class="muted">līdz ' . efpic_admin_esc($expiresShort) . '</span>';
         }
         $dateCell = efpic_admin_esc($date !== '' ? $date : '—');
+        $panelOn = efpic_client_portal_enabled($meta);
+        if ($panelOn) {
+            $panelCell = '<span class="admin-gallery-list__panel-yes">Jā</span>';
+        } else {
+            $panelCell = '<span class="muted">Nē</span>';
+        }
         $imageCell = count($meta['images'] ?? []) . ' / ' . $paired;
         if ($videoCount > 0) {
             $videoCell = '<span class="admin-gallery-list__video-yes">' . $videoCount . '</span>';
@@ -1814,6 +1821,7 @@ function efpic_admin_list_delivery_galleries(array $config): void
         $rows .= '<td class="admin-gallery-list__date" data-label="Datums">' . $dateCell . '</td>';
         $rows .= '<td class="admin-gallery-list__name" data-label="Nosaukums"><a href="delivery_edit.php?slug='
             . rawurlencode($slug) . '">' . efpic_admin_esc($meta['name'] ?? $slug) . '</a></td>';
+        $rows .= '<td class="admin-gallery-list__panel" data-label="K Panelis">' . $panelCell . '</td>';
         $rows .= '<td class="admin-gallery-list__images" data-label="Bildes">' . efpic_admin_esc($imageCell) . '</td>';
         $rows .= '<td class="admin-gallery-list__videos" data-label="Video">' . $videoCell . '</td>';
         $rows .= '<td class="admin-gallery-list__sync muted" data-label="Sync">' . efpic_admin_esc($syncAt) . '</td>';
@@ -1826,7 +1834,7 @@ function efpic_admin_list_delivery_galleries(array $config): void
         $empty = $view === 'deleted'
             ? 'Nav dzēstu galeriju.'
             : 'Vēl nav galeriju. <a href="delivery_new.php">Izveidot jaunu</a>';
-        $rows = '<tr><td colspan="8" class="muted">' . $empty . '</td></tr>';
+        $rows = '<tr><td colspan="9" class="muted">' . $empty . '</td></tr>';
     }
 
     $body .= '<div class="admin-gallery-list-scroll">';
@@ -1835,6 +1843,7 @@ function efpic_admin_list_delivery_galleries(array $config): void
     $body .= '<th class="admin-gallery-list__pick"></th>';
     $body .= efpic_admin_gallery_list_sort_th('date', 'Datums', $sort, $order, $baseQs);
     $body .= efpic_admin_gallery_list_sort_th('name', 'Nosaukums', $sort, $order, $baseQs);
+    $body .= efpic_admin_gallery_list_sort_th('panel', 'K Panelis', $sort, $order, $baseQs);
     $body .= efpic_admin_gallery_list_sort_th('images', 'Bildes', $sort, $order, $baseQs);
     $body .= efpic_admin_gallery_list_sort_th('video', 'Video', $sort, $order, $baseQs);
     $body .= efpic_admin_gallery_list_sort_th('sync', 'Sync', $sort, $order, $baseQs);
