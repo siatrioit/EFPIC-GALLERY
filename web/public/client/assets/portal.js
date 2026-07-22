@@ -529,7 +529,7 @@
     var scenePopoverAnchor = null;
     var scenePopoverIgnoreBlur = false;
     var sceneBlurTimer = 0;
-    var scenePopoverScrollBound = false;
+    var scenePopoverScrollHandler = null;
 
     function postPortalImagesRequest(extra) {
       var fd = new FormData();
@@ -685,29 +685,52 @@
     }
     window.efpicPortalUpdateSceneFloatBar = updateSceneFloatBar;
 
+    function unbindScenePopoverScrollClose() {
+      if (scenePopoverScrollHandler) {
+        window.removeEventListener('scroll', scenePopoverScrollHandler, true);
+        scenePopoverScrollHandler = null;
+      }
+    }
+
+    function bindScenePopoverScrollClose() {
+      unbindScenePopoverScrollClose();
+      scenePopoverScrollHandler = function (evt) {
+        if (!scenePopover) return;
+        var target = evt.target;
+        if (target && target.nodeType === 3 && target.parentNode) {
+          target = target.parentNode;
+        }
+        if (target && target.closest && target.closest('.admin-scene-popover')) {
+          return;
+        }
+        closeScenePopover();
+      };
+      window.addEventListener('scroll', scenePopoverScrollHandler, true);
+    }
+
     function closeScenePopover() {
       if (scenePopover && scenePopover.parentNode) {
         scenePopover.parentNode.removeChild(scenePopover);
       }
       scenePopover = null;
       scenePopoverAnchor = null;
-      if (scenePopoverScrollBound) {
-        window.removeEventListener('scroll', closeScenePopover, true);
-        scenePopoverScrollBound = false;
-      }
+      unbindScenePopoverScrollClose();
     }
 
     function positionScenePopover(pop, input) {
       var rect = input.getBoundingClientRect();
-      var width = Math.max(rect.width, 180);
+      var wrap = input.closest('.admin-scene-input-wrap');
+      var wrapRect = wrap ? wrap.getBoundingClientRect() : rect;
+      var width = Math.max(wrapRect.width, 200);
       pop.style.minWidth = width + 'px';
-      pop.style.left = Math.min(rect.left, window.innerWidth - width - 8) + 'px';
-      var top = rect.bottom + 4;
-      pop.style.top = top + 'px';
+      var left = Math.min(wrapRect.left, window.innerWidth - width - 8);
+      pop.style.left = Math.max(8, left) + 'px';
+      var belowTop = wrapRect.bottom + 4;
+      pop.style.top = belowTop + 'px';
       requestAnimationFrame(function () {
         var box = pop.getBoundingClientRect();
         if (box.bottom > window.innerHeight - 8) {
-          pop.style.top = Math.max(8, rect.top - box.height - 4) + 'px';
+          pop.style.top = Math.max(8, wrapRect.top - box.height - 4) + 'px';
         }
       });
     }
@@ -744,10 +767,23 @@
       applySceneTitleToCards(sceneChangeTargets(card), input.value);
     }
 
+    function filterScenePopover(query) {
+      if (!scenePopover) return;
+      var q = (query || '').trim().toLowerCase();
+      scenePopover.querySelectorAll('.admin-scene-popover-item:not(.admin-scene-popover-item--custom)').forEach(function (btn) {
+        var text = (btn.textContent || '').toLowerCase();
+        btn.hidden = q !== '' && text.indexOf(q) === -1;
+      });
+    }
+
     function openScenePopover(input) {
       if (!input) return;
       var card = input.closest('.admin-media-card');
       if (!card) return;
+      if (scenePopover && scenePopoverAnchor === input) {
+        filterScenePopover(input.value || '');
+        return;
+      }
       closeScenePopover();
       scenePopoverAnchor = input;
       var scenes = readScenesFromDatalist();
@@ -795,18 +831,21 @@
       document.body.appendChild(pop);
       scenePopover = pop;
       positionScenePopover(pop, input);
-      window.addEventListener('scroll', closeScenePopover, true);
-      scenePopoverScrollBound = true;
+      bindScenePopoverScrollClose();
+      filterScenePopover(input.value || '');
     }
 
     function scheduleSceneCommit(input) {
       if (sceneBlurTimer) clearTimeout(sceneBlurTimer);
       sceneBlurTimer = window.setTimeout(function () {
         sceneBlurTimer = 0;
-        if (scenePopoverIgnoreBlur) return;
+        if (scenePopoverIgnoreBlur) {
+          scenePopoverIgnoreBlur = false;
+          return;
+        }
         commitSceneInput(input);
         closeScenePopover();
-      }, 120);
+      }, 160);
     }
 
     imageGrid.addEventListener('change', function (evt) {
@@ -827,24 +866,44 @@
         });
     });
 
-    imageGrid.addEventListener('focusin', function (evt) {
-      var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
-      if (input) openScenePopover(input);
-    });
+    imageGrid.addEventListener(
+      'mousedown',
+      function (evt) {
+        var openBtn = evt.target && evt.target.closest ? evt.target.closest('.admin-scene-open-btn') : null;
+        if (openBtn) {
+          evt.preventDefault();
+          scenePopoverIgnoreBlur = true;
+          return;
+        }
+        if (evt.target && evt.target.closest && evt.target.closest('.admin-scene-pick, .admin-scene-popover')) {
+          evt.stopPropagation();
+        }
+      },
+      true
+    );
+
+    imageGrid.addEventListener(
+      'blur',
+      function (evt) {
+        var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
+        if (!input) return;
+        var next = evt.relatedTarget;
+        if (next && next.closest && next.closest('.admin-scene-popover, .admin-scene-open-btn, .admin-scene-input-wrap')) {
+          return;
+        }
+        scheduleSceneCommit(input);
+      },
+      true
+    );
 
     imageGrid.addEventListener('input', function (evt) {
       var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
-      if (!input || !scenePopover) return;
-      var q = (input.value || '').trim().toLowerCase();
-      scenePopover.querySelectorAll('.admin-scene-popover-item:not(.admin-scene-popover-item--custom)').forEach(function (btn) {
-        var text = (btn.textContent || '').toLowerCase();
-        btn.hidden = q !== '' && text.indexOf(q) === -1;
-      });
-    });
-
-    imageGrid.addEventListener('focusout', function (evt) {
-      var input = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
-      if (input) scheduleSceneCommit(input);
+      if (!input) return;
+      if (!scenePopover || scenePopoverAnchor !== input) {
+        openScenePopover(input);
+      } else {
+        filterScenePopover(input.value || '');
+      }
     });
 
     imageGrid.addEventListener('keydown', function (evt) {
@@ -852,22 +911,52 @@
       if (!input) return;
       if (evt.key === 'Enter') {
         evt.preventDefault();
+        if (sceneBlurTimer) clearTimeout(sceneBlurTimer);
         commitSceneInput(input);
         closeScenePopover();
         input.blur();
+      }
+      if (evt.key === 'Escape') {
+        closeScenePopover();
+      }
+      if (evt.key === 'ArrowDown') {
+        evt.preventDefault();
+        openScenePopover(input);
       }
     });
 
     imageGrid.addEventListener('click', function (evt) {
       var openBtn = evt.target && evt.target.closest ? evt.target.closest('.admin-scene-open-btn') : null;
-      if (!openBtn) return;
-      evt.preventDefault();
-      var wrap = openBtn.closest('.admin-scene-pick');
-      var input = wrap ? wrap.querySelector('.admin-scene-input') : null;
-      if (input) {
-        input.focus();
-        openScenePopover(input);
+      if (openBtn) {
+        evt.preventDefault();
+        evt.stopPropagation();
+        var wrap = openBtn.closest('.admin-scene-pick');
+        var input = wrap ? wrap.querySelector('.admin-scene-input') : null;
+        if (input) {
+          input.focus();
+          openScenePopover(input);
+        }
+        window.setTimeout(function () {
+          scenePopoverIgnoreBlur = false;
+        }, 0);
+        return;
       }
+      var sceneInput = evt.target && evt.target.classList && evt.target.classList.contains('admin-scene-input') ? evt.target : null;
+      if (sceneInput) {
+        openScenePopover(sceneInput);
+      }
+    });
+
+    document.addEventListener('click', function (evt) {
+      if (!scenePopover) return;
+      if (
+        evt.target &&
+        evt.target.closest &&
+        evt.target.closest('.admin-scene-popover, .admin-scene-input, .admin-scene-open-btn')
+      ) {
+        return;
+      }
+      closeScenePopover();
     });
 
     var floatApplyBtn = document.getElementById('admin-float-apply-scene');

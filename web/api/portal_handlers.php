@@ -807,7 +807,7 @@ function efpic_portal_render_image_grid(array $config, array $images, bool $comm
         $html .= '<input type="hidden" class="admin-scene-id" value="' . efpic_client_esc($imgScene) . '">';
         $html .= '<span class="admin-scene-input-wrap">';
         $html .= '<input type="text" class="admin-scene-input" value="' . efpic_client_esc($imgSceneTitle)
-            . '" list="admin-scene-datalist" placeholder="Sadaļa…" autocomplete="off" aria-label="Galerijas sadaļa">';
+            . '" placeholder="Sadaļa…" autocomplete="off" aria-label="Galerijas sadaļa" aria-autocomplete="list">';
         $html .= '<button type="button" class="admin-scene-open-btn" aria-label="Izvēlēties sadaļu" title="Esošās sadaļas">▾</button>';
         $html .= '</span></div>';
         $html .= '</li>';
@@ -815,7 +815,7 @@ function efpic_portal_render_image_grid(array $config, array $images, bool $comm
     $html .= '</ul>';
     $html .= '<div id="admin-scene-float-bar" class="admin-scene-float-bar" hidden>';
     $html .= '<span class="admin-scene-float-count" id="admin-scene-float-count" aria-live="polite"></span>';
-    $html .= '<label class="admin-scene-float-label">Sadaļa<input type="text" id="admin-float-scene-input" list="admin-scene-datalist" placeholder="Visām atlasītajām…" autocomplete="off"></label>';
+    $html .= '<label class="admin-scene-float-label">Sadaļa<input type="text" id="admin-float-scene-input" placeholder="Visām atlasītajām…" autocomplete="off"></label>';
     $html .= '<button type="button" class="btn primary admin-btn-inline" id="admin-float-apply-scene">Pielietot</button>';
     $html .= '<button type="button" class="btn admin-btn-inline" id="admin-float-clear-picks">Noņemt atlasi</button>';
     $html .= '</div>';
@@ -1129,11 +1129,26 @@ function efpic_portal_render_images_action_bar(
     bool $faceSearchReady,
 ): string {
     $flags = efpic_portal_download_action_flags($meta);
-    if (!$flags['web'] && !$flags['full'] && !$faceSearchReady) {
-        return '';
-    }
 
-    $infoItems = [];
+    $infoItems = [
+        [
+            'title' => 'Vāks',
+            'text' => 'Atzīmē, kura bilde būs galerijas vāka bilde publiskajā saitē. Vienlaikus var būt tikai viena vāka bilde.',
+        ],
+        [
+            'title' => 'Favorīts',
+            'text' => 'Pievieno bildi saviem favorītiem — tos izmanto slideshow un citām izlasēm klienta panelī.',
+        ],
+        [
+            'title' => 'Slēpt',
+            'text' => 'Paslēpj bildi no publiskās galerijas. Paslēptā bilde paliek redzama tev klienta panelī (atzīmēta kā «Slēpts»).',
+        ],
+        [
+            'title' => 'Sadaļa',
+            'text' => 'Rāda, kurā galerijas sadaļā bilde atrodas. Maini nosaukumu laukā vai spied ▾, lai izvēlētos esošu sadaļu. '
+                . 'Ja ievadi jaunu nosaukumu, tiek izveidota jauna sadaļa. Atlasot vairākas bildes, apakšā var pielietot sadaļu visām uzreiz.',
+        ],
+    ];
     $html = '<div class="portal-images-action-bar">';
     $html .= '<div class="portal-images-action-bar__sticky">';
     $html .= '<div class="portal-images-action-bar__btns">';
@@ -1171,7 +1186,7 @@ function efpic_portal_render_images_action_bar(
     $html .= '<div class="portal-images-info-modal" id="portalImagesInfoModal" hidden>';
     $html .= '<div class="portal-images-info-dialog" role="dialog" aria-modal="true" aria-labelledby="portalImagesInfoTitle">';
     $html .= '<button type="button" class="portal-images-info-close" data-portal-images-info-close aria-label="Aizvērt">&times;</button>';
-    $html .= '<h2 id="portalImagesInfoTitle">Bildes — pogu nozīme</h2>';
+    $html .= '<h2 id="portalImagesInfoTitle">Bildes — pogu un lauku nozīme</h2>';
     $html .= '<ul class="portal-images-info-list">';
     foreach ($infoItems as $item) {
         $html .= '<li><strong>' . efpic_client_esc($item['title']) . '</strong>';

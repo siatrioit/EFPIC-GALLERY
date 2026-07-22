@@ -2082,6 +2082,36 @@
   box-sizing: border-box;
 }
 
+/* Hide native datalist dropdown arrow — we use custom ▾ + popover */
+.admin-scene-input::-webkit-calendar-picker-indicator {
+  display: none !important;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  -webkit-appearance: none;
+}
+
+.admin-scene-input::-webkit-list-button {
+  display: none !important;
+}
+
+.admin-body--portal .portal-images-action-bar__btns:empty {
+  display: none;
+}
+
+.admin-body--portal .admin-scene-input-wrap {
+  overflow: hidden;
+  border-radius: 6px;
+}
+
+.admin-body--portal .admin-scene-input {
+  border-radius: 6px 0 0 6px;
+}
+
+.admin-body--portal .admin-scene-open-btn {
+  border-radius: 0 6px 6px 0;
+}
+
 .admin-scene-open-btn {
   flex-shrink: 0;
   margin: 0;
