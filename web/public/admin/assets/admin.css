@@ -3354,11 +3354,31 @@
   color: var(--admin-text);
 }
 
+.portal-section-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 16px;
+}
+
+.portal-section-toolbar__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--admin-text);
+}
+
 .admin-share-sets-toolbar .admin-share-info-btn,
-.admin-share-sets-toolbar .portal-images-action-bar__info {
+.admin-share-sets-toolbar .portal-images-action-bar__info,
+.portal-section-toolbar .portal-images-action-bar__info {
   width: 32px;
   height: 32px;
   font-size: 0.88rem;
+}
+
+.admin-body--portal .admin-help-blurb {
+  display: none;
 }
 
 .admin-share-sets-body {

@@ -2260,83 +2260,63 @@
 
   initPortalFaceSearch();
 
-  function initPortalImagesInfoModal() {
-    var modal = document.getElementById('portalImagesInfoModal');
-    if (!modal) return;
+  function initPortalInfoModals() {
+    document.querySelectorAll('.portal-images-info-modal').forEach(function (modal) {
+      if (modal.dataset.infoBound === '1') return;
+      modal.dataset.infoBound = '1';
+      var modalId = modal.id;
+      if (!modalId) return;
 
-    function openModal() {
-      modal.hidden = false;
-      document.body.classList.add('portal-images-info-open');
-    }
+      function openModal() {
+        modal.hidden = false;
+        document.body.classList.add('portal-images-info-open');
+      }
 
-    function closeModal() {
-      modal.hidden = true;
-      document.body.classList.remove('portal-images-info-open');
-    }
+      function closeModal() {
+        modal.hidden = true;
+        var anyOpen = false;
+        document.querySelectorAll('.portal-images-info-modal').forEach(function (m) {
+          if (!m.hidden) anyOpen = true;
+        });
+        if (!anyOpen) {
+          document.body.classList.remove('portal-images-info-open');
+        }
+      }
 
-    document.querySelectorAll('[data-portal-images-info-open]').forEach(function (btn) {
-      btn.addEventListener('click', function (evt) {
-        evt.preventDefault();
-        openModal();
+      document.querySelectorAll('[aria-controls="' + modalId + '"]').forEach(function (btn) {
+        btn.addEventListener('click', function (evt) {
+          evt.preventDefault();
+          openModal();
+        });
+      });
+
+      modal.querySelectorAll(
+        '.portal-images-info-close, [data-portal-info-close], [data-portal-images-info-close], [data-share-info-close]'
+      ).forEach(function (btn) {
+        btn.addEventListener('click', function (evt) {
+          evt.preventDefault();
+          closeModal();
+        });
+      });
+
+      modal.addEventListener('click', function (evt) {
+        if (evt.target === modal) closeModal();
       });
     });
 
-    document.querySelectorAll('[data-portal-images-info-close]').forEach(function (btn) {
-      btn.addEventListener('click', function (evt) {
-        evt.preventDefault();
-        closeModal();
-      });
-    });
-
-    modal.addEventListener('click', function (evt) {
-      if (evt.target === modal) closeModal();
-    });
-
+    if (document.documentElement.dataset.portalInfoEscBound === '1') return;
+    document.documentElement.dataset.portalInfoEscBound = '1';
     document.addEventListener('keydown', function (evt) {
-      if (evt.key === 'Escape' && !modal.hidden) closeModal();
+      if (evt.key !== 'Escape') return;
+      document.querySelectorAll('.portal-images-info-modal').forEach(function (modal) {
+        if (modal.hidden) return;
+        modal.hidden = true;
+      });
+      document.body.classList.remove('portal-images-info-open');
     });
   }
 
-  function initPortalShareInfoModal() {
-    var modal = document.getElementById('adminShareInfoModal');
-    if (!modal || modal.dataset.bound === '1') return;
-    modal.dataset.bound = '1';
-
-    function openModal() {
-      modal.hidden = false;
-      document.body.classList.add('portal-images-info-open');
-    }
-
-    function closeModal() {
-      modal.hidden = true;
-      document.body.classList.remove('portal-images-info-open');
-    }
-
-    document.querySelectorAll('[data-share-info-open]').forEach(function (btn) {
-      btn.addEventListener('click', function (evt) {
-        evt.preventDefault();
-        openModal();
-      });
-    });
-
-    document.querySelectorAll('[data-share-info-close]').forEach(function (btn) {
-      btn.addEventListener('click', function (evt) {
-        evt.preventDefault();
-        closeModal();
-      });
-    });
-
-    modal.addEventListener('click', function (evt) {
-      if (evt.target === modal) closeModal();
-    });
-
-    document.addEventListener('keydown', function (evt) {
-      if (evt.key === 'Escape' && !modal.hidden) closeModal();
-    });
-  }
-
-  initPortalImagesInfoModal();
-  initPortalShareInfoModal();
+  initPortalInfoModals();
 
   function injectPortalCsrfTokens() {
     var token = window.EFPIC_CSRF_TOKEN || '';

@@ -666,9 +666,26 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     $body .= efpic_admin_tab_panel_open('admin-tab-settings', $firstPanelId === 'admin-tab-settings');
     $publicUrl = efpic_gallery_view_url($config, $gt);
+    $body .= efpic_portal_render_section_info(
+        'Iestatījumi',
+        'portalSettingsInfoModal',
+        'Iestatījumu skaidrojumi',
+        [
+            [
+                'title' => 'Publiskā galerijas saite',
+                'text' => 'Šo saiti vari kopīgot ar viesiem. Ja tā nonāk pie nepareiziem cilvēkiem, vari izveidot jaunu — vecā saite vairs nedarbosies (tostarp kopīgošanas izlases, kas izmantoja veco saiti).',
+            ],
+            [
+                'title' => 'Lejupielādes publiskajā galerijā',
+                'text' => 'Atzīmē, lai apmeklētājiem vairs nerādītos «lejupielādēt visas bildes» attiecīgajā izmērā. Izvēlētās bildes (izlase) joprojām var lejupielādēt, ja izmērs ir atļauts.',
+            ],
+            [
+                'title' => 'Paroles',
+                'text' => 'Ieslēdz slēdzi un ievadi paroli katram laukam atsevišķi. Izslēdzot slēdzi, attiecīgā parole tiek noņemta.',
+            ],
+        ],
+    );
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Publiskā galerijas saite</h2>';
-    $body .= '<p class="muted">Šo saiti vari kopīgot ar viesiem. Ja tā nonāk pie nepareiziem cilvēkiem, vari izveidot jaunu — '
-        . 'vecā saite vairs nedarbosies (tostarp kopīgošanas izlases, kas izmantoja veco saiti).</p>';
     $body .= '<p class="admin-links-row">' . efpic_admin_render_link_row($publicUrl) . '</p>';
     $body .= '<form method="post" class="portal-stack portal-regenerate-link-form" data-confirm="'
         . efpic_client_esc('Izveidot jaunu publisko saiti? Vecā saite un visas ar to saistītās kopīgošanas saites pārtraks darboties.')
@@ -678,7 +695,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<button type="submit" class="btn">Ģenerēt jaunu publisko saiti</button></form></section>';
 
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Lejupielādes publiskajā galerijā</h2>';
-    $body .= '<p class="muted">Atzīmē, lai apmeklētājiem vairs nerādītos «lejupielādēt visas bildes» attiecīgajā izmērā. Izvēlētās bildes (izlase) joprojām var lejupielādēt, ja izmērs ir atļauts.</p>';
     $body .= '<form method="post" class="portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_download_settings">';
     $body .= efpic_render_admin_toggle('Atslēgt «visas bildes» — WEB', $disableAllWeb, [
@@ -690,7 +706,6 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
     $body .= '<button type="submit" class="btn primary">Saglabāt</button></form></section>';
 
     $body .= '<section class="admin-fieldset-full"><h2 class="admin-share-block-title">Paroles</h2>';
-    $body .= '<p class="muted">Ieslēdz slēdzi un ievadi paroli katram laukam atsevišķi. Izslēdzot slēdzi, attiecīgā parole tiek noņemta.</p>';
     $body .= '<form method="post" class="portal-stack">';
     $body .= '<input type="hidden" name="portal_action" value="save_passwords">';
     $body .= efpic_admin_render_password_field(
@@ -732,7 +747,30 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
 function efpic_portal_render_theme_panel(array $config, array $meta): string
 {
-    $html = '<form method="post" class="admin-form admin-cover-theme-form" id="admin-cover-theme-form"'
+    $html = efpic_portal_render_section_info(
+        'Tēma',
+        'portalThemeInfoModal',
+        'Kā pielāgot galerijas izskatu',
+        [
+            [
+                'title' => 'Dizaina šabloni',
+                'text' => 'Izvēlies oficiālo tēmu (piem. Modern). Pēc tam vari pielāgot krāsas, vāku un tekstus. Mozaīkas kolonnas nosaka, cik blīvs ir bilžu režģis lielos ekrānos.',
+            ],
+            [
+                'title' => 'Krāsu palete',
+                'text' => 'Palete aizpilda vāka, fona un teksta krāsas. Pēc tam vari tās pielāgot manuāli ar krāsu laukiem.',
+            ],
+            [
+                'title' => 'Vāka medijs',
+                'text' => 'Vāks var būt bilde (izvēlies «Vāks» cilnē Bildes) vai video (ja galerijā ir MP4). Video vāks atskaņojas bez skaņas. Animācija darbojas arī ar bildi. Vari arī rādīt nejaušu favorītu kā vāku.',
+            ],
+            [
+                'title' => 'Novietojums un tipogrāfija',
+                'text' => 'Izvēlies vāka stilu un bildes novietojumu. Tipogrāfijā iestati šriftu, krāsu un izmērus. Priekšskatījumā velc tekstus un pārkadrē bildi; pēc izmaiņām spied «Saglabāt dizainu».',
+            ],
+        ],
+    );
+    $html .= '<form method="post" class="admin-form admin-cover-theme-form" id="admin-cover-theme-form"'
         . ' data-admin-edit-slug="portal-theme">';
     $html .= '<input type="hidden" name="portal_action" value="save_cover_theme">';
     $html .= '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Dizains</legend>';
@@ -852,8 +890,25 @@ function efpic_portal_render_scenes_panel(array $meta): string
     }
 
     $html = '<section class="admin-fieldset-full admin-scenes-panel portal-scenes-panel">';
-    $html .= '<h2 class="admin-share-block-title">Galerijas sadaļas</h2>';
-    $html .= '<p class="muted">Maini nosaukumus un secību. «Rādīt publiskajā saitē» — sadaļa redzama apmeklētājiem (pēc noklusējuma ieslēgts).</p>';
+    $html .= efpic_portal_render_section_info(
+        'Galerijas sadaļas',
+        'portalScenesInfoModal',
+        'Kā strādā sadaļas',
+        [
+            [
+                'title' => 'Nosaukumi un secība',
+                'text' => 'Maini sadaļu nosaukumus un velc rindas, lai mainītu secību. Secība nosaka, kā sadaļas rādās publiskajā galerijā.',
+            ],
+            [
+                'title' => 'Rādīt publiskajā saitē',
+                'text' => 'Slēdzis «Rādīt publiskajā saitē» nosaka, vai sadaļa ir redzama apmeklētājiem. Pēc noklusējuma tas ir ieslēgts.',
+            ],
+            [
+                'title' => 'Bildes sadaļās',
+                'text' => 'Pašas bildes pievieno sadaļām cilnē Bildes (lauks «Sadaļa» pie kartītes). Šeit pārvaldi tikai sadaļu sarakstu.',
+            ],
+        ],
+    );
     $html .= '<form method="post" class="portal-stack" id="portal-scenes-form">';
     $html .= '<input type="hidden" name="portal_action" value="save_scenes">';
     $html .= '<input type="hidden" name="scenes_json" id="portal_scenes_json" value="' . efpic_client_esc($scenesJson) . '">';
@@ -861,6 +916,44 @@ function efpic_portal_render_scenes_panel(array $meta): string
         . efpic_client_esc($scenesJson) . '" data-mode="portal"></div>';
     $html .= '<button type="submit" class="btn primary">Saglabāt sadaļas</button>';
     $html .= '</form></section>';
+
+    return $html;
+}
+
+/**
+ * @param list<array{title: string, text: string}> $items
+ */
+function efpic_portal_render_section_info(
+    string $title,
+    string $modalId,
+    string $modalHeading,
+    array $items,
+): string {
+    $html = '<div class="portal-section-toolbar">';
+    $html .= '<p class="portal-section-toolbar__title">' . efpic_client_esc($title) . '</p>';
+    $html .= '<button type="button" class="portal-images-action-bar__info" data-portal-info-open'
+        . ' aria-haspopup="dialog" aria-controls="' . efpic_client_esc($modalId) . '"'
+        . ' aria-label="Palīdzība: ' . efpic_client_esc($title) . '">';
+    $html .= '<span aria-hidden="true">i</span></button></div>';
+    $html .= '<div class="portal-images-info-modal" id="' . efpic_client_esc($modalId) . '" hidden>';
+    $html .= '<div class="portal-images-info-dialog" role="dialog" aria-modal="true" aria-labelledby="'
+        . efpic_client_esc($modalId) . 'Title">';
+    $html .= '<button type="button" class="portal-images-info-close" data-portal-info-close aria-label="Aizvērt">&times;</button>';
+    $html .= '<h2 id="' . efpic_client_esc($modalId) . 'Title">' . efpic_client_esc($modalHeading) . '</h2>';
+    $html .= '<ul class="portal-images-info-list">';
+    foreach ($items as $item) {
+        if (!is_array($item)) {
+            continue;
+        }
+        $itemTitle = (string) ($item['title'] ?? '');
+        $itemText = (string) ($item['text'] ?? '');
+        if ($itemTitle === '' || $itemText === '') {
+            continue;
+        }
+        $html .= '<li><strong>' . efpic_client_esc($itemTitle) . '</strong>';
+        $html .= '<p>' . efpic_client_esc($itemText) . '</p></li>';
+    }
+    $html .= '</ul></div></div>';
 
     return $html;
 }

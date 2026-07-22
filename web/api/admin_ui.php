@@ -642,6 +642,9 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
 
 function efpic_admin_render_share_sets(array $config, array $meta): string
 {
+    $hasVideos = efpic_admin_gallery_video_count($meta) > 0;
+    $hasSlideshow = efpic_gallery_has_shareable_slideshow($meta);
+
     $html = '<div class="admin-form admin-share-sets-panel" id="admin-share-sets-panel">';
     $html .= '<div class="admin-share-sets-toolbar">';
     $html .= '<p class="admin-share-sets-toolbar__title">Kopīgojamās izlases</p>';
@@ -660,8 +663,19 @@ function efpic_admin_render_share_sets(array $config, array $meta): string
     $html .= '<p>Ievadi nosaukumu (kam paredzēta) un spied «Sākt jaunu izlasi». Atvērsies cilne Bildes — atzīmē bildes un spied «Saglabāt izlasi».</p></li>';
     $html .= '<li><strong>Labot izlasi</strong>';
     $html .= '<p>Spied «Labot izlasi» pie esošās izlases. Cilnē Bildes vari pievienot vai noņemt bildes, tad saglabā. Saglabātā saite paliek tā pati.</p></li>';
-    $html .= '<li><strong>Video un Slideshow</strong>';
-    $html .= '<p>Ja galerijā ir video vai slideshow, slēdži ļauj izvēlēties, vai tie rādās šajā izlasē.</p></li>';
+    if ($hasVideos || $hasSlideshow) {
+        $mediaLabels = [];
+        if ($hasVideos) {
+            $mediaLabels[] = 'Video';
+        }
+        if ($hasSlideshow) {
+            $mediaLabels[] = 'Slideshow';
+        }
+        $html .= '<li><strong>' . efpic_admin_esc(implode(' un ', $mediaLabels)) . '</strong>';
+        $html .= '<p>Slēdži ļauj izvēlēties, vai '
+            . efpic_admin_esc(implode(' un ', array_map('strtolower', $mediaLabels)))
+            . ' rādās šajā izlasē.</p></li>';
+    }
     $html .= '<li><strong>Saites kopīgošana</strong>';
     $html .= '<p>Katram blokam ir sava saite — to vari nokopēt un nosūtīt. Viesis redzēs tikai izvēlētās bildes.</p></li>';
     $html .= '</ul></div></div>';

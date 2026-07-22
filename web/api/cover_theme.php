@@ -561,7 +561,7 @@ function efpic_render_intro_text_placement_controls(array $formMeta): string
     $layoutsJson = json_encode($layoutsMap, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     $html = '<div class="admin-intro-text-placements admin-fieldset-full" id="admin-intro-text-placements">';
     $html .= '<p class="admin-intro-text-placements__heading">Tekstu novietojums vākā</p>';
-    $html .= '<p class="muted">Velc katru uzrakstu tiešraides priekšskatījumā, lai novietotu kur vajag. '
+    $html .= '<p class="muted admin-help-blurb">Velc katru uzrakstu tiešraides priekšskatījumā, lai novietotu kur vajag. '
         . 'Paraksts un datums vienmēr paliek vienā rindā.</p>';
     $html .= '<input type="hidden" name="intro_text_layouts" id="intro_text_layouts" value="'
         . efpic_cover_theme_esc($layoutsJson !== false ? $layoutsJson : '{}') . '">';
@@ -569,7 +569,7 @@ function efpic_render_intro_text_placement_controls(array $formMeta): string
         . efpic_cover_theme_esc($layoutJson !== false ? $layoutJson : '{}') . '">';
     $html .= '<input type="hidden" id="intro_text_selected_role" value="title">';
     $html .= '<div class="admin-intro-text-align" id="admin-intro-text-align">';
-    $html .= '<p class="muted">Izvēlies tekstu priekšskatījumā, tad vari ātri pielikt pa kreisi / centrā / pa labi (augstums nemainās).</p>';
+    $html .= '<p class="muted admin-help-blurb">Izvēlies tekstu priekšskatījumā, tad vari ātri pielikt pa kreisi / centrā / pa labi (augstums nemainās).</p>';
     $html .= '<div class="admin-intro-text-align__btns" role="group" aria-label="Teksta līdzinājums">';
     $html .= '<button type="button" class="btn" data-intro-align="left">Pa kreisi</button>';
     $html .= '<button type="button" class="btn" data-intro-align="center">Centrēts</button>';
@@ -866,7 +866,7 @@ function efpic_render_design_palette_picker(array $config, array $formMeta): str
         $html .= efpic_admin_color_field('page_bg_color', 'Galerijas pamatkrāsa (režģis un bilžu skats)', $pageBg);
     }
     $html .= '</div>';
-    $html .= '<p class="muted">Palete aizpilda vāka, fona un teksta krāsas. Pēc tam vari tās pielāgot manuāli.</p>';
+    $html .= '<p class="muted admin-help-blurb">Palete aizpilda vāka, fona un teksta krāsas. Pēc tam vari tās pielāgot manuāli.</p>';
     $html .= '</fieldset>';
 
     return $html;
@@ -911,7 +911,7 @@ function efpic_render_design_template_controls(array $config, array $formMeta, b
     }
     $html .= '</select></label>';
     if ($allowManage) {
-        $html .= '<p class="muted admin-design-templates__intro">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
+        $html .= '<p class="muted admin-help-blurb admin-design-templates__intro">Saglabā pašreizējo izskatu kā šablonu un atkārtoti lieto citās galerijās (bez vāka bildes/video).</p>';
         $html .= '<div class="admin-design-templates__toolbar">';
         $html .= '<div class="admin-design-templates__group">';
         $html .= '<label class="admin-design-templates__field">Lietot šablonu<select id="design_template_apply" name="design_template_apply">';
@@ -955,7 +955,7 @@ function efpic_render_design_template_controls(array $config, array $formMeta, b
         }
         $html .= '</div>';
     } else {
-        $html .= '<p class="muted admin-design-templates__intro">Izvēlies vienu no oficiālajām tēmām. Pēc tam vari pielāgot krāsas un vāku.</p>';
+        $html .= '<p class="muted admin-help-blurb admin-design-templates__intro">Izvēlies vienu no oficiālajām tēmām. Pēc tam vari pielāgot krāsas un vāku.</p>';
     }
     $html .= '</fieldset>';
 
@@ -1709,7 +1709,7 @@ function efpic_render_cover_theme_controls(
         . ($coverMediaType === 'video' ? ' checked' : '') . ($coverVideos === [] ? ' disabled' : '') . '> Video</label>';
     $html .= '</div>';
     if ($coverVideos === []) {
-        $html .= '<p class="muted">Lai lietotu video vāku, vispirms pievieno MP4 failu cilnē <strong>Video</strong>.</p>';
+        $html .= '<p class="muted admin-help-blurb">Lai lietotu video vāku, vispirms pievieno MP4 failu cilnē <strong>Video</strong>.</p>';
     } else {
         $html .= '<label class="admin-cover-video-select' . ($coverMediaType === 'video' ? '' : ' is-hidden') . '" id="admin-cover-video-select">'
             . 'Vāka video<select name="cover_video_id" id="cover_video_id">';
@@ -1727,7 +1727,7 @@ function efpic_render_cover_theme_controls(
             . efpic_cover_theme_esc($lbl) . '</option>';
     }
     $html .= '</select></label>';
-    $html .= '<p class="muted">Video vāks automātiski atskaņojas (bez skaņas). Animācija darbojas arī ar bildi.</p>';
+    $html .= '<p class="muted admin-help-blurb">Video vāks automātiski atskaņojas (bez skaņas). Animācija darbojas arī ar bildi.</p>';
     $coverFromFav = efpic_gallery_cover_from_favorites($formMeta);
     $html .= efpic_render_admin_toggle('Vāka vietā rādīt nejaušu favorītu bildi', $coverFromFav, [
         'name' => 'cover_from_favorites',
@@ -1765,7 +1765,7 @@ function efpic_render_cover_theme_controls(
 
     $html .= '<fieldset class="admin-cover-theme__block admin-intro-typography" id="admin-intro-typography-block">';
     $html .= '<legend>Vāka tipogrāfija</legend>';
-    $html .= '<p class="muted">Attiecas uz visām tēmām — parakstu, nosaukumu un datumu sākuma ekrānā. Šrifts ar pilnu latviešu alfabēta atbalstu (ā, č, ē, ģ, ī, ķ, ļ, ņ, š, ū, ž).</p>';
+    $html .= '<p class="muted admin-help-blurb">Attiecas uz visām tēmām — parakstu, nosaukumu un datumu sākuma ekrānā. Šrifts ar pilnu latviešu alfabēta atbalstu (ā, č, ē, ģ, ī, ķ, ļ, ņ, š, ū, ž).</p>';
     $html .= '<div class="admin-intro-typography-row">';
     $moodFont = efpic_gallery_mood_font_family_key($formMeta);
     $html .= '<label>Šrifts<select name="mood_font_family" id="mood_font_family">';
