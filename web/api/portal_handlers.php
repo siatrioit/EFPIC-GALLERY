@@ -732,16 +732,16 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
 function efpic_portal_render_theme_panel(array $config, array $meta): string
 {
-    $html = '<section class="admin-fieldset-full" id="admin-fs-theme">';
-    $html .= '<h2 class="admin-share-block-title">Dizains</h2>';
-    $html .= '<form method="post" class="admin-cover-theme-form" id="admin-cover-theme-form">';
+    $html = '<form method="post" class="admin-form admin-cover-theme-form" id="admin-cover-theme-form"'
+        . ' data-admin-edit-slug="portal-theme">';
     $html .= '<input type="hidden" name="portal_action" value="save_cover_theme">';
+    $html .= '<fieldset class="admin-fieldset-full" id="admin-fs-theme"><legend>Dizains</legend>';
     $html .= '<input type="hidden" name="theme" value="efpic-base">';
     $html .= efpic_render_design_template_controls($config, $meta, false);
     $html .= efpic_render_design_palette_picker($config, $meta);
     $html .= efpic_render_cover_theme_controls($config, $meta, false);
     $html .= '<div class="admin-sticky-bar"><button type="submit" class="btn primary">Saglabāt dizainu</button></div>';
-    $html .= '</form></section>';
+    $html .= '</fieldset></form>';
 
     return $html;
 }

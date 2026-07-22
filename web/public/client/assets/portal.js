@@ -1072,6 +1072,110 @@
   initPortalSlideshowOrderDrag();
   initPortalSlideshowAudioDrag();
   initPortalSlideshowRenderPoll();
+  initPortalFieldsetCollapse();
+
+  function initPortalFieldsetCollapse() {
+    function fieldsetStorageKey(form) {
+      var slug = form.getAttribute('data-admin-edit-slug');
+      if (slug) {
+        return 'efpic_portal_fieldset_collapsed_' + slug;
+      }
+      return 'efpic_portal_fieldset_collapsed';
+    }
+
+    function fieldsetIdFromLegend(legend) {
+      var text = (legend.textContent || '').trim().toLowerCase();
+      var slug = text
+        .replace(/[^a-z0-9\u0100-\u024f]+/gi, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48);
+      return slug ? 'admin-fs-' + slug : '';
+    }
+
+    function setFieldsetCollapsed(fieldset, collapsed) {
+      fieldset.classList.toggle('is-collapsed', collapsed);
+      var toggle = fieldset.querySelector(':scope > legend .admin-fieldset-toggle');
+      if (toggle) {
+        toggle.setAttribute('aria-expanded', collapsed ? 'false' : 'true');
+      }
+    }
+
+    document.querySelectorAll('form.admin-form').forEach(function (form) {
+      var storageKey = fieldsetStorageKey(form);
+      var collapsedMap = {};
+      try {
+        collapsedMap = JSON.parse(localStorage.getItem(storageKey) || '{}');
+      } catch (e) {
+        collapsedMap = {};
+      }
+
+      form.querySelectorAll('fieldset').forEach(function (fieldset) {
+        if (fieldset.classList.contains('admin-fieldset-no-collapse')) {
+          return;
+        }
+        if (fieldset.classList.contains('admin-fieldset-collapsible')) {
+          return;
+        }
+        var legend = fieldset.querySelector(':scope > legend');
+        if (!legend) {
+          return;
+        }
+
+        var fieldsetId = fieldset.id || fieldsetIdFromLegend(legend);
+        if (!fieldsetId) {
+          return;
+        }
+        if (!fieldset.id) {
+          fieldset.id = fieldsetId;
+        }
+
+        var legendText = (legend.textContent || '').trim();
+        var body = document.createElement('div');
+        body.className = 'admin-fieldset-body';
+        body.id = fieldsetId + '-body';
+        Array.prototype.slice.call(fieldset.children).forEach(function (child) {
+          if (child.tagName !== 'LEGEND') {
+            body.appendChild(child);
+          }
+        });
+
+        legend.textContent = '';
+        var toggle = document.createElement('button');
+        toggle.type = 'button';
+        toggle.className = 'admin-fieldset-toggle';
+        toggle.setAttribute('aria-expanded', 'true');
+        toggle.setAttribute('aria-controls', body.id);
+        var icon = document.createElement('span');
+        icon.className = 'admin-fieldset-toggle__icon';
+        icon.setAttribute('aria-hidden', 'true');
+        icon.textContent = '▼';
+        var label = document.createElement('span');
+        label.className = 'admin-fieldset-toggle__label';
+        label.textContent = legendText;
+        toggle.appendChild(icon);
+        toggle.appendChild(label);
+        legend.appendChild(toggle);
+        fieldset.appendChild(body);
+        fieldset.classList.add('admin-fieldset-collapsible');
+
+        var collapsed = !!collapsedMap[fieldsetId];
+        setFieldsetCollapsed(fieldset, collapsed);
+
+        toggle.addEventListener('click', function () {
+          var nowCollapsed = !fieldset.classList.contains('is-collapsed');
+          setFieldsetCollapsed(fieldset, nowCollapsed);
+          if (nowCollapsed) {
+            collapsedMap[fieldsetId] = true;
+          } else {
+            delete collapsedMap[fieldsetId];
+          }
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(collapsedMap));
+          } catch (e) {}
+        });
+      });
+    });
+  }
 
   function syncPortalSlideshowOrderField() {
     var list = document.getElementById('portal-slideshow-order-list');
