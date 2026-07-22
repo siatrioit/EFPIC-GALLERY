@@ -581,7 +581,10 @@ function efpic_gallery_deliver_rich_email(
             $headers[] = 'Content-Type: ' . $pack['contentType'];
             $message = $pack['body'];
         }
-        @mail($to, $encodedSubject, $message, implode("\r\n", $headers));
+        $ok = @mail($to, $encodedSubject, $message, implode("\r\n", $headers));
+        if ($ok !== true) {
+            throw new RuntimeException('PHP mail() neatgrieza veiksmīgu rezultātu — e-pasts, visticamāk, netika pieņemts sūtīšanai.');
+        }
 
         return;
     }

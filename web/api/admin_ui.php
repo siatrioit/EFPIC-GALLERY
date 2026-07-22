@@ -2710,9 +2710,14 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         return $html;
     }
 
-    $html .= '<div class="admin-table-wrap"><table class="admin-table admin-visitor-emails-table">';
+    $html .= '<div class="admin-table-wrap"><table class="admin-table admin-visitor-emails-table" id="admin-visitor-emails-table">';
     $html .= '<thead><tr>';
-    $html .= '<th>Laiks</th><th>Saņēmējs</th><th>Tips</th><th>Izmērs</th><th>Statuss</th><th>Darbība</th>';
+    $html .= '<th><button type="button" class="admin-table-sort is-active" data-sort-key="time" data-sort-type="number" data-sort-dir="desc" aria-label="Kārtot pēc laika">Laiks</button></th>';
+    $html .= '<th><button type="button" class="admin-table-sort" data-sort-key="recipient" data-sort-type="text" aria-label="Kārtot pēc saņēmēja">Saņēmējs</button></th>';
+    $html .= '<th><button type="button" class="admin-table-sort" data-sort-key="type" data-sort-type="text" aria-label="Kārtot pēc tipa">Tips</button></th>';
+    $html .= '<th><button type="button" class="admin-table-sort" data-sort-key="size" data-sort-type="text" aria-label="Kārtot pēc izmēra">Izmērs</button></th>';
+    $html .= '<th><button type="button" class="admin-table-sort" data-sort-key="status" data-sort-type="text" aria-label="Kārtot pēc statusa">Statuss</button></th>';
+    $html .= '<th>Darbība</th>';
     $html .= '</tr></thead><tbody>';
 
     foreach ($jobs as $job) {
@@ -2723,11 +2728,16 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         $visitor = $visitorId !== '' ? efpic_visitor_get_visitor($data, $visitorId) : null;
         $name = is_array($visitor) ? trim((string) ($visitor['name'] ?? '')) : '';
         $email = is_array($visitor) ? trim((string) ($visitor['email'] ?? '')) : '';
-        if ($email === '' && is_array($visitor)) {
-            $email = trim((string) ($visitor['email'] ?? ''));
-        }
         $created = (string) ($job['created_at'] ?? $job['updated_at'] ?? '');
-        $createdLabel = $created !== '' ? substr(str_replace('T', ' ', $created), 0, 16) . ' UTC' : '—';
+        $createdTs = 0;
+        if ($created !== '') {
+            try {
+                $createdTs = (new DateTimeImmutable($created))->getTimestamp();
+            } catch (Throwable) {
+                $createdTs = 0;
+            }
+        }
+        $createdLabel = $created !== '' ? efpic_admin_format_sync_datetime_lv($created) : '—';
         $size = (string) ($job['size'] ?? 'web');
         $sizeLabel = function_exists('efpic_visitor_zip_size_label')
             ? efpic_visitor_zip_size_label($size)
@@ -2737,9 +2747,16 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         $error = efpic_visitor_zip_error_label((string) ($job['error'] ?? ''));
         $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
         $preparedN = count($prepared);
-        $canRetry = $status === 'failed' || ($status === 'done' && !$emailSent);
+        $canRetry = $status === 'failed' || $status === 'done';
+        $retryLabel = ($status === 'done' && $emailSent) ? 'Nosūtīt vēlreiz' : 'Mēģināt vēlreiz';
+        $recipientSort = mb_strtolower(trim($name . ' ' . $email));
 
-        $html .= '<tr>';
+        $html .= '<tr'
+            . ' data-sort-time="' . efpic_admin_esc((string) $createdTs) . '"'
+            . ' data-sort-recipient="' . efpic_admin_esc($recipientSort) . '"'
+            . ' data-sort-type="' . efpic_admin_esc(mb_strtolower($typeLabel)) . '"'
+            . ' data-sort-size="' . efpic_admin_esc(mb_strtolower($sizeLabel)) . '"'
+            . ' data-sort-status="' . efpic_admin_esc(mb_strtolower($statusLabel)) . '">';
         $html .= '<td><span class="muted">' . efpic_admin_esc($createdLabel) . '</span></td>';
         $html .= '<td>';
         if ($name !== '') {
@@ -2768,9 +2785,11 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         $html .= '</td>';
         $html .= '<td>';
         if ($canRetry && $jobId !== '') {
-            $html .= '<button type="submit" class="btn admin-btn-sm primary" name="visitor_zip_retry" value="'
+            $html .= '<button type="submit" class="btn admin-btn-sm'
+                . (($status === 'done' && $emailSent) ? '' : ' primary')
+                . '" name="visitor_zip_retry" value="'
                 . efpic_admin_esc($jobId) . '" formaction="delivery_edit.php?slug=' . rawurlencode($slug)
-                . '" formnovalidate>Mēģināt vēlreiz</button>';
+                . '" formnovalidate>' . efpic_admin_esc($retryLabel) . '</button>';
         } else {
             $html .= '<span class="muted">—</span>';
         }
@@ -2886,7 +2905,7 @@ function efpic_admin_render_gallery_email_settings_fieldset(array $settings): st
 {
     $email = is_array($settings['gallery_email'] ?? null) ? $settings['gallery_email'] : [];
 
-    $html = '<fieldset class="admin-fieldset-full"><legend>E-pasts klientam</legend>';
+    $html = '<fieldset class="admin-fieldset-full" id="admin-fs-email"><legend>E-pasts klientam</legend>';
     $html .= '<p class="muted">SMTP vai servera <code>mail()</code>. Sagatavju mainīgo saraksts — sadaļā <strong>Ziņu sagataves</strong> zemāk.</p>';
     $html .= '<input type="hidden" name="gallery_email_enabled" value="0">';
     $html .= efpic_render_admin_toggle('Ieslēgt e-pasta sūtīšanu klientiem', !empty($email['enabled']), [
@@ -2929,7 +2948,20 @@ function efpic_admin_render_gallery_email_settings_fieldset(array $settings): st
     $html .= '<label>SMTP parole<input type="password" name="gallery_email_smtp_pass" value="" autocomplete="new-password" placeholder="'
         . ((string) ($email['smtp_pass'] ?? '') !== '' ? '••••••••' : '') . '"></label>';
     $html .= '<p class="muted">Atstāj paroli tukšu, lai saglabātu esošo.</p>';
-    $html .= '</div></fieldset>';
+    $html .= '</div>';
+    $html .= '<div class="admin-email-test">';
+    $html .= '<h3 class="admin-share-block-title">Testa e-pasts</h3>';
+    $html .= '<p class="muted">Nosūta īsu testa vēstuli ar <strong>pašreiz saglabātajiem</strong> iestatījumiem '
+        . '(vispirms nospied «Saglabāt», ja tikko mainīji SMTP). Ja tests izdodas, bet ZIP e-pasts nenāk — '
+        . 'pārbaudi spam un vai saņēmēja adrese nav bloķēta.</p>';
+    $defaultTo = (string) ($email['from'] ?? '');
+    $html .= '<div class="admin-form-layout admin-form-layout--basic admin-email-test__row">';
+    $html .= '<label>Saņēmēja e-pasts<input type="email" name="test_email_to" value="'
+        . efpic_admin_esc($defaultTo) . '" placeholder="tu@piemers.lv" form="admin-email-test-form"></label>';
+    $html .= '<div class="admin-email-test__actions">';
+    $html .= '<button type="submit" class="btn" form="admin-email-test-form" name="send_test_email" value="1">Nosūtīt testa e-pastu</button>';
+    $html .= '</div></div></div>';
+    $html .= '</fieldset>';
 
     return $html;
 }
@@ -2939,6 +2971,39 @@ function efpic_admin_parse_gallery_whatsapp_settings_from_post(): array
     return [
         'default_country_code' => trim((string) ($_POST['gallery_whatsapp_country'] ?? '371')) ?: '371',
     ];
+}
+
+function efpic_admin_send_test_email(array $config, string $to): void
+{
+    $to = trim($to);
+    if ($to === '' || !filter_var($to, FILTER_VALIDATE_EMAIL)) {
+        throw new InvalidArgumentException('Ievadi derīgu testa e-pasta adresi.');
+    }
+    if (!efpic_gallery_email_ready($config)) {
+        throw new RuntimeException('E-pasts nav gatavs — ieslēdz sūtīšanu un aizpildi nosūtītāju / SMTP (vai PHP mail), tad saglabā.');
+    }
+
+    $subject = 'EFPIC testa e-pasts — ' . gmdate('Y-m-d H:i') . ' UTC';
+    $plain = "Sveiki!\n\n"
+        . "Šis ir testa e-pasts no EFPIC admin Iestatījumiem.\n"
+        . "Ja saņēmi šo vēstuli, e-pasta sūtīšana strādā.\n\n"
+        . 'Laiks (LV): ' . efpic_admin_format_sync_datetime_lv(gmdate('c')) . "\n";
+    $html = '<div style="font-family:sans-serif;font-size:14px;line-height:1.5;color:#111;">'
+        . '<p>Sveiki!</p>'
+        . '<p>Šis ir <strong>testa e-pasts</strong> no EFPIC admin Iestatījumiem.</p>'
+        . '<p>Ja saņēmi šo vēstuli, e-pasta sūtīšana strādā.</p>'
+        . '<p style="color:#666;">Laiks (LV): ' . htmlspecialchars(efpic_admin_format_sync_datetime_lv(gmdate('c')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>'
+        . '</div>';
+
+    $plainBody = efpic_gallery_email_with_signature($config, $plain);
+    $htmlBody = efpic_gallery_email_html_body_with_signature($config, $plain);
+    // Prefer richer HTML body when signature has markup.
+    $sigHtml = efpic_gallery_email_signature_html($config);
+    if ($sigHtml !== '') {
+        $htmlBody = $html . '<div style="margin-top:24px;padding-top:16px;border-top:1px solid #ddd;">' . $sigHtml . '</div>';
+    }
+
+    efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $htmlBody, []);
 }
 
 function efpic_admin_render_gallery_whatsapp_settings_fieldset(array $settings): string
@@ -3258,6 +3323,7 @@ function efpic_admin_settings_page(array $config): void
     $settings = efpic_load_app_settings($config);
     $saved = isset($_GET['saved']);
     $renderQueue = isset($_GET['render_queue']);
+    $emailTest = isset($_GET['email_test']);
     $error = trim((string) ($_GET['error'] ?? ''));
 
     $body = '';
@@ -3266,6 +3332,9 @@ function efpic_admin_settings_page(array $config): void
     }
     if ($renderQueue) {
         $body .= '<p class="admin-ok">Render rindas darbība izpildīta.</p>';
+    }
+    if ($emailTest) {
+        $body .= '<p class="admin-ok">Testa e-pasts nosūtīts. Pārbaudi iesūtni (un spam).</p>';
     }
     if ($error !== '') {
         $body .= '<p class="err">' . efpic_admin_esc($error) . '</p>';
@@ -3311,6 +3380,7 @@ function efpic_admin_settings_page(array $config): void
     }
     $body .= efpic_admin_render_render_queue_panel($config);
     $body .= '</div></form>';
+    $body .= '<form id="admin-email-test-form" method="post" action="settings.php" hidden aria-hidden="true"></form>';
 
     $sigJs = '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/rich-text-editor.js')) . '" defer></script>';
 

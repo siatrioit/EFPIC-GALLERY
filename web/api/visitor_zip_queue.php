@@ -556,19 +556,15 @@ function efpic_visitor_zip_admin_retry_job(array $config, string $slug, string $
         return ['ok' => false, 'error' => 'Job nepieder šai galerijai.'];
     }
     $status = (string) ($job['status'] ?? '');
-    if ($status !== 'failed' && !($status === 'done' && empty($job['email_sent']))) {
-        if (in_array($status, ['queued', 'processing'], true)) {
-            return ['ok' => false, 'error' => 'Job jau ir rindā vai apstrādē.'];
-        }
-        if ($status === 'done' && !empty($job['email_sent'])) {
-            return ['ok' => false, 'error' => 'E-pasts jau ir nosūtīts. Ja vajag jaunu, viesim jālūdz vēlreiz.'];
-        }
+    if (in_array($status, ['queued', 'processing'], true)) {
+        return ['ok' => false, 'error' => 'Job jau ir rindā vai apstrādē.'];
+    }
+    if (!in_array($status, ['failed', 'done'], true)) {
+        return ['ok' => false, 'error' => 'Šo job nevar atkārtot (statuss: ' . $status . ').'];
     }
 
-    // Saglabā sagatavotos ZIP, bet mēģina e-pastu / atlikušo sagatavošanu no jauna.
-    if ($status === 'failed' && !empty($job['email_sent'])) {
-        $job['email_sent'] = false;
-    }
+    // Atkārtoti mēģina e-pasta sūtīšanu (arī ja iepriekš bija atzīmēts kā nosūtīts).
+    $job['email_sent'] = false;
     $job['status'] = 'queued';
     $job['claimed_at'] = '';
     $job['error'] = '';

@@ -3499,6 +3499,53 @@
   max-width: 28rem;
 }
 
+.admin-table-sort {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  cursor: pointer;
+}
+
+.admin-table-sort:hover,
+.admin-table-sort.is-active {
+  color: var(--admin-accent);
+}
+
+.admin-table-sort::after {
+  content: '↕';
+  opacity: 0.35;
+  font-size: 0.75em;
+}
+
+.admin-table-sort.is-active[data-sort-dir="asc"]::after {
+  content: '↑';
+  opacity: 0.9;
+}
+
+.admin-table-sort.is-active[data-sort-dir="desc"]::after {
+  content: '↓';
+  opacity: 0.9;
+}
+
+.admin-email-test {
+  margin-top: 18px;
+  padding-top: 16px;
+  border-top: 1px solid var(--admin-border);
+}
+
+.admin-email-test__actions {
+  display: flex;
+  align-items: flex-end;
+}
+
 .admin-share-set-foot {
   display: flex;
   flex-wrap: wrap;

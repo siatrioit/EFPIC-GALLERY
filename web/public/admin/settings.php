@@ -34,6 +34,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'render_qu
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
+        if (!empty($_POST['send_test_email'])) {
+            efpic_admin_send_test_email($config, (string) ($_POST['test_email_to'] ?? ''));
+            header('Location: settings.php?email_test=1#admin-fs-email');
+            exit;
+        }
         $action = trim((string) ($_POST['render_queue_action'] ?? ''));
         if ($action !== '') {
             if (str_starts_with($action, 'retry:')) {
@@ -67,7 +72,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     } catch (Throwable $e) {
-        header('Location: settings.php?error=' . rawurlencode($e->getMessage()));
+        $hash = !empty($_POST['send_test_email']) ? '#admin-fs-email' : '';
+        header('Location: settings.php?error=' . rawurlencode($e->getMessage()) . $hash);
         exit;
     }
 }

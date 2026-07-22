@@ -3145,6 +3145,49 @@
     });
   })();
 
+  (function initAdminVisitorEmailsSort() {
+    var table = document.getElementById('admin-visitor-emails-table');
+    if (!table) return;
+    var tbody = table.tBodies[0];
+    if (!tbody) return;
+
+    table.querySelectorAll('.admin-table-sort').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-sort-key') || '';
+        if (!key) return;
+        var type = btn.getAttribute('data-sort-type') || 'text';
+        var currentDir = btn.getAttribute('data-sort-dir') || '';
+        var nextDir = currentDir === 'asc' ? 'desc' : 'asc';
+        if (!btn.classList.contains('is-active')) {
+          nextDir = key === 'time' ? 'desc' : 'asc';
+        }
+
+        table.querySelectorAll('.admin-table-sort').forEach(function (other) {
+          other.classList.remove('is-active');
+          other.removeAttribute('data-sort-dir');
+        });
+        btn.classList.add('is-active');
+        btn.setAttribute('data-sort-dir', nextDir);
+
+        var rows = Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+        rows.sort(function (a, b) {
+          var av = a.getAttribute('data-sort-' + key) || '';
+          var bv = b.getAttribute('data-sort-' + key) || '';
+          var cmp = 0;
+          if (type === 'number') {
+            cmp = (parseFloat(av) || 0) - (parseFloat(bv) || 0);
+          } else {
+            cmp = av.localeCompare(bv, 'lv', { sensitivity: 'base' });
+          }
+          return nextDir === 'asc' ? cmp : -cmp;
+        });
+        rows.forEach(function (row) {
+          tbody.appendChild(row);
+        });
+      });
+    });
+  })();
+
   document.addEventListener('click', function (event) {
     var btn = event.target.closest('[data-analytics-apply]');
     if (!btn) return;

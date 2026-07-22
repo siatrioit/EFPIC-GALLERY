@@ -244,33 +244,46 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
         fwrite($fp, $cmd . "\r\n");
     };
 
-    $read();
+    $expectOk = static function (string $resp, string $step): void {
+        if (preg_match('/^[23]\d\d/', $resp) !== 1) {
+            $short = trim(preg_replace('/\s+/', ' ', $resp) ?? $resp);
+            if (strlen($short) > 180) {
+                $short = substr($short, 0, 177) . '…';
+            }
+            throw new RuntimeException('SMTP ' . $step . ': ' . ($short !== '' ? $short : 'nezināma kļūda'));
+        }
+    };
+
+    $expectOk($read(), 'savienojums');
     $write('EHLO efpic.local');
-    $read();
+    $expectOk($read(), 'EHLO');
 
     if ($secure === 'tls') {
         $write('STARTTLS');
-        $read();
-        stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT);
+        $expectOk($read(), 'STARTTLS');
+        if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
+            fclose($fp);
+            throw new RuntimeException('SMTP STARTTLS kriptēšana neizdevās');
+        }
         $write('EHLO efpic.local');
-        $read();
+        $expectOk($read(), 'EHLO pēc TLS');
     }
 
     if ($user !== '') {
         $write('AUTH LOGIN');
-        $read();
+        $expectOk($read(), 'AUTH');
         $write(base64_encode($user));
-        $read();
+        $expectOk($read(), 'AUTH lietotājs');
         $write(base64_encode($pass));
-        $read();
+        $expectOk($read(), 'AUTH parole');
     }
 
     $write('MAIL FROM:<' . $from . '>');
-    $read();
+    $expectOk($read(), 'MAIL FROM');
     $write('RCPT TO:<' . $to . '>');
-    $read();
+    $expectOk($read(), 'RCPT TO');
     $write('DATA');
-    $read();
+    $expectOk($read(), 'DATA');
 
     $msg = "From: {$fromName} <{$from}>\r\n";
     $msg .= "To: <{$to}>\r\n";
@@ -287,7 +300,7 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
     }
     $msg .= "\r\n.\r\n";
     $write($msg);
-    $read();
+    $expectOk($read(), 'sūtīšana');
     $write('QUIT');
     fclose($fp);
 }
