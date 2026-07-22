@@ -659,6 +659,21 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     if (!empty($portalSections['media'])) {
         $body .= efpic_admin_tab_panel_open('admin-tab-media', $firstPanelId === 'admin-tab-media');
+        $body .= efpic_portal_render_section_info(
+            'Slideshow & video',
+            'portalMediaInfoModal',
+            'Slideshow un video',
+            [
+                [
+                    'title' => 'Slideshow',
+                    'text' => 'Ieslēdz slideshow un ģenerē MP4 no favorītiem — tas parādīsies publiskajā galerijā kā atsevišķa sadaļa. Vari iestatīt intervālu, audio, intro virsrakstu un fona krāsu.',
+                ],
+                [
+                    'title' => 'Video',
+                    'text' => 'Pievieno MP4 failu vai YouTube/Vimeo saiti. Katram video vari norādīt sadaļu, kurā tas rādās publiskajā galerijā.',
+                ],
+            ],
+        );
         $body .= efpic_portal_render_favorites_and_slideshow($config, $meta, $gt, $slideshow, $favCount, $slug);
         $body .= efpic_portal_render_videos_fieldset($config, $meta, $gt);
         $body .= efpic_admin_tab_panel_close();
@@ -889,8 +904,7 @@ function efpic_portal_render_scenes_panel(array $meta): string
         $scenesJson = '[]';
     }
 
-    $html = '<section class="admin-fieldset-full admin-scenes-panel portal-scenes-panel">';
-    $html .= efpic_portal_render_section_info(
+    $html = efpic_portal_render_section_info(
         'Galerijas sadaļas',
         'portalScenesInfoModal',
         'Kā strādā sadaļas',
@@ -909,6 +923,8 @@ function efpic_portal_render_scenes_panel(array $meta): string
             ],
         ],
     );
+    $html .= '<section class="admin-fieldset-full admin-scenes-panel portal-scenes-panel">';
+    $html .= '<h2 class="admin-share-block-title">Galerijas sadaļas</h2>';
     $html .= '<form method="post" class="portal-stack" id="portal-scenes-form">';
     $html .= '<input type="hidden" name="portal_action" value="save_scenes">';
     $html .= '<input type="hidden" name="scenes_json" id="portal_scenes_json" value="' . efpic_client_esc($scenesJson) . '">';
@@ -929,8 +945,8 @@ function efpic_portal_render_section_info(
     string $modalHeading,
     array $items,
 ): string {
-    $html = '<div class="portal-section-toolbar">';
-    $html .= '<p class="portal-section-toolbar__title">' . efpic_client_esc($title) . '</p>';
+    $html = '<div class="portal-images-action-bar">';
+    $html .= '<div class="portal-images-action-bar__btns"></div>';
     $html .= '<button type="button" class="portal-images-action-bar__info" data-portal-info-open'
         . ' aria-haspopup="dialog" aria-controls="' . efpic_client_esc($modalId) . '"'
         . ' aria-label="Palīdzība: ' . efpic_client_esc($title) . '">';

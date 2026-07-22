@@ -3339,48 +3339,6 @@
   gap: 16px;
 }
 
-.admin-share-sets-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0;
-}
-
-.admin-share-sets-toolbar__title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--admin-text);
-}
-
-.portal-section-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin: 0 0 16px;
-}
-
-.portal-section-toolbar__title {
-  margin: 0;
-  font-size: 1rem;
-  font-weight: 600;
-  color: var(--admin-text);
-}
-
-.admin-share-sets-toolbar .admin-share-info-btn,
-.admin-share-sets-toolbar .portal-images-action-bar__info,
-.portal-section-toolbar .portal-images-action-bar__info {
-  width: 32px;
-  height: 32px;
-  font-size: 0.88rem;
-}
-
-.admin-body--portal .admin-help-blurb {
-  display: none;
-}
-
 .admin-share-sets-body {
   display: flex;
   flex-direction: column;
@@ -3768,9 +3726,12 @@
 .portal-images-action-bar__info {
   flex: 0 0 auto;
   align-self: center;
+  margin-left: auto;
   width: 36px;
   height: 36px;
-  margin: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+  margin-right: 0;
   padding: 0;
   border: 1px solid var(--admin-border-strong);
   border-radius: 999px;
@@ -3799,8 +3760,13 @@
   margin: 0 0 12px;
 }
 
-.admin-body--portal #admin-tab-images {
+.admin-body--portal #admin-tab-images,
+.admin-body--portal .admin-tab-panel {
   overflow: visible;
+}
+
+.admin-body--portal .admin-help-blurb {
+  display: none;
 }
 
 .admin-body--portal .admin-main {

@@ -646,12 +646,11 @@ function efpic_admin_render_share_sets(array $config, array $meta): string
     $hasSlideshow = efpic_gallery_has_shareable_slideshow($meta);
 
     $html = '<div class="admin-form admin-share-sets-panel" id="admin-share-sets-panel">';
-    $html .= '<div class="admin-share-sets-toolbar">';
-    $html .= '<p class="admin-share-sets-toolbar__title">Kopīgojamās izlases</p>';
+    $html .= '<div class="portal-images-action-bar">';
+    $html .= '<div class="portal-images-action-bar__btns"></div>';
     $html .= '<button type="button" class="portal-images-action-bar__info admin-share-info-btn" data-share-info-open'
         . ' aria-haspopup="dialog" aria-controls="adminShareInfoModal" aria-label="Kā veidot un labot izlases">';
-    $html .= '<span aria-hidden="true">i</span></button>';
-    $html .= '</div>';
+    $html .= '<span aria-hidden="true">i</span></button></div>';
     $html .= '<div id="admin-share-sets-body" class="admin-share-sets-body">'
         . efpic_admin_render_share_sets_body($config, $meta) . '</div>';
     $html .= '<div class="portal-images-info-modal" id="adminShareInfoModal" hidden>';
