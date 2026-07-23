@@ -394,7 +394,7 @@ function efpic_visitor_zip_run_pending(array $config, int $limit = 1): int
     return $processed;
 }
 
-function efpic_visitor_zip_process_job_chain(array $config, string $jobId, int $maxSteps = 50): void
+function efpic_visitor_zip_process_job_chain(array $config, string $jobId, int $maxSteps = 120): void
 {
     $steps = 0;
     while ($steps < $maxSteps) {
@@ -428,7 +428,7 @@ function efpic_visitor_zip_finish_response_and_process(array $config, ?string $p
     @ignore_user_abort(true);
 
     if ($preferJobId !== null && $preferJobId !== '') {
-        efpic_visitor_zip_process_job_chain($config, $preferJobId, 50);
+        efpic_visitor_zip_process_job_chain($config, $preferJobId, 120);
         efpic_visitor_zip_run_pending($config, 3);
 
         return;
@@ -581,7 +581,7 @@ function efpic_visitor_zip_admin_retry_job(array $config, string $slug, string $
     $job['error'] = '';
     $job['retry_count'] = (int) ($job['retry_count'] ?? 0) + 1;
     efpic_visitor_zip_save_job($config, $job);
-    efpic_visitor_zip_process_job_chain($config, $jobId, 50);
+    efpic_visitor_zip_process_job_chain($config, $jobId, 120);
     efpic_visitor_zip_run_pending($config, 2);
 
     return ['ok' => true, 'job_id' => $jobId];

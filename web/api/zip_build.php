@@ -50,6 +50,26 @@ function efpic_zip_build_file(string $zipPath, callable $populate, ?int &$entryC
     return $count > 0 && $writer->finish();
 }
 
+function efpic_zip_num_files(string $zipPath): int
+{
+    if (!is_file($zipPath)) {
+        return 0;
+    }
+    if (!class_exists('ZipArchive')) {
+        $size = filesize($zipPath);
+
+        return ($size !== false && $size > 100) ? 1 : 0;
+    }
+    $zip = new ZipArchive();
+    if ($zip->open($zipPath, ZipArchive::RDONLY) !== true) {
+        return 0;
+    }
+    $count = (int) $zip->numFiles;
+    $zip->close();
+
+    return $count;
+}
+
 function efpic_zip_verify_file(string $zipPath, int $minEntries = 1): bool
 {
     if (!is_file($zipPath)) {
@@ -62,14 +82,8 @@ function efpic_zip_verify_file(string $zipPath, int $minEntries = 1): bool
     if (!class_exists('ZipArchive')) {
         return $size > 100;
     }
-    $zip = new ZipArchive();
-    if ($zip->open($zipPath, ZipArchive::RDONLY) !== true) {
-        return false;
-    }
-    $count = $zip->numFiles;
-    $zip->close();
 
-    return $count >= $minEntries;
+    return efpic_zip_num_files($zipPath) >= $minEntries;
 }
 
 final class EfpicPureZipWriter
