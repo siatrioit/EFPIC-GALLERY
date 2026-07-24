@@ -777,7 +777,8 @@ function efpic_visitor_zip_require_build_helpers(): void
 /** Cik bildes pievienot vienā ZIP soļa mēģinājumā (lokālā fallback). */
 function efpic_visitor_zip_local_batch_size(string $size): int
 {
-    return strtolower($size) === 'full' ? 4 : 10;
+    // PRINT Failiem fetch ir lēns — mazākas partijas = drošāki checkpointi pret HTTP timeout.
+    return strtolower($size) === 'full' ? 2 : 10;
 }
 
 /**
@@ -1004,11 +1005,12 @@ function efpic_visitor_zip_advance_local_batch(
     $zip->close();
 
     $newOffset = $offset + count($slice);
-    $job['zip_build'] = [
+    // Saglabā download_token / filename / fingerprint / collection_id — citādi nākamais solis krīt.
+    $job['zip_build'] = array_merge($build, [
         'offset' => $newOffset,
         'total' => $total,
         'added' => (int) ($build['added'] ?? 0) + $added,
-    ];
+    ]);
 
     if ($newOffset < $total) {
         return ['ok' => true, 'done' => false, 'entry_count' => (int) ($job['zip_build']['added'] ?? 0)];
@@ -1516,9 +1518,9 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
             $zipPath = $zipDir . DIRECTORY_SEPARATOR . $downloadToken . '.zip';
 
             // Vispirms Failiem (vai mazs lokālais komplekts) — viens solis.
-            $preferChunked = efpic_is_delivery_gallery($meta)
-                && $size !== 'both'
-                && count($images) > 25;
+            // PRINT: Failiem one-shot bieži timeout → uzreiz chunked partijas.
+            $preferChunked = count($images) > efpic_visitor_zip_local_batch_size($size)
+                || (efpic_is_delivery_gallery($meta) && strtolower($size) === 'full' && count($images) > 4);
             if (!$preferChunked) {
                 $built = efpic_visitor_materialize_images_zip($config, $meta, $found, $images, $size, $zipPath);
                 if (!empty($built['ok'])) {
@@ -1550,9 +1552,13 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
                     return ['ok' => true, 'done' => true];
                 }
                 @unlink($zipPath);
-            } else {
-                // Lielām delivery izlasēm: Failiem one-shot, tad chunked fallback.
-                $sizeKey = $size === 'full' ? 'full' : 'web';
+            } elseif (
+                efpic_is_delivery_gallery($meta)
+                && $size !== 'both'
+                && strtolower($size) !== 'full'
+            ) {
+                // Lielām web izlasēm: Failiem one-shot, tad chunked fallback.
+                $sizeKey = 'web';
                 $hashes = efpic_failiem_file_hashes_from_images($images, $size);
                 $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
                 if ($folderHash !== '' && count($hashes) >= 2
@@ -1669,24 +1675,217 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
     if ($collection === null) {
         return ['ok' => false, 'error' => 'not_found'];
     }
-
-    $item = efpic_visitor_zip_prepare_collection_item(
-        $config,
-        $slug,
-        $meta,
-        $ctx,
-        $galleryToken,
-        $visitorId,
-        $collection,
-        $size,
-    );
-    if ($item === null) {
-        return ['ok' => false, 'error' => 'zip_build_failed'];
+    if (!efpic_can_download_collection_zip($meta, $ctx, $size)) {
+        return ['ok' => false, 'error' => 'download_disabled'];
     }
 
-    $prepared[] = $item;
+    $images = efpic_visitor_collection_images($config, $slug, $meta, $ctx, $collectionId);
+    if ($images === []) {
+        return ['ok' => false, 'error' => 'empty_collection'];
+    }
+
+    $found = efpic_find_gallery_by_token($config, $galleryToken);
+    if ($found === null) {
+        return ['ok' => false, 'error' => 'gallery_not_found'];
+    }
+
+    $zipDir = efpic_visitor_zips_dir($config, $slug);
+    if (!is_dir($zipDir)) {
+        mkdir($zipDir, 0755, true);
+    }
+
+    $fingerprint = efpic_visitor_collection_zip_fingerprint($collection, $size);
+    $build = is_array($job['zip_build'] ?? null) ? $job['zip_build'] : null;
+    // Ja zip_build ir no citas kolekcijas / veca job — sākam no jauna.
+    if (is_array($build) && (string) ($build['collection_id'] ?? '') !== $collectionId) {
+        $staleToken = (string) ($build['download_token'] ?? '');
+        if ($staleToken !== '') {
+            @unlink($zipDir . DIRECTORY_SEPARATOR . $staleToken . '.zip');
+        }
+        unset($job['zip_build']);
+        $build = null;
+    }
+
+    $downloadToken = is_array($build) ? (string) ($build['download_token'] ?? '') : '';
+    $filename = is_array($build) ? (string) ($build['filename'] ?? '') : '';
+
+    if ($build === null) {
+        $existing = efpic_visitor_find_reusable_zip($data, $fingerprint, $zipDir);
+        if ($existing !== null) {
+            $token = (string) ($existing['id'] ?? '');
+            $zipPath = $zipDir . DIRECTORY_SEPARATOR . $token . '.zip';
+            $prepared[] = [
+                'collection' => $collection,
+                'download_url' => efpic_visitor_zip_download_url($config, $galleryToken, $token),
+                'download_token' => $token,
+                'count' => count($images),
+                'zip_bytes' => is_file($zipPath) ? (int) filesize($zipPath) : 0,
+            ];
+            $job['prepared'] = $prepared;
+            $job['collections_prepared'] = count($prepared);
+            unset($job['zip_build']);
+
+            return ['ok' => true, 'done' => count($prepared) >= count($collectionIds)];
+        }
+
+        $filename = efpic_client_zip_filename(
+            $slug,
+            $size,
+            'collection',
+            '',
+            (string) ($collection['name'] ?? 'Izlase'),
+            (string) ($meta['name'] ?? $slug),
+        );
+        $downloadToken = efpic_random_hex(20);
+        $zipPath = $zipDir . DIRECTORY_SEPARATOR . $downloadToken . '.zip';
+
+        // Lielākiem / PRINT: resumejamas lokālās partijas (nevis viss HTTP pieprasījumā).
+        // PRINT Failiem selected-ZIP bieži timeout → atstāj daļēju ZIP; web var mēģināt Failiem one-shot.
+        $preferChunked = count($images) > efpic_visitor_zip_local_batch_size($size);
+        if (!$preferChunked) {
+            $built = efpic_visitor_materialize_images_zip($config, $meta, $found, $images, $size, $zipPath);
+            if (!empty($built['ok'])) {
+                $entryCount = (int) ($built['entry_count'] ?? 0);
+                $data['zip_downloads'][$downloadToken] = [
+                    'id' => $downloadToken,
+                    'collection_id' => $collectionId,
+                    'visitor_id' => $visitorId,
+                    'size' => $size,
+                    'filename' => $filename,
+                    'file' => $downloadToken . '.zip',
+                    'fingerprint' => $fingerprint,
+                    'entry_count' => $entryCount,
+                    'expires_at' => gmdate('c', time() + efpic_visitor_zip_link_ttl_seconds()),
+                    'created_at' => gmdate('c'),
+                    'build_via' => (string) ($built['via'] ?? ''),
+                ];
+                efpic_visitor_collections_save($config, $slug, $data);
+                $prepared[] = [
+                    'collection' => $collection,
+                    'download_url' => efpic_visitor_zip_download_url($config, $galleryToken, $downloadToken),
+                    'download_token' => $downloadToken,
+                    'count' => count($images),
+                    'zip_bytes' => is_file($zipPath) ? (int) filesize($zipPath) : 0,
+                ];
+                $job['prepared'] = $prepared;
+                $job['collections_prepared'] = count($prepared);
+                unset($job['zip_build']);
+
+                return ['ok' => true, 'done' => count($prepared) >= count($collectionIds)];
+            }
+            @unlink($zipPath);
+        } elseif (
+            efpic_is_delivery_gallery($meta)
+            && $size !== 'both'
+            && strtolower($size) !== 'full'
+        ) {
+            $sizeKey = $size === 'full' ? 'full' : 'web';
+            $hashes = efpic_failiem_file_hashes_from_images($images, $size);
+            $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
+            if ($folderHash !== '' && count($hashes) >= 2
+                && efpic_failiem_download_selected_zip_to_file($config, $folderHash, $hashes, $zipPath)
+            ) {
+                $minBytes = max(1024, count($hashes) * 512);
+                if (efpic_zip_looks_valid($zipPath, $minBytes)) {
+                    $entryCount = efpic_zip_num_files($zipPath);
+                    if ($entryCount < 1) {
+                        $entryCount = count($hashes);
+                    }
+                    $data = efpic_visitor_collections_load($config, $slug);
+                    $data['zip_downloads'][$downloadToken] = [
+                        'id' => $downloadToken,
+                        'collection_id' => $collectionId,
+                        'visitor_id' => $visitorId,
+                        'size' => $size,
+                        'filename' => $filename,
+                        'file' => $downloadToken . '.zip',
+                        'fingerprint' => $fingerprint,
+                        'entry_count' => $entryCount,
+                        'expires_at' => gmdate('c', time() + efpic_visitor_zip_link_ttl_seconds()),
+                        'created_at' => gmdate('c'),
+                        'build_via' => 'failiem',
+                    ];
+                    efpic_visitor_collections_save($config, $slug, $data);
+                    $prepared[] = [
+                        'collection' => $collection,
+                        'download_url' => efpic_visitor_zip_download_url($config, $galleryToken, $downloadToken),
+                        'download_token' => $downloadToken,
+                        'count' => count($images),
+                        'zip_bytes' => is_file($zipPath) ? (int) filesize($zipPath) : 0,
+                    ];
+                    $job['prepared'] = $prepared;
+                    $job['collections_prepared'] = count($prepared);
+                    unset($job['zip_build']);
+
+                    return ['ok' => true, 'done' => count($prepared) >= count($collectionIds)];
+                }
+                @unlink($zipPath);
+            }
+        }
+
+        $job['zip_build'] = [
+            'collection_id' => $collectionId,
+            'download_token' => $downloadToken,
+            'filename' => $filename,
+            'fingerprint' => $fingerprint,
+            'offset' => 0,
+            'total' => count($images),
+            'added' => 0,
+        ];
+        $build = $job['zip_build'];
+    }
+
+    $downloadToken = (string) ($build['download_token'] ?? $downloadToken);
+    $filename = (string) ($build['filename'] ?? $filename);
+    if ($downloadToken === '') {
+        return ['ok' => false, 'error' => 'zip_build_failed'];
+    }
+    $zipPath = $zipDir . DIRECTORY_SEPARATOR . $downloadToken . '.zip';
+    $batch = efpic_visitor_zip_advance_local_batch(
+        $config,
+        $job,
+        $meta,
+        $found,
+        $images,
+        $size,
+        $zipPath,
+    );
+    if (empty($batch['ok'])) {
+        @unlink($zipPath);
+        unset($job['zip_build']);
+
+        return ['ok' => false, 'error' => (string) ($batch['error'] ?? 'zip_build_failed')];
+    }
+    if (empty($batch['done'])) {
+        return ['ok' => true, 'done' => false];
+    }
+
+    $entryCount = (int) ($batch['entry_count'] ?? efpic_zip_num_files($zipPath));
+    $data = efpic_visitor_collections_load($config, $slug);
+    $data['zip_downloads'][$downloadToken] = [
+        'id' => $downloadToken,
+        'collection_id' => $collectionId,
+        'visitor_id' => $visitorId,
+        'size' => $size,
+        'filename' => $filename,
+        'file' => $downloadToken . '.zip',
+        'fingerprint' => (string) ($build['fingerprint'] ?? $fingerprint),
+        'entry_count' => $entryCount,
+        'expires_at' => gmdate('c', time() + efpic_visitor_zip_link_ttl_seconds()),
+        'created_at' => gmdate('c'),
+        'build_via' => 'local_chunked',
+    ];
+    efpic_visitor_collections_save($config, $slug, $data);
+    $prepared[] = [
+        'collection' => $collection,
+        'download_url' => efpic_visitor_zip_download_url($config, $galleryToken, $downloadToken),
+        'download_token' => $downloadToken,
+        'count' => count($images),
+        'zip_bytes' => is_file($zipPath) ? (int) filesize($zipPath) : 0,
+    ];
     $job['prepared'] = $prepared;
     $job['collections_prepared'] = count($prepared);
+    unset($job['zip_build']);
 
     return ['ok' => true, 'done' => count($prepared) >= count($collectionIds)];
 }

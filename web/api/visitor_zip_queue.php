@@ -427,8 +427,8 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
 
     $advance = null;
     $batches = 0;
-    $maxBatches = 25;
-    $deadline = time() + 55;
+    $maxBatches = strtolower($size) === 'full' ? 12 : 25;
+    $deadline = time() + (strtolower($size) === 'full' ? 40 : 55);
     while (true) {
         $advance = efpic_visitor_zip_advance_job($config, $job, $meta, $ctx);
         if (empty($advance['ok'])) {
@@ -472,7 +472,7 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
             return;
         }
 
-        // Saglabā progresu pēc katras partijas (PRINT: 4 bildes), lai pēc 500 nezaudētu vietu.
+        // Saglabā progresu pēc katras partijas (PRINT: 2 bildes), lai pēc 500 nezaudētu vietu.
         $batches++;
         $job['status'] = 'processing';
         $job['claimed_at'] = gmdate('c');

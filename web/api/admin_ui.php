@@ -2875,7 +2875,7 @@ function efpic_admin_visitor_zips_poll_payload(array $config, string $slug): arr
         }
         if ($status === 'processing') {
             $claimed = strtotime((string) ($job['claimed_at'] ?? '')) ?: 0;
-            if ($claimed <= 0 || (time() - $claimed) > 90) {
+            if ($claimed <= 0 || (time() - $claimed) > 45) {
                 $job['status'] = 'queued';
                 $job['claimed_at'] = '';
                 efpic_visitor_zip_save_job($config, $job);
@@ -2883,7 +2883,7 @@ function efpic_admin_visitor_zips_poll_payload(array $config, string $slug): arr
             }
         }
         if ($status === 'queued') {
-            // 1 solis (~max 55s) — pietiek progresam; poll atkārtojas ik ~10s.
+            // 1 process_job (~40s PRINT) — poll ik ~8s turpina, nebloķē citas cilnes.
             efpic_visitor_zip_process_job_chain($config, $jobId, 1);
             $processed++;
             break;

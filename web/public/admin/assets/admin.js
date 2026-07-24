@@ -3250,7 +3250,7 @@
         });
     }
 
-    timer = window.setInterval(tick, 10000);
+    timer = window.setInterval(tick, 8000);
     if (emailsTabActive()) {
       window.setTimeout(tick, 1500);
     }
