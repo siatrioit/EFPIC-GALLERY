@@ -2690,17 +2690,69 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
     }
 
     efpic_visitor_zip_require_build_helpers();
-    // Atjaunina rindā gaidošos job, lai statuss būtu aktuāls.
-    efpic_visitor_zip_run_pending($config, 3);
+    efpic_visitor_zip_run_maintenance($config);
+
+    // Iestrēgušos atgriež rindā; smago PRINT darbu dzen pēc lapas atbildes (ne HTML renderī → 500).
+    $jobsForKick = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
+    $kickIds = [];
+    foreach ($jobsForKick as $kickJob) {
+        if (!is_array($kickJob)) {
+            continue;
+        }
+        $kickId = (string) ($kickJob['id'] ?? '');
+        $kickStatus = (string) ($kickJob['status'] ?? '');
+        if ($kickId === '') {
+            continue;
+        }
+        if ($kickStatus === 'processing') {
+            $claimed = strtotime((string) ($kickJob['claimed_at'] ?? '')) ?: 0;
+            if ($claimed > 0 && (time() - $claimed) <= 90) {
+                continue;
+            }
+            $kickJob['status'] = 'queued';
+            $kickJob['claimed_at'] = '';
+            efpic_visitor_zip_save_job($config, $kickJob);
+            $kickStatus = 'queued';
+        }
+        if ($kickStatus === 'queued') {
+            $kickIds[] = $kickId;
+        }
+    }
+    if ($kickIds !== []) {
+        register_shutdown_function(static function () use ($config, $kickIds): void {
+            @set_time_limit(0);
+            @ignore_user_abort(true);
+            if (function_exists('session_write_close')) {
+                @session_write_close();
+            }
+            foreach ($kickIds as $id) {
+                efpic_visitor_zip_process_job_chain($config, (string) $id, 8);
+            }
+        });
+    }
 
     $jobs = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
+    $hasActiveZipJobs = false;
+    foreach ($jobs as $j) {
+        if (!is_array($j)) {
+            continue;
+        }
+        if (in_array((string) ($j['status'] ?? ''), ['queued', 'processing'], true)) {
+            $hasActiveZipJobs = true;
+            break;
+        }
+    }
     $data = efpic_visitor_collections_load($config, $slug);
     $emailReady = efpic_gallery_email_ready($config);
 
-    $html = '<section class="admin-fieldset-full admin-visitor-emails-panel">';
+    $html = '<section class="admin-fieldset-full admin-visitor-emails-panel"'
+        . ($hasActiveZipJobs ? ' data-auto-refresh-emails="1"' : '') . '>';
     $html .= '<h2 class="admin-share-block-title">ZIP e-pasti viesiem</h2>';
     $html .= '<p class="muted">Šeit redzami pieprasījumi, kad viesis (vai kopīgošanas saites saņēmējs) lūdz ZIP uz e-pastu. '
         . 'Statuss rāda, vai ZIP vēl veidojas, vai e-pasts jau nosūtīts, vai ir kļūda.</p>';
+    if ($hasActiveZipJobs) {
+        $html .= '<p class="muted">ZIP tiek gatavots fonā — lapa atjaunosies automātiski, kamēr darbs nav pabeigts.</p>';
+    }
     if (!$emailReady) {
         $html .= '<p class="err">E-pasta sūtīšana nav gatava (skaties Admin → Iestatījumi). ZIP var sagatavoties, bet vēstule netiks nosūtīta.</p>';
     }
@@ -2794,8 +2846,15 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
             $html .= '<br><span class="err admin-visitor-email-error">' . efpic_admin_esc($error) . '</span>';
         }
         if ($status === 'processing' || $status === 'queued') {
-            $done = (int) ($job['collections_prepared'] ?? 0);
-            $html .= '<br><span class="muted">Progres: ' . $done . ' kolekcijas sagatavotas</span>';
+            $build = is_array($job['zip_build'] ?? null) ? $job['zip_build'] : null;
+            if (is_array($build) && (int) ($build['total'] ?? 0) > 0) {
+                $off = (int) ($build['offset'] ?? 0);
+                $tot = (int) ($build['total'] ?? 0);
+                $html .= '<br><span class="muted">ZIP progress: ' . $off . ' / ' . $tot . ' bildes</span>';
+            } else {
+                $done = (int) ($job['collections_prepared'] ?? 0);
+                $html .= '<br><span class="muted">Progres: ' . $done . ' kolekcijas sagatavotas</span>';
+            }
         }
         $html .= '</td>';
         $html .= '<td>';

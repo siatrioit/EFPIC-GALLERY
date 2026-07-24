@@ -3188,6 +3188,20 @@
     });
   })();
 
+  (function initAdminVisitorEmailsAutoRefresh() {
+    var panel = document.querySelector('[data-auto-refresh-emails="1"]');
+    if (!panel) return;
+    window.setTimeout(function () {
+      try {
+        var url = new URL(window.location.href);
+        url.searchParams.set('tab', 'admin-tab-emails');
+        window.location.replace(url.toString());
+      } catch (e) {
+        window.location.reload();
+      }
+    }, 8000);
+  })();
+
   document.addEventListener('click', function (event) {
     var btn = event.target.closest('[data-analytics-apply]');
     if (!btn) return;

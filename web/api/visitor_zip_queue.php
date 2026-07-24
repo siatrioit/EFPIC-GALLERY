@@ -41,8 +41,8 @@ function efpic_visitor_zip_save_job(array $config, array $job): void
 
 function efpic_visitor_zip_stuck_seconds(): int
 {
-    // PRINT Failiem lejupielāde var būt gara; tomēr pēc HTTP 500 job bieži paliek "processing".
-    return 10 * 60;
+    // PRINT Failiem / partijas: pēc HTTP 500 job bieži paliek "processing".
+    return 3 * 60;
 }
 
 /**
@@ -425,46 +425,63 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
         return;
     }
 
-    $advance = efpic_visitor_zip_advance_job($config, $job, $meta, $ctx);
-    if (empty($advance['ok'])) {
-        $job['status'] = 'failed';
-        $job['error'] = (string) ($advance['error'] ?? 'zip_build_failed');
-        efpic_visitor_zip_save_job($config, $job);
-
-        return;
-    }
-
-    $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
-    $job['collections_prepared'] = count($prepared);
-
-    if (!empty($advance['done'])) {
-        if ($prepared === []) {
+    $advance = null;
+    $batches = 0;
+    $maxBatches = 25;
+    $deadline = time() + 55;
+    while (true) {
+        $advance = efpic_visitor_zip_advance_job($config, $job, $meta, $ctx);
+        if (empty($advance['ok'])) {
             $job['status'] = 'failed';
-            $job['error'] = 'empty_collection';
+            $job['error'] = (string) ($advance['error'] ?? 'zip_build_failed');
             efpic_visitor_zip_save_job($config, $job);
 
             return;
         }
-        if (empty($job['email_sent'])) {
-            try {
-                efpic_visitor_zip_finalize_job_email($config, $slug, $meta, $visitor, $prepared, $size, $visitorId);
-                $job['email_sent'] = true;
-                $job['email_sent_at'] = gmdate('c');
-                $job['email_to'] = (string) ($visitor['email'] ?? '');
-            } catch (Throwable $e) {
+
+        $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
+        $job['collections_prepared'] = count($prepared);
+
+        if (!empty($advance['done'])) {
+            if ($prepared === []) {
                 $job['status'] = 'failed';
-                $msg = trim($e->getMessage());
-                $job['error'] = $msg !== '' ? $msg : 'email_send_failed';
+                $job['error'] = 'empty_collection';
                 efpic_visitor_zip_save_job($config, $job);
 
                 return;
             }
+            if (empty($job['email_sent'])) {
+                try {
+                    efpic_visitor_zip_finalize_job_email($config, $slug, $meta, $visitor, $prepared, $size, $visitorId);
+                    $job['email_sent'] = true;
+                    $job['email_sent_at'] = gmdate('c');
+                    $job['email_to'] = (string) ($visitor['email'] ?? '');
+                } catch (Throwable $e) {
+                    $job['status'] = 'failed';
+                    $msg = trim($e->getMessage());
+                    $job['error'] = $msg !== '' ? $msg : 'email_send_failed';
+                    efpic_visitor_zip_save_job($config, $job);
+
+                    return;
+                }
+            }
+            $job['status'] = 'done';
+            $job['error'] = '';
+            efpic_visitor_zip_save_job($config, $job);
+
+            return;
         }
-        $job['status'] = 'done';
+
+        // Saglabā progresu pēc katras partijas (PRINT: 4 bildes), lai pēc 500 nezaudētu vietu.
+        $batches++;
+        $job['status'] = 'processing';
+        $job['claimed_at'] = gmdate('c');
         $job['error'] = '';
         efpic_visitor_zip_save_job($config, $job);
 
-        return;
+        if ($batches >= $maxBatches || time() >= $deadline) {
+            break;
+        }
     }
 
     $job['status'] = 'queued';

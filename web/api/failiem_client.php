@@ -711,7 +711,11 @@ function efpic_failiem_download_selected_zip_to_file(
     if (!is_dir($dir)) {
         @mkdir($dir, 0755, true);
     }
-    $fp = @fopen($destPath, 'wb');
+    $partPath = $destPath . '.part';
+    if (is_file($partPath)) {
+        @unlink($partPath);
+    }
+    $fp = @fopen($partPath, 'wb');
     if ($fp === false) {
         @unlink($cookieFile);
 
@@ -729,7 +733,7 @@ function efpic_failiem_download_selected_zip_to_file(
     $ch = curl_init($streamUrl);
     if ($ch === false) {
         fclose($fp);
-        @unlink($destPath);
+        @unlink($partPath);
         @unlink($cookieFile);
 
         return false;
@@ -768,10 +772,24 @@ function efpic_failiem_download_selected_zip_to_file(
     fclose($fp);
     @unlink($cookieFile);
 
-    if ($code < 200 || $code >= 300 || $totalBytes < 100 || !is_file($destPath)) {
-        @unlink($destPath);
+    if ($code < 200 || $code >= 300 || $totalBytes < 100 || !is_file($partPath)) {
+        @unlink($partPath);
 
         return false;
+    }
+
+    if (is_file($destPath)) {
+        @unlink($destPath);
+    }
+    if (!@rename($partPath, $destPath)) {
+        // Windows rename dažreiz neizdodas uz esošu — kopējam.
+        if (@copy($partPath, $destPath)) {
+            @unlink($partPath);
+        } else {
+            @unlink($partPath);
+
+            return false;
+        }
     }
 
     return true;

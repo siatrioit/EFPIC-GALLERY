@@ -97,6 +97,15 @@ function efpic_visitor_zip_cleanup_expired(array $config, ?string $onlySlug = nu
                 @unlink($path);
                 $removed++;
             }
+            // Nepabeigtas Failiem lejupielādes (.part) — vecākas par 2h.
+            foreach (glob($zipDir . DIRECTORY_SEPARATOR . '*.zip.part') ?: [] as $partPath) {
+                $mtime = @filemtime($partPath) ?: 0;
+                if ($mtime > 0 && ($now - $mtime) < 7200) {
+                    continue;
+                }
+                @unlink($partPath);
+                $removed++;
+            }
         }
 
         if ($changed) {
