@@ -2829,7 +2829,11 @@ function efpic_admin_visitor_email_zips_row_html(array $data, array $job, string
     }
     if ($status === 'processing' || $status === 'queued') {
         $build = is_array($job['zip_build'] ?? null) ? $job['zip_build'] : null;
-        if (is_array($build) && (int) ($build['total'] ?? 0) > 0) {
+        if (is_array($build) && (string) ($build['mode'] ?? '') === 'failiem') {
+            $bytes = (int) ($build['failiem_bytes'] ?? $build['added'] ?? 0);
+            $mb = $bytes > 0 ? number_format($bytes / 1048576, 1, '.', '') . ' MB' : '0 MB';
+            $html .= '<br><span class="muted">Failiem ZIP: ' . efpic_admin_esc($mb) . '</span>';
+        } elseif (is_array($build) && (int) ($build['total'] ?? 0) > 0) {
             $off = (int) ($build['offset'] ?? 0);
             $tot = (int) ($build['total'] ?? 0);
             $html .= '<br><span class="muted">ZIP progress: ' . $off . ' / ' . $tot . ' bildes</span>';
