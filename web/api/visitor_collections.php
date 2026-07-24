@@ -744,7 +744,7 @@ function efpic_visitor_find_reusable_zip(array $data, string $fingerprint, strin
         }
         $file = (string) ($job['file'] ?? '');
         $zipPath = $zipDir . DIRECTORY_SEPARATOR . $file;
-        if ($file === '' || !is_file($zipPath) || !efpic_zip_verify_file($zipPath, 1)) {
+        if ($file === '' || !is_file($zipPath) || !efpic_zip_looks_valid($zipPath, 64)) {
             continue;
         }
 
@@ -807,10 +807,14 @@ function efpic_visitor_materialize_images_zip(
                 @unlink($zipPath);
             }
             if (efpic_failiem_download_selected_zip_to_file($config, $folderHash, $hashes, $zipPath)) {
-                $entryCount = efpic_zip_num_files($zipPath);
-                // Failiem ZIP dažreiz satur mapes ierakstus; pieņemam, ja failu skaits ≥ 90% no hash.
-                $minAccept = max(1, (int) floor($minExpected * 0.9));
-                if ($entryCount >= $minAccept && efpic_zip_verify_file($zipPath, $minAccept)) {
+                // PRINT/ZIP64: ZipArchive bieži neatver lielu arhīvu → iepriekš kļūdaini dzēsām derīgu failu.
+                $minBytes = max(1024, $minExpected * 512);
+                if (efpic_zip_looks_valid($zipPath, $minBytes)) {
+                    $entryCount = efpic_zip_num_files($zipPath);
+                    if ($entryCount < 1) {
+                        $entryCount = $minExpected;
+                    }
+
                     return ['ok' => true, 'entry_count' => $entryCount, 'via' => 'failiem'];
                 }
                 @unlink($zipPath);
@@ -866,7 +870,7 @@ function efpic_visitor_materialize_images_zip(
         }
     }, $entryCount);
 
-    if (!$ok || $entryCount === 0 || !efpic_zip_verify_file($zipPath, max(1, $entryCount))) {
+    if (!$ok || $entryCount === 0 || !efpic_zip_looks_valid($zipPath)) {
         @unlink($zipPath);
 
         return ['ok' => false, 'error' => 'zip_build_failed'];
@@ -906,7 +910,7 @@ function efpic_visitor_zip_advance_local_batch(
     $slice = array_slice($images, $offset, $batchSize);
     if ($slice === []) {
         $count = efpic_zip_num_files($zipPath);
-        if ($count < 1 || !efpic_zip_verify_file($zipPath, 1)) {
+        if ($count < 1 || !efpic_zip_looks_valid($zipPath, 64)) {
             @unlink($zipPath);
             unset($job['zip_build']);
 
@@ -999,7 +1003,11 @@ function efpic_visitor_zip_advance_local_batch(
 
     $count = efpic_zip_num_files($zipPath);
     unset($job['zip_build']);
-    if ($count < 1 || !efpic_zip_verify_file($zipPath, 1)) {
+    if ($count < 1 || !efpic_zip_looks_valid($zipPath, 64)) {
+        // ZIP64: numFiles var būt 0, bet fails derīgs.
+        if (efpic_zip_looks_valid($zipPath, 1024)) {
+            return ['ok' => true, 'done' => true, 'entry_count' => max($count, (int) ($build['added'] ?? 0) + $added)];
+        }
         @unlink($zipPath);
 
         return ['ok' => false, 'error' => 'zip_build_failed'];
@@ -1369,7 +1377,7 @@ function efpic_visitor_zip_prepare_collection_item(
     }
 
     $zipPath = efpic_visitor_zips_dir($config, $slug) . DIRECTORY_SEPARATOR . $downloadToken . '.zip';
-    if (!efpic_zip_verify_file($zipPath, 1)) {
+    if (!efpic_zip_looks_valid($zipPath, 64)) {
         return null;
     }
 
@@ -1536,9 +1544,13 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
                 if ($folderHash !== '' && count($hashes) >= 2
                     && efpic_failiem_download_selected_zip_to_file($config, $folderHash, $hashes, $zipPath)
                 ) {
-                    $minAccept = max(1, (int) floor(count($hashes) * 0.9));
-                    $entryCount = efpic_zip_num_files($zipPath);
-                    if ($entryCount >= $minAccept && efpic_zip_verify_file($zipPath, $minAccept)) {
+                    $minBytes = max(1024, count($hashes) * 512);
+                    if (efpic_zip_looks_valid($zipPath, $minBytes)) {
+                        $entryCount = efpic_zip_num_files($zipPath);
+                        if ($entryCount < 1) {
+                            $entryCount = count($hashes);
+                        }
+                        $data = efpic_visitor_collections_load($config, $slug);
                         $data['zip_downloads'][$downloadToken] = [
                             'id' => $downloadToken,
                             'collection_id' => 'share_all',
@@ -1687,7 +1699,7 @@ function efpic_visitor_zip_finalize_job_email(
             throw new RuntimeException('ZIP nav gatavs');
         }
         $zipPath = $zipDir . DIRECTORY_SEPARATOR . $token . '.zip';
-        if (!efpic_zip_verify_file($zipPath, 1)) {
+        if (!efpic_zip_looks_valid($zipPath, 64)) {
             throw new RuntimeException('ZIP nav gatavs');
         }
     }
@@ -1943,18 +1955,10 @@ function efpic_visitor_deliver_zip_ready_email(
         $config,
         efpic_visitor_zip_email_plain($config, $meta, $visitor, $prepared, $size),
     );
-    $htmlPack = efpic_visitor_zip_email_html_pack($config, $meta, $visitor, $prepared, $size);
-    try {
-        efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $htmlPack['html'], $htmlPack['inline']);
-    } catch (Throwable $richError) {
-        // HTML/MIME dažkārt neiziet SMTP; vienkāršais teksts bieži aiziet.
-        try {
-            $emailCfg = efpic_gallery_email_cfg($config);
-            efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
-        } catch (Throwable) {
-            throw $richError;
-        }
-    }
+    // Tikai plain: lielais HTML MIME bieži saņem SMTP 250, bet vēstule neatnāk.
+    // Saites un teksts plain vēstulē ir pilnīgi pietiekami lejupielādei.
+    $emailCfg = efpic_gallery_email_cfg($config);
+    efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
 }
 
 /** @param list<array{collection: array<string, mixed>, download_url: string, count: int}> $prepared */

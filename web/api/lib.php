@@ -959,7 +959,8 @@ function efpic_random_hex(int $bytes): string
 
 function efpic_slugify(string $name): string
 {
-    $s = strtolower(trim($name));
+    // Vispirms ā→a u.c., citādi «Kāzu» kļūst par «k-zu» ar tukšām «-» vietām.
+    $s = strtolower(trim(efpic_transliterate_lv($name)));
     $s = preg_replace('/[^a-z0-9]+/', '-', $s) ?? '';
     $s = trim($s, '-');
 

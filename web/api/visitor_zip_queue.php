@@ -339,6 +339,8 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
             try {
                 efpic_visitor_zip_finalize_job_email($config, $slug, $meta, $visitor, $prepared, $size, $visitorId);
                 $job['email_sent'] = true;
+                $job['email_sent_at'] = gmdate('c');
+                $job['email_to'] = (string) ($visitor['email'] ?? '');
             } catch (Throwable $e) {
                 $job['status'] = 'failed';
                 $msg = trim($e->getMessage());

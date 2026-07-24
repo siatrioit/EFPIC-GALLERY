@@ -222,12 +222,20 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
         throw new RuntimeException('SMTP nav konfigurēts');
     }
 
+    $encodeHeader = static function (string $value): string {
+        if ($value === '' || preg_match('/^[\x20-\x7E]*$/', $value) === 1) {
+            return $value;
+        }
+
+        return '=?UTF-8?B?' . base64_encode($value) . '?=';
+    };
+
     $remote = ($secure === 'ssl' ? 'ssl://' : '') . $host . ':' . $port;
     $fp = @stream_socket_client($remote, $errno, $errstr, 20);
     if ($fp === false) {
         throw new RuntimeException('SMTP savienojums: ' . $errstr);
     }
-    stream_set_timeout($fp, 60);
+    stream_set_timeout($fp, 120);
 
     $read = static function () use ($fp): string {
         $data = '';
@@ -273,7 +281,11 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
 
     try {
         $expectOk($read(), 'savienojums');
-        $write('EHLO efpic.local');
+        $heloHost = 'efpic.gallery';
+        if (isset($_SERVER['HTTP_HOST']) && is_string($_SERVER['HTTP_HOST']) && $_SERVER['HTTP_HOST'] !== '') {
+            $heloHost = preg_replace('/:\d+$/', '', $_SERVER['HTTP_HOST']) ?: $heloHost;
+        }
+        $write('EHLO ' . $heloHost);
         $expectOk($read(), 'EHLO');
 
         if ($secure === 'tls') {
@@ -282,7 +294,7 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
             if (!@stream_socket_enable_crypto($fp, true, STREAM_CRYPTO_METHOD_TLS_CLIENT)) {
                 throw new RuntimeException('SMTP STARTTLS kriptēšana neizdevās');
             }
-            $write('EHLO efpic.local');
+            $write('EHLO ' . $heloHost);
             $expectOk($read(), 'EHLO pēc TLS');
         }
 
@@ -302,8 +314,11 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
         $write('DATA');
         $expectOk($read(), 'DATA');
 
-        $msg = "From: {$fromName} <{$from}>\r\n";
-        $msg .= "To: <{$to}>\r\n";
+        $fromHeader = $encodeHeader($fromName) . ' <' . $from . '>';
+        $msg = 'From: ' . $fromHeader . "\r\n";
+        $msg .= 'To: <' . $to . ">\r\n";
+        $msg .= 'Date: ' . gmdate('D, d M Y H:i:s') . " +0000\r\n";
+        $msg .= 'Message-ID: <' . bin2hex(random_bytes(12)) . '@' . $heloHost . ">\r\n";
         $msg .= 'Subject: =?UTF-8?B?' . base64_encode($subject) . "?=\r\n";
         $msg .= "MIME-Version: 1.0\r\n";
         if ($htmlBody !== null && $htmlBody !== '') {
@@ -311,7 +326,8 @@ function efpic_guest_send_email_message(array $email, string $to, string $subjec
             $msg .= 'Content-Type: ' . $pack['contentType'] . "\r\n\r\n";
             $msg .= $pack['body'];
         } else {
-            $msg .= "Content-Type: text/plain; charset=UTF-8\r\n\r\n";
+            $msg .= "Content-Type: text/plain; charset=UTF-8\r\n";
+            $msg .= "Content-Transfer-Encoding: 8bit\r\n\r\n";
             $msg .= $body;
         }
         // SMTP prasa CRLF un punktiņu escape rindām, kas sākas ar "."

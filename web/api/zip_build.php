@@ -70,20 +70,43 @@ function efpic_zip_num_files(string $zipPath): int
     return $count;
 }
 
-function efpic_zip_verify_file(string $zipPath, int $minEntries = 1): bool
+/** Vai fails izskatās pēc ZIP (PK…), arī ZIP64, ko vecāks ZipArchive dažreiz neatver. */
+function efpic_zip_looks_valid(string $zipPath, int $minBytes = 64): bool
 {
     if (!is_file($zipPath)) {
         return false;
     }
     $size = filesize($zipPath);
-    if ($size === false || $size < 22) {
+    if ($size === false || $size < $minBytes) {
+        return false;
+    }
+    $fh = @fopen($zipPath, 'rb');
+    if ($fh === false) {
+        return false;
+    }
+    $magic = (string) fread($fh, 4);
+    fclose($fh);
+
+    return $magic === "PK\x03\x04"
+        || $magic === "PK\x05\x06"
+        || $magic === "PK\x07\x08";
+}
+
+function efpic_zip_verify_file(string $zipPath, int $minEntries = 1): bool
+{
+    if (!efpic_zip_looks_valid($zipPath)) {
         return false;
     }
     if (!class_exists('ZipArchive')) {
-        return $size > 100;
+        return true;
+    }
+    $count = efpic_zip_num_files($zipPath);
+    // ZIP64 / bojāts ZipArchive open → numFiles=0, bet fails var būt derīgs.
+    if ($count <= 0) {
+        return efpic_zip_looks_valid($zipPath, 1024);
     }
 
-    return efpic_zip_num_files($zipPath) >= $minEntries;
+    return $count >= $minEntries;
 }
 
 final class EfpicPureZipWriter
