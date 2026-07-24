@@ -2747,7 +2747,21 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         $error = efpic_visitor_zip_error_label((string) ($job['error'] ?? ''));
         $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
         $preparedN = count($prepared);
-        $canRetry = $status === 'failed' || $status === 'done';
+        $claimedTs = 0;
+        $claimedRaw = (string) ($job['claimed_at'] ?? '');
+        if ($claimedRaw !== '') {
+            try {
+                $claimedTs = (new DateTimeImmutable($claimedRaw))->getTimestamp();
+            } catch (Throwable) {
+                $claimedTs = 0;
+            }
+        }
+        $canRetry = match ($status) {
+            'failed', 'done' => true,
+            // HTTP 500 bieži atstāj "processing" — pēc 2 min ļaujam atsākt.
+            'processing' => $claimedTs <= 0 || (time() - $claimedTs) > 120,
+            default => false,
+        };
         $retryLabel = ($status === 'done' && $emailSent) ? 'Nosūtīt vēlreiz' : 'Mēģināt vēlreiz';
         $recipientSort = mb_strtolower(trim($name . ' ' . $email));
 

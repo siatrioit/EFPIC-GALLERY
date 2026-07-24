@@ -1941,6 +1941,13 @@ function efpic_visitor_send_all_zips_ready_email(
     }
 }
 
+function efpic_visitor_zip_link_validity_note(int $linkCount): string
+{
+    return $linkCount === 1
+        ? 'Saite ir derīga 72 stundas.'
+        : 'Saites ir derīgas 72 stundas.';
+}
+
 /** @param list<array{collection: array<string, mixed>, download_url: string, count: int}> $prepared */
 function efpic_visitor_deliver_zip_ready_email(
     array $config,
@@ -1955,10 +1962,17 @@ function efpic_visitor_deliver_zip_ready_email(
         $config,
         efpic_visitor_zip_email_plain($config, $meta, $visitor, $prepared, $size),
     );
-    // Tikai plain: lielais HTML MIME bieži saņem SMTP 250, bet vēstule neatnāk.
-    // Saites un teksts plain vēstulē ir pilnīgi pietiekami lejupielādei.
-    $emailCfg = efpic_gallery_email_cfg($config);
-    efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
+    $htmlPack = efpic_visitor_zip_email_html_pack($config, $meta, $visitor, $prepared, $size);
+    try {
+        efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $htmlPack['html'], $htmlPack['inline']);
+    } catch (Throwable $richError) {
+        try {
+            $emailCfg = efpic_gallery_email_cfg($config);
+            efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
+        } catch (Throwable) {
+            throw $richError;
+        }
+    }
 }
 
 /** @param list<array{collection: array<string, mixed>, download_url: string, count: int}> $prepared */
@@ -1987,7 +2001,7 @@ function efpic_visitor_zip_email_plain(
         $body .= $line;
         $body .= $item['download_url'] . "\n\n";
     }
-    $body .= "Saites ir derīgas 72 stundas.\n";
+    $body .= efpic_visitor_zip_link_validity_note(count($prepared)) . "\n";
 
     return $body;
 }
@@ -2057,7 +2071,9 @@ function efpic_visitor_zip_email_html_pack(
         . '<p style="margin:0 0 12px;font-size:16px;color:#1a1a1a;">' . $greeting . '</p>'
         . '<p style="margin:0 0 20px;font-size:15px;line-height:1.55;color:#444;">' . $intro . '</p>'
         . '<table role="presentation" width="100%" cellpadding="0" cellspacing="0">' . $cards . '</table>'
-        . '<p style="margin:16px 0 0;font-size:12px;color:#8a847c;">Saites ir derīgas 72 stundas.</p>'
+        . '<p style="margin:16px 0 0;font-size:12px;color:#8a847c;">'
+        . htmlspecialchars(efpic_visitor_zip_link_validity_note(count($prepared)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '</p>'
         . '</td></tr>'
         . $signatureBlock
         . '</table></td></tr></table></body></html>';

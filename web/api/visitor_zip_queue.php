@@ -41,7 +41,110 @@ function efpic_visitor_zip_save_job(array $config, array $job): void
 
 function efpic_visitor_zip_stuck_seconds(): int
 {
-    return 90 * 60;
+    // PRINT Failiem lejupielāde var būt gara; tomēr pēc HTTP 500 job bieži paliek "processing".
+    return 10 * 60;
+}
+
+/**
+ * Vai prepared ZIP faili vēl ir uz diska un derīgi atkārtotai e-pasta sūtīšanai.
+ *
+ * @param array<string, mixed> $job
+ */
+function efpic_visitor_zip_job_prepared_files_ready(array $config, array $job): bool
+{
+    $slug = (string) ($job['slug'] ?? '');
+    $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
+    if ($slug === '' || $prepared === []) {
+        return false;
+    }
+    $zipDir = efpic_visitor_zips_dir($config, $slug);
+    foreach ($prepared as $item) {
+        if (!is_array($item)) {
+            return false;
+        }
+        $token = (string) ($item['download_token'] ?? '');
+        if ($token === '') {
+            return false;
+        }
+        $zipPath = $zipDir . DIRECTORY_SEPARATOR . $token . '.zip';
+        if (!efpic_zip_looks_valid($zipPath, 64)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+/**
+ * @return array{ok: bool, error?: string, job_id?: string, mode?: string}
+ */
+function efpic_visitor_zip_admin_retry_job(array $config, string $slug, string $jobId): array
+{
+    $job = efpic_visitor_zip_load_job($config, $jobId);
+    if ($job === null) {
+        return ['ok' => false, 'error' => 'Job nav atrasts.'];
+    }
+    if ((string) ($job['slug'] ?? '') !== $slug) {
+        return ['ok' => false, 'error' => 'Job nepieder šai galerijai.'];
+    }
+    $status = (string) ($job['status'] ?? '');
+    $claimedAt = strtotime((string) ($job['claimed_at'] ?? '')) ?: 0;
+    $stuckSec = efpic_visitor_zip_stuck_seconds();
+    $isStuckProcessing = $status === 'processing'
+        && ($claimedAt <= 0 || (time() - $claimedAt) > min(120, $stuckSec));
+
+    if (in_array($status, ['queued', 'processing'], true) && !$isStuckProcessing) {
+        return ['ok' => false, 'error' => 'Job jau ir rindā vai apstrādē.'];
+    }
+    if (!in_array($status, ['failed', 'done', 'processing'], true)) {
+        return ['ok' => false, 'error' => 'Šo job nevar atkārtot (statuss: ' . $status . ').'];
+    }
+
+    // "Nosūtīt vēlreiz": ZIP jau ir — tikai e-pasts (ātri, bez Failiem lejupielādes).
+    if ($status === 'done' && efpic_visitor_zip_job_prepared_files_ready($config, $job)) {
+        $found = efpic_find_gallery_by_token($config, (string) ($job['gallery_token'] ?? ''));
+        if ($found === null) {
+            return ['ok' => false, 'error' => 'Galerija nav atrasta.'];
+        }
+        $data = efpic_visitor_collections_load($config, $slug);
+        $visitor = efpic_visitor_get_visitor($data, (string) ($job['visitor_id'] ?? ''));
+        if ($visitor === null) {
+            return ['ok' => false, 'error' => 'Apmeklētājs nav atrasts.'];
+        }
+        $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
+        $size = (string) ($job['size'] ?? 'web');
+        try {
+            efpic_visitor_zip_refresh_prepared_expiry($config, $slug, $prepared);
+            efpic_visitor_send_all_zips_ready_email($config, $found['meta'], $visitor, $prepared, $size);
+        } catch (Throwable $e) {
+            $msg = trim($e->getMessage());
+
+            return ['ok' => false, 'error' => $msg !== '' ? $msg : 'E-pasta sūtīšana neizdevās.'];
+        }
+        $job['email_sent'] = true;
+        $job['email_sent_at'] = gmdate('c');
+        $job['email_to'] = (string) ($visitor['email'] ?? '');
+        $job['status'] = 'done';
+        $job['error'] = '';
+        $job['retry_count'] = (int) ($job['retry_count'] ?? 0) + 1;
+        efpic_visitor_zip_save_job($config, $job);
+
+        return ['ok' => true, 'job_id' => $jobId, 'mode' => 'resend'];
+    }
+
+    // Pilna pārbūve: notīrām prepared, lai Failiem/chunked sāktos no jauna.
+    $job['email_sent'] = false;
+    $job['prepared'] = [];
+    $job['collections_prepared'] = 0;
+    unset($job['zip_build']);
+    $job['status'] = 'queued';
+    $job['claimed_at'] = '';
+    $job['error'] = '';
+    $job['retry_count'] = (int) ($job['retry_count'] ?? 0) + 1;
+    efpic_visitor_zip_save_job($config, $job);
+
+    // Smago PRINT ZIP nebūvējam HTTP pieprasījumā (→ 500). Apstrāde pēc redirect.
+    return ['ok' => true, 'job_id' => $jobId, 'mode' => 'rebuild'];
 }
 
 function efpic_visitor_zip_run_maintenance(array $config): void
@@ -75,8 +178,12 @@ function efpic_visitor_zip_run_maintenance(array $config): void
         if ($claimed <= 0 || ($now - $claimed) <= $stuckSec) {
             continue;
         }
-        $job['status'] = 'failed';
-        $job['error'] = 'ZIP sagatavošanas timeout';
+        // Nevis "failed" — atgriež rindā, lai PRINT Failiem var turpināties (HTTP 500 bieži atstāj processing).
+        $job['status'] = 'queued';
+        $job['claimed_at'] = '';
+        if (trim((string) ($job['error'] ?? '')) === '') {
+            $job['error'] = 'Atsākts pēc apstrādes timeout';
+        }
         efpic_visitor_zip_save_job($config, $job);
     }
 }
@@ -554,37 +661,4 @@ function efpic_visitor_zip_type_label(string $type): string
         'visitor_collections' => 'Apmeklētāja izlases',
         default => $type !== '' ? $type : 'ZIP e-pasts',
     };
-}
-
-/**
- * @return array{ok: bool, error?: string, job_id?: string}
- */
-function efpic_visitor_zip_admin_retry_job(array $config, string $slug, string $jobId): array
-{
-    $job = efpic_visitor_zip_load_job($config, $jobId);
-    if ($job === null) {
-        return ['ok' => false, 'error' => 'Job nav atrasts.'];
-    }
-    if ((string) ($job['slug'] ?? '') !== $slug) {
-        return ['ok' => false, 'error' => 'Job nepieder šai galerijai.'];
-    }
-    $status = (string) ($job['status'] ?? '');
-    if (in_array($status, ['queued', 'processing'], true)) {
-        return ['ok' => false, 'error' => 'Job jau ir rindā vai apstrādē.'];
-    }
-    if (!in_array($status, ['failed', 'done'], true)) {
-        return ['ok' => false, 'error' => 'Šo job nevar atkārtot (statuss: ' . $status . ').'];
-    }
-
-    // Atkārtoti mēģina e-pasta sūtīšanu (arī ja iepriekš bija atzīmēts kā nosūtīts).
-    $job['email_sent'] = false;
-    $job['status'] = 'queued';
-    $job['claimed_at'] = '';
-    $job['error'] = '';
-    $job['retry_count'] = (int) ($job['retry_count'] ?? 0) + 1;
-    efpic_visitor_zip_save_job($config, $job);
-    efpic_visitor_zip_process_job_chain($config, $jobId, 120);
-    efpic_visitor_zip_run_pending($config, 2);
-
-    return ['ok' => true, 'job_id' => $jobId];
 }

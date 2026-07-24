@@ -92,9 +92,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['visitor_zip_retry']))
     $qs = 'slug=' . rawurlencode($slug) . '&tab=admin-tab-emails';
     if (!empty($result['ok'])) {
         $qs .= '&zip_retried=1';
+        if (($result['mode'] ?? '') === 'rebuild') {
+            $qs .= '&zip_rebuild=1';
+        }
     } else {
         $qs .= '&zip_retry_error=' . rawurlencode((string) ($result['error'] ?? 'Neizdevās'));
     }
+
+    // PRINT ZIP būvē fonā pēc redirect — citādi HTTP timeout → 500 un job iestrēgst "processing".
+    if (!empty($result['ok']) && ($result['mode'] ?? '') === 'rebuild' && !empty($result['job_id'])) {
+        $bgJobId = (string) $result['job_id'];
+        ignore_user_abort(true);
+        @set_time_limit(0);
+        header('Location: delivery_edit.php?' . $qs);
+        header('Content-Length: 0');
+        header('Connection: close');
+        if (function_exists('session_write_close')) {
+            @session_write_close();
+        }
+        while (ob_get_level() > 0) {
+            ob_end_flush();
+        }
+        flush();
+        if (function_exists('fastcgi_finish_request')) {
+            @fastcgi_finish_request();
+        }
+        efpic_visitor_zip_process_job_chain($config, $bgJobId, 120);
+        efpic_visitor_zip_run_pending($config, 2);
+        exit;
+    }
+
     header('Location: delivery_edit.php?' . $qs);
     exit;
 }
@@ -394,7 +421,9 @@ if (isset($_GET['email_sent'])) {
     $flash = 'E-pasts nosūtīts klientam.';
 }
 if (isset($_GET['zip_retried'])) {
-    $flash = 'ZIP e-pasta job ievietots rindā un mēģināts no jauna. Pārbaudi statusu cilnē «E-pasts».';
+    $flash = !empty($_GET['zip_rebuild'])
+        ? 'ZIP tiek gatavots fonā. Statusu vari skatīt cilnē «E-pasts» — pēc brīža atjauno lapu.'
+        : 'E-pasts nosūtīts vēlreiz. Statusu skaties cilnē «E-pasts».';
 }
 if (isset($_GET['zip_retry_error'])) {
     $flash = 'Neizdevās mēģināt vēlreiz: ' . (string) $_GET['zip_retry_error'];
