@@ -68,8 +68,33 @@ function efpic_stream_versioned_public_asset(string $filesystemPath, string $con
     exit;
 }
 
-/** Stream a local file with HTTP Range support (required for HTML5 video/audio). */
-function efpic_stream_local_file(string $path, string $contentType): void
+/** Disable PHP/gzip buffering so large downloads are not capped by memory_limit (~512M). */
+function efpic_begin_unbuffered_response(): void
+{
+    @set_time_limit(0);
+    @ignore_user_abort(true);
+    if (function_exists('session_status') && session_status() === PHP_SESSION_ACTIVE) {
+        @session_write_close();
+    }
+    while (function_exists('ob_get_level') && ob_get_level() > 0) {
+        @ob_end_clean();
+    }
+    if (function_exists('apache_setenv')) {
+        @apache_setenv('no-gzip', '1');
+    }
+    @ini_set('zlib.output_compression', '0');
+    @ini_set('output_buffering', 'Off');
+    if (!headers_sent()) {
+        header('X-Accel-Buffering: no');
+    }
+}
+
+/**
+ * Stream a local file with HTTP Range support (video/audio OR large ZIP downloads).
+ *
+ * @param array{download?: bool, filename?: string, cache?: string} $options
+ */
+function efpic_stream_local_file(string $path, string $contentType, array $options = []): void
 {
     if (!is_file($path)) {
         http_response_code(404);
@@ -77,14 +102,28 @@ function efpic_stream_local_file(string $path, string $contentType): void
     }
 
     $size = filesize($path);
-    if ($size === false) {
-        http_response_code(500);
+    if ($size === false || $size < 1) {
+        http_response_code(404);
         exit;
     }
 
+    efpic_begin_unbuffered_response();
+
+    $asDownload = !empty($options['download']);
+    $filename = (string) ($options['filename'] ?? basename($path));
+    $cache = (string) ($options['cache'] ?? ($asDownload ? 'private, no-store' : 'private, max-age=86400'));
+
     header('Content-Type: ' . $contentType);
     header('Accept-Ranges: bytes');
-    header('Cache-Control: private, max-age=86400');
+    header('Cache-Control: ' . $cache);
+    if ($asDownload) {
+        $safeName = str_replace(['"', "\r", "\n"], '', $filename);
+        $disposition = 'attachment; filename="' . $safeName . '"';
+        if (preg_match('/[^\x20-\x7E]/', $filename) === 1) {
+            $disposition .= "; filename*=UTF-8''" . rawurlencode($filename);
+        }
+        header('Content-Disposition: ' . $disposition);
+    }
 
     $start = 0;
     $end = $size - 1;
@@ -123,18 +162,32 @@ function efpic_stream_local_file(string $path, string $contentType): void
         http_response_code(500);
         exit;
     }
-    fseek($fp, $start);
+    if ($start > 0) {
+        fseek($fp, $start);
+    }
     $remaining = $length;
+    $chunkSize = $asDownload ? (1024 * 1024) : 8192;
     while ($remaining > 0 && !feof($fp)) {
-        $chunk = fread($fp, min(8192, $remaining));
+        $chunk = fread($fp, (int) min($chunkSize, $remaining));
         if ($chunk === false || $chunk === '') {
             break;
         }
         echo $chunk;
         $remaining -= strlen($chunk);
+        flush();
     }
     fclose($fp);
     exit;
+}
+
+/** Large attachment download (ZIP u.c.) — Range + bez output buffer, lai neapstātos pie ~memory_limit. */
+function efpic_send_file_download(string $path, string $filename, string $contentType = 'application/zip'): void
+{
+    efpic_stream_local_file($path, $contentType, [
+        'download' => true,
+        'filename' => $filename,
+        'cache' => 'private, no-store',
+    ]);
 }
 
 function efpic_load_config(): array

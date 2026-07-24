@@ -360,12 +360,13 @@ function efpic_client_send_zip_download(string $zipPath, string $filename): void
         echo 'Neizdevās izveidot ZIP arhīvu';
         exit;
     }
-    header('Content-Type: application/zip');
-    header('Content-Disposition: attachment; filename="' . $filename . '"');
-    header('Content-Length: ' . (string) filesize($zipPath));
-    readfile($zipPath);
-    @unlink($zipPath);
-    exit;
+    // Dzēš pēc sūtīšanas — register_shutdown, lai Range/straume var pabeigties.
+    register_shutdown_function(static function () use ($zipPath): void {
+        if (is_file($zipPath)) {
+            @unlink($zipPath);
+        }
+    });
+    efpic_send_file_download($zipPath, $filename, 'application/zip');
 }
 
 function efpic_client_topbar(string $title, string $rightHtml, string $extraClass = ''): string
