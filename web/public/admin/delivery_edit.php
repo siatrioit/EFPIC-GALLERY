@@ -30,6 +30,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'links') {
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'visitor_zips') {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        echo json_encode(efpic_admin_visitor_zips_poll_payload($config, $slug), JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
     header('Content-Type: application/json; charset=utf-8');
     $meta = efpic_load_gallery_meta($config, $slug);

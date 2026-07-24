@@ -3188,18 +3188,79 @@
     });
   })();
 
-  (function initAdminVisitorEmailsAutoRefresh() {
-    var panel = document.querySelector('[data-auto-refresh-emails="1"]');
+  (function initAdminVisitorZipsPoll() {
+    var panel = document.querySelector('[data-poll-visitor-zips="1"]');
     if (!panel) return;
-    window.setTimeout(function () {
-      try {
-        var url = new URL(window.location.href);
-        url.searchParams.set('tab', 'admin-tab-emails');
-        window.location.replace(url.toString());
-      } catch (e) {
-        window.location.reload();
+    var slug = panel.getAttribute('data-visitor-zips-slug') || '';
+    if (!slug) return;
+    var timer = null;
+    var inFlight = false;
+
+    function emailsTabActive() {
+      var tab = document.getElementById('admin-tab-emails');
+      return !!(tab && !tab.hidden);
+    }
+
+    function replaceTable(html) {
+      var wrap = panel.querySelector('.admin-table-wrap');
+      if (html.indexOf('admin-visitor-emails-table') !== -1) {
+        if (wrap) {
+          wrap.outerHTML = html;
+        } else {
+          panel.insertAdjacentHTML('beforeend', html);
+        }
+      } else if (wrap) {
+        wrap.outerHTML = html;
       }
-    }, 8000);
+    }
+
+    function tick() {
+      if (!emailsTabActive() || inFlight || document.hidden) {
+        return;
+      }
+      if (panel.getAttribute('data-poll-visitor-zips') !== '1') {
+        return;
+      }
+      inFlight = true;
+      fetch('delivery_edit.php?slug=' + encodeURIComponent(slug) + '&poll=visitor_zips', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) return;
+          if (typeof data.html === 'string' && data.html !== '') {
+            replaceTable(data.html);
+          }
+          if (!data.active) {
+            panel.removeAttribute('data-poll-visitor-zips');
+            var hint = document.getElementById('admin-visitor-zips-poll-hint');
+            if (hint) hint.remove();
+            if (timer) {
+              clearInterval(timer);
+              timer = null;
+            }
+          }
+        })
+        .catch(function () {})
+        .finally(function () {
+          inFlight = false;
+        });
+    }
+
+    timer = window.setInterval(tick, 10000);
+    if (emailsTabActive()) {
+      window.setTimeout(tick, 1500);
+    }
+    document.querySelectorAll('[data-admin-tab="admin-tab-emails"]').forEach(function (el) {
+      el.addEventListener('click', function () {
+        window.setTimeout(function () {
+          if (emailsTabActive()) tick();
+        }, 50);
+      });
+    });
   })();
 
   document.addEventListener('click', function (event) {

@@ -2689,47 +2689,8 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         return '<p class="muted">E-pastu vēsture būs pieejama pēc galerijas saglabāšanas.</p>';
     }
 
-    efpic_visitor_zip_require_build_helpers();
+    // Tikai viegla uzturēšana — smago ZIP būvi NEŠEIT (citādi bloķē visas cilnes + auto-refresh).
     efpic_visitor_zip_run_maintenance($config);
-
-    // Iestrēgušos atgriež rindā; smago PRINT darbu dzen pēc lapas atbildes (ne HTML renderī → 500).
-    $jobsForKick = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
-    $kickIds = [];
-    foreach ($jobsForKick as $kickJob) {
-        if (!is_array($kickJob)) {
-            continue;
-        }
-        $kickId = (string) ($kickJob['id'] ?? '');
-        $kickStatus = (string) ($kickJob['status'] ?? '');
-        if ($kickId === '') {
-            continue;
-        }
-        if ($kickStatus === 'processing') {
-            $claimed = strtotime((string) ($kickJob['claimed_at'] ?? '')) ?: 0;
-            if ($claimed > 0 && (time() - $claimed) <= 90) {
-                continue;
-            }
-            $kickJob['status'] = 'queued';
-            $kickJob['claimed_at'] = '';
-            efpic_visitor_zip_save_job($config, $kickJob);
-            $kickStatus = 'queued';
-        }
-        if ($kickStatus === 'queued') {
-            $kickIds[] = $kickId;
-        }
-    }
-    if ($kickIds !== []) {
-        register_shutdown_function(static function () use ($config, $kickIds): void {
-            @set_time_limit(0);
-            @ignore_user_abort(true);
-            if (function_exists('session_write_close')) {
-                @session_write_close();
-            }
-            foreach ($kickIds as $id) {
-                efpic_visitor_zip_process_job_chain($config, (string) $id, 8);
-            }
-        });
-    }
 
     $jobs = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
     $hasActiveZipJobs = false;
@@ -2746,12 +2707,13 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
     $emailReady = efpic_gallery_email_ready($config);
 
     $html = '<section class="admin-fieldset-full admin-visitor-emails-panel"'
-        . ($hasActiveZipJobs ? ' data-auto-refresh-emails="1"' : '') . '>';
+        . ' data-visitor-zips-slug="' . efpic_admin_esc($slug) . '"'
+        . ($hasActiveZipJobs ? ' data-poll-visitor-zips="1"' : '') . '>';
     $html .= '<h2 class="admin-share-block-title">ZIP e-pasti viesiem</h2>';
     $html .= '<p class="muted">Šeit redzami pieprasījumi, kad viesis (vai kopīgošanas saites saņēmējs) lūdz ZIP uz e-pastu. '
         . 'Statuss rāda, vai ZIP vēl veidojas, vai e-pasts jau nosūtīts, vai ir kļūda.</p>';
     if ($hasActiveZipJobs) {
-        $html .= '<p class="muted">ZIP tiek gatavots fonā — lapa atjaunosies automātiski, kamēr darbs nav pabeigts.</p>';
+        $html .= '<p class="muted" id="admin-visitor-zips-poll-hint">ZIP tiek gatavots fonā. Statuss atjaunojas, kamēr atvērta cilne «E-pasts» (pārējās cilnes netiek traucētas).</p>';
     }
     if (!$emailReady) {
         $html .= '<p class="err">E-pasta sūtīšana nav gatava (skaties Admin → Iestatījumi). ZIP var sagatavoties, bet vēstule netiks nosūtīta.</p>';
@@ -2763,7 +2725,20 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         return $html;
     }
 
-    $html .= '<div class="admin-table-wrap"><table class="admin-table admin-visitor-emails-table" id="admin-visitor-emails-table">';
+    $html .= efpic_admin_visitor_email_zips_table_html($config, $data, $jobs, $slug);
+
+    $html .= '</section>';
+
+    return $html;
+}
+
+/**
+ * @param list<array<string, mixed>> $jobs
+ */
+function efpic_admin_visitor_email_zips_table_html(array $config, array $data, array $jobs, string $slug): string
+{
+    unset($config);
+    $html = '<div class="admin-table-wrap"><table class="admin-table admin-visitor-emails-table" id="admin-visitor-emails-table">';
     $html .= '<thead><tr>';
     $html .= '<th><button type="button" class="admin-table-sort is-active" data-sort-key="time" data-sort-type="number" data-sort-dir="desc" aria-label="Kārtot pēc laika">Laiks</button></th>';
     $html .= '<th><button type="button" class="admin-table-sort" data-sort-key="recipient" data-sort-type="text" aria-label="Kārtot pēc saņēmēja">Saņēmējs</button></th>';
@@ -2774,106 +2749,165 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
     $html .= '</tr></thead><tbody>';
 
     foreach ($jobs as $job) {
-        $jobId = (string) ($job['id'] ?? '');
-        $status = (string) ($job['status'] ?? '');
-        $emailSent = !empty($job['email_sent']);
-        $visitorId = (string) ($job['visitor_id'] ?? '');
-        $visitor = $visitorId !== '' ? efpic_visitor_get_visitor($data, $visitorId) : null;
-        $name = is_array($visitor) ? trim((string) ($visitor['name'] ?? '')) : '';
-        $email = is_array($visitor) ? trim((string) ($visitor['email'] ?? '')) : '';
-        $created = (string) ($job['created_at'] ?? $job['updated_at'] ?? '');
-        $createdTs = 0;
-        if ($created !== '') {
-            try {
-                $createdTs = (new DateTimeImmutable($created))->getTimestamp();
-            } catch (Throwable) {
-                $createdTs = 0;
-            }
-        }
-        $createdLabel = $created !== '' ? efpic_admin_format_sync_datetime_lv($created) : '—';
-        $size = (string) ($job['size'] ?? 'web');
-        $sizeLabel = function_exists('efpic_visitor_zip_size_label')
-            ? efpic_visitor_zip_size_label($size)
-            : strtoupper($size);
-        $typeLabel = efpic_visitor_zip_type_label((string) ($job['type'] ?? ''));
-        $statusLabel = efpic_visitor_zip_status_label($status, $emailSent);
-        $error = efpic_visitor_zip_error_label((string) ($job['error'] ?? ''));
-        $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
-        $preparedN = count($prepared);
-        $claimedTs = 0;
-        $claimedRaw = (string) ($job['claimed_at'] ?? '');
-        if ($claimedRaw !== '') {
-            try {
-                $claimedTs = (new DateTimeImmutable($claimedRaw))->getTimestamp();
-            } catch (Throwable) {
-                $claimedTs = 0;
-            }
-        }
-        $canRetry = match ($status) {
-            'failed', 'done' => true,
-            // HTTP 500 bieži atstāj "processing" — pēc 2 min ļaujam atsākt.
-            'processing' => $claimedTs <= 0 || (time() - $claimedTs) > 120,
-            default => false,
-        };
-        $retryLabel = ($status === 'done' && $emailSent) ? 'Nosūtīt vēlreiz' : 'Mēģināt vēlreiz';
-        $recipientSort = mb_strtolower(trim($name . ' ' . $email));
-
-        $html .= '<tr'
-            . ' data-sort-time="' . efpic_admin_esc((string) $createdTs) . '"'
-            . ' data-sort-recipient="' . efpic_admin_esc($recipientSort) . '"'
-            . ' data-sort-type="' . efpic_admin_esc(mb_strtolower($typeLabel)) . '"'
-            . ' data-sort-size="' . efpic_admin_esc(mb_strtolower($sizeLabel)) . '"'
-            . ' data-sort-status="' . efpic_admin_esc(mb_strtolower($statusLabel)) . '">';
-        $html .= '<td><span class="muted">' . efpic_admin_esc($createdLabel) . '</span></td>';
-        $html .= '<td>';
-        if ($name !== '') {
-            $html .= '<strong>' . efpic_admin_esc($name) . '</strong><br>';
-        }
-        $html .= $email !== ''
-            ? '<a href="mailto:' . efpic_admin_esc($email) . '">' . efpic_admin_esc($email) . '</a>'
-            : '<span class="muted">—</span>';
-        $html .= '</td>';
-        $html .= '<td>' . efpic_admin_esc($typeLabel);
-        if ($preparedN > 0) {
-            $html .= '<br><span class="muted">' . $preparedN . ' ZIP</span>';
-        }
-        $html .= '</td>';
-        $html .= '<td>' . efpic_admin_esc($sizeLabel) . '</td>';
-        $html .= '<td><span class="admin-visitor-email-status admin-visitor-email-status--'
-            . efpic_admin_esc($status) . ($emailSent ? ' is-sent' : '') . '">'
-            . efpic_admin_esc($statusLabel) . '</span>';
-        if ($error !== '') {
-            $html .= '<br><span class="err admin-visitor-email-error">' . efpic_admin_esc($error) . '</span>';
-        }
-        if ($status === 'processing' || $status === 'queued') {
-            $build = is_array($job['zip_build'] ?? null) ? $job['zip_build'] : null;
-            if (is_array($build) && (int) ($build['total'] ?? 0) > 0) {
-                $off = (int) ($build['offset'] ?? 0);
-                $tot = (int) ($build['total'] ?? 0);
-                $html .= '<br><span class="muted">ZIP progress: ' . $off . ' / ' . $tot . ' bildes</span>';
-            } else {
-                $done = (int) ($job['collections_prepared'] ?? 0);
-                $html .= '<br><span class="muted">Progres: ' . $done . ' kolekcijas sagatavotas</span>';
-            }
-        }
-        $html .= '</td>';
-        $html .= '<td>';
-        if ($canRetry && $jobId !== '') {
-            $html .= '<button type="submit" class="btn admin-btn-sm'
-                . (($status === 'done' && $emailSent) ? '' : ' primary')
-                . '" name="visitor_zip_retry" value="'
-                . efpic_admin_esc($jobId) . '" formaction="delivery_edit.php?slug=' . rawurlencode($slug)
-                . '" formnovalidate>' . efpic_admin_esc($retryLabel) . '</button>';
-        } else {
-            $html .= '<span class="muted">—</span>';
-        }
-        $html .= '</td>';
-        $html .= '</tr>';
+        $html .= efpic_admin_visitor_email_zips_row_html($data, $job, $slug);
     }
 
-    $html .= '</tbody></table></div></section>';
+    $html .= '</tbody></table></div>';
 
     return $html;
+}
+
+/** @param array<string, mixed> $job */
+function efpic_admin_visitor_email_zips_row_html(array $data, array $job, string $slug): string
+{
+    $jobId = (string) ($job['id'] ?? '');
+    $status = (string) ($job['status'] ?? '');
+    $emailSent = !empty($job['email_sent']);
+    $visitorId = (string) ($job['visitor_id'] ?? '');
+    $visitor = $visitorId !== '' ? efpic_visitor_get_visitor($data, $visitorId) : null;
+    $name = is_array($visitor) ? trim((string) ($visitor['name'] ?? '')) : '';
+    $email = is_array($visitor) ? trim((string) ($visitor['email'] ?? '')) : '';
+    $created = (string) ($job['created_at'] ?? $job['updated_at'] ?? '');
+    $createdTs = 0;
+    if ($created !== '') {
+        try {
+            $createdTs = (new DateTimeImmutable($created))->getTimestamp();
+        } catch (Throwable) {
+            $createdTs = 0;
+        }
+    }
+    $createdLabel = $created !== '' ? efpic_admin_format_sync_datetime_lv($created) : '—';
+    $size = (string) ($job['size'] ?? 'web');
+    $sizeLabel = function_exists('efpic_visitor_zip_size_label')
+        ? efpic_visitor_zip_size_label($size)
+        : strtoupper($size);
+    $typeLabel = efpic_visitor_zip_type_label((string) ($job['type'] ?? ''));
+    $statusLabel = efpic_visitor_zip_status_label($status, $emailSent);
+    $error = efpic_visitor_zip_error_label((string) ($job['error'] ?? ''));
+    $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
+    $preparedN = count($prepared);
+    $claimedTs = 0;
+    $claimedRaw = (string) ($job['claimed_at'] ?? '');
+    if ($claimedRaw !== '') {
+        try {
+            $claimedTs = (new DateTimeImmutable($claimedRaw))->getTimestamp();
+        } catch (Throwable) {
+            $claimedTs = 0;
+        }
+    }
+    $canRetry = match ($status) {
+        'failed', 'done' => true,
+        'processing' => $claimedTs <= 0 || (time() - $claimedTs) > 120,
+        default => false,
+    };
+    $retryLabel = ($status === 'done' && $emailSent) ? 'Nosūtīt vēlreiz' : 'Mēģināt vēlreiz';
+    $recipientSort = mb_strtolower(trim($name . ' ' . $email));
+    $recipient = $name !== '' ? $name : '—';
+    if ($email !== '') {
+        $recipient .= ($name !== '' ? '<br>' : '') . '<span class="muted">' . efpic_admin_esc($email) . '</span>';
+    }
+
+    $html = '<tr data-job-id="' . efpic_admin_esc($jobId) . '"'
+        . ' data-sort-time="' . efpic_admin_esc((string) $createdTs) . '"'
+        . ' data-sort-recipient="' . efpic_admin_esc($recipientSort) . '"'
+        . ' data-sort-type="' . efpic_admin_esc(mb_strtolower($typeLabel)) . '"'
+        . ' data-sort-size="' . efpic_admin_esc(mb_strtolower($sizeLabel)) . '"'
+        . ' data-sort-status="' . efpic_admin_esc(mb_strtolower($statusLabel)) . '">';
+    $html .= '<td data-label="Laiks">' . efpic_admin_esc($createdLabel) . '</td>';
+    $html .= '<td data-label="Saņēmējs">' . $recipient . '</td>';
+    $html .= '<td data-label="Tips">' . efpic_admin_esc($typeLabel);
+    if ($preparedN > 0) {
+        $html .= '<br><span class="muted">' . $preparedN . ' ZIP</span>';
+    }
+    $html .= '</td>';
+    $html .= '<td data-label="Izmērs">' . efpic_admin_esc($sizeLabel) . '</td>';
+    $html .= '<td data-label="Statuss"><span class="admin-visitor-email-status admin-visitor-email-status--'
+        . efpic_admin_esc($status) . ($emailSent ? ' is-sent' : '') . '">'
+        . efpic_admin_esc($statusLabel) . '</span>';
+    if ($error !== '') {
+        $html .= '<br><span class="err admin-visitor-email-error">' . efpic_admin_esc($error) . '</span>';
+    }
+    if ($status === 'processing' || $status === 'queued') {
+        $build = is_array($job['zip_build'] ?? null) ? $job['zip_build'] : null;
+        if (is_array($build) && (int) ($build['total'] ?? 0) > 0) {
+            $off = (int) ($build['offset'] ?? 0);
+            $tot = (int) ($build['total'] ?? 0);
+            $html .= '<br><span class="muted">ZIP progress: ' . $off . ' / ' . $tot . ' bildes</span>';
+        } else {
+            $done = (int) ($job['collections_prepared'] ?? 0);
+            $html .= '<br><span class="muted">Progres: ' . $done . ' kolekcijas sagatavotas</span>';
+        }
+    }
+    $html .= '</td>';
+    $html .= '<td data-label="Darbība">';
+    if ($canRetry && $jobId !== '') {
+        $html .= '<button type="submit" class="btn admin-btn-sm'
+            . (($status === 'done' && $emailSent) ? '' : ' primary')
+            . '" name="visitor_zip_retry" value="'
+            . efpic_admin_esc($jobId) . '" formaction="delivery_edit.php?slug=' . rawurlencode($slug)
+            . '" formnovalidate>' . efpic_admin_esc($retryLabel) . '</button>';
+    } else {
+        $html .= '<span class="muted">—</span>';
+    }
+    $html .= '</td></tr>';
+
+    return $html;
+}
+
+/**
+ * @return array{ok: bool, active: bool, html: string, processed: int}
+ */
+function efpic_admin_visitor_zips_poll_payload(array $config, string $slug): array
+{
+    efpic_visitor_zip_require_build_helpers();
+    efpic_visitor_zip_run_maintenance($config);
+
+    $processed = 0;
+    $jobs = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
+    foreach ($jobs as $job) {
+        if (!is_array($job)) {
+            continue;
+        }
+        $jobId = (string) ($job['id'] ?? '');
+        $status = (string) ($job['status'] ?? '');
+        if ($jobId === '') {
+            continue;
+        }
+        if ($status === 'processing') {
+            $claimed = strtotime((string) ($job['claimed_at'] ?? '')) ?: 0;
+            if ($claimed <= 0 || (time() - $claimed) > 90) {
+                $job['status'] = 'queued';
+                $job['claimed_at'] = '';
+                efpic_visitor_zip_save_job($config, $job);
+                $status = 'queued';
+            }
+        }
+        if ($status === 'queued') {
+            // 1 solis (~max 55s) — pietiek progresam; poll atkārtojas ik ~10s.
+            efpic_visitor_zip_process_job_chain($config, $jobId, 1);
+            $processed++;
+            break;
+        }
+    }
+
+    $jobs = efpic_visitor_zip_list_jobs_for_slug($config, $slug);
+    $data = efpic_visitor_collections_load($config, $slug);
+    $active = false;
+    foreach ($jobs as $j) {
+        if (is_array($j) && in_array((string) ($j['status'] ?? ''), ['queued', 'processing'], true)) {
+            $active = true;
+            break;
+        }
+    }
+
+    return [
+        'ok' => true,
+        'active' => $active,
+        'processed' => $processed,
+        'html' => $jobs === []
+            ? '<p class="muted">Šajā galerijā vēl nav ZIP e-pasta pieprasījumu.</p>'
+            : efpic_admin_visitor_email_zips_table_html($config, $data, $jobs, $slug),
+    ];
 }
 
 function efpic_admin_render_render_queue_panel(array $config): string

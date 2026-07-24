@@ -1976,17 +1976,9 @@ function efpic_visitor_deliver_zip_ready_email(
         $config,
         efpic_visitor_zip_email_plain($config, $meta, $visitor, $prepared, $size),
     );
-    $htmlPack = efpic_visitor_zip_email_html_pack($config, $meta, $visitor, $prepared, $size);
-    try {
-        efpic_gallery_deliver_rich_email($config, $to, $subject, $plainBody, $htmlPack['html'], $htmlPack['inline']);
-    } catch (Throwable $richError) {
-        try {
-            $emailCfg = efpic_gallery_email_cfg($config);
-            efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
-        } catch (Throwable) {
-            throw $richError;
-        }
-    }
+    // Plain tikai: HTML MIME bieži saņem SMTP 250, bet vēstule neatnāk (admin rāda «Nosūtīts»).
+    $emailCfg = efpic_gallery_email_cfg($config);
+    efpic_guest_send_email_message($emailCfg, $to, $subject, $plainBody, null);
 }
 
 /** @param list<array{collection: array<string, mixed>, download_url: string, count: int}> $prepared */
