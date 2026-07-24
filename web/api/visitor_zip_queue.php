@@ -80,6 +80,7 @@ function efpic_visitor_zip_job_prepared_files_ready(array $config, array $job): 
  */
 function efpic_visitor_zip_admin_retry_job(array $config, string $slug, string $jobId): array
 {
+    efpic_visitor_zip_require_build_helpers();
     $job = efpic_visitor_zip_load_job($config, $jobId);
     if ($job === null) {
         return ['ok' => false, 'error' => 'Job nav atrasts.'];
@@ -319,6 +320,7 @@ function efpic_visitor_zip_enqueue_share_all_job(
     string $size,
     string $guestToken,
 ): array {
+    efpic_visitor_zip_require_build_helpers();
     if (!efpic_viewer_is_restricted_share($ctx)) {
         return ['ok' => false, 'error' => 'not_share_link'];
     }
@@ -384,6 +386,7 @@ function efpic_visitor_zip_enqueue_share_all_job(
 /** @param array<string, mixed> $job */
 function efpic_visitor_zip_process_job(array $config, array $job): void
 {
+    efpic_visitor_zip_require_build_helpers();
     $slug = (string) ($job['slug'] ?? '');
     $galleryToken = (string) ($job['gallery_token'] ?? '');
     $visitorId = (string) ($job['visitor_id'] ?? '');

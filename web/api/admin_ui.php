@@ -2689,6 +2689,7 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         return '<p class="muted">E-pastu vēsture būs pieejama pēc galerijas saglabāšanas.</p>';
     }
 
+    efpic_visitor_zip_require_build_helpers();
     // Atjaunina rindā gaidošos job, lai statuss būtu aktuāls.
     efpic_visitor_zip_run_pending($config, 3);
 

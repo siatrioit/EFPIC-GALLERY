@@ -756,7 +756,11 @@ function efpic_visitor_find_reusable_zip(array $data, string $fingerprint, strin
 
 function efpic_visitor_zip_require_build_helpers(): void
 {
-    if (!function_exists('efpic_zip_populate_delivery_images')) {
+    // Admin ceļš neielādē client_handlers.php — tur ir navigable_images + zip populate.
+    if (!function_exists('efpic_client_navigable_images')
+        || !function_exists('efpic_zip_populate_delivery_images')
+        || !function_exists('efpic_client_zip_filename')
+    ) {
         require_once __DIR__ . '/client_handlers.php';
     }
 }
@@ -1417,6 +1421,7 @@ function efpic_visitor_zip_ready_intro(int $collectionCount, string $size): stri
  */
 function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, array $ctx): array
 {
+    efpic_visitor_zip_require_build_helpers();
     $slug = (string) ($job['slug'] ?? '');
     $galleryToken = (string) ($job['gallery_token'] ?? '');
     $visitorId = (string) ($job['visitor_id'] ?? '');
