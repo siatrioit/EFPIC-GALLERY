@@ -1978,28 +1978,69 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
     $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
     $collectionIds = is_array($job['collection_ids'] ?? null) ? $job['collection_ids'] : [];
 
-    if ($type === 'share_all') {
+    if ($type === 'share_all' || $type === 'visitor_selected') {
         if ($prepared !== []) {
             return ['ok' => true, 'done' => true];
         }
 
-        $images = efpic_client_navigable_images($meta, $ctx);
-        if ($images === []) {
-            return ['ok' => false, 'error' => 'empty_collection'];
+        $virtualId = $type === 'share_all' ? 'share_all' : 'selected';
+        if ($type === 'visitor_selected') {
+            $tokenList = is_array($job['image_tokens'] ?? null) ? $job['image_tokens'] : [];
+            $wanted = [];
+            foreach ($tokenList as $tok) {
+                $tok = trim((string) $tok);
+                if ($tok !== '') {
+                    $wanted[$tok] = true;
+                }
+            }
+            if ($wanted === []) {
+                return ['ok' => false, 'error' => 'empty_collection'];
+            }
+            $byToken = [];
+            foreach (efpic_client_navigable_images($meta, $ctx) as $img) {
+                if (!is_array($img)) {
+                    continue;
+                }
+                $tok = (string) ($img['token'] ?? '');
+                if ($tok !== '' && isset($wanted[$tok])) {
+                    $byToken[$tok] = $img;
+                }
+            }
+            $images = [];
+            foreach (array_keys($wanted) as $tok) {
+                if (isset($byToken[$tok])) {
+                    $images[] = $byToken[$tok];
+                }
+            }
+            if ($images === []) {
+                return ['ok' => false, 'error' => 'empty_collection'];
+            }
+            $shareLabel = 'Atlasītās bildes';
+            $virtualCollection = [
+                'id' => $virtualId,
+                'name' => $shareLabel,
+                'visitor_id' => $visitorId,
+                'image_tokens' => array_keys($wanted),
+            ];
+        } else {
+            $images = efpic_client_navigable_images($meta, $ctx);
+            if ($images === []) {
+                return ['ok' => false, 'error' => 'empty_collection'];
+            }
+            $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
+            if ($shareLabel === '') {
+                $shareLabel = 'Izlase';
+            }
+            $virtualCollection = [
+                'id' => $virtualId,
+                'name' => $shareLabel,
+                'visitor_id' => $visitorId,
+                'image_tokens' => array_values(array_filter(array_map(
+                    static fn ($img) => is_array($img) ? (string) ($img['token'] ?? '') : '',
+                    $images,
+                ), static fn ($t) => $t !== '')),
+            ];
         }
-        $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
-        if ($shareLabel === '') {
-            $shareLabel = 'Izlase';
-        }
-        $virtualCollection = [
-            'id' => 'share_all',
-            'name' => $shareLabel,
-            'visitor_id' => $visitorId,
-            'image_tokens' => array_values(array_filter(array_map(
-                static fn ($img) => is_array($img) ? (string) ($img['token'] ?? '') : '',
-                $images,
-            ), static fn ($t) => $t !== '')),
-        ];
 
         $found = efpic_find_gallery_by_token($config, $galleryToken);
         if ($found === null) {
@@ -2055,7 +2096,7 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
                     $entryCount = (int) ($built['entry_count'] ?? 0);
                     $data['zip_downloads'][$downloadToken] = [
                         'id' => $downloadToken,
-                        'collection_id' => 'share_all',
+                        'collection_id' => $virtualId,
                         'visitor_id' => $visitorId,
                         'size' => $size,
                         'filename' => $filename,
@@ -2135,7 +2176,7 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
         $entryCount = (int) ($batch['entry_count'] ?? efpic_zip_num_files($zipPath));
         $data['zip_downloads'][$downloadToken] = [
             'id' => $downloadToken,
-            'collection_id' => 'share_all',
+            'collection_id' => $virtualId,
             'visitor_id' => $visitorId,
             'size' => $size,
             'filename' => $filename,

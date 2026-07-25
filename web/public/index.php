@@ -158,6 +158,14 @@ try {
         efpic_handle_visitor_all_collections_download_request($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/download-selected$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_selected_download_request($config, strtolower($m[1]));
+    }
+
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/from-selection$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_collection_create_from_selection($config, strtolower($m[1]));
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/share/download-all$#i', $uri, $m) && $method === 'POST') {
         efpic_handle_visitor_share_download_request($config, strtolower($m[1]));
     }

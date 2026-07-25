@@ -234,6 +234,100 @@ function efpic_visitor_zip_find_active_job(
 }
 
 /**
+ * @param list<string> $imageTokens
+ * @return array{ok: bool, job_id?: string, already_queued?: bool, error?: string}
+ */
+function efpic_visitor_zip_enqueue_selected_job(
+    array $config,
+    string $slug,
+    array $meta,
+    array $ctx,
+    string $galleryToken,
+    string $visitorId,
+    string $size,
+    array $imageTokens,
+): array {
+    if (!efpic_can_download_collection_zip($meta, $ctx, $size)) {
+        return ['ok' => false, 'error' => 'download_disabled'];
+    }
+
+    $allowed = [];
+    foreach (efpic_client_navigable_images($meta, $ctx) as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $tok = (string) ($img['token'] ?? '');
+        if ($tok !== '') {
+            $allowed[$tok] = true;
+        }
+    }
+    $tokens = [];
+    $seen = [];
+    foreach ($imageTokens as $tok) {
+        $tok = trim((string) $tok);
+        if ($tok === '' || !isset($allowed[$tok]) || isset($seen[$tok])) {
+            continue;
+        }
+        $seen[$tok] = true;
+        $tokens[] = $tok;
+    }
+    if ($tokens === []) {
+        return ['ok' => false, 'error' => 'empty_collection'];
+    }
+
+    $pending = efpic_visitor_zip_find_active_job($config, $slug, $visitorId, $size, 'visitor_selected');
+    if ($pending !== null) {
+        $pendingTokens = is_array($pending['image_tokens'] ?? null) ? $pending['image_tokens'] : [];
+        sort($pendingTokens);
+        $cmp = $tokens;
+        sort($cmp);
+        if ($pendingTokens === $cmp) {
+            return ['ok' => true, 'job_id' => (string) ($pending['id'] ?? ''), 'already_queued' => true];
+        }
+    }
+
+    $data = efpic_visitor_collections_load($config, $slug);
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    if ($visitor === null) {
+        return ['ok' => false, 'error' => 'not_found'];
+    }
+
+    $jobId = efpic_random_hex(16);
+    efpic_visitor_zip_save_job($config, [
+        'id' => $jobId,
+        'type' => 'visitor_selected',
+        'slug' => $slug,
+        'gallery_token' => $galleryToken,
+        'visitor_id' => $visitorId,
+        'guest_token' => (string) ($ctx['guest_token'] ?? ''),
+        'size' => $size,
+        'status' => 'queued',
+        'created_at' => gmdate('c'),
+        'updated_at' => gmdate('c'),
+        'claimed_at' => '',
+        'error' => '',
+        'collections_prepared' => 0,
+        'collection_ids' => [],
+        'image_tokens' => $tokens,
+        'prepared' => [],
+        'email_sent' => false,
+    ]);
+
+    $summaries = [['name' => 'Atlasītās bildes', 'count' => count($tokens)]];
+    efpic_gallery_log_activity(
+        $config,
+        $slug,
+        $meta,
+        'visitor_selected_download',
+        efpic_visitor_zip_activity_message($visitor, $size, $summaries, 'request'),
+        'visitor:' . (string) ($visitor['email'] ?? ''),
+        efpic_visitor_zip_activity_extra($visitor, $visitorId, $size, $summaries),
+    );
+
+    return ['ok' => true, 'job_id' => $jobId];
+}
+
+/**
  * @return array{ok: bool, job_id?: string, already_queued?: bool, error?: string}
  */
 function efpic_visitor_zip_enqueue_collections_job(

@@ -335,8 +335,7 @@
   function openCollectionDlModal() {
     if (!cdlModal) return;
     updateCollectionDownloadTitle();
-    var countEl = document.getElementById('collectionTrayCount');
-    var count = countEl ? parseInt(countEl.textContent, 10) || 0 : 0;
+    var count = getSelectedCount();
     if (count <= 0) return;
     cdlModal.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -360,26 +359,22 @@
 
   function updateCollectionDownloadTitle() {
     var titleEl = document.getElementById('collectionDownloadModalTitle');
-    if (!titleEl) return;
-    var withImages = visitorCollectionsWithImages();
-    if (withImages.length > 1) {
-      titleEl.textContent = 'Sagatavo izlases';
-      return;
+    var hintEl = document.getElementById('collectionDownloadModalHint');
+    var n = getSelectedCount();
+    if (titleEl) {
+      if (n === 1) {
+        titleEl.textContent = 'Lejupielādēt bildi';
+      } else if (n > 1) {
+        titleEl.textContent = 'Sagatavo atlasītās ' + n + ' bildes';
+      } else {
+        titleEl.textContent = 'Sagatavo izlases';
+      }
     }
-    if (withImages.length === 1) {
-      var n = parseInt(withImages[0].count, 10) || 0;
-      titleEl.textContent =
-        n === 1 ? 'Sagatavo atlasīto 1 bildi' : 'Sagatavo atlasītās ' + n + ' bildes';
-      return;
-    }
-    var activeCount =
-      (visitorState.activeCollection && parseInt(visitorState.activeCollection.count, 10)) || 0;
-    if (activeCount === 1) {
-      titleEl.textContent = 'Sagatavo atlasīto 1 bildi';
-    } else if (activeCount > 1) {
-      titleEl.textContent = 'Sagatavo atlasītās ' + activeCount + ' bildes';
-    } else {
-      titleEl.textContent = 'Sagatavo izlases';
+    if (hintEl) {
+      hintEl.textContent =
+        n === 1
+          ? 'Izvēlies izmēru — lejupielāde sāksies uzreiz.'
+          : 'ZIP arhīvu sagatavosim un nosūtīsim uz tavu e-pastu.';
     }
   }
 
@@ -576,6 +571,19 @@
     btn.addEventListener('click', function (evt) {
       evt.preventDefault();
       var size = btn.getAttribute('data-cdl-size') || 'web';
+      var tokens = getSelectedTokenList();
+      if (tokens.length === 1) {
+        var url = imageDownloadUrl(tokens[0], size);
+        closeCollectionDlModal();
+        if (url) {
+          triggerBrowserDownload(url);
+        }
+        return;
+      }
+      if (tokens.length > 1 && collectionEnabled && visitorBaseUrl) {
+        requestSelectedImagesEmail(size, tokens);
+        return;
+      }
       if (collectionEnabled && visitorBaseUrl) {
         requestVisitorCollectionEmail(size);
       } else {
@@ -1552,11 +1560,37 @@
     window.EFPIC_CAN_COLLECTION_ZIP !== false &&
     window.EFPIC_CAN_COLLECTION_ZIP !== '0';
   var visitorBaseUrl = window.EFPIC_VISITOR_BASE_URL || '';
+  var imageDownloadBase = window.EFPIC_IMAGE_DOWNLOAD_BASE || '';
   var visitorModal = document.getElementById('visitorCollectionModal');
   var visitorManageModal = document.getElementById('visitorManageModal');
   var pendingCollectionImageToken = '';
   var pendingShareDownloadSize = '';
+  var pendingSelectedDownloadSize = '';
+  var pendingSaveSelection = false;
   var visitorRenameEditingId = '';
+  var selectedTokens = {};
+  var galleryTokenKey = String(window.EFPIC_GALLERY_TOKEN || 'gallery');
+  var collectionModeStorageKey = 'efpic_collection_mode_' + galleryTokenKey;
+
+  function isCollectionMode() {
+    try {
+      return sessionStorage.getItem(collectionModeStorageKey) === '1';
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function setCollectionMode(on) {
+    try {
+      if (on) {
+        sessionStorage.setItem(collectionModeStorageKey, '1');
+      } else {
+        sessionStorage.removeItem(collectionModeStorageKey);
+      }
+    } catch (e) {
+      /* ignore */
+    }
+  }
 
   var visitorState = {
     authenticated:
@@ -1573,12 +1607,56 @@
     return withGuestQuery(visitorBaseUrl + path);
   }
 
-  function applyActiveTokensFromMap(tokenMap) {
-    var tokens = tokenMap || {};
+  function getSelectedTokenList() {
+    return Object.keys(selectedTokens).filter(function (tok) {
+      return !!selectedTokens[tok];
+    });
+  }
+
+  function getSelectedCount() {
+    return getSelectedTokenList().length;
+  }
+
+  function applySelectedTokensToButtons() {
     document.querySelectorAll('[data-collection-toggle]').forEach(function (btn) {
       var tok = btn.getAttribute('data-image-token') || '';
-      setCollectionButtonState(btn, !!tokens[tok]);
+      setCollectionButtonState(btn, !!selectedTokens[tok]);
     });
+  }
+
+  function setSelectedToken(token, on) {
+    if (!token) return;
+    if (on) {
+      selectedTokens[token] = true;
+    } else {
+      delete selectedTokens[token];
+    }
+  }
+
+  function replaceSelectedTokens(tokenMap) {
+    selectedTokens = {};
+    Object.keys(tokenMap || {}).forEach(function (tok) {
+      if (tokenMap[tok]) selectedTokens[tok] = true;
+    });
+    applySelectedTokensToButtons();
+  }
+
+  function applyActiveTokensFromMap(tokenMap) {
+    visitorState.activeTokens = tokenMap || {};
+    if (isCollectionMode()) {
+      replaceSelectedTokens(visitorState.activeTokens);
+    }
+  }
+
+  function imageDownloadUrl(token, size) {
+    if (!imageDownloadBase || !token) return '';
+    var url =
+      imageDownloadBase.replace(/\/$/, '') +
+      '/' +
+      encodeURIComponent(token) +
+      '/download?size=' +
+      encodeURIComponent(size || 'web');
+    return withGuestQuery(url);
   }
 
   function updateCollectionTrayLabel(name) {
@@ -1596,16 +1674,7 @@
   var collectionFilterActive = false;
 
   function getCollectionFilterCount() {
-    var count = 0;
-    var tokens = visitorState.activeTokens || {};
-    Object.keys(tokens).forEach(function (tok) {
-      if (tokens[tok]) count += 1;
-    });
-    if (count > 0) return count;
-    if (visitorState.activeCollection && visitorState.activeCollection.count) {
-      return parseInt(visitorState.activeCollection.count, 10) || 0;
-    }
-    return 0;
+    return getSelectedCount();
   }
 
   function getCollectionGalleryItems() {
@@ -1651,11 +1720,10 @@
 
   function applyCollectionFilter() {
     if (!collectionFilterActive) return;
-    var tokens = visitorState.activeTokens || {};
     getCollectionGalleryItems().forEach(function (el) {
       var tok = el.getAttribute('data-token') || '';
       if (tok === '') return;
-      el.classList.toggle('collection-filter-hidden', !tokens[tok]);
+      el.classList.toggle('collection-filter-hidden', !selectedTokens[tok]);
     });
     document.body.classList.add('collection-filter-active');
     updateCollectionFilterScenes();
@@ -1721,11 +1789,15 @@
     var tray = document.getElementById('collectionTray');
     var countEl = document.getElementById('collectionTrayCount');
     if (!tray) return;
+    if (typeof count !== 'number') {
+      count = getSelectedCount();
+    }
     if (countEl) countEl.textContent = String(count);
     var textEl = tray.querySelector('.collection-tray-text');
-    var collName = visitorState.activeCollection && visitorState.activeCollection.name
-      ? visitorState.activeCollection.name
-      : '';
+    var collName = '';
+    if (isCollectionMode() && visitorState.activeCollection && visitorState.activeCollection.name) {
+      collName = visitorState.activeCollection.name;
+    }
     if (textEl && countEl) {
       var labelHtml = collName
         ? '<span class="collection-tray-label" id="collectionTrayLabel">' +
@@ -1741,7 +1813,7 @@
     } else {
       updateCollectionTrayLabel(collName);
     }
-    var showTray = count > 0 || visitorState.authenticated;
+    var showTray = count > 0 || (isCollectionMode() && visitorState.authenticated);
     tray.hidden = !showTray;
     tray.classList.toggle('is-visible', showTray);
     if (floatBar) {
@@ -1750,10 +1822,15 @@
     var dlBtn = document.getElementById('collectionDlBtn');
     if (dlBtn) {
       dlBtn.hidden = count <= 0 || !canCollectionZip;
+      dlBtn.textContent = count === 1 ? 'Lejupielādēt' : 'Lejupielādēt uz e-pastu';
+    }
+    var saveBtn = document.getElementById('selectionSaveCollectionBtn');
+    if (saveBtn) {
+      saveBtn.hidden = count <= 0 || !collectionEnabled;
     }
     var manageBtn = document.getElementById('visitorManageBtn');
     if (manageBtn) {
-      manageBtn.hidden = !visitorState.authenticated;
+      manageBtn.hidden = !(isCollectionMode() && visitorState.authenticated);
     }
     updateCollectionDownloadTitle();
     updateCollectionFilterNavLink();
@@ -1774,13 +1851,11 @@
     }
     if (data.active_tokens) {
       visitorState.activeTokens = data.active_tokens;
-      applyActiveTokensFromMap(data.active_tokens);
+      if (isCollectionMode()) {
+        replaceSelectedTokens(data.active_tokens);
+      }
     }
-    var count =
-      (visitorState.activeCollection && visitorState.activeCollection.count) ||
-      (data.active_collection && data.active_collection.count) ||
-      0;
-    updateCollectionTray(count);
+    updateCollectionTray(getSelectedCount());
     syncCollectionFilterAfterCollectionChange();
   }
 
@@ -1788,7 +1863,14 @@
     if (!collectionEnabled) return;
     pendingCollectionImageToken = '';
     pendingShareDownloadSize = '';
+    pendingSelectedDownloadSize = '';
+    pendingSaveSelection = false;
+    setCollectionMode(true);
     if (visitorState.authenticated) {
+      if (visitorState.activeTokens && Object.keys(visitorState.activeTokens).length) {
+        replaceSelectedTokens(visitorState.activeTokens);
+      }
+      updateCollectionTray(getSelectedCount());
       openVisitorManageModal();
     } else {
       openVisitorModal();
@@ -2100,11 +2182,13 @@
           }
           if (data.in_collection) {
             visitorState.activeTokens[imageToken] = true;
+            setSelectedToken(imageToken, true);
           } else {
             delete visitorState.activeTokens[imageToken];
+            setSelectedToken(imageToken, false);
           }
-          applyActiveTokensFromMap(visitorState.activeTokens);
-          updateCollectionTray(parseInt(data.count, 10) || 0);
+          applySelectedTokensToButtons();
+          updateCollectionTray(getSelectedCount());
           syncCollectionFilterAfterCollectionChange();
         }
         return data;
@@ -2181,6 +2265,75 @@
     submitQueuedZipEmailRequest(visitorUrl('/download-all'), body);
   }
 
+  function requestSelectedImagesEmail(size, tokens) {
+    tokens = tokens || getSelectedTokenList();
+    if (!tokens.length) return;
+    if (!visitorBaseUrl) {
+      window.alert('Lejupielāde uz e-pastu šobrīd nav pieejama.');
+      return;
+    }
+    if (!visitorState.authenticated) {
+      pendingSelectedDownloadSize = size || 'web';
+      pendingSaveSelection = false;
+      pendingShareDownloadSize = '';
+      pendingCollectionImageToken = '';
+      openVisitorModal();
+      return;
+    }
+    closeCollectionDlModal();
+    var body =
+      'size=' +
+      encodeURIComponent(size || 'web') +
+      '&image_tokens=' +
+      encodeURIComponent(tokens.join(',')) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    submitQueuedZipEmailRequest(visitorUrl('/download-selected'), body);
+  }
+
+  function saveSelectionAsCollection() {
+    var tokens = getSelectedTokenList();
+    if (!tokens.length || !collectionEnabled) return;
+    if (!visitorBaseUrl) return;
+    if (!visitorState.authenticated) {
+      pendingSaveSelection = true;
+      pendingSelectedDownloadSize = '';
+      pendingShareDownloadSize = '';
+      pendingCollectionImageToken = '';
+      openVisitorModal();
+      return;
+    }
+    setCollectionMode(true);
+    var body =
+      'image_tokens=' +
+      encodeURIComponent(tokens.join(',')) +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    return fetch(visitorUrl('/collections/from-selection'), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: csrfFetchHeaders({
+        Accept: 'application/json',
+        'Content-Type': 'application/x-www-form-urlencoded',
+      }),
+      body: body,
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok) {
+          applyVisitorState({
+            authenticated: true,
+            visitor: { name: visitorState.name, email: visitorState.email },
+            active_collection: data.active_collection,
+            collections: data.collections,
+            active_tokens: data.active_tokens || {},
+          });
+          openVisitorManageModal();
+        }
+        return data;
+      });
+  }
+
   function requestShareCollectionEmail(size) {
     var shareUrl = window.EFPIC_SHARE_DOWNLOAD_URL || '';
     if (!shareUrl) return;
@@ -2190,6 +2343,8 @@
     }
     if (!visitorState.authenticated) {
       pendingCollectionImageToken = '';
+      pendingSelectedDownloadSize = '';
+      pendingSaveSelection = false;
       pendingShareDownloadSize = size || 'web';
       openVisitorModal();
       return;
@@ -2210,6 +2365,7 @@
       headers: csrfFetchHeaders({ Accept: 'application/json' }),
     })
       .then(function () {
+        setCollectionMode(false);
         visitorState = {
           authenticated: false,
           name: '',
@@ -2218,21 +2374,27 @@
           collections: [],
           activeTokens: {},
         };
-        applyActiveTokensFromMap({});
-        updateCollectionTray(0);
+        updateCollectionTray(getSelectedCount());
         closeVisitorManageModal();
       });
   }
 
   if (typeof window.EFPIC_COLLECTION_COUNT === 'number') {
-    updateCollectionTray(window.EFPIC_COLLECTION_COUNT);
+    updateCollectionTray(getSelectedCount());
   }
-  if (visitorState.authenticated && visitorState.activeCollection) {
-    updateCollectionTray(visitorState.activeCollection.count || window.EFPIC_COLLECTION_COUNT || 0);
-    document.querySelectorAll('[data-collection-toggle].is-selected').forEach(function (btn) {
-      var tok = btn.getAttribute('data-image-token') || '';
-      if (tok) visitorState.activeTokens[tok] = true;
-    });
+  applySelectedTokensToButtons();
+  updateCollectionTray(getSelectedCount());
+  if (isCollectionMode() && visitorState.authenticated) {
+    fetch(visitorUrl('/status'), { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (data && data.ok && data.authenticated) {
+          applyVisitorState(data);
+        }
+      })
+      .catch(function () {});
   }
 
   document.querySelectorAll('[data-like-toggle]').forEach(function (btn) {
@@ -2268,12 +2430,32 @@
         if (pendingCollectionImageToken) {
           var tok = pendingCollectionImageToken;
           pendingCollectionImageToken = '';
-          toggleVisitorCollectionImage(tok);
+          setSelectedToken(tok, true);
+          applySelectedTokensToButtons();
+          updateCollectionTray(getSelectedCount());
+          if (isCollectionMode()) {
+            toggleVisitorCollectionImage(tok);
+          }
+        }
+        if (pendingSaveSelection) {
+          pendingSaveSelection = false;
+          saveSelectionAsCollection();
+          return;
+        }
+        if (pendingSelectedDownloadSize) {
+          var selectedSize = pendingSelectedDownloadSize;
+          pendingSelectedDownloadSize = '';
+          requestSelectedImagesEmail(selectedSize);
+          return;
         }
         if (pendingShareDownloadSize) {
           var size = pendingShareDownloadSize;
           pendingShareDownloadSize = '';
           requestShareCollectionEmail(size);
+          return;
+        }
+        if (isCollectionMode()) {
+          openVisitorManageModal();
         }
       });
     });
@@ -2366,7 +2548,16 @@
       evt.target && evt.target.closest ? evt.target.closest('[data-visitor-manage-open]') : null;
     if (manageOpen) {
       evt.preventDefault();
+      setCollectionMode(true);
       openVisitorManageModal();
+      return;
+    }
+    var saveSelectionBtn =
+      evt.target && evt.target.closest ? evt.target.closest('[data-selection-save-collection]') : null;
+    if (saveSelectionBtn) {
+      evt.preventDefault();
+      saveSelectionAsCollection();
+      return;
     }
     var collectionOpen =
       evt.target && evt.target.closest ? evt.target.closest('[data-visitor-collection-open]') : null;
@@ -2414,19 +2605,21 @@
       if (collectionBtn.disabled) return;
       var imageToken = collectionBtn.getAttribute('data-image-token') || '';
       if (imageToken === '') return;
-      if (!visitorState.authenticated) {
-        pendingCollectionImageToken = imageToken;
-        openVisitorModal();
+      if (isCollectionMode() && visitorState.authenticated) {
+        collectionBtn.disabled = true;
+        toggleVisitorCollectionImage(imageToken)
+          .catch(function () {
+            /* ignore */
+          })
+          .finally(function () {
+            collectionBtn.disabled = false;
+          });
         return;
       }
-      collectionBtn.disabled = true;
-      toggleVisitorCollectionImage(imageToken)
-        .catch(function () {
-          /* ignore */
-        })
-        .finally(function () {
-          collectionBtn.disabled = false;
-        });
+      setSelectedToken(imageToken, !selectedTokens[imageToken]);
+      applySelectedTokensToButtons();
+      updateCollectionTray(getSelectedCount());
+      syncCollectionFilterAfterCollectionChange();
       return;
     }
   });
@@ -2563,6 +2756,7 @@
       if (!tokens.length) {
         return;
       }
+      setCollectionMode(true);
       if (!visitorState.authenticated) {
         openVisitorModal();
         return;
