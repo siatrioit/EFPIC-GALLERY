@@ -245,17 +245,21 @@ function efpic_email_embed_inline_images(array $config, string $html): array
  */
 function efpic_email_multipart_body(string $plainBody, string $htmlBody, array $inlineAttachments = []): array
 {
+    $encodePart = static function (string $contentType, string $payload): string {
+        return 'Content-Type: ' . $contentType . "; charset=UTF-8\r\n"
+            . "Content-Transfer-Encoding: base64\r\n\r\n"
+            . chunk_split(base64_encode($payload));
+    };
+
     if ($inlineAttachments === []) {
         $boundary = 'efpic_' . bin2hex(random_bytes(8));
 
         return [
             'contentType' => 'multipart/alternative; boundary="' . $boundary . '"',
             'body' => "--{$boundary}\r\n"
-                . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
-                . $plainBody . "\r\n"
+                . $encodePart('text/plain', $plainBody)
                 . "--{$boundary}\r\n"
-                . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-                . $htmlBody . "\r\n"
+                . $encodePart('text/html', $htmlBody)
                 . "--{$boundary}--",
         ];
     }
@@ -263,13 +267,11 @@ function efpic_email_multipart_body(string $plainBody, string $htmlBody, array $
     $alt = 'efpic_alt_' . bin2hex(random_bytes(8));
     $rel = 'efpic_rel_' . bin2hex(random_bytes(8));
     $body = "--{$alt}\r\n"
-        . "Content-Type: text/plain; charset=UTF-8\r\n\r\n"
-        . $plainBody . "\r\n"
+        . $encodePart('text/plain', $plainBody)
         . "--{$alt}\r\n"
         . 'Content-Type: multipart/related; boundary="' . $rel . '"' . "\r\n\r\n"
         . "--{$rel}\r\n"
-        . "Content-Type: text/html; charset=UTF-8\r\n\r\n"
-        . $htmlBody . "\r\n";
+        . $encodePart('text/html', $htmlBody);
 
     foreach ($inlineAttachments as $att) {
         $data = file_get_contents($att['path']);
