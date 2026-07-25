@@ -33,15 +33,8 @@ function efpic_visitor_gallery_base_context(array $config, string $galleryToken)
 
 function efpic_visitor_collection_gallery_context(array $config, string $galleryToken): ?array
 {
-    $pack = efpic_visitor_gallery_base_context($config, $galleryToken);
-    if ($pack === null) {
-        return null;
-    }
-    if (!efpic_can_use_public_collection($pack['meta'])) {
-        return null;
-    }
-
-    return $pack;
+    // Tā pati pasaule kā identify/ZIP: publiskā izlase VAI share ar ZIP e-pastu.
+    return efpic_visitor_auth_gallery_context($config, $galleryToken);
 }
 
 /** Auth konteksts publiskajai izlasei un/vai kopīgojamās izlases e-pasta lejupielādei. */
@@ -89,6 +82,7 @@ function efpic_handle_visitor_identify(array $config, string $galleryToken): voi
             $email,
             null,
             $createCollection,
+            efpic_visitor_current_guest_token($ctxPack['ctx']),
         );
     } catch (InvalidArgumentException $e) {
         efpic_json_response(400, ['ok' => false, 'error' => $e->getMessage()]);
@@ -173,10 +167,12 @@ function efpic_handle_visitor_collection_create(array $config, string $galleryTo
         efpic_json_response(400, ['ok' => false, 'error' => 'missing_name']);
     }
     $data = efpic_visitor_collections_load($config, $ctxPack['slug']);
-    $collectionId = efpic_visitor_create_collection_record($data, $session['visitor_id'], $name);
-    efpic_visitor_collections_save($config, $ctxPack['slug'], $data);
-    efpic_visitor_set_session($galleryToken, $session['visitor_id'], $collectionId);
     $visitor = efpic_visitor_get_visitor($data, $session['visitor_id']);
+    $guestTok = efpic_visitor_current_guest_token($ctxPack['ctx']);
+    $scope = (string) ($visitor['link_scope'] ?? efpic_visitor_link_scope($guestTok));
+    $collectionId = efpic_visitor_create_collection_record($data, $session['visitor_id'], $name, $scope);
+    efpic_visitor_collections_save($config, $ctxPack['slug'], $data);
+    efpic_visitor_set_session($galleryToken, $session['visitor_id'], $collectionId, $guestTok);
     if ($visitor !== null) {
         efpic_gallery_log_activity(
             $config,
@@ -200,7 +196,7 @@ function efpic_handle_visitor_collection_create(array $config, string $galleryTo
                 'name' => (string) ($collection['name'] ?? ''),
                 'count' => count($tokens),
             ];
-        }, efpic_visitor_collections_for_visitor($data, $session['visitor_id'])),
+        }, efpic_visitor_collections_for_visitor($data, $session['visitor_id'], $scope)),
         'active_tokens' => [],
     ]);
 }
@@ -256,7 +252,12 @@ function efpic_handle_visitor_face_collection_create(array $config, string $gall
                 'name' => (string) ($collection['name'] ?? ''),
                 'count' => count($tokens),
             ];
-        }, efpic_visitor_collections_for_visitor($data, $session['visitor_id'])),
+        }, efpic_visitor_collections_for_visitor(
+            $data,
+            $session['visitor_id'],
+            (string) (($data['visitors'][$session['visitor_id']]['link_scope'] ?? null)
+                ?: efpic_visitor_link_scope(efpic_visitor_current_guest_token($ctxPack['ctx']))),
+        )),
         'active_tokens' => efpic_visitor_active_collection_token_map(
             $config,
             $ctxPack['slug'],
@@ -280,10 +281,15 @@ function efpic_handle_visitor_collection_activate(array $config, string $gallery
     }
     $data = efpic_visitor_collections_load($config, $ctxPack['slug']);
     $collection = efpic_visitor_get_collection($data, $collectionId);
-    if ($collection === null || (string) ($collection['visitor_id'] ?? '') !== $session['visitor_id']) {
+    $guestTok = efpic_visitor_current_guest_token($ctxPack['ctx']);
+    $scope = efpic_visitor_link_scope($guestTok);
+    if ($collection === null
+        || (string) ($collection['visitor_id'] ?? '') !== $session['visitor_id']
+        || (string) ($collection['link_scope'] ?? 'public') !== $scope
+    ) {
         efpic_json_response(404, ['ok' => false, 'error' => 'not_found']);
     }
-    efpic_visitor_set_session($galleryToken, $session['visitor_id'], $collectionId);
+    efpic_visitor_set_session($galleryToken, $session['visitor_id'], $collectionId, $guestTok);
 
     efpic_json_response(200, [
         'ok' => true,
@@ -555,7 +561,12 @@ function efpic_handle_visitor_collection_rename(array $config, string $galleryTo
 
     $data = efpic_visitor_collections_load($config, $ctxPack['slug']);
     if ($session['active_collection_id'] === $collectionId) {
-        efpic_visitor_set_session($galleryToken, $session['visitor_id'], $collectionId);
+        efpic_visitor_set_session(
+            $galleryToken,
+            $session['visitor_id'],
+            $collectionId,
+            efpic_visitor_current_guest_token($ctxPack['ctx']),
+        );
     }
     $activeCollection = $data['collections'][$session['active_collection_id']] ?? null;
 
@@ -570,7 +581,12 @@ function efpic_handle_visitor_collection_rename(array $config, string $galleryTo
                 'name' => (string) ($collection['name'] ?? ''),
                 'count' => count($tokens),
             ];
-        }, efpic_visitor_collections_for_visitor($data, $session['visitor_id'])),
+        }, efpic_visitor_collections_for_visitor(
+            $data,
+            $session['visitor_id'],
+            (string) (($data['visitors'][$session['visitor_id']]['link_scope'] ?? null)
+                ?: efpic_visitor_link_scope(efpic_visitor_current_guest_token($ctxPack['ctx']))),
+        )),
     ]);
 }
 
@@ -655,7 +671,6 @@ function efpic_handle_visitor_collection_download(array $config, string $gallery
 function efpic_handle_visitor_logout(array $config, string $galleryToken): void
 {
     efpic_csrf_require();
-    efpic_client_session_start();
-    unset($_SESSION['efpic_visitor'][$galleryToken]);
+    efpic_visitor_clear_session($galleryToken);
     efpic_json_response(200, ['ok' => true]);
 }

@@ -164,8 +164,9 @@ function efpic_visitor_collections_load(array $config, string $slug): array
     if (!is_array($data)) {
         return efpic_visitor_collections_defaults();
     }
+    $data = array_merge(efpic_visitor_collections_defaults(), $data);
 
-    return array_merge(efpic_visitor_collections_defaults(), $data);
+    return efpic_visitor_collections_normalize_scopes($data);
 }
 
 /** @param array<string, mixed> $data */
@@ -179,6 +180,126 @@ function efpic_visitor_normalize_email(string $email): string
     return strtolower(trim($email));
 }
 
+/**
+ * Normalizē veco email_index (email→visitor) uz scope|email un piešķir link_scope.
+ *
+ * @param array<string, mixed> $data
+ * @return array<string, mixed>
+ */
+function efpic_visitor_collections_normalize_scopes(array $data): array
+{
+    if (!isset($data['visitors']) || !is_array($data['visitors'])) {
+        $data['visitors'] = [];
+    }
+    if (!isset($data['collections']) || !is_array($data['collections'])) {
+        $data['collections'] = [];
+    }
+    if (!isset($data['email_index']) || !is_array($data['email_index'])) {
+        $data['email_index'] = [];
+    }
+
+    $newIndex = [];
+    foreach ($data['email_index'] as $key => $visitorId) {
+        $key = (string) $key;
+        $visitorId = (string) $visitorId;
+        if ($visitorId === '') {
+            continue;
+        }
+        if (str_contains($key, '|')) {
+            $newIndex[$key] = $visitorId;
+            $scope = explode('|', $key, 2)[0];
+            if (isset($data['visitors'][$visitorId]) && is_array($data['visitors'][$visitorId])) {
+                if (trim((string) ($data['visitors'][$visitorId]['link_scope'] ?? '')) === '') {
+                    $data['visitors'][$visitorId]['link_scope'] = $scope !== '' ? $scope : 'public';
+                }
+            }
+            continue;
+        }
+        $scope = 'public';
+        if (isset($data['visitors'][$visitorId]) && is_array($data['visitors'][$visitorId])) {
+            $existing = trim((string) ($data['visitors'][$visitorId]['link_scope'] ?? ''));
+            if ($existing !== '') {
+                $scope = $existing;
+            } else {
+                $data['visitors'][$visitorId]['link_scope'] = 'public';
+            }
+        }
+        $newIndex[efpic_visitor_email_index_key($scope, efpic_visitor_normalize_email($key))] = $visitorId;
+    }
+    $data['email_index'] = $newIndex;
+
+    foreach ($data['visitors'] as $vid => $visitor) {
+        if (!is_array($visitor)) {
+            continue;
+        }
+        if (trim((string) ($visitor['link_scope'] ?? '')) === '') {
+            $data['visitors'][$vid]['link_scope'] = 'public';
+        }
+    }
+
+    foreach ($data['collections'] as $cid => $collection) {
+        if (!is_array($collection)) {
+            continue;
+        }
+        if (trim((string) ($collection['link_scope'] ?? '')) !== '') {
+            continue;
+        }
+        $vid = (string) ($collection['visitor_id'] ?? '');
+        $scope = 'public';
+        if ($vid !== '' && isset($data['visitors'][$vid]) && is_array($data['visitors'][$vid])) {
+            $scope = (string) ($data['visitors'][$vid]['link_scope'] ?? 'public');
+        }
+        $data['collections'][$cid]['link_scope'] = $scope !== '' ? $scope : 'public';
+    }
+
+    return $data;
+}
+
+/** public | g:{guest_token} */
+function efpic_visitor_link_scope(?string $guestToken): string
+{
+    $guestToken = trim((string) $guestToken);
+
+    return $guestToken !== '' ? ('g:' . $guestToken) : 'public';
+}
+
+function efpic_visitor_email_index_key(string $scope, string $emailNorm): string
+{
+    return $scope . '|' . $emailNorm;
+}
+
+function efpic_visitor_guest_token_from_scope(string $scope): string
+{
+    $scope = trim($scope);
+    if (str_starts_with($scope, 'g:')) {
+        return substr($scope, 2);
+    }
+
+    return '';
+}
+
+/** Guest token no ?g= (client.js withGuestQuery) vai ctx. */
+function efpic_visitor_current_guest_token(?array $ctx = null): string
+{
+    if (is_array($ctx)) {
+        $fromCtx = trim((string) ($ctx['guest_token'] ?? ''));
+        if ($fromCtx !== '') {
+            return $fromCtx;
+        }
+    }
+
+    return trim((string) ($_GET['g'] ?? ''));
+}
+
+function efpic_visitor_session_bucket(string $galleryToken, ?string $guestToken = null): string
+{
+    if ($guestToken === null) {
+        $guestToken = efpic_visitor_current_guest_token();
+    }
+
+    return $galleryToken . '|' . efpic_visitor_link_scope($guestToken);
+}
+
 function efpic_visitor_session_key(string $galleryToken): string
 {
     efpic_client_session_start();
@@ -186,26 +307,37 @@ function efpic_visitor_session_key(string $galleryToken): string
         $_SESSION['efpic_visitor'] = [];
     }
 
-    return $galleryToken;
+    return efpic_visitor_session_bucket($galleryToken);
 }
 
-function efpic_visitor_set_session(string $galleryToken, string $visitorId, string $collectionId): void
-{
+function efpic_visitor_set_session(
+    string $galleryToken,
+    string $visitorId,
+    string $collectionId,
+    ?string $guestToken = null,
+): void {
     efpic_client_session_start();
     if (!isset($_SESSION['efpic_visitor']) || !is_array($_SESSION['efpic_visitor'])) {
         $_SESSION['efpic_visitor'] = [];
     }
-    $_SESSION['efpic_visitor'][$galleryToken] = [
+    $key = efpic_visitor_session_bucket($galleryToken, $guestToken);
+    $_SESSION['efpic_visitor'][$key] = [
         'visitor_id' => $visitorId,
         'active_collection_id' => $collectionId,
     ];
 }
 
 /** @return array{visitor_id: string, active_collection_id: string}|null */
-function efpic_visitor_session_state(string $galleryToken): ?array
+function efpic_visitor_session_state(string $galleryToken, ?string $guestToken = null): ?array
 {
     efpic_client_session_start();
-    $row = $_SESSION['efpic_visitor'][$galleryToken] ?? null;
+    $key = efpic_visitor_session_bucket($galleryToken, $guestToken);
+    $row = $_SESSION['efpic_visitor'][$key] ?? null;
+    if (!is_array($row) && ($guestToken === null || trim((string) $guestToken) === '')
+        && efpic_visitor_current_guest_token() === ''
+    ) {
+        $row = $_SESSION['efpic_visitor'][$galleryToken] ?? null;
+    }
     if (!is_array($row)) {
         return null;
     }
@@ -219,6 +351,18 @@ function efpic_visitor_session_state(string $galleryToken): ?array
         'visitor_id' => $visitorId,
         'active_collection_id' => $collectionId,
     ];
+}
+
+function efpic_visitor_clear_session(string $galleryToken, ?string $guestToken = null): void
+{
+    efpic_client_session_start();
+    if (!isset($_SESSION['efpic_visitor']) || !is_array($_SESSION['efpic_visitor'])) {
+        return;
+    }
+    unset($_SESSION['efpic_visitor'][efpic_visitor_session_bucket($galleryToken, $guestToken)]);
+    if (($guestToken === null || trim((string) $guestToken) === '') && efpic_visitor_current_guest_token() === '') {
+        unset($_SESSION['efpic_visitor'][$galleryToken]);
+    }
 }
 
 function efpic_visitor_apply_access_token(array $config, string $galleryToken, string $accessToken): bool
@@ -243,11 +387,13 @@ function efpic_visitor_apply_access_token(array $config, string $galleryToken, s
         if ($visitorId === '') {
             return false;
         }
-        $collectionId = efpic_visitor_latest_collection_id($data, $visitorId);
+        $scope = (string) ($visitor['link_scope'] ?? 'public');
+        $guestTok = efpic_visitor_guest_token_from_scope($scope);
+        $collectionId = efpic_visitor_latest_collection_id($data, $visitorId, $scope);
         if ($collectionId === '') {
             return false;
         }
-        efpic_visitor_set_session($galleryToken, $visitorId, $collectionId);
+        efpic_visitor_set_session($galleryToken, $visitorId, $collectionId, $guestTok);
 
         return true;
     }
@@ -256,12 +402,15 @@ function efpic_visitor_apply_access_token(array $config, string $galleryToken, s
 }
 
 /** @param array<string, mixed> $data */
-function efpic_visitor_latest_collection_id(array $data, string $visitorId): string
+function efpic_visitor_latest_collection_id(array $data, string $visitorId, ?string $linkScope = null): string
 {
     $latest = '';
     $latestTs = '';
     foreach ($data['collections'] as $collection) {
         if (!is_array($collection) || (string) ($collection['visitor_id'] ?? '') !== $visitorId) {
+            continue;
+        }
+        if ($linkScope !== null && (string) ($collection['link_scope'] ?? 'public') !== $linkScope) {
             continue;
         }
         $updated = (string) ($collection['updated_at'] ?? $collection['created_at'] ?? '');
@@ -294,11 +443,14 @@ function efpic_visitor_get_collection(array $data, string $collectionId): ?array
  * @param array<string, mixed> $data
  * @return list<array<string, mixed>>
  */
-function efpic_visitor_collections_for_visitor(array $data, string $visitorId): array
+function efpic_visitor_collections_for_visitor(array $data, string $visitorId, ?string $linkScope = null): array
 {
     $out = [];
     foreach ($data['collections'] as $collection) {
         if (!is_array($collection) || (string) ($collection['visitor_id'] ?? '') !== $visitorId) {
+            continue;
+        }
+        if ($linkScope !== null && (string) ($collection['link_scope'] ?? 'public') !== $linkScope) {
             continue;
         }
         $out[] = $collection;
@@ -320,6 +472,7 @@ function efpic_visitor_identify(
     string $email,
     ?string $collectionName = null,
     bool $createCollection = true,
+    ?string $guestToken = null,
 ): array {
     $name = trim($name);
     $emailNorm = efpic_visitor_normalize_email($email);
@@ -327,8 +480,14 @@ function efpic_visitor_identify(
         throw new InvalidArgumentException('Nepieciešams derīgs vārds un e-pasts');
     }
 
+    if ($guestToken === null) {
+        $guestToken = efpic_visitor_current_guest_token();
+    }
+    $scope = efpic_visitor_link_scope($guestToken);
+    $indexKey = efpic_visitor_email_index_key($scope, $emailNorm);
+
     $data = efpic_visitor_collections_load($config, $slug);
-    $visitorId = (string) ($data['email_index'][$emailNorm] ?? '');
+    $visitorId = (string) ($data['email_index'][$indexKey] ?? '');
     $isNew = false;
     if ($visitorId === '' || !isset($data['visitors'][$visitorId])) {
         $isNew = true;
@@ -337,40 +496,42 @@ function efpic_visitor_identify(
             'id' => $visitorId,
             'name' => $name,
             'email' => $emailNorm,
+            'link_scope' => $scope,
             'access_token' => efpic_random_hex(24),
             'created_at' => gmdate('c'),
             'updated_at' => gmdate('c'),
         ];
-        $data['email_index'][$emailNorm] = $visitorId;
+        $data['email_index'][$indexKey] = $visitorId;
     } else {
         $data['visitors'][$visitorId]['name'] = $name;
+        $data['visitors'][$visitorId]['link_scope'] = $scope;
         $data['visitors'][$visitorId]['updated_at'] = gmdate('c');
     }
 
-    $collections = efpic_visitor_collections_for_visitor($data, $visitorId);
+    $collections = efpic_visitor_collections_for_visitor($data, $visitorId, $scope);
     $activeCollectionId = '';
     if ($createCollection) {
         $label = trim((string) $collectionName);
         if ($label === '') {
             $label = $collections === [] ? 'Mana izlase' : ('Izlase ' . (count($collections) + 1));
         }
-        $activeCollectionId = efpic_visitor_create_collection_record($data, $visitorId, $label);
+        $activeCollectionId = efpic_visitor_create_collection_record($data, $visitorId, $label, $scope);
     } else {
-        $activeCollectionId = efpic_visitor_latest_collection_id($data, $visitorId);
+        $activeCollectionId = efpic_visitor_latest_collection_id($data, $visitorId, $scope);
         if ($activeCollectionId === '' && $collections !== []) {
             $activeCollectionId = (string) ($collections[0]['id'] ?? '');
         }
     }
 
     if ($activeCollectionId === '') {
-        $activeCollectionId = efpic_visitor_create_collection_record($data, $visitorId, 'Mana izlase');
+        $activeCollectionId = efpic_visitor_create_collection_record($data, $visitorId, 'Mana izlase', $scope);
     }
 
     efpic_visitor_collections_save($config, $slug, $data);
-    efpic_visitor_set_session($galleryToken, $visitorId, $activeCollectionId);
+    efpic_visitor_set_session($galleryToken, $visitorId, $activeCollectionId, $guestToken);
 
     $visitor = $data['visitors'][$visitorId];
-    if (empty($visitor['continue_email_sent'])) {
+    if ($scope === 'public' && empty($visitor['continue_email_sent'])) {
         efpic_visitor_send_continue_email($config, $meta, $slug, $galleryToken, $visitor, $isNew);
         $data['visitors'][$visitorId]['continue_email_sent'] = true;
         $data['visitors'][$visitorId]['updated_at'] = gmdate('c');
@@ -383,23 +544,35 @@ function efpic_visitor_identify(
     efpic_gallery_log_activity($config, $slug, $meta, 'visitor_collection_identify', $message, 'visitor:' . $emailNorm, [
         'visitor_id' => $visitorId,
         'collection_id' => $activeCollectionId,
+        'link_scope' => $scope,
     ]);
 
     return [
         'visitor' => $data['visitors'][$visitorId],
-        'collections' => efpic_visitor_collections_for_visitor($data, $visitorId),
+        'collections' => efpic_visitor_collections_for_visitor($data, $visitorId, $scope),
         'active_collection_id' => $activeCollectionId,
     ];
 }
 
 /** @param array<string, mixed> $data */
-function efpic_visitor_create_collection_record(array &$data, string $visitorId, string $name): string
-{
+function efpic_visitor_create_collection_record(
+    array &$data,
+    string $visitorId,
+    string $name,
+    ?string $linkScope = null,
+): string {
+    if ($linkScope === null || $linkScope === '') {
+        $linkScope = (string) ($data['visitors'][$visitorId]['link_scope'] ?? 'public');
+    }
+    if ($linkScope === '') {
+        $linkScope = 'public';
+    }
     $collectionId = 'c_' . efpic_random_hex(12);
     $now = gmdate('c');
     $data['collections'][$collectionId] = [
         'id' => $collectionId,
         'visitor_id' => $visitorId,
+        'link_scope' => $linkScope,
         'name' => $name,
         'image_tokens' => [],
         'created_at' => $now,
@@ -407,6 +580,124 @@ function efpic_visitor_create_collection_record(array &$data, string $visitorId,
     ];
 
     return $collectionId;
+}
+
+/**
+ * Pārnes visitor datus no viena link_scope uz citu (share regenerācija).
+ */
+function efpic_visitor_migrate_link_scope(array $config, string $slug, string $oldScope, string $newScope): int
+{
+    $oldScope = trim($oldScope);
+    $newScope = trim($newScope);
+    if ($oldScope === '' || $newScope === '' || $oldScope === $newScope) {
+        return 0;
+    }
+    $data = efpic_visitor_collections_load($config, $slug);
+    $moved = 0;
+
+    foreach ($data['visitors'] as $vid => $visitor) {
+        if (!is_array($visitor)) {
+            continue;
+        }
+        if ((string) ($visitor['link_scope'] ?? 'public') !== $oldScope) {
+            continue;
+        }
+        $data['visitors'][$vid]['link_scope'] = $newScope;
+        $data['visitors'][$vid]['updated_at'] = gmdate('c');
+        $moved++;
+    }
+
+    $newIndex = [];
+    foreach ($data['email_index'] as $key => $visitorId) {
+        $key = (string) $key;
+        $visitorId = (string) $visitorId;
+        if (!str_starts_with($key, $oldScope . '|')) {
+            $newIndex[$key] = $visitorId;
+            continue;
+        }
+        $email = substr($key, strlen($oldScope) + 1);
+        $newIndex[efpic_visitor_email_index_key($newScope, $email)] = $visitorId;
+        $moved++;
+    }
+    $data['email_index'] = $newIndex;
+
+    foreach ($data['collections'] as $cid => $collection) {
+        if (!is_array($collection)) {
+            continue;
+        }
+        if ((string) ($collection['link_scope'] ?? 'public') !== $oldScope) {
+            continue;
+        }
+        $data['collections'][$cid]['link_scope'] = $newScope;
+        $data['collections'][$cid]['updated_at'] = gmdate('c');
+        $moved++;
+    }
+
+    efpic_visitor_collections_save($config, $slug, $data);
+
+    $oldGuest = efpic_visitor_guest_token_from_scope($oldScope);
+    $newGuest = efpic_visitor_guest_token_from_scope($newScope);
+    if ($oldGuest !== '' && $newGuest !== '' && function_exists('efpic_visitor_zip_queue_dir')) {
+        $dir = efpic_visitor_zip_queue_dir($config);
+        foreach (glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $jobPath) {
+            $job = efpic_read_json_file($jobPath);
+            if (!is_array($job)) {
+                continue;
+            }
+            if ((string) ($job['slug'] ?? '') !== $slug) {
+                continue;
+            }
+            if ((string) ($job['guest_token'] ?? '') !== $oldGuest) {
+                continue;
+            }
+            $job['guest_token'] = $newGuest;
+            $job['updated_at'] = gmdate('c');
+            efpic_write_json_file($jobPath, $job);
+            $moved++;
+        }
+    }
+
+    return $moved;
+}
+
+/** Dzēš visitor datus konkrētam link_scope (share delete). */
+function efpic_visitor_purge_link_scope(array $config, string $slug, string $scope): int
+{
+    $scope = trim($scope);
+    if ($scope === '' || $scope === 'public') {
+        return 0;
+    }
+    $data = efpic_visitor_collections_load($config, $slug);
+    $removed = 0;
+    $dropVisitors = [];
+    foreach ($data['visitors'] as $vid => $visitor) {
+        if (is_array($visitor) && (string) ($visitor['link_scope'] ?? '') === $scope) {
+            $dropVisitors[$vid] = true;
+        }
+    }
+    foreach ($dropVisitors as $vid => $_) {
+        unset($data['visitors'][$vid]);
+        $removed++;
+    }
+    foreach (array_keys($data['email_index']) as $key) {
+        if (str_starts_with((string) $key, $scope . '|')) {
+            unset($data['email_index'][$key]);
+            $removed++;
+        }
+    }
+    foreach ($data['collections'] as $cid => $collection) {
+        if (!is_array($collection)) {
+            continue;
+        }
+        $vid = (string) ($collection['visitor_id'] ?? '');
+        if ((string) ($collection['link_scope'] ?? '') === $scope || isset($dropVisitors[$vid])) {
+            unset($data['collections'][$cid]);
+            $removed++;
+        }
+    }
+    efpic_visitor_collections_save($config, $slug, $data);
+
+    return $removed;
 }
 
 /**
@@ -481,7 +772,12 @@ function efpic_visitor_collection_toggle(
     $data['collections'][$collectionId]['image_tokens'] = $tokens;
     $data['collections'][$collectionId]['updated_at'] = gmdate('c');
     efpic_visitor_collections_save($config, $slug, $data);
-    efpic_visitor_set_session($galleryToken, $visitorId, $collectionId);
+    efpic_visitor_set_session(
+        $galleryToken,
+        $visitorId,
+        $collectionId,
+        efpic_visitor_guest_token_from_scope((string) ($collection['link_scope'] ?? 'public')) ?: null,
+    );
     efpic_gallery_log_activity(
         $config,
         $slug,
@@ -605,11 +901,17 @@ function efpic_visitor_create_face_collection(
     }
 
     $name = efpic_visitor_face_collection_name();
-    $collectionId = efpic_visitor_create_collection_record($data, $visitorId, $name);
+    $scope = (string) ($visitor['link_scope'] ?? efpic_visitor_link_scope(efpic_visitor_current_guest_token($ctx)));
+    $collectionId = efpic_visitor_create_collection_record($data, $visitorId, $name, $scope);
     $data['collections'][$collectionId]['image_tokens'] = $tokens;
     $data['collections'][$collectionId]['updated_at'] = gmdate('c');
     efpic_visitor_collections_save($config, $slug, $data);
-    efpic_visitor_set_session($galleryToken, $visitorId, $collectionId);
+    efpic_visitor_set_session(
+        $galleryToken,
+        $visitorId,
+        $collectionId,
+        efpic_visitor_current_guest_token($ctx),
+    );
     efpic_gallery_log_activity(
         $config,
         $slug,
@@ -637,13 +939,18 @@ function efpic_visitor_active_collection_token_map(
     if (!efpic_can_use_public_collection($meta)) {
         return [];
     }
-    $session = efpic_visitor_session_state($galleryToken);
+    $guestToken = efpic_visitor_current_guest_token($ctx);
+    $session = efpic_visitor_session_state($galleryToken, $guestToken);
     if ($session === null) {
         return [];
     }
     $data = efpic_visitor_collections_load($config, $slug);
     $collection = efpic_visitor_get_collection($data, $session['active_collection_id']);
     if ($collection === null || (string) ($collection['visitor_id'] ?? '') !== $session['visitor_id']) {
+        return [];
+    }
+    $scope = efpic_visitor_link_scope($guestToken);
+    if ((string) ($collection['link_scope'] ?? 'public') !== $scope) {
         return [];
     }
     $nav = [];
@@ -1384,8 +1691,10 @@ function efpic_visitor_request_all_collections_zip_email(
  */
 function efpic_visitor_zip_job_collection_ids(array $data, string $visitorId): array
 {
+    $visitor = efpic_visitor_get_visitor($data, $visitorId);
+    $scope = is_array($visitor) ? (string) ($visitor['link_scope'] ?? 'public') : null;
     $ids = [];
-    foreach (efpic_visitor_collections_for_visitor($data, $visitorId) as $collection) {
+    foreach (efpic_visitor_collections_for_visitor($data, $visitorId, $scope) as $collection) {
         $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
         if ($tokens === []) {
             continue;
@@ -2495,7 +2804,9 @@ function efpic_visitor_public_status(
     string $galleryToken,
     array $ctx,
 ): ?array {
-    $session = efpic_visitor_session_state($galleryToken);
+    $guestToken = efpic_visitor_current_guest_token($ctx);
+    $scope = efpic_visitor_link_scope($guestToken);
+    $session = efpic_visitor_session_state($galleryToken, $guestToken);
     if ($session === null) {
         return null;
     }
@@ -2504,11 +2815,17 @@ function efpic_visitor_public_status(
     if ($visitor === null) {
         return null;
     }
-    $collections = efpic_visitor_collections_for_visitor($data, $session['visitor_id']);
+    if ((string) ($visitor['link_scope'] ?? 'public') !== $scope) {
+        return null;
+    }
+    $collections = efpic_visitor_collections_for_visitor($data, $session['visitor_id'], $scope);
     $active = efpic_visitor_get_collection($data, $session['active_collection_id']);
+    if ($active !== null && (string) ($active['link_scope'] ?? 'public') !== $scope) {
+        $active = null;
+    }
     if ($active === null && $collections !== []) {
         $active = $collections[0];
-        efpic_visitor_set_session($galleryToken, $session['visitor_id'], (string) ($active['id'] ?? ''));
+        efpic_visitor_set_session($galleryToken, $session['visitor_id'], (string) ($active['id'] ?? ''), $guestToken);
     }
 
     return [

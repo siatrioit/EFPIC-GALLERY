@@ -361,6 +361,39 @@
       });
     });
 
+    document.querySelectorAll('.admin-share-regenerate').forEach(function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var gtok = btn.getAttribute('data-guest-token');
+        if (!gtok) return;
+        var label = btn.getAttribute('data-share-label') || 'Izlase';
+        if (!window.confirm(
+          'Pārģenerēt saiti «' + label + '»?\n\nVecā saite vairs nestrādās. Klienta izlases un ZIP pieprasījumi tiks pārcelti uz jauno saiti.'
+        )) {
+          return;
+        }
+        btn.disabled = true;
+        postPortalShareRequest({
+          share_action: 'regenerate',
+          share_guest_token: gtok,
+        })
+          .then(function (data) {
+            showPortalToast('Saite pārģenerēta', false);
+            applyPortalShareAutosavePayload(data);
+            if (shareEditMode && shareEditMode.guestToken === gtok) {
+              exitShareEditMode();
+            }
+          })
+          .catch(function (err) {
+            showPortalToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
+      });
+    });
+
     document.querySelectorAll('.admin-share-videos-cb').forEach(function (cb) {
       if (cb.dataset.bound === '1') return;
       cb.dataset.bound = '1';

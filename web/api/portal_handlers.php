@@ -299,7 +299,11 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
                 efpic_apply_share_actions_from_post($meta, 'client', ['config' => $config, 'slug' => $slug]);
             }
             if (!empty($_POST['delete_share_token'])) {
-                efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
+                $delTok = (string) $_POST['delete_share_token'];
+                efpic_delete_share_set($meta, $delTok);
+                if (function_exists('efpic_visitor_purge_link_scope')) {
+                    efpic_visitor_purge_link_scope($config, $slug, efpic_visitor_link_scope($delTok));
+                }
             }
             efpic_save_gallery_meta($config, $slug, $meta);
             $shareIndex = efpic_share_sets_token_index($meta);

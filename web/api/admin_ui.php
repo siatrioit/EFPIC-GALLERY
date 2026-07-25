@@ -626,6 +626,8 @@ function efpic_admin_render_share_sets_body(array $config, array $meta): string
         $setBlocks .= '<div class="admin-share-set-actions">';
         $setBlocks .= '<button type="button" class="btn admin-btn-sm primary admin-share-edit" data-guest-token="' . efpic_admin_esc($gtok)
             . '">Labot izlasi</button>';
+        $setBlocks .= '<button type="button" class="btn admin-btn-sm admin-share-regenerate" data-guest-token="' . efpic_admin_esc($gtok)
+            . '" data-share-label="' . efpic_admin_esc($label) . '">Pārģenerēt saiti</button>';
         $setBlocks .= '<button type="button" class="btn admin-btn-sm admin-share-delete" data-guest-token="' . efpic_admin_esc($gtok)
             . '">Dzēst</button>';
         $setBlocks .= '</div></div></fieldset>';
@@ -2719,6 +2721,14 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
         $html .= '<p class="err">E-pasta sūtīšana nav gatava (skaties Admin → Iestatījumi). ZIP var sagatavoties, bet vēstule netiks nosūtīta.</p>';
     }
 
+    $html .= '<div class="portal-images-info-modal" id="adminVisitorZipRetryModal" hidden>'
+        . '<div class="portal-images-info-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="adminVisitorZipRetryTitle">'
+        . '<h3 id="adminVisitorZipRetryTitle">E-pasta darbība</h3>'
+        . '<p class="muted" id="adminVisitorZipRetryStatus">Notiek apstrāde…</p>'
+        . '<div class="portal-images-info-modal__actions">'
+        . '<button type="button" class="btn admin-btn-sm" data-zip-retry-close>Aizvērt</button>'
+        . '</div></div></div>';
+
     if ($jobs === []) {
         $html .= '<p class="muted">Šajā galerijā vēl nav ZIP e-pasta pieprasījumu.</p></section>';
 
@@ -2845,11 +2855,12 @@ function efpic_admin_visitor_email_zips_row_html(array $data, array $job, string
     $html .= '</td>';
     $html .= '<td data-label="Darbība">';
     if ($canRetry && $jobId !== '') {
-        $html .= '<button type="submit" class="btn admin-btn-sm'
+        $html .= '<button type="button" class="btn admin-btn-sm'
             . (($status === 'done' && $emailSent) ? '' : ' primary')
-            . '" name="visitor_zip_retry" value="'
-            . efpic_admin_esc($jobId) . '" formaction="delivery_edit.php?slug=' . rawurlencode($slug)
-            . '" formnovalidate>' . efpic_admin_esc($retryLabel) . '</button>';
+            . ' admin-visitor-zip-retry" data-job-id="'
+            . efpic_admin_esc($jobId) . '" data-retry-mode="'
+            . efpic_admin_esc(($status === 'done' && $emailSent) ? 'resend' : 'retry') . '">'
+            . efpic_admin_esc($retryLabel) . '</button>';
     } else {
         $html .= '<span class="muted">—</span>';
     }

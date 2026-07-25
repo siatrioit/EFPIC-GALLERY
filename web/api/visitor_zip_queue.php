@@ -261,7 +261,8 @@ function efpic_visitor_zip_enqueue_collections_job(
     }
 
     $hasImages = false;
-    foreach (efpic_visitor_collections_for_visitor($data, $visitorId) as $collection) {
+    $scope = (string) ($visitor['link_scope'] ?? 'public');
+    foreach (efpic_visitor_collections_for_visitor($data, $visitorId, $scope) as $collection) {
         $tokens = is_array($collection['image_tokens'] ?? null) ? $collection['image_tokens'] : [];
         if ($tokens !== []) {
             $hasImages = true;

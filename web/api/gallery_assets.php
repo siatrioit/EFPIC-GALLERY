@@ -2362,6 +2362,41 @@ function efpic_delete_share_set(array &$meta, string $guestToken): void
     }));
 }
 
+/**
+ * Ģenerē jaunu guest_token esošai kopīgojamai izlasei (vecā saite beidzas).
+ *
+ * @return array{old_token: string, new_token: string, entry: array<string, mixed>}
+ */
+function efpic_regenerate_share_set_token(array &$meta, string $oldGuestToken): array
+{
+    $oldGuestToken = trim($oldGuestToken);
+    if ($oldGuestToken === '') {
+        throw new InvalidArgumentException('Nav norādīts guest token.');
+    }
+    $guests = $meta['guests'] ?? [];
+    if (!is_array($guests)) {
+        throw new InvalidArgumentException('Izlase nav atrasta.');
+    }
+    foreach ($guests as $i => $g) {
+        if (!is_array($g) || (string) ($g['guest_token'] ?? '') !== $oldGuestToken) {
+            continue;
+        }
+        $newToken = efpic_random_hex(16);
+        $guests[$i]['guest_token'] = $newToken;
+        $guests[$i]['regenerated_at'] = gmdate('c');
+        $guests[$i]['previous_guest_token'] = $oldGuestToken;
+        $meta['guests'] = $guests;
+
+        return [
+            'old_token' => $oldGuestToken,
+            'new_token' => $newToken,
+            'entry' => $guests[$i],
+        ];
+    }
+
+    throw new InvalidArgumentException('Izlase nav atrasta.');
+}
+
 /** @return array<string, true> */
 function efpic_share_sets_token_index(array $meta): array
 {
@@ -2674,6 +2709,39 @@ function efpic_apply_share_actions_from_post(
     if ($action === 'update_slideshow') {
         $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
         efpic_update_share_set_meta($meta, $guestToken, null, !empty($_POST['share_include_slideshow']));
+
+        return;
+    }
+    if ($action === 'regenerate') {
+        $guestToken = trim((string) ($_POST['share_guest_token'] ?? ''));
+        $result = efpic_regenerate_share_set_token($meta, $guestToken);
+        if (is_array($logContext) && isset($logContext['config'], $logContext['slug'])) {
+            $cfg = $logContext['config'];
+            $slug = (string) $logContext['slug'];
+            if (function_exists('efpic_visitor_migrate_link_scope')) {
+                efpic_visitor_migrate_link_scope(
+                    $cfg,
+                    $slug,
+                    efpic_visitor_link_scope($result['old_token']),
+                    efpic_visitor_link_scope($result['new_token']),
+                );
+            }
+            if (function_exists('efpic_gallery_log_activity')) {
+                $label = (string) ($result['entry']['label'] ?? 'Izlase');
+                efpic_gallery_log_activity(
+                    $cfg,
+                    $slug,
+                    $meta,
+                    'share_regenerated',
+                    'Pārģenerēta kopīgojamā izlase «' . $label . '»',
+                    $createdBy,
+                    [
+                        'old_guest_token' => $result['old_token'],
+                        'new_guest_token' => $result['new_token'],
+                    ],
+                );
+            }
+        }
     }
 }
 

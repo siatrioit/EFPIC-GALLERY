@@ -1039,6 +1039,39 @@
       });
     });
 
+    document.querySelectorAll('.admin-share-regenerate').forEach(function (btn) {
+      if (btn.dataset.bound === '1') return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', function () {
+        var gtok = btn.getAttribute('data-guest-token');
+        if (!gtok) return;
+        var label = btn.getAttribute('data-share-label') || 'Izlase';
+        if (!window.confirm(
+          'Pārģenerēt saiti «' + label + '»?\n\nVecā saite vairs nestrādās. Klienta izlases un ZIP pieprasījumi tiks pārcelti uz jauno saiti.'
+        )) {
+          return;
+        }
+        btn.disabled = true;
+        postAdminShareRequest({
+          share_action: 'regenerate',
+          share_guest_token: gtok,
+        })
+          .then(function (data) {
+            showAdminAutoSaveToast('Saite pārģenerēta', false);
+            applyAdminShareAutosavePayload(data);
+            if (shareEditMode && shareEditMode.guestToken === gtok) {
+              exitShareEditMode();
+            }
+          })
+          .catch(function (err) {
+            showAdminAutoSaveToast(err && err.message ? err.message : 'Kļūda', true);
+          })
+          .finally(function () {
+            btn.disabled = false;
+          });
+      });
+    });
+
     document.querySelectorAll('.admin-share-videos-cb').forEach(function (cb) {
       if (cb.dataset.bound === '1') return;
       cb.dataset.bound = '1';
@@ -3142,6 +3175,126 @@
 
     document.addEventListener('keydown', function (evt) {
       if (evt.key === 'Escape' && !modal.hidden) closeModal();
+    });
+  })();
+
+  (function initAdminVisitorZipRetry() {
+    var modal = document.getElementById('adminVisitorZipRetryModal');
+    var statusEl = document.getElementById('adminVisitorZipRetryStatus');
+    var panel = document.querySelector('.admin-visitor-emails-panel');
+    if (!panel) return;
+    var slug = panel.getAttribute('data-visitor-zips-slug') || '';
+
+    function openModal(msg) {
+      if (!modal || !statusEl) return;
+      statusEl.textContent = msg || 'Notiek apstrāde…';
+      modal.hidden = false;
+      document.body.classList.add('portal-images-info-open');
+    }
+
+    function closeModal() {
+      if (!modal) return;
+      modal.hidden = true;
+      document.body.classList.remove('portal-images-info-open');
+    }
+
+    function setStatus(msg) {
+      if (statusEl) statusEl.textContent = msg;
+    }
+
+    if (modal) {
+      modal.querySelectorAll('[data-zip-retry-close]').forEach(function (btn) {
+        btn.addEventListener('click', function (evt) {
+          evt.preventDefault();
+          closeModal();
+        });
+      });
+      modal.addEventListener('click', function (evt) {
+        if (evt.target === modal) closeModal();
+      });
+      document.addEventListener('keydown', function (evt) {
+        if (evt.key === 'Escape' && modal && !modal.hidden) closeModal();
+      });
+    }
+
+    function csrfToken() {
+      var input = document.querySelector('#admin-delivery-form input[name="csrf"], input[name="csrf"]');
+      return input ? input.value : '';
+    }
+
+    function refreshEmailsTable() {
+      if (!slug) return Promise.resolve();
+      return fetch('delivery_edit.php?slug=' + encodeURIComponent(slug) + '&poll=visitor_zips', {
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok || typeof data.html !== 'string') return;
+          var wrap = panel.querySelector('.admin-table-wrap');
+          if (wrap && data.html.indexOf('admin-visitor-emails-table') !== -1) {
+            wrap.outerHTML = data.html;
+          } else if (wrap) {
+            wrap.outerHTML = data.html;
+          }
+        })
+        .catch(function () {});
+    }
+
+    panel.addEventListener('click', function (evt) {
+      var btn = evt.target.closest('.admin-visitor-zip-retry');
+      if (!btn || !panel.contains(btn)) return;
+      evt.preventDefault();
+      var jobId = btn.getAttribute('data-job-id') || '';
+      if (!jobId || !slug) return;
+      var modeHint = btn.getAttribute('data-retry-mode') || 'retry';
+      btn.disabled = true;
+      openModal(modeHint === 'resend'
+        ? 'Nosūtu e-pastu vēlreiz…'
+        : 'Sagatavoju ZIP / nosūtu e-pastu…');
+
+      var body = new URLSearchParams();
+      body.set('visitor_zip_retry_api', '1');
+      body.set('visitor_zip_retry', jobId);
+      var csrf = csrfToken();
+      if (csrf) body.set('csrf', csrf);
+
+      fetch('delivery_edit.php?slug=' + encodeURIComponent(slug), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8',
+        },
+        body: body.toString(),
+      })
+        .then(function (r) {
+          return r.json().then(function (data) {
+            return { okHttp: r.ok, data: data };
+          });
+        })
+        .then(function (pack) {
+          var data = pack.data || {};
+          if (!pack.okHttp || !data.ok) {
+            throw new Error(data.error || 'Neizdevās');
+          }
+          setStatus(data.message || (data.mode === 'rebuild'
+            ? 'ZIP tiek gatavots fonā…'
+            : 'E-pasts nosūtīts.'));
+          return refreshEmailsTable().then(function () {
+            if (data.mode === 'rebuild') {
+              panel.setAttribute('data-poll-visitor-zips', '1');
+            }
+          });
+        })
+        .catch(function (err) {
+          setStatus(err && err.message ? err.message : 'Kļūda');
+        })
+        .finally(function () {
+          btn.disabled = false;
+        });
     });
   })();
 

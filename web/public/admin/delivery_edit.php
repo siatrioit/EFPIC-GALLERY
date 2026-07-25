@@ -79,7 +79,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) 
             efpic_apply_share_actions_from_post($meta, 'admin', ['config' => $config, 'slug' => $slug]);
         }
         if (!empty($_POST['delete_share_token'])) {
-            efpic_delete_share_set($meta, (string) $_POST['delete_share_token']);
+            $delTok = (string) $_POST['delete_share_token'];
+            efpic_delete_share_set($meta, $delTok);
+            if (function_exists('efpic_visitor_purge_link_scope')) {
+                efpic_visitor_purge_link_scope($config, $slug, efpic_visitor_link_scope($delTok));
+            }
         }
         efpic_save_gallery_meta($config, $slug, $meta);
         echo json_encode(array_merge(
@@ -89,6 +93,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['admin_share_api'])) 
         exit;
     } catch (Throwable $e) {
         http_response_code(400);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['visitor_zip_retry_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    $jobId = trim((string) ($_POST['visitor_zip_retry'] ?? $_POST['visitor_zip_job_id'] ?? ''));
+    try {
+        $result = efpic_visitor_zip_admin_retry_job($config, $slug, $jobId);
+        if (empty($result['ok'])) {
+            http_response_code(400);
+            echo json_encode([
+                'ok' => false,
+                'error' => (string) ($result['error'] ?? 'Neizdevās'),
+            ], JSON_UNESCAPED_UNICODE);
+            exit;
+        }
+        $mode = (string) ($result['mode'] ?? 'resend');
+        $payload = [
+            'ok' => true,
+            'mode' => $mode,
+            'job_id' => (string) ($result['job_id'] ?? $jobId),
+            'message' => $mode === 'rebuild'
+                ? 'ZIP tiek gatavots. Statuss atjaunosies cilnē «E-pasts».'
+                : 'E-pasts nosūtīts vēlreiz.',
+        ];
+
+        if ($mode === 'rebuild' && !empty($result['job_id'])) {
+            $bgJobId = (string) $result['job_id'];
+            ignore_user_abort(true);
+            @set_time_limit(0);
+            $body = json_encode($payload, JSON_UNESCAPED_UNICODE);
+            header('Content-Length: ' . (string) strlen((string) $body));
+            header('Connection: close');
+            if (function_exists('session_write_close')) {
+                @session_write_close();
+            }
+            echo $body;
+            while (ob_get_level() > 0) {
+                ob_end_flush();
+            }
+            flush();
+            if (function_exists('fastcgi_finish_request')) {
+                @fastcgi_finish_request();
+            }
+            efpic_visitor_zip_process_job_chain($config, $bgJobId, 120);
+            efpic_visitor_zip_run_pending($config, 2);
+            exit;
+        }
+
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
         echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
         exit;
     }
