@@ -145,6 +145,8 @@ function efpic_failiem_list_video_folder(array $config, string $folderHash): arr
 function efpic_failiem_normalize_basename(string $filename, array $stripSuffixes): string
 {
     $base = pathinfo($filename, PATHINFO_FILENAME);
+    // EdgarsFoto_PRINT_1163-2 — _PRINT/_WEB ir vidū, nevis nosaukuma galā.
+    $base = (string) preg_replace('/_(PRINT|WEB)(?=_|$)/i', '', $base);
     foreach ($stripSuffixes as $suffix) {
         if ($suffix === '') {
             continue;
@@ -154,7 +156,7 @@ function efpic_failiem_normalize_basename(string $filename, array $stripSuffixes
             $base = substr($base, 0, -$len);
         }
     }
-    if (preg_match('/(\d+)\s*$/', $base, $m)) {
+    if (preg_match('/(\d+(?:[-_]\d+)?)\s*$/', $base, $m)) {
         return $m[1];
     }
 
@@ -168,38 +170,53 @@ function efpic_failiem_normalize_basename(string $filename, array $stripSuffixes
  */
 function efpic_failiem_pair_files(array $fullFiles, array $webFiles, array $stripSuffixes): array
 {
+    $fullByKey = [];
+    foreach ($fullFiles as $f) {
+        $key = efpic_failiem_normalize_basename((string) $f['name'], $stripSuffixes);
+        if ($key === '') {
+            continue;
+        }
+        $fullByKey[$key][] = $f;
+    }
+
     $webByKey = [];
     foreach ($webFiles as $w) {
         $key = efpic_failiem_normalize_basename((string) $w['name'], $stripSuffixes);
-        if ($key !== '') {
-            $webByKey[$key] = $w;
+        if ($key === '') {
+            continue;
         }
+        $webByKey[$key][] = $w;
     }
+
+    $sortByName = static function (array $a, array $b): int {
+        return strnatcasecmp((string) ($a['name'] ?? ''), (string) ($b['name'] ?? ''));
+    };
 
     $paired = [];
     $orphansFull = [];
-    $usedWeb = [];
+    $orphansWeb = [];
+    $allKeys = array_unique(array_merge(array_keys($fullByKey), array_keys($webByKey)));
+    sort($allKeys, SORT_NATURAL);
 
-    foreach ($fullFiles as $f) {
-        $key = efpic_failiem_normalize_basename((string) $f['name'], $stripSuffixes);
-        if ($key !== '' && isset($webByKey[$key])) {
+    foreach ($allKeys as $key) {
+        $fulls = $fullByKey[$key] ?? [];
+        $webs = $webByKey[$key] ?? [];
+        usort($fulls, $sortByName);
+        usort($webs, $sortByName);
+        $pairCount = min(count($fulls), count($webs));
+        for ($i = 0; $i < $pairCount; $i++) {
             $paired[] = [
                 'key' => $key,
-                'basename' => (string) $f['name'],
-                'full' => $f,
-                'web' => $webByKey[$key],
+                'basename' => (string) $fulls[$i]['name'],
+                'full' => $fulls[$i],
+                'web' => $webs[$i],
             ];
-            $usedWeb[$key] = true;
-        } else {
-            $orphansFull[] = $f;
         }
-    }
-
-    $orphansWeb = [];
-    foreach ($webFiles as $w) {
-        $key = efpic_failiem_normalize_basename((string) $w['name'], $stripSuffixes);
-        if ($key === '' || !isset($usedWeb[$key])) {
-            $orphansWeb[] = $w;
+        for ($i = $pairCount, $n = count($fulls); $i < $n; $i++) {
+            $orphansFull[] = $fulls[$i];
+        }
+        for ($i = $pairCount, $n = count($webs); $i < $n; $i++) {
+            $orphansWeb[] = $webs[$i];
         }
     }
 

@@ -1390,13 +1390,15 @@ function efpic_image_basename_sort_key(array $img): array
         $name = (string) ($img['failiem_web']['name'] ?? '');
     }
     $base = pathinfo($name, PATHINFO_FILENAME);
-    $base = (string) preg_replace('/_(PRINT|WEB)$/i', '', $base);
-    if (preg_match('/(\d+)\s*$/', $base, $m) === 1) {
-        return [(int) $m[1], strtolower($base), strtolower($name)];
+    $base = (string) preg_replace('/_(PRINT|WEB)(?=_|$)/i', '', $base);
+    if (preg_match('/(\d+(?:[-_]\d+)?)\s*$/', $base, $m) === 1) {
+        $num = (int) preg_replace('/\D/', '', $m[1]);
+
+        return [$num, strtolower($base), strtolower($name)];
     }
     $pairKey = (string) ($img['pair_key'] ?? '');
-    if ($pairKey !== '' && ctype_digit($pairKey)) {
-        return [(int) $pairKey, strtolower($base), strtolower($name)];
+    if ($pairKey !== '' && preg_match('/^(\d+)/', $pairKey, $m) === 1) {
+        return [(int) $m[1], strtolower($base), strtolower($name)];
     }
 
     return [PHP_INT_MAX, strtolower($base), strtolower($name)];

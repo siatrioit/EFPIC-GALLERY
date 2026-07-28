@@ -41,6 +41,8 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     $pairResult = efpic_failiem_pair_files($fullFiles, $webFiles, $strip);
 
     $existingByKey = [];
+    $existingByFullHash = [];
+    $existingByWebHash = [];
     foreach ($meta['images'] ?? [] as $img) {
         if (!is_array($img)) {
             continue;
@@ -48,6 +50,14 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
         $key = (string) ($img['pair_key'] ?? '');
         if ($key !== '') {
             $existingByKey[$key] = $img;
+        }
+        $fullHash = (string) (($img['failiem_full']['file_hash'] ?? '') ?: '');
+        $webHash = (string) (($img['failiem_web']['file_hash'] ?? '') ?: '');
+        if ($fullHash !== '') {
+            $existingByFullHash[$fullHash] = $img;
+        }
+        if ($webHash !== '') {
+            $existingByWebHash[$webHash] = $img;
         }
     }
 
@@ -60,13 +70,28 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     $newImages = [];
     $newImageIndices = [];
     $forceDimRefresh = [];
+    $usedPairKeys = [];
+    $usedTokens = [];
     foreach ($paired as $pair) {
         $key = (string) $pair['key'];
-        $prev = $existingByKey[$key] ?? null;
+        $fullHash = (string) ($pair['full']['hash'] ?? '');
+        $webHash = (string) ($pair['web']['hash'] ?? '');
+        $prev = null;
+        if ($fullHash !== '' && isset($existingByFullHash[$fullHash])) {
+            $prev = $existingByFullHash[$fullHash];
+        } elseif ($webHash !== '' && isset($existingByWebHash[$webHash])) {
+            $prev = $existingByWebHash[$webHash];
+        } elseif ($key !== '' && !isset($usedPairKeys[$key])) {
+            $prev = $existingByKey[$key] ?? null;
+        }
+        if ($key !== '') {
+            $usedPairKeys[$key] = true;
+        }
         $token = is_array($prev) ? (string) ($prev['token'] ?? '') : '';
-        if ($token === '') {
+        if ($token === '' || isset($usedTokens[$token])) {
             $token = efpic_random_hex(24);
         }
+        $usedTokens[$token] = true;
 
         $entry = [
             'token' => $token,
@@ -126,7 +151,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
     $meta['failiem']['last_sync_at'] = gmdate('c');
     $meta['failiem']['sync_stats'] = [
-        'paired' => count($pairResult['paired']),
+        'paired' => count($newImages),
         'orphans_full' => count($pairResult['orphans_full']),
         'orphans_web' => count($pairResult['orphans_web']),
         'full_count' => count($fullFiles),

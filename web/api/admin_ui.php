@@ -2159,7 +2159,8 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         ];
     }
 
-    $shouldApplyImageOrder = !empty($_POST['image_order']) && is_string($_POST['image_order'])
+    $shouldApplyImageOrder = empty($_POST['sync_now'])
+        && !empty($_POST['image_order']) && is_string($_POST['image_order'])
         && (!empty($_POST['image_order_dirty']) || empty($_POST['autosave']));
     if ($shouldApplyImageOrder) {
         $tokens = array_filter(array_map('trim', explode(',', $_POST['image_order'])));
