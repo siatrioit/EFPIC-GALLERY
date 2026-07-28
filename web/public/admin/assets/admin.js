@@ -2735,22 +2735,44 @@
   }
 
   function adminDimsMissingCount() {
+    var panel = document.getElementById('admin-dims-debug');
+    if (panel) {
+      return parseInt(panel.getAttribute('data-dims-missing') || '0', 10) || 0;
+    }
     var missingEl = document.getElementById('admin-dims-missing');
     if (!missingEl) return 0;
     return parseInt(missingEl.textContent, 10) || 0;
   }
 
   function adminDimsStaleCount() {
+    var panel = document.getElementById('admin-dims-debug');
+    if (panel) {
+      return parseInt(panel.getAttribute('data-dims-stale') || '0', 10) || 0;
+    }
     var staleEl = document.getElementById('admin-dims-stale');
     if (!staleEl) return 0;
     return parseInt(staleEl.textContent, 10) || 0;
+  }
+
+  function adminDimsMismatchActive() {
+    var panel = document.getElementById('admin-dims-debug');
+    return !!(panel && panel.getAttribute('data-dims-mismatch') === '1');
   }
 
   function adminUpdateDimsDebugUi(stats) {
     var countEl = document.getElementById('admin-dims-count');
     var missingEl = document.getElementById('admin-dims-missing');
     var staleEl = document.getElementById('admin-dims-stale');
+    var panel = document.getElementById('admin-dims-debug');
     var btn = document.getElementById('admin-backfill-dimensions');
+    if (panel) {
+      if (stats.missing !== undefined) {
+        panel.setAttribute('data-dims-missing', String(stats.missing));
+      }
+      if (stats.stale !== undefined) {
+        panel.setAttribute('data-dims-stale', String(stats.stale || 0));
+      }
+    }
     if (countEl && stats.with_dims !== undefined && stats.total !== undefined) {
       countEl.textContent = stats.with_dims + ' / ' + stats.total;
     }
@@ -2760,7 +2782,7 @@
     if (staleEl && stats.stale !== undefined) {
       staleEl.textContent = String(stats.stale);
     }
-    if (btn && (stats.missing || 0) <= 0 && (stats.stale || 0) <= 0) {
+    if (btn && (stats.missing || 0) <= 0 && (stats.stale || 0) <= 0 && !adminDimsMismatchActive()) {
       btn.hidden = true;
     }
   }
@@ -2820,7 +2842,13 @@
     if (adminDimsBackfillInFlight) {
       return Promise.resolve();
     }
-    if (!opts.force && adminDimsMissingCount() <= 0 && adminDimsStaleCount() <= 0) {
+    if (
+      !opts.force &&
+      !opts.all &&
+      adminDimsMissingCount() <= 0 &&
+      adminDimsStaleCount() <= 0 &&
+      !adminDimsMismatchActive()
+    ) {
       return Promise.resolve();
     }
 
@@ -2855,9 +2883,19 @@
       });
     }
 
-    var promise = opts.force
-      ? adminFetchBackfillDimensions(false, true)
-      : step(false, 1);
+    var promise;
+    if (opts.force) {
+      promise = adminFetchBackfillDimensions(false, true);
+    } else if (opts.all) {
+      promise = adminFetchBackfillDimensions(true, false).then(function (data) {
+        var stats = data.stats || {};
+        adminUpdateDimsDebugUi(stats);
+        adminUpdateDimsProgress(stats, startedAt);
+        return data;
+      });
+    } else {
+      promise = step(false, 1);
+    }
 
     return promise
       .then(function (data) {
@@ -2869,6 +2907,9 @@
             msg += ' Neizdevās nolasīt — pārbaudi Failiem piekļuvi serverī.';
           }
           showAdminAutoSaveToast(msg, (data.updated || 0) === 0);
+        } else if (adminDimsMismatchActive()) {
+          msg += ' Ja trūkst bildes, vispirms sinhronizē no Failiem (WEB+PRINT pāris).';
+          showAdminAutoSaveToast(msg, false);
         } else {
           msg += ' Viss gatavs.';
           showAdminAutoSaveToast(msg, false);

@@ -2225,7 +2225,11 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     $rawCount = count($meta['images'] ?? []);
     $mismatch = $paired > 0 && $paired !== $stats['total'];
 
-    $html = '<div class="admin-dims-panel" id="admin-dims-debug">';
+    $html = '<div class="admin-dims-panel" id="admin-dims-debug"'
+        . ' data-dims-missing="' . (int) $stats['missing'] . '"'
+        . ' data-dims-stale="' . (int) ($stats['stale'] ?? 0) . '"'
+        . ($mismatch ? ' data-dims-mismatch="1"' : '')
+        . '>';
     $html .= '<div class="admin-dims-panel__actions">';
     $html .= '<button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
         . 'Pārrēķināt izmērus</button>';
