@@ -459,6 +459,16 @@ if (isset($_GET['saved'])) {
             if ((int) ($dimStats['missing'] ?? 0) > 0) {
                 $flash .= ' Palika ' . (int) $dimStats['missing'] . ' — turpinām fonā…';
             }
+            $syncWarnings = is_array($syncDims['warnings'] ?? null) ? $syncDims['warnings'] : [];
+            if ($syncWarnings !== []) {
+                $flash .= ' Brīdinājumi: ' . implode(' · ', $syncWarnings);
+            }
+            $syncStats = is_array($syncDims['sync_stats'] ?? null) ? $syncDims['sync_stats'] : [];
+            if ($syncStats !== []) {
+                $flash .= ' Sync pāri: ' . (int) ($syncStats['paired'] ?? 0)
+                    . ' (Failiem API: pilns ' . (int) ($syncStats['full_count'] ?? 0)
+                    . ', web ' . (int) ($syncStats['web_count'] ?? 0) . ').';
+            }
         }
     }
 }

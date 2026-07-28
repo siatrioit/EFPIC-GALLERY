@@ -47,8 +47,8 @@ function efpic_failiem_strip_suffixes(array $config, ?array $metaFailiem = null)
     return is_array($list) ? array_map('strval', $list) : ['_WEB', '_PRINT'];
 }
 
-/** @return array<int, array{hash: string, name: string, size_bytes: int, mime_type: string}> */
-function efpic_failiem_list_folder(array $config, string $folderHash): array
+/** @return array{files: list<array{hash: string, name: string, size_bytes: int, mime_type: string}>, skipped_non_image: int, skipped_other: int} */
+function efpic_failiem_scan_image_folder(array $config, string $folderHash): array
 {
     $folderHash = efpic_failiem_parse_folder_hash($folderHash);
     if ($folderHash === '') {
@@ -66,16 +66,20 @@ function efpic_failiem_list_folder(array $config, string $folderHash): array
     }
 
     $files = [];
+    $skippedNonImage = 0;
+    $skippedOther = 0;
     foreach ($data as $item) {
         if (!is_array($item) || ($item['type'] ?? '') !== 'File') {
             continue;
         }
         $mime = (string) ($item['mime_type'] ?? 'image/jpeg');
         if ($mime !== '' && !str_starts_with($mime, 'image/')) {
+            $skippedNonImage++;
             continue;
         }
         $hash = (string) ($item['hash'] ?? '');
         if ($hash === '') {
+            $skippedOther++;
             continue;
         }
         $files[] = [
@@ -86,7 +90,26 @@ function efpic_failiem_list_folder(array $config, string $folderHash): array
         ];
     }
 
-    return $files;
+    return [
+        'files' => $files,
+        'skipped_non_image' => $skippedNonImage,
+        'skipped_other' => $skippedOther,
+    ];
+}
+
+/** @return array<int, array{hash: string, name: string, size_bytes: int, mime_type: string}> */
+function efpic_failiem_list_folder(array $config, string $folderHash): array
+{
+    return efpic_failiem_scan_image_folder($config, $folderHash)['files'];
+}
+
+function efpic_failiem_canonical_pair_key(string $key): string
+{
+    if (preg_match('/^(\d+)[-_](\d+)$/', $key, $m) === 1) {
+        return $m[1] . '-' . $m[2];
+    }
+
+    return $key;
 }
 
 function efpic_failiem_is_video_file(string $mime, string $name): bool
@@ -157,32 +180,60 @@ function efpic_failiem_normalize_basename(string $filename, array $stripSuffixes
         }
     }
     if (preg_match('/(\d+(?:[-_]\d+)?)\s*$/', $base, $m)) {
-        return $m[1];
+        return efpic_failiem_canonical_pair_key($m[1]);
     }
 
     return strtolower($base);
 }
 
+/** @param list<array<string, mixed>> $files */
+function efpic_failiem_format_file_name_list(array $files, int $limit = 6): string
+{
+    $names = [];
+    foreach ($files as $file) {
+        if (!is_array($file)) {
+            continue;
+        }
+        $name = trim((string) ($file['name'] ?? ''));
+        if ($name !== '') {
+            $names[] = $name;
+        }
+    }
+    if ($names === []) {
+        return '';
+    }
+    sort($names, SORT_NATURAL);
+    if (count($names) <= $limit) {
+        return implode(', ', $names);
+    }
+
+    return implode(', ', array_slice($names, 0, $limit)) . ' (+ vēl ' . (count($names) - $limit) . ')';
+}
+
 /**
  * @param array<int, array<string, mixed>> $fullFiles
  * @param array<int, array<string, mixed>> $webFiles
- * @return array{paired: list<array>, orphans_full: list<array>, orphans_web: list<array>}
+ * @return array{paired: list<array>, orphans_full: list<array>, orphans_web: list<array>, skipped_full: list<array>, skipped_web: list<array>}
  */
 function efpic_failiem_pair_files(array $fullFiles, array $webFiles, array $stripSuffixes): array
 {
     $fullByKey = [];
+    $skippedFull = [];
     foreach ($fullFiles as $f) {
         $key = efpic_failiem_normalize_basename((string) $f['name'], $stripSuffixes);
         if ($key === '') {
+            $skippedFull[] = $f;
             continue;
         }
         $fullByKey[$key][] = $f;
     }
 
     $webByKey = [];
+    $skippedWeb = [];
     foreach ($webFiles as $w) {
         $key = efpic_failiem_normalize_basename((string) $w['name'], $stripSuffixes);
         if ($key === '') {
+            $skippedWeb[] = $w;
             continue;
         }
         $webByKey[$key][] = $w;
@@ -224,6 +275,8 @@ function efpic_failiem_pair_files(array $fullFiles, array $webFiles, array $stri
         'paired' => $paired,
         'orphans_full' => $orphansFull,
         'orphans_web' => $orphansWeb,
+        'skipped_full' => $skippedFull,
+        'skipped_web' => $skippedWeb,
     ];
 }
 

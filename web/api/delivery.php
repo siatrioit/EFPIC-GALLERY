@@ -36,9 +36,13 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
 
     $strip = efpic_failiem_strip_suffixes($config, $failiem);
-    $fullFiles = efpic_failiem_list_folder($config, $fullHash);
-    $webFiles = efpic_failiem_list_folder($config, $webHash);
+    $fullScan = efpic_failiem_scan_image_folder($config, $fullHash);
+    $webScan = efpic_failiem_scan_image_folder($config, $webHash);
+    $fullFiles = $fullScan['files'];
+    $webFiles = $webScan['files'];
     $pairResult = efpic_failiem_pair_files($fullFiles, $webFiles, $strip);
+    $orphansFull = array_merge($pairResult['orphans_full'], $pairResult['skipped_full'] ?? []);
+    $orphansWeb = array_merge($pairResult['orphans_web'], $pairResult['skipped_web'] ?? []);
 
     $existingByKey = [];
     $existingByFullHash = [];
@@ -152,10 +156,20 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     $meta['failiem']['last_sync_at'] = gmdate('c');
     $meta['failiem']['sync_stats'] = [
         'paired' => count($newImages),
-        'orphans_full' => count($pairResult['orphans_full']),
-        'orphans_web' => count($pairResult['orphans_web']),
+        'orphans_full' => count($orphansFull),
+        'orphans_web' => count($orphansWeb),
         'full_count' => count($fullFiles),
         'web_count' => count($webFiles),
+        'skipped_non_image_full' => (int) ($fullScan['skipped_non_image'] ?? 0),
+        'skipped_non_image_web' => (int) ($webScan['skipped_non_image'] ?? 0),
+        'orphan_full_names' => array_slice(array_values(array_map(
+            static fn (array $f): string => (string) ($f['name'] ?? ''),
+            $orphansFull,
+        )), 0, 20),
+        'orphan_web_names' => array_slice(array_values(array_map(
+            static fn (array $f): string => (string) ($f['name'] ?? ''),
+            $orphansWeb,
+        )), 0, 20),
     ];
 
     $coverTok = trim((string) ($meta['cover_image_token'] ?? ''));
@@ -211,15 +225,34 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     ];
 
     $warnings = [];
-    if ($pairResult['orphans_full'] !== []) {
-        $warnings[] = 'Pilnā mapē bez pāra: ' . count($pairResult['orphans_full']) . ' faili';
+    if ($orphansFull !== []) {
+        $msg = 'Pilnā mapē bez pāra: ' . count($orphansFull) . ' faili';
+        $names = efpic_failiem_format_file_name_list($orphansFull);
+        if ($names !== '') {
+            $msg .= ' (' . $names . ')';
+        }
+        $warnings[] = $msg;
     }
-    if ($pairResult['orphans_web'] !== []) {
-        $warnings[] = 'Web mapē bez pāra: ' . count($pairResult['orphans_web']) . ' faili';
+    if ($orphansWeb !== []) {
+        $msg = 'Web mapē bez pāra: ' . count($orphansWeb) . ' faili';
+        $names = efpic_failiem_format_file_name_list($orphansWeb);
+        if ($names !== '') {
+            $msg .= ' (' . $names . ')';
+        }
+        $warnings[] = $msg;
+    }
+    if ((int) ($fullScan['skipped_non_image'] ?? 0) > 0 || (int) ($webScan['skipped_non_image'] ?? 0) > 0) {
+        $warnings[] = 'Nav attēlu (API izlaida): pilns '
+            . (int) ($fullScan['skipped_non_image'] ?? 0)
+            . ', web '
+            . (int) ($webScan['skipped_non_image'] ?? 0);
+    }
+    if (count($fullFiles) !== count($webFiles)) {
+        $warnings[] = 'Mapēs atšķiras bilžu skaits: pilns ' . count($fullFiles) . ', web ' . count($webFiles);
     }
     $failiemTotal = max(count($fullFiles), count($webFiles));
-    if ($failiemTotal > count($pairResult['paired'])) {
-        $warnings[] = ($failiemTotal - count($pairResult['paired']))
+    if ($failiemTotal > count($newImages)) {
+        $warnings[] = ($failiemTotal - count($newImages))
             . ' Failiem faili nav pārī (pilns+web) — netika pievienoti galerijai';
     }
     if ($videoSync['removed'] > 0) {

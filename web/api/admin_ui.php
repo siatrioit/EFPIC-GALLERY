@@ -2156,6 +2156,8 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
             'stats' => is_array($syncResult['dimensions_stats'] ?? null)
                 ? $syncResult['dimensions_stats']
                 : efpic_gallery_image_dimensions_stats(efpic_load_gallery_meta($config, $slug) ?? []),
+            'warnings' => is_array($syncResult['warnings'] ?? null) ? $syncResult['warnings'] : [],
+            'sync_stats' => is_array($syncResult['stats'] ?? null) ? $syncResult['stats'] : [],
         ];
     }
 
@@ -2214,6 +2216,51 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
     $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
 
     return ['updated' => $updated, 'stats' => $stats];
+}
+
+function efpic_admin_render_sync_stats_line(array $failiem): string
+{
+    $stats = $failiem['sync_stats'] ?? null;
+    if (!is_array($stats)) {
+        return '';
+    }
+    $paired = (int) ($stats['paired'] ?? 0);
+    $fullCount = (int) ($stats['full_count'] ?? 0);
+    $webCount = (int) ($stats['web_count'] ?? 0);
+    $orphansFull = (int) ($stats['orphans_full'] ?? 0);
+    $orphansWeb = (int) ($stats['orphans_web'] ?? 0);
+    $skippedFull = (int) ($stats['skipped_non_image_full'] ?? 0);
+    $skippedWeb = (int) ($stats['skipped_non_image_web'] ?? 0);
+
+    $body = '<p class="muted admin-links-sync">Sync: <strong>' . $paired . '</strong> pāri';
+    if ($fullCount > 0 || $webCount > 0) {
+        $body .= ' · Failiem API: pilns ' . $fullCount . ', web ' . $webCount;
+    }
+    if ((int) ($stats['video_count'] ?? 0) > 0) {
+        $body .= ' · ' . (int) ($stats['video_count'] ?? 0) . ' video';
+    }
+    if ($orphansFull > 0 || $orphansWeb > 0) {
+        $body .= ' · <span class="err">bez pāra: pilns ' . $orphansFull . ', web ' . $orphansWeb . '</span>';
+    }
+    if ($skippedFull > 0 || $skippedWeb > 0) {
+        $body .= ' · nav attēlu: pilns ' . $skippedFull . ', web ' . $skippedWeb;
+    }
+    $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
+
+    $orphanFullNames = is_array($stats['orphan_full_names'] ?? null) ? $stats['orphan_full_names'] : [];
+    $orphanWebNames = is_array($stats['orphan_web_names'] ?? null) ? $stats['orphan_web_names'] : [];
+    if ($orphanFullNames !== [] || $orphanWebNames !== []) {
+        $body .= '<p class="admin-warn admin-sync-orphans">';
+        if ($orphanFullNames !== []) {
+            $body .= '<strong>Pilns bez pāra:</strong> ' . efpic_admin_esc(implode(', ', $orphanFullNames)) . '<br>';
+        }
+        if ($orphanWebNames !== []) {
+            $body .= '<strong>Web bez pāra:</strong> ' . efpic_admin_esc(implode(', ', $orphanWebNames));
+        }
+        $body .= '</p>';
+    }
+
+    return $body;
 }
 
 function efpic_admin_render_dimensions_debug_line(array $meta): string
@@ -2424,17 +2471,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $body .= '<p class="admin-warn">Galerijai ir <strong>parole</strong> — publiskajā saitē klientam tā jāievada, lai redzētu bildes.</p>';
         }
         $body .= '<div class="admin-links-panel-footer">';
-        $stats = $failiem['sync_stats'] ?? null;
-        if (is_array($stats)) {
-            $body .= '<p class="muted admin-links-sync">Sync: ' . (int) ($stats['paired'] ?? 0) . ' pāri';
-            if ((int) ($stats['video_count'] ?? 0) > 0) {
-                $body .= ' · ' . (int) ($stats['video_count'] ?? 0) . ' video';
-            }
-            if ((int) ($stats['orphans_full'] ?? 0) > 0 || (int) ($stats['orphans_web'] ?? 0) > 0) {
-                $body .= ' · brīdinājumi: pilns ' . (int) ($stats['orphans_full'] ?? 0) . ', web ' . (int) ($stats['orphans_web'] ?? 0);
-            }
-            $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
-        }
+        $body .= efpic_admin_render_sync_stats_line(is_array($failiem) ? $failiem : []);
         $body .= efpic_admin_render_dimensions_debug_line($meta);
         $body .= '</div></fieldset>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
