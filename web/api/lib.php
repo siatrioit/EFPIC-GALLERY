@@ -1379,7 +1379,24 @@ function efpic_purge_gallery(array $config, string $slug): void
     efpic_rebuild_access_index($config);
 }
 
-/** @return array{0: int, 1: string, 2: string} Numeric key + basename for stable natural order. */
+/** @return array{0: int, 1: int}|null Primary and secondary numeric parts for natural image order. */
+function efpic_image_numeric_sort_parts(string $token): ?array
+{
+    $token = trim($token);
+    if ($token === '') {
+        return null;
+    }
+    if (preg_match('/^(\d+)[-_](\d+)$/', $token, $m) === 1) {
+        return [(int) $m[1], (int) $m[2]];
+    }
+    if (preg_match('/^(\d+)$/', $token, $m) === 1) {
+        return [(int) $m[1], 0];
+    }
+
+    return null;
+}
+
+/** @return array{0: int, 1: int, 2: string, 3: string} Numeric key + basename for stable natural order. */
 function efpic_image_basename_sort_key(array $img): array
 {
     $name = (string) ($img['basename'] ?? '');
@@ -1391,17 +1408,16 @@ function efpic_image_basename_sort_key(array $img): array
     }
     $base = pathinfo($name, PATHINFO_FILENAME);
     $base = (string) preg_replace('/_(PRINT|WEB)(?=_|$)/i', '', $base);
-    if (preg_match('/(\d+(?:[-_]\d+)?)\s*$/', $base, $m) === 1) {
-        $num = (int) preg_replace('/\D/', '', $m[1]);
 
-        return [$num, strtolower($base), strtolower($name)];
+    $parts = efpic_image_numeric_sort_parts((string) ($img['pair_key'] ?? ''));
+    if ($parts === null && preg_match('/(\d+(?:[-_]\d+)?)\s*$/', $base, $m) === 1) {
+        $parts = efpic_image_numeric_sort_parts(str_replace('_', '-', $m[1]));
     }
-    $pairKey = (string) ($img['pair_key'] ?? '');
-    if ($pairKey !== '' && preg_match('/^(\d+)/', $pairKey, $m) === 1) {
-        return [(int) $m[1], strtolower($base), strtolower($name)];
+    if ($parts !== null) {
+        return [$parts[0], $parts[1], strtolower($base), strtolower($name)];
     }
 
-    return [PHP_INT_MAX, strtolower($base), strtolower($name)];
+    return [PHP_INT_MAX, PHP_INT_MAX, strtolower($base), strtolower($name)];
 }
 
 /** Natural compare for image basenames (EdgarsFoto_PRINT_1002 …). */

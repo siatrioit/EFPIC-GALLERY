@@ -165,54 +165,85 @@ function efpic_assign_image_sort_in_scene_by_basename(array &$meta, int $imageIn
     }
     $img = &$meta['images'][$imageIndex];
     $sid = (string) ($img['scene_id'] ?? 'main');
-    $peers = [];
+    $indices = [];
     foreach ($meta['images'] as $j => $other) {
-        if ($j === $imageIndex || !is_array($other)) {
+        if (!is_array($other)) {
             continue;
         }
         if ((string) ($other['scene_id'] ?? 'main') === $sid) {
-            $peers[] = $other;
+            $indices[] = $j;
         }
     }
 
-    if ($markManual) {
-        usort($peers, 'efpic_compare_image_basenames');
-        $insertSort = 10;
-        foreach ($peers as $peer) {
-            if (efpic_compare_image_basenames($img, $peer) > 0) {
-                $insertSort = max($insertSort, (int) ($peer['sort'] ?? 0) + 10);
-            }
+    usort($indices, static function (int $ia, int $ib) use ($meta): int {
+        return efpic_compare_image_basenames($meta['images'][$ia], $meta['images'][$ib]);
+    });
+
+    $pos = array_search($imageIndex, $indices, true);
+    if ($pos === false) {
+        return;
+    }
+
+    $prevSort = 0;
+    $nextSort = PHP_INT_MAX;
+    if ($pos > 0) {
+        $prevSort = (int) ($meta['images'][$indices[$pos - 1]]['sort'] ?? 0);
+    }
+    if ($pos < count($indices) - 1) {
+        $nextSort = (int) ($meta['images'][$indices[$pos + 1]]['sort'] ?? PHP_INT_MAX);
+    }
+
+    if ($nextSort - $prevSort > 1) {
+        $newSort = $prevSort + (int) floor(($nextSort - $prevSort) / 2);
+        if ($newSort <= $prevSort) {
+            $newSort = $prevSort + 1;
         }
-        $used = [];
-        foreach ($peers as $peer) {
-            $used[(int) ($peer['sort'] ?? 0)] = true;
+        if ($newSort >= $nextSort) {
+            $newSort = $nextSort - 1;
         }
-        while (isset($used[$insertSort])) {
-            $insertSort++;
-        }
-        $img['sort'] = $insertSort;
-        $img['sort_manual'] = true;
+        $img['sort'] = $newSort;
+    } else {
+        efpic_rebaseline_scene_sorts_by_basename($meta, $sid, $markManual);
 
         return;
     }
 
-    unset($img['sort_manual']);
-    usort($peers, 'efpic_compare_images_in_scene');
+    if ($markManual) {
+        $img['sort_manual'] = true;
+    } else {
+        unset($img['sort_manual']);
+    }
+}
 
-    $insertSort = 10;
-    foreach ($peers as $peer) {
-        if (efpic_compare_image_basenames($img, $peer) > 0) {
-            $insertSort = max($insertSort, (int) ($peer['sort'] ?? 0) + 10);
+function efpic_rebaseline_scene_sorts_by_basename(array &$meta, string $sceneId, bool $markManual = false): void
+{
+    $indices = [];
+    foreach ($meta['images'] ?? [] as $i => $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        if ((string) ($img['scene_id'] ?? 'main') === $sceneId) {
+            $indices[] = $i;
         }
     }
-    $used = [];
-    foreach ($peers as $peer) {
-        $used[(int) ($peer['sort'] ?? 0)] = true;
+    if ($indices === []) {
+        return;
     }
-    while (isset($used[$insertSort])) {
-        $insertSort++;
+
+    usort($indices, static function (int $ia, int $ib) use ($meta): int {
+        return efpic_compare_image_basenames($meta['images'][$ia], $meta['images'][$ib]);
+    });
+
+    $sort = 10;
+    foreach ($indices as $i) {
+        $meta['images'][$i]['sort'] = $sort;
+        if ($markManual) {
+            $meta['images'][$i]['sort_manual'] = true;
+        } else {
+            unset($meta['images'][$i]['sort'], $meta['images'][$i]['sort_manual']);
+        }
+        $sort += 10;
     }
-    $img['sort'] = $insertSort;
 }
 
 function efpic_reconcile_auto_scene_sorts(array &$meta): void
