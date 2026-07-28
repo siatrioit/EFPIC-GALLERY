@@ -246,6 +246,20 @@ function efpic_rebaseline_scene_sorts_by_basename(array &$meta, string $sceneId,
     }
 }
 
+function efpic_rebaseline_all_scene_sorts_by_basename(array &$meta, bool $markManual = false): void
+{
+    $sceneIds = [];
+    foreach ($meta['images'] ?? [] as $img) {
+        if (!is_array($img)) {
+            continue;
+        }
+        $sceneIds[(string) ($img['scene_id'] ?? 'main')] = true;
+    }
+    foreach (array_keys($sceneIds) as $sceneId) {
+        efpic_rebaseline_scene_sorts_by_basename($meta, $sceneId, $markManual);
+    }
+}
+
 function efpic_reconcile_auto_scene_sorts(array &$meta): void
 {
     $byScene = [];

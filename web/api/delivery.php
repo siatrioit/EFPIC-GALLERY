@@ -143,15 +143,8 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
 
     $meta['images'] = $newImages;
-    efpic_reconcile_auto_scene_sorts($meta);
-    if ($newImageIndices !== []) {
-        usort($newImageIndices, static function (int $a, int $b) use ($meta): int {
-            return efpic_compare_image_basenames($meta['images'][$a], $meta['images'][$b]);
-        });
-        foreach ($newImageIndices as $imageIndex) {
-            efpic_assign_image_sort_in_scene_by_basename($meta, $imageIndex, true);
-        }
-    }
+    // Pārkārto pēc failu numura visā galerijā — vecās sort vērtības (arī hash-saistītām bildēm) var palikt beigās.
+    efpic_rebaseline_all_scene_sorts_by_basename($meta, true);
     $meta['failiem']['folder_full_hash'] = $fullHash;
     $meta['failiem']['folder_web_hash'] = $webHash;
     $parentUrl = trim((string) ($meta['failiem']['folder_parent_url'] ?? ''));
