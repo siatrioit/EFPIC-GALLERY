@@ -2856,9 +2856,7 @@
     }
 
     var promise = opts.force
-      ? step(true, 1).then(function () {
-          return step(false, 2);
-        })
+      ? adminFetchBackfillDimensions(false, true)
       : step(false, 1);
 
     return promise

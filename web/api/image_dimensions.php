@@ -408,7 +408,7 @@ function efpic_gallery_reprobe_changed_image_dimensions(
         }
         $token = (string) ($img['token'] ?? '');
         $force = $token !== '' && isset($forceTokens[$token]);
-        if (!$force && !efpic_image_dimensions_stale($img)) {
+        if (!$force && efpic_image_has_dimensions($img) && !efpic_image_dimensions_stale($img)) {
             continue;
         }
         if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote, true)) {
@@ -512,4 +512,9 @@ function efpic_gallery_image_dimensions_stats(array $meta): array
         'missing' => max(0, $total - $withDims),
         'stale' => $stale,
     ];
+}
+
+function efpic_gallery_valid_image_count(array $meta): int
+{
+    return efpic_gallery_image_dimensions_stats($meta)['total'];
 }

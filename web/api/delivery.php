@@ -58,6 +58,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     ));
 
     $newImages = [];
+    $newImageIndices = [];
     $forceDimRefresh = [];
     foreach ($paired as $pair) {
         $key = (string) $pair['key'];
@@ -105,12 +106,18 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             } else {
                 $forceDimRefresh[$token] = true;
             }
+        } else {
+            $newImageIndices[] = count($newImages);
+            $forceDimRefresh[$token] = true;
         }
         $newImages[] = $entry;
     }
 
     $meta['images'] = $newImages;
     efpic_reconcile_auto_scene_sorts($meta);
+    foreach ($newImageIndices as $imageIndex) {
+        efpic_assign_image_sort_in_scene_by_basename($meta, $imageIndex, true);
+    }
     $meta['failiem']['folder_full_hash'] = $fullHash;
     $meta['failiem']['folder_web_hash'] = $webHash;
     $parentUrl = trim((string) ($meta['failiem']['folder_parent_url'] ?? ''));
@@ -162,15 +169,13 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
             true,
         );
         $metaForDims = efpic_load_gallery_meta($config, $slug) ?? $metaForDims;
-        $dimUpdated = efpic_gallery_backfill_image_dimensions(
+        $backfillResult = efpic_gallery_backfill_all_image_dimensions(
             $config,
             $slug,
-            $metaForDims,
-            EFPIC_DIMS_SYNC_BATCH,
             true,
-            EFPIC_DIMS_BACKFILL_SAVE_EVERY,
-            [],
+            EFPIC_DIMS_SYNC_BATCH,
         );
+        $dimUpdated = (int) ($backfillResult['updated'] ?? 0);
     }
     $metaAfter = efpic_load_gallery_meta($config, $slug);
     $dimResult = [
@@ -186,6 +191,11 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
     }
     if ($pairResult['orphans_web'] !== []) {
         $warnings[] = 'Web mapē bez pāra: ' . count($pairResult['orphans_web']) . ' faili';
+    }
+    $failiemTotal = max(count($fullFiles), count($webFiles));
+    if ($failiemTotal > count($pairResult['paired'])) {
+        $warnings[] = ($failiemTotal - count($pairResult['paired']))
+            . ' Failiem faili nav pārī (pilns+web) — netika pievienoti galerijai';
     }
     if ($videoSync['removed'] > 0) {
         $warnings[] = 'Noņemti ' . $videoSync['removed'] . ' video, kas vairs nav Failiem mapē';

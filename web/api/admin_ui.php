@@ -1896,7 +1896,7 @@ function efpic_admin_list_delivery_galleries(array $config): void
         } else {
             $panelCell = '<span class="muted">Nē</span>';
         }
-        $imageCell = count($meta['images'] ?? []) . ' / ' . $paired;
+        $imageCell = efpic_gallery_valid_image_count($meta) . ' / ' . $paired;
         if ($videoCount > 0) {
             $videoCell = '<span class="admin-gallery-list__video-yes">' . $videoCount . '</span>';
         } else {
@@ -2189,20 +2189,14 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
     $all = !empty($_POST['backfill_all']);
     $force = !empty($_POST['backfill_force']);
     if ($force) {
-        $meta = efpic_load_gallery_meta($config, $slug);
-        if ($meta === null) {
-            return ['updated' => 0, 'stats' => ['total' => 0, 'with_dims' => 0, 'missing' => 0, 'stale' => 0]];
-        }
-        foreach ($meta['images'] ?? [] as &$img) {
-            if (is_array($img)) {
-                efpic_image_clear_dimensions($img);
-            }
-        }
-        unset($img);
-        efpic_save_gallery_meta($config, $slug, $meta);
-        $stats = efpic_gallery_image_dimensions_stats($meta);
+        $result = efpic_gallery_force_refresh_all_image_dimensions(
+            $config,
+            $slug,
+            true,
+            EFPIC_DIMS_BACKFILL_BATCH,
+        );
 
-        return ['updated' => 0, 'stats' => $stats, 'cleared' => true];
+        return ['updated' => $result['updated'], 'stats' => $result['stats'], 'cleared' => true];
     }
     $meta = efpic_load_gallery_meta($config, $slug);
     if ($meta !== null) {
@@ -2227,17 +2221,17 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     if ($stats['total'] <= 0) {
         return '';
     }
+    $paired = (int) (($meta['failiem']['sync_stats']['paired'] ?? 0));
+    $rawCount = count($meta['images'] ?? []);
+    $mismatch = $paired > 0 && $paired !== $stats['total'];
 
     $html = '<div class="admin-dims-panel" id="admin-dims-debug">';
     $html .= '<div class="admin-dims-panel__actions">';
     $html .= '<button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
         . 'Pārrēķināt izmērus</button>';
-    if ($stats['missing'] > 0) {
+    if ($stats['missing'] > 0 || ($stats['stale'] ?? 0) > 0 || $mismatch) {
         $html .= '<button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
             . 'Ievākt atlikušos izmērus</button>';
-    } elseif (($stats['stale'] ?? 0) > 0) {
-        $html .= '<button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
-            . 'Pārrēķināt novecojušos</button>';
     }
     $html .= '<span class="admin-dims-progress-wrap" id="admin-dims-progress-wrap" hidden>'
         . '<span class="admin-dims-progress-bar" id="admin-dims-progress-bar"></span></span>';
@@ -2245,7 +2239,7 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     $html .= '</div>';
     $html .= '<p class="muted admin-dims-panel__summary">';
     $html .= 'Izmēri saglabāti: <strong id="admin-dims-count">' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
-    if ($stats['missing'] <= 0 && ($stats['stale'] ?? 0) <= 0) {
+    if ($stats['missing'] <= 0 && ($stats['stale'] ?? 0) <= 0 && !$mismatch) {
         $html .= ' — viss kārtībā';
     } else {
         if ($stats['missing'] > 0) {
@@ -2253,6 +2247,15 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
         }
         if (($stats['stale'] ?? 0) > 0) {
             $html .= ' · novecojuši <strong id="admin-dims-stale">' . (int) $stats['stale'] . '</strong>';
+        }
+        if ($mismatch) {
+            $html .= ' · sync pāri: <strong>' . $paired . '</strong>';
+            if ($paired > $stats['total']) {
+                $html .= ' <span class="err">(' . ($paired - $stats['total']) . ' Failiem faili nav meta)</span>';
+            }
+        }
+        if ($rawCount !== $stats['total']) {
+            $html .= ' · meta ieraksti: ' . $rawCount;
         }
     }
     $html .= '</p></div>';
@@ -2550,7 +2553,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             $first = $sortedImages[0];
             $coverTok = is_array($first) ? (string) ($first['token'] ?? '') : '';
         }
-        $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . count($meta['images']) . ' bildes)</legend>';
+        $body .= '<fieldset class="admin-fieldset-full admin-images-panel"><legend>Kārtība un vāka bilde (' . efpic_gallery_valid_image_count($meta) . ' bildes)</legend>';
         $body .= '<p class="muted">Velciet kartītes secībai. Klikšķis — atlase; <kbd>Shift</kbd> — diapazons. Sadaļu maini tieši pie bildes (var ierakstīt jaunu nosaukumu).</p>';
         $body .= efpic_admin_render_image_scene_toolbar($meta);
         $body .= '<div class="admin-share-edit-bar" id="admin-share-edit-bar" hidden>';
