@@ -269,7 +269,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
         }
     }
 
-    efpic_visitor_zip_run_pending($config, 1);
+    efpic_visitor_zip_run_pending($config, 1, 3);
 
     if ($method === 'GET' && ($_GET['poll'] ?? '') === 'slideshow') {
         header('Content-Type: application/json; charset=utf-8');

@@ -2824,6 +2824,12 @@
       credentials: 'same-origin',
       headers: { Accept: 'application/json' },
     }).then(function (res) {
+      var ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('application/json') === -1) {
+        throw new Error(
+          'Serveris neatbildēja ar JSON (bieži timeout / Failiem pārslodze). Mēģini vēlreiz — ievāc partijās, nevis visu uzreiz.',
+        );
+      }
       return res.json().then(function (data) {
         if (!res.ok || !data || !data.ok) {
           throw new Error((data && data.error) || 'Neizdevās ievākt izmērus');
@@ -2845,6 +2851,7 @@
     if (
       !opts.force &&
       !opts.all &&
+      !opts.once &&
       adminDimsMissingCount() <= 0 &&
       adminDimsStaleCount() <= 0 &&
       !adminDimsMismatchActive()
@@ -2888,6 +2895,13 @@
       promise = adminFetchBackfillDimensions(false, true);
     } else if (opts.all) {
       promise = adminFetchBackfillDimensions(true, false).then(function (data) {
+        var stats = data.stats || {};
+        adminUpdateDimsDebugUi(stats);
+        adminUpdateDimsProgress(stats, startedAt);
+        return data;
+      });
+    } else if (opts.once) {
+      promise = adminFetchBackfillDimensions(false, false).then(function (data) {
         var stats = data.stats || {};
         adminUpdateDimsDebugUi(stats);
         adminUpdateDimsProgress(stats, startedAt);
@@ -2962,10 +2976,11 @@
     if (
       form &&
       form.getAttribute('data-dims-after-sync') === '1' &&
-      (adminDimsMissingCount() > 0 || adminDimsStaleCount() > 0)
+      adminDimsMissingCount() > 0
     ) {
       setTimeout(function () {
-        runAdminBackfillDimensions({ all: true, silent: true });
+        // Sync jau ievāca vienu partiju; šeit tikai vēl viena, bez bezgalīga cikla.
+        runAdminBackfillDimensions({ silent: true, once: true });
       }, 400);
     }
   }

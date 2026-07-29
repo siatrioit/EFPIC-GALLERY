@@ -2201,10 +2201,7 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
 
         return ['updated' => $result['updated'], 'stats' => $result['stats'], 'cleared' => true];
     }
-    $meta = efpic_load_gallery_meta($config, $slug);
-    if ($meta !== null) {
-        efpic_gallery_reprobe_changed_image_dimensions($config, $slug, $meta, [], true);
-    }
+    // Viena partija (vai «all» cikls) — bez iepriekšējas full-gallery remote reprobe.
     if ($all) {
         $result = efpic_gallery_backfill_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
 

@@ -1472,7 +1472,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     }
 
     efpic_gallery_process_expiry_reminders($config);
-    efpic_visitor_zip_run_pending($config, 1);
+    // Īss ZIP progress — nebloķē lielas galerijas (709+ bildes var aizņemt desmitiem sek.).
+    efpic_visitor_zip_run_pending($config, 1, 3);
 
     if ($method === 'POST' && isset($_POST['gallery_password'])) {
         if (!efpic_csrf_verify((string) ($_POST['csrf_token'] ?? ''))) {
@@ -1523,27 +1524,8 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     efpic_record_gallery_view($config, $slug, $meta);
 
     $theme = efpic_client_effective_theme($meta);
-    $dimStats = efpic_gallery_image_dimensions_stats($meta);
-    $dimsNeedWork = $dimStats['missing'] + ($dimStats['stale'] ?? 0);
-    if (efpic_uses_mosaic_feed_theme($theme) && $dimsNeedWork > 0) {
-        @set_time_limit(120);
-        if (($dimStats['stale'] ?? 0) > 0) {
-            efpic_gallery_reprobe_changed_image_dimensions($config, $slug, $meta, [], true);
-            $meta = efpic_load_gallery_meta($config, $slug) ?? $meta;
-            $dimStats = efpic_gallery_image_dimensions_stats($meta);
-        }
-        if ($dimStats['missing'] > 0) {
-            efpic_gallery_backfill_image_dimensions(
-                $config,
-                $slug,
-                $meta,
-                min(EFPIC_DIMS_VIEW_BATCH, $dimStats['missing']),
-                true,
-            );
-            $meta = efpic_load_gallery_meta($config, $slug) ?? $meta;
-            $dimStats = efpic_gallery_image_dimensions_stats($meta);
-        }
-    }
+    // Izmērus neievācam publiskajā skatījumā — lielām galerijām tas izsauc servera timeout.
+    // Mosaic strādā arī bez aspect-ratio; pilnu backfill dari admin/sync.
 
     $images = efpic_client_navigable_images($meta, $ctx);
     $guestTok = (string) ($ctx['guest_token'] ?? '');

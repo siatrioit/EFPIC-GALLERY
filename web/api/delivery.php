@@ -192,27 +192,29 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
     efpic_save_gallery_meta($config, $slug, $meta);
 
-    // Pārrēķina izmērus visām bildēm, kur Failiem fails ir mainījies (bez partijas limita).
-    @set_time_limit(180);
+    // Tikai jaunām / mainītām bildēm — nevis unlimited backfill_all (tas pārslogā Failiem).
+    @set_time_limit(120);
     $metaForDims = efpic_load_gallery_meta($config, $slug);
     $dimReprobed = 0;
     $dimUpdated = 0;
     if ($metaForDims !== null) {
-        $dimReprobed = efpic_gallery_reprobe_changed_image_dimensions(
+        if ($forceDimRefresh !== []) {
+            $dimReprobed = efpic_gallery_reprobe_changed_image_dimensions(
+                $config,
+                $slug,
+                $metaForDims,
+                $forceDimRefresh,
+                true,
+            );
+            $metaForDims = efpic_load_gallery_meta($config, $slug) ?? $metaForDims;
+        }
+        $dimUpdated = efpic_gallery_backfill_image_dimensions(
             $config,
             $slug,
             $metaForDims,
-            $forceDimRefresh,
-            true,
-        );
-        $metaForDims = efpic_load_gallery_meta($config, $slug) ?? $metaForDims;
-        $backfillResult = efpic_gallery_backfill_all_image_dimensions(
-            $config,
-            $slug,
-            true,
             EFPIC_DIMS_SYNC_BATCH,
+            true,
         );
-        $dimUpdated = (int) ($backfillResult['updated'] ?? 0);
     }
     $metaAfter = efpic_load_gallery_meta($config, $slug);
     $dimResult = [

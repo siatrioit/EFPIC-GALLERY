@@ -71,6 +71,13 @@ function efpic_image_assign_dimensions(array &$img, int $width, int $height): vo
     }
 }
 
+function efpic_image_dimensions_hash_fingerprint(string $sourceKey): string
+{
+    $parts = explode('|', $sourceKey);
+    // Salīdzinām tikai Failiem hash (ne size_bytes) — API izmērs var «mirgot» starp sync.
+    return ($parts[0] ?? '') . '|' . ($parts[1] ?? '');
+}
+
 function efpic_image_dimensions_stale(array $img): bool
 {
     if (!efpic_image_has_dimensions($img)) {
@@ -78,18 +85,15 @@ function efpic_image_dimensions_stale(array $img): bool
     }
     $stored = trim((string) ($img['dimensions_source_key'] ?? ''));
     $current = efpic_image_dimensions_source_key($img);
-    if ($current === '') {
+    if ($current === '' || $stored === '') {
+        // Nav fingerprint — neaiztiekam Failiem; sync/saglabāšana pieliks source_key.
         return false;
     }
-    if ($stored === '') {
-        // Vecā meta — izmēri bez saites uz Failiem fingerprint; pārrēķinām reizi.
-        return true;
-    }
 
-    return $stored !== $current;
+    return efpic_image_dimensions_hash_fingerprint($stored) !== efpic_image_dimensions_hash_fingerprint($current);
 }
 
-/** Vai drīkst saglabāt iepriekšējos izmērus pēc Failiem sync (hash + izmērs nemainījās). */
+/** Vai drīkst saglabāt iepriekšējos izmērus pēc Failiem sync (hash nemainījās). */
 function efpic_image_should_preserve_dimensions(
     array $prev,
     string $newWebHash,
@@ -97,33 +101,17 @@ function efpic_image_should_preserve_dimensions(
     int $newWebSize,
     int $newFullSize,
 ): bool {
+    unset($newWebSize, $newFullSize);
     if (!efpic_image_has_dimensions($prev)) {
         return false;
     }
     $prevWebHash = efpic_image_failiem_web_hash($prev);
     $prevFullHash = efpic_image_failiem_full_hash($prev);
-    $prevWebSize = efpic_image_failiem_web_size($prev);
-    $prevFullSize = efpic_image_failiem_full_size($prev);
 
     if ($newWebHash === '' || $prevWebHash === '' || $newWebHash !== $prevWebHash) {
         return false;
     }
     if ($newFullHash !== '' && $prevFullHash !== '' && $newFullHash !== $prevFullHash) {
-        return false;
-    }
-    if ($newWebSize > 0 && $prevWebSize > 0 && $newWebSize !== $prevWebSize) {
-        return false;
-    }
-    if ($newFullSize > 0 && $prevFullSize > 0 && $newFullSize !== $prevFullSize) {
-        return false;
-    }
-
-    $newSource = $newWebHash . '|' . $newFullHash . '|' . $newWebSize . '|' . $newFullSize;
-    $storedSource = trim((string) ($prev['dimensions_source_key'] ?? ''));
-    if ($storedSource === '') {
-        return false;
-    }
-    if ($storedSource !== $newSource) {
         return false;
     }
 
@@ -244,7 +232,7 @@ function efpic_fetch_binary_quick(array $config, string $url, int $timeoutSec = 
 }
 
 /** @return array{width: int, height: int}|null */
-function efpic_probe_image_dimensions_remote(array $config, array $img): ?array
+function efpic_probe_image_dimensions_remote(array $config, array $img, bool $allowFullDownload = false): ?array
 {
     if (!function_exists('efpic_failiem_thumb_url')) {
         require_once __DIR__ . '/failiem_client.php';
@@ -268,6 +256,11 @@ function efpic_probe_image_dimensions_remote(array $config, array $img): ?array
         }
     }
 
+    // Pilno failu lejupielādējam tikai piespiedu režīmā — citādi Failiem ātri pārslogojas.
+    if (!$allowFullDownload) {
+        return null;
+    }
+
     $binary = efpic_failiem_fetch_file($config, $hash);
     if ($binary === null) {
         return null;
@@ -277,8 +270,14 @@ function efpic_probe_image_dimensions_remote(array $config, array $img): ?array
 }
 
 /** @return array{width: int, height: int}|null */
-function efpic_probe_image_dimensions(array $config, array $img, ?string $slug = null, bool $allowRemote = false, bool $ignoreExisting = false): ?array
-{
+function efpic_probe_image_dimensions(
+    array $config,
+    array $img,
+    ?string $slug = null,
+    bool $allowRemote = false,
+    bool $ignoreExisting = false,
+    bool $allowFullDownload = false,
+): ?array {
     if (!$ignoreExisting) {
         $existing = efpic_image_dimensions($img);
         if ($existing !== null) {
@@ -299,18 +298,32 @@ function efpic_probe_image_dimensions(array $config, array $img, ?string $slug =
         return null;
     }
 
-    return efpic_probe_image_dimensions_remote($config, $img);
+    return efpic_probe_image_dimensions_remote($config, $img, $allowFullDownload);
 }
 
-function efpic_image_apply_dimensions(array &$img, array $config, ?string $slug, bool $allowRemote = false, bool $force = false): bool
-{
+function efpic_image_apply_dimensions(
+    array &$img,
+    array $config,
+    ?string $slug,
+    bool $allowRemote = false,
+    bool $force = false,
+    bool $allowFullDownload = false,
+): bool {
     if (!$force && efpic_image_has_dimensions($img) && !efpic_image_dimensions_stale($img)) {
+        // Vecām bildēm bez source_key — pieliekam fingerprint bez Failiem pieprasījuma.
+        $sourceKey = efpic_image_dimensions_source_key($img);
+        if ($sourceKey !== '' && trim((string) ($img['dimensions_source_key'] ?? '')) === '') {
+            $img['dimensions_source_key'] = $sourceKey;
+
+            return true;
+        }
+
         return false;
     }
     if ($force || efpic_image_dimensions_stale($img)) {
         efpic_image_clear_dimensions($img);
     }
-    $dims = efpic_probe_image_dimensions($config, $img, $slug, $allowRemote, true);
+    $dims = efpic_probe_image_dimensions($config, $img, $slug, $allowRemote, true, $allowFullDownload);
     if ($dims === null) {
         return false;
     }
@@ -399,19 +412,29 @@ function efpic_gallery_reprobe_changed_image_dimensions(
         return 0;
     }
 
-    @set_time_limit(180);
+    @set_time_limit(120);
     $updated = 0;
     $dirty = false;
+    $limit = max(1, EFPIC_DIMS_SYNC_BATCH * 2);
     foreach ($images as &$img) {
+        if ($updated >= $limit) {
+            break;
+        }
         if (!is_array($img)) {
             continue;
         }
         $token = (string) ($img['token'] ?? '');
         $force = $token !== '' && isset($forceTokens[$token]);
         if (!$force && efpic_image_has_dimensions($img) && !efpic_image_dimensions_stale($img)) {
+            $sourceKey = efpic_image_dimensions_source_key($img);
+            if ($sourceKey !== '' && trim((string) ($img['dimensions_source_key'] ?? '')) === '') {
+                $img['dimensions_source_key'] = $sourceKey;
+                $dirty = true;
+            }
             continue;
         }
-        if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote, true)) {
+        // Sync/reprobe: tikai thumbs — bez pilno Failiem failu lejupielādes.
+        if (efpic_image_apply_dimensions($img, $config, $slug, $allowRemote, $force || efpic_image_dimensions_stale($img), false)) {
             $updated++;
             $dirty = true;
         }

@@ -479,7 +479,7 @@ function efpic_visitor_zip_enqueue_share_all_job(
 }
 
 /** @param array<string, mixed> $job */
-function efpic_visitor_zip_process_job(array $config, array $job): void
+function efpic_visitor_zip_process_job(array $config, array $job, ?int $maxRuntimeSec = null): void
 {
     efpic_visitor_zip_require_build_helpers();
     $slug = (string) ($job['slug'] ?? '');
@@ -523,7 +523,11 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
     $advance = null;
     $batches = 0;
     $maxBatches = strtolower($size) === 'full' ? 12 : 25;
-    $deadline = time() + (strtolower($size) === 'full' ? 40 : 55);
+    if ($maxRuntimeSec !== null && $maxRuntimeSec > 0) {
+        $deadline = time() + $maxRuntimeSec;
+    } else {
+        $deadline = time() + (strtolower($size) === 'full' ? 40 : 55);
+    }
     while (true) {
         $advance = efpic_visitor_zip_advance_job($config, $job, $meta, $ctx);
         if (empty($advance['ok'])) {
@@ -585,7 +589,7 @@ function efpic_visitor_zip_process_job(array $config, array $job): void
     efpic_visitor_zip_save_job($config, $job);
 }
 
-function efpic_visitor_zip_run_pending(array $config, int $limit = 1): int
+function efpic_visitor_zip_run_pending(array $config, int $limit = 1, ?int $maxRuntimeSec = null): int
 {
     efpic_visitor_zip_run_maintenance($config);
     $dir = efpic_visitor_zip_queue_dir($config);
@@ -611,7 +615,7 @@ function efpic_visitor_zip_run_pending(array $config, int $limit = 1): int
         $job['status'] = 'processing';
         $job['claimed_at'] = gmdate('c');
         efpic_visitor_zip_save_job($config, $job);
-        efpic_visitor_zip_process_job($config, $job);
+        efpic_visitor_zip_process_job($config, $job, $maxRuntimeSec);
         $processed++;
     }
 
