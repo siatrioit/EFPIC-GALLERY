@@ -2715,11 +2715,19 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         $footExtra .= '<script src="' . efpic_admin_esc(efpic_asset_url('/admin/assets/client-email-compose.js')) . '" defer></script>';
     }
 
+    $galleryName = trim((string) ($formMeta['name'] ?? ''));
+    $pageTitle = $isEdit
+        ? ($galleryName !== '' ? 'Rediģēt — ' . $galleryName : 'Rediģēt')
+        : 'Jauna';
+    $pageHeading = $isEdit
+        ? ($galleryName !== '' ? 'Rediģēt galeriju: ' . $galleryName : 'Rediģēt galeriju')
+        : 'Jauna galerija';
+
     efpic_admin_layout(
-        $isEdit ? 'Rediģēt' : 'Jauna',
+        $pageTitle,
         $body,
         $isEdit ? 'list' : 'new',
-        $isEdit ? 'Rediģēt galeriju' : 'Jauna galerija',
+        $pageHeading,
         $isEdit ? 'Cilnes: Failiem, pamati, sadaļas, dizains, bildes un citas.' : 'Secība: Failiem mapes → saites → pamatinformācija → sadaļas → dizains.',
         $config,
         '',
