@@ -81,6 +81,15 @@ function efpic_client_icon(string $name): string
         'zip' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
         'play' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
         'info' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><line x1="12" y1="10" x2="12" y2="16"/><circle cx="12" cy="7.5" r="0.75" fill="currentColor" stroke="none"/></svg>',
+        'social-website' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>',
+        'social-facebook' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14 9h3V6h-3c-1.7 0-3 1.3-3 3v2H8v3h3v7h3v-7h3l1-3h-4V9c0-.6.4-1 1-1z"/></svg>',
+        'social-instagram' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"/></svg>',
+        'social-tiktok' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M14.5 3c.4 2.4 1.9 4.2 4.5 4.6v3c-1.5-.1-2.9-.6-4.1-1.4v6.6c0 3.2-2.5 5.7-5.7 5.7S3.5 19 3.5 15.8 6 10.1 9.2 10.1c.4 0 .7 0 1.1.1v3.1c-.3-.1-.7-.2-1.1-.2-1.5 0-2.7 1.2-2.7 2.8s1.2 2.8 2.7 2.8 2.7-1.2 2.7-2.8V3h2.6z"/></svg>',
+        'social-youtube' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M22 12.2s0-3.2-.4-4.7c-.2-.9-.9-1.6-1.8-1.8C18.3 5.2 12 5.2 12 5.2s-6.3 0-7.8.5c-.9.2-1.6.9-1.8 1.8C2 9 2 12.2 2 12.2s0 3.2.4 4.7c.2.9.9 1.6 1.8 1.8 1.5.4 7.8.4 7.8.4s6.3 0 7.8-.4c.9-.2 1.6-.9 1.8-1.8.4-1.5.4-4.7.4-4.7zM10 15.2v-6l5.2 3-5.2 3z"/></svg>',
+        'social-pinterest' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2C6.5 2 2 6.5 2 12c0 4.1 2.5 7.6 6.1 9.1-.1-.8-.2-2 0-2.9.2-.8 1.3-5.4 1.3-5.4s-.3-.7-.3-1.6c0-1.5.9-2.6 2-2.6.9 0 1.4.7 1.4 1.5 0 .9-.6 2.3-.9 3.5-.3 1.1.5 1.9 1.5 1.9 1.8 0 3.2-1.9 3.2-4.7 0-2.4-1.8-4.2-4.3-4.2-2.9 0-4.6 2.2-4.6 4.4 0 .9.3 1.8.8 2.3.1.1.1.2.1.3l-.3 1.1c0 .2-.1.2-.3.1-1.2-.5-2-2.2-2-3.5 0-2.9 2.1-5.5 6-5.5 3.2 0 5.6 2.2 5.6 5.2 0 3.1-2 5.6-4.7 5.6-.9 0-1.8-.5-2.1-1l-.6 2.2c-.2.8-.8 1.8-1.2 2.4.9.3 1.8.4 2.8.4 5.5 0 10-4.5 10-10S17.5 2 12 2z"/></svg>',
+        'social-linkedin' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6.5 9.5H3.7V20h2.8V9.5zM5.1 4C4.1 4 3.3 4.8 3.3 5.8S4.1 7.6 5.1 7.6 6.9 6.8 6.9 5.8 6.1 4 5.1 4zM20.3 20h-2.8v-5.6c0-1.3 0-3-1.8-3s-2.1 1.4-2.1 2.9V20H10.8V9.5h2.7v1.4h.1c.4-.7 1.3-1.5 2.7-1.5 2.9 0 3.4 1.9 3.4 4.4V20z"/></svg>',
+        'social-x' => '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.5 3h3l-6.6 7.5L21.5 21h-5.7l-4.5-5.9L6 21H3l7.1-8.1L2.5 3h5.8l4 5.4L17.5 3zm-1 16.2h1.7L7.6 4.7H5.8l10.7 14.5z"/></svg>',
+        'social-email' => '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 7l9 7 9-7"/></svg>',
     ];
 
     return $icons[$name] ?? '';
@@ -660,6 +669,34 @@ function efpic_client_render_cover_split_text(array $config, string $name, strin
     return $html;
 }
 
+function efpic_client_render_social_links(array $config, array $meta): string
+{
+    if (!efpic_gallery_show_social_links($meta)) {
+        return '';
+    }
+    $links = efpic_site_social_links($config);
+    if ($links === []) {
+        return '';
+    }
+    $defs = efpic_site_social_network_defs();
+    $html = '<nav class="gallery-social-links" aria-label="Sociālie tīkli">';
+    foreach ($links as $key => $value) {
+        $label = (string) ($defs[$key]['label'] ?? $key);
+        $href = efpic_site_social_href($key, $value);
+        $icon = efpic_client_icon('social-' . $key);
+        if ($icon === '') {
+            continue;
+        }
+        $extra = $key === 'email' ? '' : ' target="_blank" rel="noopener noreferrer"';
+        $html .= '<a class="gallery-social-link gallery-social-link--' . efpic_client_esc($key) . '" href="'
+            . efpic_client_esc($href) . '"' . $extra . ' aria-label="' . efpic_client_esc($label) . '">'
+            . $icon . '</a>';
+    }
+    $html .= '</nav>';
+
+    return $html;
+}
+
 function efpic_client_render_cover(array $config, array $meta, array $images, string $theme = '', ?array $ctx = null): string
 {
     $name = (string) ($meta['name'] ?? '');
@@ -685,6 +722,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $byline = efpic_client_gallery_byline_display($config);
         $date = efpic_client_format_event_date_for_gallery($meta, $dateRaw);
         $textLayer = efpic_client_render_intro_text_layer($byline, $name, $date, $meta);
+        $social = efpic_client_render_social_links($config, $meta);
         $overlayClass = ' gallery-intro--text-overlay';
 
         if (efpic_gallery_uses_mood_blob_cover($meta)) {
@@ -696,6 +734,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
             $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'high', true, $ctx);
             $html .= '</div></div></div>';
             $html .= $textLayer;
+            $html .= $social;
             $html .= '</div></section>';
 
             return $html;
@@ -710,6 +749,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
             $html .= '</div>';
             $html .= '<div class="gallery-intro-cinematic-vignette" aria-hidden="true"></div>';
             $html .= $textLayer;
+            $html .= $social;
             $html .= '</div></section>';
 
             return $html;
@@ -727,6 +767,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
             $html .= '<div class="gallery-intro-stage">';
             $html .= '<div class="gallery-intro-split">' . $splitInner . '</div>';
             $html .= $textLayer;
+            $html .= $social;
             $html .= '</div></section>';
 
             return $html;
@@ -741,6 +782,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
             $html .= '</div>';
             $html .= '<div class="gallery-intro-full-shade" aria-hidden="true"></div>';
             $html .= $textLayer;
+            $html .= $social;
             $html .= '</div></section>';
 
             return $html;
@@ -756,6 +798,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $html .= efpic_client_render_cover_media($imgUrl, $config, $meta, 'low', false, $ctx);
         $html .= '</figure></div></div>';
         $html .= $textLayer;
+        $html .= $social;
         $html .= '</div></section>';
 
         return $html;
@@ -766,6 +809,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($coverMedia !== '') {
         $html .= '<div class="gallery-cover-media">' . $coverMedia . '</div>';
     }
+    $html .= efpic_client_render_social_links($config, $meta);
     $html .= '<div class="gallery-cover-text"><h2>' . efpic_client_esc($name) . '</h2>';
     if ($dateRaw !== '') {
         $html .= '<p class="gallery-cover-date">' . efpic_client_esc($dateRaw) . '</p>';

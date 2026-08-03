@@ -2096,6 +2096,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
         }
         $meta['settings']['client_comments_enabled'] = isset($_POST['client_comments_enabled']);
         $meta['settings']['enable_public_collection'] = efpic_post_flag_is_on('enable_public_collection');
+        $meta['settings']['show_social_links'] = efpic_post_flag_is_on('show_social_links');
         efpic_apply_face_search_from_post($meta, $config);
         if (efpic_gallery_apply_expires_from_post($meta)) {
             $expiresLabel = efpic_gallery_expires_display($meta);
@@ -2537,8 +2538,10 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
     if ($isEdit && is_array($meta)) {
         $gallerySettings = efpic_gallery_settings($meta);
         $collectionOn = !empty($gallerySettings['enable_public_collection']);
+        $socialOn = !empty($gallerySettings['show_social_links']);
         $commentsOn = !empty($gallerySettings['client_comments_enabled']);
         $portalSections = efpic_client_portal_sections($meta);
+        $filledSocial = efpic_site_social_links($config);
         $body .= '<div class="admin-tab-panel-grid">';
         $body .= '<fieldset class="admin-fieldset-full admin-fieldset-compact" id="admin-fs-public-gallery"><legend>Publiskā galerija</legend>';
         $body .= '<input type="hidden" name="enable_public_collection" value="0">';
@@ -2551,6 +2554,22 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
             . 'Paslēptās bildes publiskajā skatā nav redzamas un nevar tikt pievienotas izlasei.</p>';
         if ($collectionOn) {
             $body .= '<p class="admin-ok">Izlase ir aktīva — publiskajā galerijā pie bildēm parādās aplītis (augšējā kreisajā stūrī).</p>';
+        }
+        $body .= '<input type="hidden" name="show_social_links" value="0">';
+        $body .= efpic_render_admin_toggle('Rādīt sociālo tīklu ikonas', $socialOn, [
+            'name' => 'show_social_links',
+            'value' => '1',
+        ]);
+        $body .= '<p class="admin-field-hint">Ikonas parādās publiskās galerijas augšā pa vidu. Saites ievadi kopējos iestatījumos («Sociālie tīkli»).</p>';
+        if ($socialOn && $filledSocial === []) {
+            $body .= '<p class="admin-warn">Ieslēgts, bet kopējos iestatījumos vēl nav nevienas sociālās saites — ikonas nerādīsies.</p>';
+        } elseif ($socialOn && $filledSocial !== []) {
+            $defs = efpic_site_social_network_defs();
+            $labels = [];
+            foreach (array_keys($filledSocial) as $sk) {
+                $labels[] = (string) ($defs[$sk]['label'] ?? $sk);
+            }
+            $body .= '<p class="admin-ok">Tiks rādītas: ' . efpic_admin_esc(implode(', ', $labels)) . '.</p>';
         }
         $body .= '</fieldset>';
         $sectionLabels = [
@@ -3264,6 +3283,7 @@ function efpic_admin_save_settings_from_post(array $config): void
         'site_logo' => $siteLogo,
         'gallery_email_signature' => $signatureHtml,
         'gallery_email_signature_image' => $sigImage,
+        'social_links' => efpic_parse_social_links_from_post(),
     ]);
 }
 
@@ -3562,6 +3582,17 @@ function efpic_admin_settings_page(array $config): void
         . efpic_admin_esc((string) $gapDesktop) . '"></label>';
     $body .= '<p class="muted">Attiecas uz visām tēmām: atstarpe starp bildēm un malu atkāpes režģī.</p>';
     $body .= '</fieldset>';
+    $socialLinks = is_array($settings['social_links'] ?? null) ? $settings['social_links'] : [];
+    $body .= '<fieldset><legend>Sociālie tīkli</legend>';
+    $body .= '<p class="muted">Šīs saites izmanto publiskās galerijas ikonām. Katrā galerijā atsevišķi ieslēdz «Rādīt sociālo tīklu ikonas».</p>';
+    foreach (efpic_site_social_network_defs() as $key => $def) {
+        $inputType = ($def['type'] ?? '') === 'email' ? 'email' : 'url';
+        $body .= '<label>' . efpic_admin_esc((string) $def['label'])
+            . '<input type="' . $inputType . '" name="social_' . efpic_admin_esc($key) . '" value="'
+            . efpic_admin_esc((string) ($socialLinks[$key] ?? '')) . '" placeholder="'
+            . efpic_admin_esc((string) ($def['placeholder'] ?? '')) . '" autocomplete="off"></label>';
+    }
+    $body .= '</fieldset>';
     $body .= efpic_admin_render_design_templates_settings_fieldset($config);
     $body .= efpic_admin_render_gallery_email_settings_fieldset($settings);
     $body .= efpic_admin_render_email_signature_editor($config, $settings);
@@ -3583,7 +3614,7 @@ function efpic_admin_settings_page(array $config): void
         $body,
         'settings',
         'Iestatījumi',
-        'Globālie iestatījumi visām publiskajām galerijām (paraksts, režģa atstarpes, render rinda).',
+        'Globālie iestatījumi visām publiskajām galerijām (paraksts, sociālie tīkli, režģa atstarpes, render rinda).',
         $config,
         '',
         $sigJs

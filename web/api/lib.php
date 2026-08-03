@@ -434,6 +434,17 @@ function efpic_app_settings_defaults(): array
         'site_logo' => '',
         'gallery_email_signature' => '',
         'gallery_email_signature_image' => '',
+        'social_links' => [
+            'website' => '',
+            'facebook' => '',
+            'instagram' => '',
+            'tiktok' => '',
+            'youtube' => '',
+            'pinterest' => '',
+            'linkedin' => '',
+            'x' => '',
+            'email' => '',
+        ],
         'updated_at' => null,
     ];
 }
@@ -1250,6 +1261,7 @@ function efpic_gallery_defaults(string $type = 'live'): array
             'disable_public_download_all_web' => false,
             'disable_public_download_all_full' => false,
             'enable_public_collection' => false,
+            'show_social_links' => false,
             'client_portal_sections' => [
                 'images' => true,
                 'scenes' => true,
@@ -1468,6 +1480,102 @@ function efpic_gallery_settings(array $meta): array
 function efpic_client_comments_enabled(array $meta): bool
 {
     return !empty(efpic_gallery_settings($meta)['client_comments_enabled']);
+}
+
+function efpic_gallery_show_social_links(array $meta): bool
+{
+    return !empty(efpic_gallery_settings($meta)['show_social_links']);
+}
+
+/**
+ * Globālie sociālo tīklu lauki (kopējie iestatījumi).
+ *
+ * @return array<string, array{label: string, placeholder: string, type: string}>
+ */
+function efpic_site_social_network_defs(): array
+{
+    return [
+        'website' => ['label' => 'Mājaslapa (www)', 'placeholder' => 'https://edgarsfoto.lv', 'type' => 'url'],
+        'facebook' => ['label' => 'Facebook lapa', 'placeholder' => 'https://facebook.com/…', 'type' => 'url'],
+        'instagram' => ['label' => 'Instagram', 'placeholder' => 'https://instagram.com/…', 'type' => 'url'],
+        'tiktok' => ['label' => 'TikTok', 'placeholder' => 'https://tiktok.com/@…', 'type' => 'url'],
+        'youtube' => ['label' => 'YouTube', 'placeholder' => 'https://youtube.com/@…', 'type' => 'url'],
+        'pinterest' => ['label' => 'Pinterest', 'placeholder' => 'https://pinterest.com/…', 'type' => 'url'],
+        'linkedin' => ['label' => 'LinkedIn', 'placeholder' => 'https://linkedin.com/in/…', 'type' => 'url'],
+        'x' => ['label' => 'X (Twitter)', 'placeholder' => 'https://x.com/…', 'type' => 'url'],
+        'email' => ['label' => 'E-pasts', 'placeholder' => 'info@edgarsfoto.lv', 'type' => 'email'],
+    ];
+}
+
+function efpic_sanitize_site_social_link_value(string $key, string $raw): string
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return '';
+    }
+    if ($key === 'email') {
+        $email = filter_var($raw, FILTER_VALIDATE_EMAIL);
+        return is_string($email) ? $email : '';
+    }
+    if (!preg_match('#^https?://#i', $raw)) {
+        $raw = 'https://' . ltrim($raw, '/');
+    }
+    $url = filter_var($raw, FILTER_VALIDATE_URL);
+    if (!is_string($url)) {
+        return '';
+    }
+    $scheme = strtolower((string) (parse_url($url, PHP_URL_SCHEME) ?: ''));
+    if ($scheme !== 'http' && $scheme !== 'https') {
+        return '';
+    }
+
+    return $url;
+}
+
+/**
+ * @return array<string, string> key => non-empty sanitized value
+ */
+function efpic_site_social_links(array $config): array
+{
+    $settings = efpic_load_app_settings($config);
+    $raw = $settings['social_links'] ?? [];
+    if (!is_array($raw)) {
+        $raw = [];
+    }
+    $out = [];
+    foreach (efpic_site_social_network_defs() as $key => $_def) {
+        $val = efpic_sanitize_site_social_link_value($key, (string) ($raw[$key] ?? ''));
+        if ($val !== '') {
+            $out[$key] = $val;
+        }
+    }
+
+    return $out;
+}
+
+/**
+ * @return array<string, string>
+ */
+function efpic_parse_social_links_from_post(): array
+{
+    $out = [];
+    foreach (efpic_site_social_network_defs() as $key => $_def) {
+        $out[$key] = efpic_sanitize_site_social_link_value(
+            $key,
+            (string) ($_POST['social_' . $key] ?? ''),
+        );
+    }
+
+    return $out;
+}
+
+function efpic_site_social_href(string $key, string $value): string
+{
+    if ($key === 'email') {
+        return 'mailto:' . $value;
+    }
+
+    return $value;
 }
 
 /** @return array{images: bool, scenes: bool, theme: bool, share: bool, media: bool} */
