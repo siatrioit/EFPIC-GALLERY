@@ -12,6 +12,7 @@ require_once __DIR__ . '/gallery_notifications.php';
 require_once __DIR__ . '/visitor_collection_handlers.php';
 require_once __DIR__ . '/visitor_zip_queue.php';
 require_once __DIR__ . '/dims_backfill_queue.php';
+require_once __DIR__ . '/delivery_sync_queue.php';
 
 function efpic_handle_health(array $config): void
 {

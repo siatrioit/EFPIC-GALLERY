@@ -32,6 +32,7 @@ return [
      * Cron (vienreiz dienā): POST /api/gallery-notifications/run ar Authorization: Bearer {api_token}
      * Cron (ik pēc vajadzības): POST /api/visitor-zip/run ar Authorization: Bearer {api_token}
      * Cron (ik pēc vajadzības): POST /api/dims-backfill/run ar Authorization: Bearer {api_token}
+     * Cron (ik pēc vajadzības): POST /api/delivery-sync/run ar Authorization: Bearer {api_token}
      */
     'gallery_notifications' => [
         'enabled' => true,

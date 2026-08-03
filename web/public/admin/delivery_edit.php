@@ -196,6 +196,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['visitor_zip_retry']))
     exit;
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['sync_start_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        efpic_admin_save_failiem_folders_from_post($config, $slug);
+        $enq = efpic_delivery_sync_enqueue($config, $slug);
+        $job = is_array($enq['job'] ?? null) ? $enq['job'] : [];
+        $active = in_array((string) ($job['status'] ?? ''), ['queued', 'running'], true);
+        $payload = [
+            'ok' => true,
+            'started' => !empty($enq['started']) || $active,
+            'active' => $active,
+            'phase' => $active ? 'sync' : 'idle',
+            'message' => $active
+                ? 'Sinhronizācija sākta serverī — vari aizvērt lapu un turpināt darbu.'
+                : 'Sync jau ir rindā.',
+            'job' => $job,
+        ];
+        if ($active) {
+            efpic_json_response_then_delivery_sync($config, 200, $payload, $slug);
+        }
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'bg') {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $status = efpic_admin_gallery_background_status($config, $slug);
+        // Backup: atvērta lapa tikai «paspurina» workerus — sync neizpilda šeit (par ilgu).
+        if (!empty($status['sync']['active'])) {
+            efpic_delivery_sync_kick_async($config, $slug);
+        } elseif (!empty($status['dims']['active'])) {
+            $ran = efpic_dims_backfill_process_slug($config, $slug, 12);
+            if (!empty($ran['continues'])) {
+                efpic_dims_backfill_kick_async($config, $slug);
+            }
+            $status = efpic_admin_gallery_background_status($config, $slug);
+        }
+        $metaNow = efpic_load_gallery_meta($config, $slug);
+        $failiemNow = is_array($metaNow['failiem'] ?? null) ? $metaNow['failiem'] : [];
+        $status['sync_stats_html'] = efpic_admin_render_sync_stats_line($failiemNow);
+        echo json_encode($status, JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_api'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
@@ -484,8 +538,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } elseif (!empty($_POST['create_share_set']) && (string) ($_POST['create_share_set'] ?? '') === '1') {
             $qs .= '&share_created=1';
         } elseif (!empty($_POST['sync_now'])) {
-            $qs .= '&saved=1&synced=1';
-            efpic_redirect_then_dims_backfill($config, 'delivery_edit.php?' . $qs, $slug);
+            $qs .= '&saved=1&sync_queued=1';
+            efpic_redirect_then_delivery_sync($config, 'delivery_edit.php?' . $qs, $slug);
         } elseif (!empty($_POST['backfill_dimensions'])) {
             $qs .= '&saved=1&dims_backfill=1';
         } else {
@@ -505,46 +559,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $flash = null;
-if (isset($_GET['saved'])) {
-    $flash = !empty($_GET['synced']) ? 'Saglabāts un sinhronizēts.' : 'Saglabāts.';
-    if (!empty($_GET['synced'])) {
-        efpic_admin_session_start();
-        if (isset($_SESSION['efpic_admin_sync_dims'])) {
-            $syncDims = $_SESSION['efpic_admin_sync_dims'];
-            unset($_SESSION['efpic_admin_sync_dims']);
-            $dimsN = is_array($syncDims) ? (int) ($syncDims['backfilled'] ?? 0) : (int) $syncDims;
-            $reprobedN = is_array($syncDims) ? (int) ($syncDims['reprobed'] ?? 0) : 0;
-            $dimStats = is_array($syncDims['stats'] ?? null)
-                ? $syncDims['stats']
-                : ($meta !== null ? efpic_gallery_image_dimensions_stats($meta) : ['with_dims' => 0, 'total' => 0, 'missing' => 0]);
-            if ($reprobedN > 0) {
-                $flash .= ' Izmēri pārrēķināti (mainīts Failiem): ' . $reprobedN . ' bildēm.';
-            }
-            if ($dimsN > 0) {
-                $flash .= ' Izmēri ievākti sync laikā: ' . $dimsN . ' bildēm.';
-            }
-            $flash .= ' Kopā meta.json: ' . (int) ($dimStats['with_dims'] ?? 0) . ' / ' . (int) ($dimStats['total'] ?? 0) . '.';
-            if ((int) ($dimStats['stale'] ?? 0) > 0) {
-                $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . '.';
-            }
-            if ((int) ($dimStats['missing'] ?? 0) > 0) {
-                $flash .= ' Trūkst ' . (int) $dimStats['missing']
-                    . ' — izmēru ievākšana turpinās serverī fonā (vari aizvērt lapu).';
-            } elseif (!empty($syncDims['queue_active'])) {
-                $flash .= ' Izmēru ievākšana turpinās serverī fonā.';
-            }
-            $syncWarnings = is_array($syncDims['warnings'] ?? null) ? $syncDims['warnings'] : [];
-            if ($syncWarnings !== []) {
-                $flash .= ' Brīdinājumi: ' . implode(' · ', $syncWarnings);
-            }
-            $syncStats = is_array($syncDims['sync_stats'] ?? null) ? $syncDims['sync_stats'] : [];
-            if ($syncStats !== []) {
-                $flash .= ' Sync pāri: ' . (int) ($syncStats['paired'] ?? 0)
-                    . ' (Failiem API: pilns ' . (int) ($syncStats['full_count'] ?? 0)
-                    . ', web ' . (int) ($syncStats['web_count'] ?? 0) . ').';
-            }
-        }
-    }
+if (isset($_GET['sync_queued'])) {
+    $flash = 'Sinhronizācija un izmēru ievākšana notiek serverī fonā — vari aizvērt lapu un turpināt darbu. Atgriežoties redzēsi progresu.';
+} elseif (isset($_GET['saved'])) {
+    $flash = 'Saglabāts.';
 }
 if (isset($_GET['dims_backfill'])) {
     efpic_admin_session_start();

@@ -82,6 +82,10 @@ try {
         efpic_handle_dims_backfill_queue_run($config);
     }
 
+    if ($uri === '/api/delivery-sync/run' && $method === 'POST') {
+        efpic_handle_delivery_sync_queue_run($config);
+    }
+
     if ($uri === '/e/copy' && $method === 'GET') {
         efpic_handle_email_copy_link_page($config);
     }

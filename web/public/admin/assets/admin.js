@@ -2788,7 +2788,7 @@
     }
   }
 
-  function adminUpdateDimsProgress(stats, startedAt) {
+  function adminUpdateDimsProgress(stats) {
     var wrap = document.getElementById('admin-dims-progress-wrap');
     var bar = document.getElementById('admin-dims-progress-bar');
     if (!wrap || !bar || !stats || !stats.total) return;
@@ -2798,13 +2798,6 @@
     wrap.hidden = false;
     bar.style.width = pct + '%';
     bar.setAttribute('aria-valuenow', String(pct));
-    var statusEl = document.getElementById('admin-dims-status');
-    if (statusEl && startedAt) {
-      var sec = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
-      statusEl.hidden = false;
-      statusEl.textContent =
-        'Serverī ievācu… ' + done + ' / ' + total + ' (' + pct + '%) · ' + sec + ' s';
-    }
   }
 
   function adminHideDimsProgress() {
@@ -2812,10 +2805,33 @@
     if (wrap) wrap.hidden = true;
   }
 
-  function adminDimsPollUrl() {
+  function adminSetBgStatus(message, isError) {
+    var statusEl = document.getElementById('admin-dims-status');
+    if (!statusEl) return;
+    statusEl.hidden = !message;
+    statusEl.textContent = message || '';
+    statusEl.classList.toggle('err', !!isError);
+  }
+
+  function adminBgPollUrl() {
     var url = new URL(window.location.href);
-    url.searchParams.set('poll', 'dims_backfill');
+    url.searchParams.set('poll', 'bg');
     return url.pathname + '?' + url.searchParams.toString();
+  }
+
+  function adminFetchBgStatus() {
+    return fetch(adminBgPollUrl(), {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+    }).then(function (res) {
+      return res.json().then(function (data) {
+        if (!res.ok || !data || !data.ok) {
+          throw new Error((data && data.error) || 'Statusa kļūda');
+        }
+        return data;
+      });
+    });
   }
 
   function adminStartDimsBackfillApi(force) {
@@ -2843,156 +2859,261 @@
     });
   }
 
-  function adminFetchDimsBackfillStatus() {
-    return fetch(adminDimsPollUrl(), {
-      method: 'GET',
+  function adminStartFailiemSyncApi() {
+    var form = document.getElementById('admin-delivery-form');
+    var fd = new FormData();
+    fd.set('sync_start_api', '1');
+    ['folder_parent_url', 'folder_full_url', 'folder_web_url', 'folder_video_url'].forEach(function (name) {
+      var el = form ? form.querySelector('[name="' + name + '"]') : null;
+      if (el) fd.set(name, el.value || '');
+    });
+    return fetch(window.location.pathname + window.location.search, {
+      method: 'POST',
+      body: fd,
       credentials: 'same-origin',
-      headers: { Accept: 'application/json', 'Cache-Control': 'no-cache' },
+      headers: { Accept: 'application/json' },
     }).then(function (res) {
+      var ct = (res.headers.get('content-type') || '').toLowerCase();
+      if (ct.indexOf('application/json') === -1) {
+        throw new Error('Serveris neatbildēja ar JSON.');
+      }
       return res.json().then(function (data) {
         if (!res.ok || !data || !data.ok) {
-          throw new Error((data && data.error) || 'Statusa kļūda');
+          throw new Error((data && data.error) || 'Neizdevās sākt sinhronizāciju');
         }
         return data;
       });
     });
   }
 
-  var adminDimsBackfillInFlight = false;
-  var adminDimsPollTimer = null;
-  var adminDimsPollStartedAt = 0;
+  var adminBgPollTimer = null;
+  var adminBgInFlight = false;
+  var adminBgSawSync = false;
+  var adminBgReloadArmed = false;
 
-  function adminStopDimsPoll() {
-    if (adminDimsPollTimer) {
-      clearTimeout(adminDimsPollTimer);
-      adminDimsPollTimer = null;
+  function adminStopBgPoll() {
+    if (adminBgPollTimer) {
+      clearTimeout(adminBgPollTimer);
+      adminBgPollTimer = null;
     }
-    adminDimsBackfillInFlight = false;
+    adminBgInFlight = false;
   }
 
-  function adminApplyDimsPollResult(data, opts) {
-    opts = opts || {};
-    var stats = data.stats || {};
-    var statusEl = document.getElementById('admin-dims-status');
-    var btn = document.getElementById('admin-backfill-dimensions');
+  function adminApplyBgStatus(data) {
+    var phase = data.phase || 'idle';
+    var dims = (data.dims && data.dims.stats) || data.stats || {};
+    var syncBtn = document.querySelector('#admin-delivery-form button[name="sync_now"]');
+    var dimsBtn = document.getElementById('admin-backfill-dimensions');
     var refreshBtn = document.getElementById('admin-refresh-dimensions');
-    adminUpdateDimsDebugUi(stats);
-    if (data.active) {
-      if (!adminDimsPollStartedAt) adminDimsPollStartedAt = Date.now();
-      adminUpdateDimsProgress(stats, adminDimsPollStartedAt);
-      if (statusEl) {
-        statusEl.hidden = false;
+
+    adminUpdateDimsDebugUi(dims);
+
+    if (data.sync_stats_html) {
+      var syncLine = document.getElementById('admin-sync-stats-line');
+      var footer = document.querySelector('.admin-links-panel-footer');
+      if (syncLine) {
+        syncLine.outerHTML = data.sync_stats_html;
+      } else if (footer && data.sync_stats_html.indexOf('admin-sync-stats-line') !== -1) {
+        footer.insertAdjacentHTML('afterbegin', data.sync_stats_html);
       }
-      if (btn) {
-        btn.disabled = true;
-        btn.textContent = 'Ievācu fonā…';
+    }
+
+    if (phase === 'sync') {
+      adminBgSawSync = true;
+      adminHideDimsProgress();
+      adminSetBgStatus(data.message || 'Sinhronizēju no Failiem serverī… Vari aizvērt lapu.', false);
+      if (syncBtn) {
+        syncBtn.disabled = true;
+        syncBtn.textContent = 'Sinhronizēju fonā…';
       }
+      if (dimsBtn) dimsBtn.disabled = true;
       if (refreshBtn) refreshBtn.disabled = true;
       return true;
     }
-    adminStopDimsPoll();
-    adminHideDimsProgress();
-    var msg = 'Izmēri: ' + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + '.';
-    if ((stats.missing || 0) > 0 || (stats.stale || 0) > 0) {
-      msg += ' Palika ' + ((stats.missing || 0) + (stats.stale || 0)) + '.';
-      if (btn) {
-        btn.hidden = false;
-        btn.disabled = false;
-        btn.textContent = 'Ievākt atlikušos izmērus';
+
+    if (phase === 'dims') {
+      adminUpdateDimsProgress(dims);
+      adminSetBgStatus(data.message || 'Ievācu izmērus serverī…', false);
+      if (syncBtn) {
+        syncBtn.disabled = false;
+        syncBtn.textContent = 'Sinhronizēt no Failiem';
       }
-    } else {
-      msg += ' Viss gatavs.';
-      if (btn) btn.hidden = true;
+      if (dimsBtn) {
+        dimsBtn.hidden = false;
+        dimsBtn.disabled = true;
+        dimsBtn.textContent = 'Ievācu fonā…';
+      }
+      if (refreshBtn) refreshBtn.disabled = true;
+      // Pēc sync — vienreiz pārlādē, lai parādītos jaunās bildes; izmēri turpinās fonā.
+      if (adminBgSawSync && !adminBgReloadArmed) {
+        adminBgReloadArmed = true;
+        var formEl = document.getElementById('admin-delivery-form');
+        var slug = formEl ? formEl.getAttribute('data-admin-edit-slug') || '' : '';
+        var key = slug ? 'efpic-sync-reload-' + slug : '';
+        var already = false;
+        try {
+          already = !!(key && sessionStorage.getItem(key));
+          if (key && !already) sessionStorage.setItem(key, '1');
+        } catch (e) {}
+        if (!already) {
+          window.setTimeout(function () {
+            window.location.reload();
+          }, 600);
+          return false;
+        }
+      }
+      return true;
     }
-    if (statusEl) {
-      statusEl.hidden = false;
-      statusEl.textContent = msg;
+
+    if (phase === 'error') {
+      adminStopBgPoll();
+      adminHideDimsProgress();
+      adminSetBgStatus(data.message || 'Kļūda', true);
+      if (syncBtn) {
+        syncBtn.disabled = false;
+        syncBtn.textContent = 'Sinhronizēt no Failiem';
+      }
+      if (dimsBtn) dimsBtn.disabled = false;
+      if (refreshBtn) refreshBtn.disabled = false;
+      return false;
+    }
+
+    adminStopBgPoll();
+    if (phase === 'done' || (!(dims.missing > 0) && !(dims.stale > 0))) {
+      adminHideDimsProgress();
+      adminSetBgStatus(data.message || ('Izmēri: ' + (dims.with_dims || 0) + ' / ' + (dims.total || 0) + '. Viss gatavs.'), false);
+      if (dimsBtn) dimsBtn.hidden = true;
+    } else {
+      adminHideDimsProgress();
+      adminSetBgStatus(
+        'Izmēri: ' + (dims.with_dims || 0) + ' / ' + (dims.total || 0) + '. Palika ' + ((dims.missing || 0) + (dims.stale || 0)) + '.',
+        false,
+      );
+      if (dimsBtn) {
+        dimsBtn.hidden = false;
+        dimsBtn.disabled = false;
+        dimsBtn.textContent = 'Ievākt atlikušos izmērus';
+      }
+    }
+    if (syncBtn) {
+      syncBtn.disabled = false;
+      syncBtn.textContent = 'Sinhronizēt no Failiem';
     }
     if (refreshBtn) refreshBtn.disabled = false;
-    if (!opts.silentDone) {
-      showAdminAutoSaveToast(msg, (stats.missing || 0) > 0);
+
+    if (adminBgSawSync && !adminBgReloadArmed && (data.image_count || 0) > 0) {
+      adminBgReloadArmed = true;
+      var formEl2 = document.getElementById('admin-delivery-form');
+      var slug2 = formEl2 ? formEl2.getAttribute('data-admin-edit-slug') || '' : '';
+      var key2 = slug2 ? 'efpic-sync-reload-' + slug2 : '';
+      var already2 = false;
+      try {
+        already2 = !!(key2 && sessionStorage.getItem(key2));
+        if (key2 && !already2) sessionStorage.setItem(key2, '1');
+      } catch (e) {}
+      if (!already2) {
+        window.setTimeout(function () {
+          window.location.reload();
+        }, 500);
+      }
     }
     return false;
   }
 
-  function adminScheduleDimsPoll(delayMs) {
-    adminStopDimsPoll();
-    adminDimsBackfillInFlight = true;
-    adminDimsPollTimer = setTimeout(function tick() {
-      adminFetchDimsBackfillStatus()
+  function adminScheduleBgPoll(delayMs) {
+    if (adminBgPollTimer) {
+      clearTimeout(adminBgPollTimer);
+      adminBgPollTimer = null;
+    }
+    adminBgInFlight = true;
+    adminBgPollTimer = setTimeout(function tick() {
+      adminFetchBgStatus()
         .then(function (data) {
-          var still = adminApplyDimsPollResult(data, { silentDone: false });
+          var still = adminApplyBgStatus(data);
           if (still) {
-            adminDimsPollTimer = setTimeout(tick, 2000);
+            adminBgPollTimer = setTimeout(tick, 2500);
           }
         })
         .catch(function (err) {
-          var statusEl = document.getElementById('admin-dims-status');
-          if (statusEl) {
-            statusEl.hidden = false;
-            statusEl.textContent =
-              'Statusa pārbaude: ' + ((err && err.message) || 'kļūda') + ' — mēģinu vēl…';
-          }
-          adminDimsPollTimer = setTimeout(tick, 3000);
+          adminSetBgStatus(
+            'Statusa pārbaude: ' + ((err && err.message) || 'kļūda') + ' — mēģinu vēl…',
+            false,
+          );
+          adminBgPollTimer = setTimeout(tick, 3500);
         });
-    }, delayMs || 400);
+    }, delayMs || 500);
   }
 
   function runAdminBackfillDimensions(opts) {
     opts = opts || {};
     var btn = document.getElementById('admin-backfill-dimensions');
     var refreshBtn = document.getElementById('admin-refresh-dimensions');
-    var statusEl = document.getElementById('admin-dims-status');
-    if (adminDimsBackfillInFlight && !opts.force) {
+    if (adminBgInFlight && !opts.force) {
       return Promise.resolve();
     }
 
-    adminDimsPollStartedAt = Date.now();
-    adminDimsBackfillInFlight = true;
+    adminBgInFlight = true;
     if (btn) {
       btn.disabled = true;
       btn.textContent = 'Ievācu fonā…';
     }
     if (refreshBtn) refreshBtn.disabled = true;
-    if (statusEl) {
-      statusEl.hidden = false;
-      statusEl.textContent = 'Sāku izmēru ievākšanu serverī…';
-    }
-    showAdminAutoSaveToast(
-      opts.silent
-        ? 'Izmēru ievākšana notiek serverī — vari aizvērt lapu.'
-        : 'Izmēru ievākšana notiek serverī fonā — vari aizvērt lapu.',
-      false,
-    );
+    adminSetBgStatus('Sāku izmēru ievākšanu serverī — vari aizvērt lapu.', false);
 
     return adminStartDimsBackfillApi(!!opts.force)
-      .then(function (data) {
-        adminApplyDimsPollResult(data, { silentDone: true });
-        if (data.active || (data.stats && ((data.stats.missing || 0) > 0 || (data.stats.stale || 0) > 0))) {
-          adminScheduleDimsPoll(800);
-        } else {
-          adminStopDimsPoll();
-          adminHideDimsProgress();
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Ievākt atlikušos izmērus';
-          }
-          if (refreshBtn) refreshBtn.disabled = false;
-        }
+      .then(function () {
+        adminScheduleBgPoll(600);
       })
       .catch(function (err) {
-        adminStopDimsPoll();
+        adminStopBgPoll();
         var errMsg = (err && err.message) ? err.message : 'Kļūda';
-        if (statusEl) {
-          statusEl.hidden = false;
-          statusEl.textContent = errMsg;
-        }
-        showAdminAutoSaveToast(errMsg, true);
+        adminSetBgStatus(errMsg, true);
         if (btn) {
           btn.disabled = false;
           btn.textContent = 'Ievākt atlikušos izmērus';
         }
         if (refreshBtn) refreshBtn.disabled = false;
+      });
+  }
+
+  function runAdminFailiemSync() {
+    var syncBtn = document.querySelector('#admin-delivery-form button[name="sync_now"]');
+    var form = document.getElementById('admin-delivery-form');
+    var slug = form ? form.getAttribute('data-admin-edit-slug') || '' : '';
+    if (slug) {
+      try {
+        sessionStorage.removeItem('efpic-sync-reload-' + slug);
+      } catch (e) {}
+    }
+    if (adminBgInFlight) {
+      adminSetBgStatus('Fona process jau notiek — vari aizvērt lapu.', false);
+      return;
+    }
+    adminBgSawSync = true;
+    adminBgReloadArmed = false;
+    adminBgInFlight = true;
+    if (syncBtn) {
+      syncBtn.disabled = true;
+      syncBtn.textContent = 'Sāku…';
+    }
+    adminSetBgStatus('Sinhronizācija sākta serverī — vari aizvērt lapu un turpināt darbu.', false);
+
+    adminStartFailiemSyncApi()
+      .then(function (data) {
+        adminSetBgStatus(
+          (data && data.message) || 'Sinhronizācija notiek serverī — vari aizvērt lapu.',
+          false,
+        );
+        adminScheduleBgPoll(800);
+      })
+      .catch(function (err) {
+        adminStopBgPoll();
+        var errMsg = (err && err.message) ? err.message : 'Kļūda';
+        adminSetBgStatus(errMsg, true);
+        if (syncBtn) {
+          syncBtn.disabled = false;
+          syncBtn.textContent = 'Sinhronizēt no Failiem';
+        }
       });
   }
 
@@ -3022,17 +3143,21 @@
     }
     var shouldWatch =
       (form &&
-        (form.getAttribute('data-dims-after-sync') === '1' ||
-          form.getAttribute('data-dims-job-active') === '1')) ||
+        (form.getAttribute('data-sync-job-active') === '1' ||
+          form.getAttribute('data-dims-job-active') === '1' ||
+          form.getAttribute('data-bg-watch') === '1')) ||
       (panel &&
-        ((parseInt(panel.getAttribute('data-dims-missing') || '0', 10) > 0) ||
-          (parseInt(panel.getAttribute('data-dims-stale') || '0', 10) > 0) ||
-          panel.getAttribute('data-dims-job-active') === '1'));
+        (panel.getAttribute('data-dims-job-active') === '1' ||
+          parseInt(panel.getAttribute('data-dims-missing') || '0', 10) > 0 ||
+          parseInt(panel.getAttribute('data-dims-stale') || '0', 10) > 0));
     if (shouldWatch) {
-      adminDimsPollStartedAt = Date.now();
-      adminScheduleDimsPoll(
-        form && form.getAttribute('data-dims-after-sync') === '1' ? 600 : 400,
-      );
+      if (form && form.getAttribute('data-sync-job-active') === '1') {
+        adminBgSawSync = true;
+        adminSetBgStatus('Sinhronizēju no Failiem serverī… Vari aizvērt lapu.', false);
+      } else if (form && form.getAttribute('data-dims-job-active') === '1') {
+        adminSetBgStatus('Ievācu izmērus serverī… Vari aizvērt lapu.', false);
+      }
+      adminScheduleBgPoll(400);
     }
   }
 
@@ -3044,24 +3169,9 @@
     form.addEventListener('submit', function (evt) {
       var submitter = evt.submitter;
       if (!submitter || submitter.name !== 'sync_now') return;
-      var existing = document.getElementById('admin-sync-busy');
-      if (!existing) {
-        existing = document.createElement('div');
-        existing.id = 'admin-sync-busy';
-        existing.className = 'admin-sync-busy';
-        existing.innerHTML =
-          '<div class="admin-sync-busy__card">' +
-          '<p class="admin-sync-busy__text">Sinhronizēju no Failiem…</p>' +
-          '<p class="muted">Neaizver pārlūku. Lielām mapēm tas var aizņemt 1–2 min. Pēc tam lapa pārlādēsies; izmēru ievākšana turpināsies serverī fonā.</p>' +
-          '</div>';
-        document.body.appendChild(existing);
-      } else {
-        existing.hidden = false;
-      }
-      showAdminAutoSaveToast('Sinhronizēju no Failiem…', false);
-      Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"]'), function (b) {
-        b.disabled = true;
-      });
+      evt.preventDefault();
+      evt.stopPropagation();
+      runAdminFailiemSync();
     });
   }
 
