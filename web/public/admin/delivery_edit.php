@@ -451,13 +451,15 @@ if (isset($_GET['saved'])) {
             if ($reprobedN > 0) {
                 $flash .= ' Izmēri pārrēķināti (mainīts Failiem): ' . $reprobedN . ' bildēm.';
             }
-            $flash .= ' Izmēri ievākti sync laikā: ' . $dimsN . ' bildēm.';
+            if ($dimsN > 0) {
+                $flash .= ' Izmēri ievākti sync laikā: ' . $dimsN . ' bildēm.';
+            }
             $flash .= ' Kopā meta.json: ' . (int) ($dimStats['with_dims'] ?? 0) . ' / ' . (int) ($dimStats['total'] ?? 0) . '.';
             if ((int) ($dimStats['stale'] ?? 0) > 0) {
-                $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . ' — sinhronizē vēlreiz vai «Pārrēķināt izmērus».';
+                $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . '.';
             }
             if ((int) ($dimStats['missing'] ?? 0) > 0) {
-                $flash .= ' Palika ' . (int) $dimStats['missing'] . ' — turpinām fonā…';
+                $flash .= ' Trūkst ' . (int) $dimStats['missing'] . ' — turpinām ievākt partijās…';
             }
             $syncWarnings = is_array($syncDims['warnings'] ?? null) ? $syncDims['warnings'] : [];
             if ($syncWarnings !== []) {

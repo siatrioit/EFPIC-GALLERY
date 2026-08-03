@@ -2455,6 +2455,7 @@
   initAdminPortalLinkToggle();
   initAdminPasswordToggles();
   initAdminBackfillDimensions();
+  initAdminSyncBusyOverlay();
   initAdminFaceIndex();
   initAdminGalleryLinksPoll();
   initAdminSlideshowRenderPoll();
@@ -2826,9 +2827,7 @@
     }).then(function (res) {
       var ct = (res.headers.get('content-type') || '').toLowerCase();
       if (ct.indexOf('application/json') === -1) {
-        throw new Error(
-          'Serveris neatbildēja ar JSON (bieži timeout / Failiem pārslodze). Mēģini vēlreiz — ievāc partijās, nevis visu uzreiz.',
-        );
+        throw new Error('Serveris neatbildēja ar JSON (bieži timeout).');
       }
       return res.json().then(function (data) {
         if (!res.ok || !data || !data.ok) {
@@ -2841,9 +2840,16 @@
 
   var adminDimsBackfillInFlight = false;
 
+  function adminDimsDelay(ms) {
+    return new Promise(function (resolve) {
+      setTimeout(resolve, ms);
+    });
+  }
+
   function runAdminBackfillDimensions(opts) {
     opts = opts || {};
     var btn = document.getElementById('admin-backfill-dimensions');
+    var refreshBtn = document.getElementById('admin-refresh-dimensions');
     var statusEl = document.getElementById('admin-dims-status');
     if (adminDimsBackfillInFlight) {
       return Promise.resolve();
@@ -2862,52 +2868,70 @@
     adminDimsBackfillInFlight = true;
     var startedAt = Date.now();
     var label = btn ? btn.textContent : '';
+    var refreshLabel = refreshBtn ? refreshBtn.textContent : '';
     if (btn) {
       btn.disabled = true;
       btn.textContent = 'Ievācu…';
     }
+    if (refreshBtn) refreshBtn.disabled = true;
     if (statusEl) {
       statusEl.hidden = false;
-      statusEl.textContent = opts.silent
-        ? 'Ievācu izmērus fonā no Failiem (partijās pa ~30)…'
-        : 'Savienojos ar Failiem…';
+      statusEl.textContent = 'Ievācu izmērus partijās pa ~12…';
     }
-    if (opts.silent) {
-      showAdminAutoSaveToast('Ievācu bildes izmērus fonā…', false);
-    }
+    showAdminAutoSaveToast(
+      opts.silent ? 'Ievācu izmērus fonā…' : 'Ievācu izmērus partijās — admin paliek lietojams.',
+      false,
+    );
 
     function step(force, pass) {
       pass = pass || 1;
-      return adminFetchBackfillDimensions(false, force).then(function (data) {
-        var stats = data.stats || {};
-        adminUpdateDimsDebugUi(stats);
-        adminUpdateDimsProgress(stats, startedAt);
-        var needMore = (stats.missing || 0) > 0 || (stats.stale || 0) > 0;
-        if (needMore && (data.updated || 0) > 0) {
-          return step(false, pass + 1);
-        }
-        return data;
-      });
+      return adminFetchBackfillDimensions(false, !!force)
+        .then(function (data) {
+          var stats = data.stats || {};
+          adminUpdateDimsDebugUi(stats);
+          adminUpdateDimsProgress(stats, startedAt);
+          if (statusEl) {
+            statusEl.textContent =
+              'Ievācu… ' + (stats.with_dims || 0) + ' / ' + (stats.total || 0) + ' (partija ' + pass + ')';
+          }
+          if (opts.once) return data;
+          var needMore = (stats.missing || 0) > 0 || (stats.stale || 0) > 0;
+          if (needMore && (data.updated || 0) > 0) {
+            return adminDimsDelay(150).then(function () {
+              return step(false, pass + 1);
+            });
+          }
+          return data;
+        })
+        .catch(function (err) {
+          if (!opts.once && pass < 250) {
+            if (statusEl) {
+              statusEl.textContent =
+                'Partija pārtrūka (' + ((err && err.message) || 'kļūda') + '). Turpinu…';
+            }
+            return adminDimsDelay(700).then(function () {
+              return step(false, pass + 1);
+            });
+          }
+          throw err;
+        });
     }
 
     var promise;
     if (opts.force) {
-      promise = adminFetchBackfillDimensions(false, true);
-    } else if (opts.all) {
-      promise = adminFetchBackfillDimensions(true, false).then(function (data) {
+      promise = adminFetchBackfillDimensions(false, true).then(function (data) {
         var stats = data.stats || {};
         adminUpdateDimsDebugUi(stats);
         adminUpdateDimsProgress(stats, startedAt);
-        return data;
-      });
-    } else if (opts.once) {
-      promise = adminFetchBackfillDimensions(false, false).then(function (data) {
-        var stats = data.stats || {};
-        adminUpdateDimsDebugUi(stats);
-        adminUpdateDimsProgress(stats, startedAt);
+        if ((stats.missing || 0) > 0 && !opts.once) {
+          return adminDimsDelay(150).then(function () {
+            return step(false, 2);
+          });
+        }
         return data;
       });
     } else {
+      // opts.all / default — vienmēr JS partiju cilpa, neviens «all» vienā HTTP.
       promise = step(false, 1);
     }
 
@@ -2928,15 +2952,11 @@
           msg += ' Viss gatavs.';
           showAdminAutoSaveToast(msg, false);
         }
-        if (statusEl) {
-          statusEl.textContent = msg;
-        }
+        if (statusEl) statusEl.textContent = msg;
       })
       .catch(function (err) {
         var errMsg = (err && err.message) ? err.message : 'Kļūda';
-        if (statusEl) {
-          statusEl.textContent = errMsg;
-        }
+        if (statusEl) statusEl.textContent = errMsg;
         showAdminAutoSaveToast(errMsg, true);
       })
       .finally(function () {
@@ -2945,6 +2965,10 @@
         if (btn) {
           btn.disabled = false;
           btn.textContent = label;
+        }
+        if (refreshBtn) {
+          refreshBtn.disabled = false;
+          if (refreshLabel) refreshBtn.textContent = refreshLabel;
         }
       });
   }
@@ -2979,10 +3003,38 @@
       adminDimsMissingCount() > 0
     ) {
       setTimeout(function () {
-        // Sync jau ievāca vienu partiju; šeit tikai vēl viena, bez bezgalīga cikla.
-        runAdminBackfillDimensions({ silent: true, once: true });
-      }, 400);
+        runAdminBackfillDimensions({ all: true });
+      }, 500);
     }
+  }
+
+  function initAdminSyncBusyOverlay() {
+    var form = document.getElementById('admin-delivery-form');
+    if (!form || form.dataset.syncBusyBound === '1') return;
+    form.dataset.syncBusyBound = '1';
+
+    form.addEventListener('submit', function (evt) {
+      var submitter = evt.submitter;
+      if (!submitter || submitter.name !== 'sync_now') return;
+      var existing = document.getElementById('admin-sync-busy');
+      if (!existing) {
+        existing = document.createElement('div');
+        existing.id = 'admin-sync-busy';
+        existing.className = 'admin-sync-busy';
+        existing.innerHTML =
+          '<div class="admin-sync-busy__card">' +
+          '<p class="admin-sync-busy__text">Sinhronizēju no Failiem…</p>' +
+          '<p class="muted">Neaizver pārlūku. Lielām mapēm tas var aizņemt 1–2 min. Pēc tam lapa pārlādēsies.</p>' +
+          '</div>';
+        document.body.appendChild(existing);
+      } else {
+        existing.hidden = false;
+      }
+      showAdminAutoSaveToast('Sinhronizēju no Failiem…', false);
+      Array.prototype.forEach.call(form.querySelectorAll('button[type="submit"]'), function (b) {
+        b.disabled = true;
+      });
+    });
   }
 
   function initAdminFaceIndex() {

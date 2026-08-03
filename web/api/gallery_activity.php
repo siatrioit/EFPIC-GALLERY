@@ -127,12 +127,24 @@ function efpic_gallery_activity_type_label(string $type): string
 
 function efpic_gallery_format_activity_time(string $iso): string
 {
-    $ts = strtotime($iso);
-    if ($ts === false) {
-        return $iso;
+    $iso = trim($iso);
+    if ($iso === '') {
+        return '';
     }
+    try {
+        $dt = new DateTimeImmutable($iso);
 
-    return date('Y-m-d H:i', $ts);
+        return $dt->setTimezone(new DateTimeZone('Europe/Riga'))->format('Y-m-d H:i');
+    } catch (Throwable) {
+        $ts = strtotime($iso);
+        if ($ts === false) {
+            return $iso;
+        }
+
+        return (new DateTimeImmutable('@' . $ts))
+            ->setTimezone(new DateTimeZone('Europe/Riga'))
+            ->format('Y-m-d H:i');
+    }
 }
 
 function efpic_admin_render_activity_log(array $meta): string

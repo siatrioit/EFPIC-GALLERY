@@ -2201,13 +2201,8 @@ function efpic_admin_backfill_gallery_dimensions(array $config, string $slug): a
 
         return ['updated' => $result['updated'], 'stats' => $result['stats'], 'cleared' => true];
     }
-    // Viena partija (vai «all» cikls) — bez iepriekšējas full-gallery remote reprobe.
-    if ($all) {
-        $result = efpic_gallery_backfill_all_image_dimensions($config, $slug, true, EFPIC_DIMS_BACKFILL_BATCH);
-
-        return ['updated' => $result['updated'], 'stats' => $result['stats']];
-    }
-
+    // Vienmēr viena partija — «all» JS cilpā; vienā HTTP pieprasījumā nekad neievācam visu galeriju.
+    unset($all);
     $updated = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, EFPIC_DIMS_BACKFILL_BATCH, true);
     $meta = efpic_load_gallery_meta($config, $slug);
     $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
@@ -2242,7 +2237,7 @@ function efpic_admin_render_sync_stats_line(array $failiem): string
     if ($skippedFull > 0 || $skippedWeb > 0) {
         $body .= ' · nav attēlu: pilns ' . $skippedFull . ', web ' . $skippedWeb;
     }
-    $body .= ' · ' . efpic_admin_esc((string) ($failiem['last_sync_at'] ?? '')) . '</p>';
+    $body .= ' · ' . efpic_admin_esc(efpic_admin_format_sync_datetime_lv((string) ($failiem['last_sync_at'] ?? ''))) . '</p>';
 
     $orphanFullNames = is_array($stats['orphan_full_names'] ?? null) ? $stats['orphan_full_names'] : [];
     $orphanWebNames = is_array($stats['orphan_web_names'] ?? null) ? $stats['orphan_web_names'] : [];

@@ -5,10 +5,10 @@ declare(strict_types=1);
 const EFPIC_LAYOUT_ASPECT_MIN = 0.62;
 const EFPIC_LAYOUT_ASPECT_MAX = 2.45;
 const EFPIC_LAYOUT_ASPECT_DEFAULT = 1.5;
-const EFPIC_DIMS_BACKFILL_BATCH = 30;
-const EFPIC_DIMS_SYNC_BATCH = 30;
-const EFPIC_DIMS_VIEW_BATCH = 80;
-const EFPIC_DIMS_BACKFILL_SAVE_EVERY = 5;
+const EFPIC_DIMS_BACKFILL_BATCH = 12;
+const EFPIC_DIMS_SYNC_BATCH = 12;
+const EFPIC_DIMS_VIEW_BATCH = 24;
+const EFPIC_DIMS_BACKFILL_SAVE_EVERY = 4;
 
 function efpic_image_has_dimensions(array $img): bool
 {
@@ -248,7 +248,7 @@ function efpic_probe_image_dimensions_remote(array $config, array $img, bool $al
     }
 
     $thumbUrl = efpic_failiem_thumb_url($config, $hash, 360);
-    $binary = efpic_fetch_binary_quick($config, $thumbUrl, 8);
+    $binary = efpic_fetch_binary_quick($config, $thumbUrl, 5);
     if ($binary !== null) {
         $dims = efpic_probe_image_dimensions_from_binary($binary);
         if ($dims !== null) {
@@ -507,7 +507,12 @@ function efpic_gallery_force_refresh_all_image_dimensions(
     unset($img);
     efpic_save_gallery_meta($config, $slug, $meta);
 
-    return efpic_gallery_backfill_all_image_dimensions($config, $slug, $allowRemote, $batchSize);
+    // Tikai pirmā partija — tālāk JS turpina pa partijām (citādi 900+ bildes uzkar adminu).
+    $updated = efpic_gallery_backfill_image_dimensions($config, $slug, $meta, $batchSize, $allowRemote);
+    $meta = efpic_load_gallery_meta($config, $slug);
+    $stats = efpic_gallery_image_dimensions_stats(is_array($meta) ? $meta : []);
+
+    return ['updated' => $updated, 'stats' => $stats];
 }
 
 /** @return array{total: int, with_dims: int, missing: int, stale: int} */
