@@ -1132,13 +1132,13 @@ input[type="password"],
 }
 
 .gallery-social-links--toolbar {
-  position: static;
-  top: auto;
-  left: auto;
-  transform: none;
-  z-index: auto;
-  max-width: none;
-  flex: 0 1 auto;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 2;
+  max-width: min(70vw, 22rem);
+  flex: 0 0 auto;
   gap: 0.35rem;
   padding: 0;
   color: var(--text, #1a1a1a);
@@ -3880,11 +3880,28 @@ button.gallery-scene-nav__link {
     display: none;
   }
 
+  .gallery-toolbar.topbar-floating.is-scrolled .gallery-social-links--toolbar,
+  .topbar-floating.is-visible .gallery-social-links--toolbar {
+    position: static;
+    top: auto;
+    left: auto;
+    transform: none;
+    order: 1;
+    flex: 1 1 100%;
+    width: 100%;
+    max-width: none;
+    justify-content: center;
+  }
+
   .gallery-toolbar .gallery-toolbar__nav {
     order: 2;
     flex: 1 1 100%;
     width: 100%;
     min-width: 0;
+  }
+
+  .gallery-toolbar.topbar-floating.is-scrolled .topbar-actions {
+    order: 3;
   }
 
   .gallery-scene-nav__inner {
