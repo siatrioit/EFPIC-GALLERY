@@ -209,6 +209,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['backfill_dimensions_
     }
 }
 
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['dims_backfill_start_api'])) {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $force = !empty($_POST['backfill_force']);
+        $enq = efpic_dims_backfill_enqueue($config, $slug, $force);
+        $job = is_array($enq['job'] ?? null) ? $enq['job'] : [];
+        $active = in_array((string) ($job['status'] ?? ''), ['queued', 'running'], true);
+        $payload = [
+            'ok' => true,
+            'started' => !empty($enq['started']) || $active,
+            'active' => $active,
+            'job' => $job,
+            'stats' => is_array($job['stats'] ?? null)
+                ? $job['stats']
+                : efpic_gallery_image_dimensions_stats(efpic_load_gallery_meta($config, $slug) ?? []),
+        ];
+        if ($active) {
+            efpic_json_response_then_dims_backfill($config, 200, $payload, $slug);
+        }
+        echo json_encode($payload, JSON_UNESCAPED_UNICODE);
+        exit;
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+        exit;
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'GET' && ($_GET['poll'] ?? '') === 'dims_backfill') {
+    header('Content-Type: application/json; charset=utf-8');
+    try {
+        $status = efpic_dims_backfill_status($config, $slug);
+        $active = !empty($status['active']);
+        $job = is_array($status['job'] ?? null) ? $status['job'] : null;
+        // Ja lapa ir atvērta — palīdz arī šeit (backup, ja self-HTTP kick neizdodas).
+        if ($active) {
+            $nextAttempt = is_array($job) ? (strtotime((string) ($job['next_attempt_at'] ?? '')) ?: 0) : 0;
+            if ($nextAttempt <= time()) {
+                $ran = efpic_dims_backfill_process_slug($config, $slug, 12);
+                $status = efpic_dims_backfill_status($config, $slug);
+                if (!empty($ran['continues'])) {
+                    efpic_dims_backfill_kick_async($config, $slug);
+                }
+            }
+        } elseif (
+            (int) (($status['stats']['missing'] ?? 0)) > 0
+            || (int) (($status['stats']['stale'] ?? 0)) > 0
+        ) {
+            // Nav job, bet trūkst izmēru — ieliek rindā (piem. veca galerija).
+            $enq = efpic_dims_backfill_enqueue($config, $slug, false);
+            if (!empty($enq['started']) || in_array((string) (($enq['job']['status'] ?? '')), ['queued', 'running'], true)) {
+                efpic_dims_backfill_kick_async($config, $slug);
+            }
+            $status = efpic_dims_backfill_status($config, $slug);
+        }
+        echo json_encode([
+            'ok' => true,
+            'active' => !empty($status['active']),
+            'job' => $status['job'] ?? null,
+            'stats' => $status['stats'] ?? ['total' => 0, 'with_dims' => 0, 'missing' => 0],
+        ], JSON_UNESCAPED_UNICODE);
+    } catch (Throwable $e) {
+        http_response_code(500);
+        echo json_encode(['ok' => false, 'error' => $e->getMessage()], JSON_UNESCAPED_UNICODE);
+    }
+    exit;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && !empty($_POST['face_failiem_refresh_api'])) {
     header('Content-Type: application/json; charset=utf-8');
     try {
@@ -417,6 +485,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $qs .= '&share_created=1';
         } elseif (!empty($_POST['sync_now'])) {
             $qs .= '&saved=1&synced=1';
+            efpic_redirect_then_dims_backfill($config, 'delivery_edit.php?' . $qs, $slug);
         } elseif (!empty($_POST['backfill_dimensions'])) {
             $qs .= '&saved=1&dims_backfill=1';
         } else {
@@ -459,7 +528,10 @@ if (isset($_GET['saved'])) {
                 $flash .= ' Novecojuši: ' . (int) $dimStats['stale'] . '.';
             }
             if ((int) ($dimStats['missing'] ?? 0) > 0) {
-                $flash .= ' Trūkst ' . (int) $dimStats['missing'] . ' — turpinām ievākt partijās…';
+                $flash .= ' Trūkst ' . (int) $dimStats['missing']
+                    . ' — izmēru ievākšana turpinās serverī fonā (vari aizvērt lapu).';
+            } elseif (!empty($syncDims['queue_active'])) {
+                $flash .= ' Izmēru ievākšana turpinās serverī fonā.';
             }
             $syncWarnings = is_array($syncDims['warnings'] ?? null) ? $syncDims['warnings'] : [];
             if ($syncWarnings !== []) {

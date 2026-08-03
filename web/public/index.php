@@ -78,6 +78,10 @@ try {
         efpic_handle_visitor_zip_queue_run($config);
     }
 
+    if ($uri === '/api/dims-backfill/run' && $method === 'POST') {
+        efpic_handle_dims_backfill_queue_run($config);
+    }
+
     if ($uri === '/e/copy' && $method === 'GET') {
         efpic_handle_email_copy_link_page($config);
     }

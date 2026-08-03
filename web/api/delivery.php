@@ -192,7 +192,7 @@ function efpic_sync_delivery_gallery(array $config, string $slug): array
 
     efpic_save_gallery_meta($config, $slug, $meta);
 
-    // Sync tikai saglabā pāri — izmērus ievāc admin JS partijās pēc redirect (nebloķē sync).
+    // Sync tikai saglabā pāri — izmērus ievāc servera rinda pēc redirect (nebloķē sync).
     $metaAfter = efpic_load_gallery_meta($config, $slug);
     $dimResult = [
         'updated' => 0,

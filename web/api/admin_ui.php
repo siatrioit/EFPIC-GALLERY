@@ -2149,6 +2149,9 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
                 'admin',
             );
         }
+        $enq = efpic_dims_backfill_enqueue($config, $slug, false);
+        $queueJob = is_array($enq['job'] ?? null) ? $enq['job'] : [];
+        $queueActive = in_array((string) ($queueJob['status'] ?? ''), ['queued', 'running'], true);
         efpic_admin_session_start();
         $_SESSION['efpic_admin_sync_dims'] = [
             'backfilled' => (int) ($syncResult['dimensions_backfilled'] ?? 0),
@@ -2158,6 +2161,7 @@ function efpic_admin_save_delivery_from_post(array $config, ?string $slug): stri
                 : efpic_gallery_image_dimensions_stats(efpic_load_gallery_meta($config, $slug) ?? []),
             'warnings' => is_array($syncResult['warnings'] ?? null) ? $syncResult['warnings'] : [],
             'sync_stats' => is_array($syncResult['stats'] ?? null) ? $syncResult['stats'] : [],
+            'queue_active' => $queueActive,
         ];
     }
 
@@ -2255,7 +2259,7 @@ function efpic_admin_render_sync_stats_line(array $failiem): string
     return $body;
 }
 
-function efpic_admin_render_dimensions_debug_line(array $meta): string
+function efpic_admin_render_dimensions_debug_line(array $meta, array $config = [], ?string $slug = null): string
 {
     $stats = efpic_gallery_image_dimensions_stats($meta);
     if ($stats['total'] <= 0) {
@@ -2264,26 +2268,36 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
     $paired = (int) (($meta['failiem']['sync_stats']['paired'] ?? 0));
     $rawCount = count($meta['images'] ?? []);
     $mismatch = $paired > 0 && $paired !== $stats['total'];
+    $jobActive = false;
+    if ($slug !== null && $slug !== '' && $config !== [] && function_exists('efpic_dims_backfill_load_job')) {
+        $job = efpic_dims_backfill_load_job($config, $slug);
+        $jobActive = is_array($job) && in_array((string) ($job['status'] ?? ''), ['queued', 'running'], true);
+    }
 
     $html = '<div class="admin-dims-panel" id="admin-dims-debug"'
         . ' data-dims-missing="' . (int) $stats['missing'] . '"'
         . ' data-dims-stale="' . (int) ($stats['stale'] ?? 0) . '"'
         . ($mismatch ? ' data-dims-mismatch="1"' : '')
+        . ($jobActive ? ' data-dims-job-active="1"' : '')
         . '>';
     $html .= '<div class="admin-dims-panel__actions">';
     $html .= '<button type="button" class="btn admin-btn-sm" id="admin-refresh-dimensions">'
         . 'Pārrēķināt izmērus</button>';
-    if ($stats['missing'] > 0 || ($stats['stale'] ?? 0) > 0 || $mismatch) {
+    if ($stats['missing'] > 0 || ($stats['stale'] ?? 0) > 0 || $mismatch || $jobActive) {
         $html .= '<button type="button" class="btn admin-btn-sm" id="admin-backfill-dimensions">'
             . 'Ievākt atlikušos izmērus</button>';
     }
-    $html .= '<span class="admin-dims-progress-wrap" id="admin-dims-progress-wrap" hidden>'
+    $html .= '<span class="admin-dims-progress-wrap" id="admin-dims-progress-wrap"'
+        . ($jobActive ? '' : ' hidden') . '>'
         . '<span class="admin-dims-progress-bar" id="admin-dims-progress-bar"></span></span>';
-    $html .= '<span class="admin-dims-status muted" id="admin-dims-status" hidden></span>';
+    $html .= '<span class="admin-dims-status muted" id="admin-dims-status"'
+        . ($jobActive ? '' : ' hidden') . '>'
+        . ($jobActive ? 'Izmēru ievākšana notiek serverī fonā…' : '')
+        . '</span>';
     $html .= '</div>';
     $html .= '<p class="muted admin-dims-panel__summary">';
     $html .= 'Izmēri saglabāti: <strong id="admin-dims-count">' . $stats['with_dims'] . ' / ' . $stats['total'] . '</strong>';
-    if ($stats['missing'] <= 0 && ($stats['stale'] ?? 0) <= 0 && !$mismatch) {
+    if ($stats['missing'] <= 0 && ($stats['stale'] ?? 0) <= 0 && !$mismatch && !$jobActive) {
         $html .= ' — viss kārtībā';
     } else {
         if ($stats['missing'] > 0) {
@@ -2291,6 +2305,9 @@ function efpic_admin_render_dimensions_debug_line(array $meta): string
         }
         if (($stats['stale'] ?? 0) > 0) {
             $html .= ' · novecojuši <strong id="admin-dims-stale">' . (int) $stats['stale'] . '</strong>';
+        }
+        if ($jobActive) {
+            $html .= ' · <strong>fonā notiek ievākšana</strong>';
         }
         if ($mismatch) {
             $html .= ' · sync pāri: <strong>' . $paired . '</strong>';
@@ -2418,6 +2435,12 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         if (!empty($_GET['synced'])) {
             $body .= ' data-dims-after-sync="1"';
         }
+        $dimsJob = function_exists('efpic_dims_backfill_load_job')
+            ? efpic_dims_backfill_load_job($config, $slug)
+            : null;
+        if (is_array($dimsJob) && in_array((string) ($dimsJob['status'] ?? ''), ['queued', 'running'], true)) {
+            $body .= ' data-dims-job-active="1"';
+        }
     }
     $body .= '>';
     $body .= '<div class="admin-sticky-bar">';
@@ -2464,7 +2487,7 @@ function efpic_admin_delivery_form(array $config, ?array $meta, ?string $slug, ?
         }
         $body .= '<div class="admin-links-panel-footer">';
         $body .= efpic_admin_render_sync_stats_line(is_array($failiem) ? $failiem : []);
-        $body .= efpic_admin_render_dimensions_debug_line($meta);
+        $body .= efpic_admin_render_dimensions_debug_line($meta, $config, $slug);
         $body .= '</div></fieldset>';
         $body .= efpic_admin_render_face_search_panel($config, $meta, $slug);
         $body .= '</div>';
