@@ -596,6 +596,7 @@
   var floatingTopbar = document.querySelector('.topbar-floating');
   var floatBar = document.querySelector('.gallery-float-bar');
   var scrollTopBtn = document.getElementById('galleryScrollTop');
+  var heroSocial = document.querySelector('.gallery-social-links--hero');
 
   function scrollPastHero() {
     if (!hero) return false;
@@ -610,6 +611,9 @@
       } else {
         floatingTopbar.classList.toggle('is-visible', past);
       }
+    }
+    if (heroSocial) {
+      heroSocial.classList.toggle('is-docked', past);
     }
     if (floatBar) {
       floatBar.classList.toggle('is-visible', past);

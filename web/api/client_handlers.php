@@ -378,12 +378,12 @@ function efpic_client_send_zip_download(string $zipPath, string $filename): void
     efpic_send_file_download($zipPath, $filename, 'application/zip');
 }
 
-function efpic_client_topbar(string $title, string $rightHtml, string $extraClass = ''): string
+function efpic_client_topbar(string $title, string $rightHtml, string $extraClass = '', string $centerHtml = ''): string
 {
     $cls = 'topbar' . ($extraClass !== '' ? ' ' . efpic_client_esc($extraClass) : '');
 
     return '<header class="' . $cls . '"><h1 class="topbar-title">' . efpic_client_esc($title)
-        . '</h1>' . $rightHtml . '</header>';
+        . '</h1>' . $centerHtml . $rightHtml . '</header>';
 }
 
 function efpic_client_scene_jump_nav_links(array $config, array $meta, array $images, array $ctx = []): string
@@ -410,10 +410,12 @@ function efpic_client_render_gallery_toolbar(
     string $extraClass = '',
     bool $faceSearchReady = false,
     bool $collectionFilterReady = false,
+    string $centerHtml = '',
 ): string {
     $cls = 'gallery-toolbar topbar' . ($extraClass !== '' ? ' ' . efpic_client_esc($extraClass) : '');
     $html = '<header class="' . $cls . '">';
     $html .= '<h1 class="topbar-title gallery-toolbar__title">' . efpic_client_esc($title) . '</h1>';
+    $html .= $centerHtml;
     if ($sceneNavLinks !== '' || $faceSearchReady || $collectionFilterReady) {
         $html .= '<nav class="gallery-scene-nav gallery-toolbar__nav" aria-label="Galerijas sadaļas">';
         if ($sceneNavLinks !== '' || $collectionFilterReady) {
@@ -669,7 +671,7 @@ function efpic_client_render_cover_split_text(array $config, string $name, strin
     return $html;
 }
 
-function efpic_client_render_social_links(array $config, array $meta): string
+function efpic_client_render_social_links(array $config, array $meta, string $variant = ''): string
 {
     if (!efpic_gallery_show_social_links($meta)) {
         return '';
@@ -679,7 +681,14 @@ function efpic_client_render_social_links(array $config, array $meta): string
         return '';
     }
     $defs = efpic_site_social_network_defs();
-    $html = '<nav class="gallery-social-links" aria-label="Sociālie tīkli">';
+    $cls = 'gallery-social-links';
+    if ($variant !== '') {
+        $safe = preg_replace('/[^a-z0-9-]/', '', strtolower($variant)) ?? '';
+        if ($safe !== '') {
+            $cls .= ' gallery-social-links--' . $safe;
+        }
+    }
+    $html = '<nav class="' . $cls . '" aria-label="Sociālie tīkli">';
     foreach ($links as $key => $value) {
         $label = (string) ($defs[$key]['label'] ?? $key);
         $href = efpic_site_social_href($key, $value);
@@ -722,7 +731,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
         $byline = efpic_client_gallery_byline_display($config);
         $date = efpic_client_format_event_date_for_gallery($meta, $dateRaw);
         $textLayer = efpic_client_render_intro_text_layer($byline, $name, $date, $meta);
-        $social = efpic_client_render_social_links($config, $meta);
+        $social = efpic_client_render_social_links($config, $meta, 'hero');
         $overlayClass = ' gallery-intro--text-overlay';
 
         if (efpic_gallery_uses_mood_blob_cover($meta)) {
@@ -809,7 +818,7 @@ function efpic_client_render_cover(array $config, array $meta, array $images, st
     if ($coverMedia !== '') {
         $html .= '<div class="gallery-cover-media">' . $coverMedia . '</div>';
     }
-    $html .= efpic_client_render_social_links($config, $meta);
+    $html .= efpic_client_render_social_links($config, $meta, 'hero');
     $html .= '<div class="gallery-cover-text"><h2>' . efpic_client_esc($name) . '</h2>';
     if ($dateRaw !== '') {
         $html .= '<p class="gallery-cover-date">' . efpic_client_esc($dateRaw) . '</p>';
@@ -1622,6 +1631,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $faceSearchReady = efpic_client_face_search_ready($config, $slug, $meta, $ctx);
     $useGalleryToolbar = $sceneNavLinks !== '' || $faceSearchReady || $canPublicCollection;
     $toolbarExtraClass = $usesShell ? 'topbar-floating' : '';
+    $socialToolbar = efpic_client_render_social_links($config, $meta, 'toolbar');
     $body = '';
     if ($usesShell) {
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
@@ -1633,9 +1643,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
                 $toolbarExtraClass,
                 $faceSearchReady,
                 $canPublicCollection,
+                $socialToolbar,
             );
         } else {
-            $body .= efpic_client_topbar($name, $right, $toolbarExtraClass);
+            $body .= efpic_client_topbar($name, $right, $toolbarExtraClass, $socialToolbar);
         }
         $body .= $slideshowTopHtml;
     } else {
@@ -1647,9 +1658,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
                 $toolbarExtraClass,
                 $faceSearchReady,
                 $canPublicCollection,
+                $socialToolbar,
             );
         } else {
-            $body .= efpic_client_topbar($name, $right);
+            $body .= efpic_client_topbar($name, $right, '', $socialToolbar);
         }
         $body .= efpic_client_render_cover($config, $meta, $images, $theme);
         if (!$usesSceneMain) {
