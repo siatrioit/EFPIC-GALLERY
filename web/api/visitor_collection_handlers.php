@@ -469,6 +469,63 @@ function efpic_handle_visitor_selected_download_request(array $config, string $g
     ], (string) ($result['job_id'] ?? ''));
 }
 
+/** Apmeklētāja «kick», lai e-pasta ZIP rinda neturpinātu stāvēt pēc PHP timeout. */
+function efpic_handle_visitor_zip_continue(array $config, string $galleryToken): void
+{
+    efpic_csrf_require();
+    $ctxPack = efpic_visitor_auth_gallery_context($config, $galleryToken);
+    if ($ctxPack === null) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+    $session = efpic_visitor_session_state($galleryToken);
+    if ($session === null) {
+        efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
+    }
+
+    @set_time_limit(0);
+    @ignore_user_abort(true);
+    efpic_visitor_zip_run_maintenance($config);
+
+    $visitorId = (string) ($session['visitor_id'] ?? '');
+    $processed = efpic_visitor_zip_run_pending($config, 2, 25);
+
+    $active = 0;
+    $done = 0;
+    $failed = 0;
+    $dir = efpic_visitor_zip_queue_dir($config);
+    if (is_dir($dir) && $visitorId !== '') {
+        foreach (glob($dir . DIRECTORY_SEPARATOR . '*.json') ?: [] as $path) {
+            $job = efpic_read_json_file($path);
+            if (!is_array($job)) {
+                continue;
+            }
+            if ((string) ($job['slug'] ?? '') !== (string) ($ctxPack['slug'] ?? '')) {
+                continue;
+            }
+            if ((string) ($job['visitor_id'] ?? '') !== $visitorId) {
+                continue;
+            }
+            $status = (string) ($job['status'] ?? '');
+            if ($status === 'queued' || $status === 'processing') {
+                $active++;
+            } elseif ($status === 'done') {
+                $done++;
+            } elseif ($status === 'failed') {
+                $failed++;
+            }
+        }
+    }
+
+    efpic_json_response(200, [
+        'ok' => true,
+        'processed' => $processed,
+        'active' => $active,
+        'done' => $done,
+        'failed' => $failed,
+        'continue' => $active > 0,
+    ]);
+}
+
 function efpic_handle_visitor_collection_create_from_selection(array $config, string $galleryToken): void
 {
     efpic_csrf_require();

@@ -1169,7 +1169,7 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
 
     if (efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
-        if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
+        if ($folderHash !== '') {
             efpic_gallery_log_activity(
                 $config,
                 $slug,
@@ -1178,8 +1178,10 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
                 'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
                 'client',
             );
-            header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
-            exit;
+            @ignore_user_abort(true);
+            if (efpic_failiem_stream_folder_zip($config, $folderHash, $filename)) {
+                exit;
+            }
         }
     }
 

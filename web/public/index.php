@@ -182,6 +182,10 @@ try {
         efpic_handle_visitor_gallery_download_request($config, strtolower($m[1]));
     }
 
+    if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/zip-continue$#i', $uri, $m) && $method === 'POST') {
+        efpic_handle_visitor_zip_continue($config, strtolower($m[1]));
+    }
+
     if (preg_match('#^/v/g/([a-f0-9]{48})/visitor/collections/([a-z0-9_]+)/add-tokens$#i', $uri, $m) && $method === 'POST') {
         efpic_handle_visitor_collection_add_tokens($config, strtolower($m[1]), $m[2]);
     }

@@ -2482,10 +2482,13 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
 
     if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
-        if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
+        if ($folderHash !== '') {
             efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . efpic_gallery_download_size_label($size) . ')');
-            header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
-            exit;
+            // Failiem vairs nedod ZIP ar vienkāršu 302 bez sesijas — straumējam caur mūsu endpoint.
+            @ignore_user_abort(true);
+            if (efpic_failiem_stream_folder_zip($config, $folderHash, $filename)) {
+                exit;
+            }
         }
     }
 

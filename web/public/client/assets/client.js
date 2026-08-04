@@ -205,6 +205,7 @@
       clearTimeout(zipEmailFollowupTimer);
       zipEmailFollowupTimer = null;
     }
+    clearZipEmailContinuePolling();
   }
 
   function queuedZipEmailErrorMessage(data) {
@@ -255,6 +256,7 @@
       })
       .then(function (pack) {
         if (pack.res.ok && pack.data && pack.data.ok) {
+          startZipEmailContinuePolling();
           return;
         }
         clearZipEmailFollowupTimer();
@@ -264,6 +266,51 @@
         clearZipEmailFollowupTimer();
         showZipProgressError('Neizdevās sazināties ar serveri. Mēģini vēlreiz.');
       });
+  }
+
+  var zipEmailContinueTimer = null;
+  var zipEmailContinueAttempts = 0;
+
+  function clearZipEmailContinuePolling() {
+    if (zipEmailContinueTimer) {
+      clearTimeout(zipEmailContinueTimer);
+      zipEmailContinueTimer = null;
+    }
+    zipEmailContinueAttempts = 0;
+  }
+
+  function startZipEmailContinuePolling() {
+    clearZipEmailContinuePolling();
+    zipEmailContinueAttempts = 0;
+    function tick() {
+      if (!visitorBaseUrl) return;
+      zipEmailContinueAttempts += 1;
+      if (zipEmailContinueAttempts > 40) {
+        return;
+      }
+      var body = csrfToken ? 'csrf_token=' + encodeURIComponent(csrfToken) : '';
+      fetch(visitorUrl('/zip-continue'), {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: csrfFetchHeaders({
+          Accept: 'application/json',
+          'Content-Type': 'application/x-www-form-urlencoded',
+        }),
+        body: body,
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (data && data.ok && data.continue) {
+            zipEmailContinueTimer = setTimeout(tick, 8000);
+          }
+        })
+        .catch(function () {
+          zipEmailContinueTimer = setTimeout(tick, 12000);
+        });
+    }
+    zipEmailContinueTimer = setTimeout(tick, 4000);
   }
 
   function setZipProgressUi(opts) {

@@ -95,6 +95,11 @@ Vecās saites ar `?hash=` arī darbojas.
 
 ## 7. Izlases lejupielāde (atlasītās bildes)
 
+**Visa galerija (WEB/PRINT):** Failiem mapes ZIP (`upload_zip_streamer.php?uhash=…`).
+Kopš 2026 Failiem bieži prasa sesiju no `/u/{hash}` — tāpēc mēs vairs nedodam tukšu 302 uz `api.files.fm`.
+Ja mape ZIP strādā, lejupielāde iet caur mūsu endpointu, kas sagatavo Failiem sesiju un straumē ZIP.
+Ja mape ZIP nestrādā (302 uz sākumlapu) — e-pasts ar fona ZIP.
+
 **2+ atlasītās bildes** — tāpat kā daļējai galerijai:
 
 1. `POST …/download_selected_zip.php` ar `upload_hash` (mapes hash) un `selected_items[files][]` (katra atlasītās bildes Failiem file hash).

@@ -1502,8 +1502,45 @@ function efpic_visitor_zip_advance_delivery_build(
 
     if ($mode === '' || $mode === 'failiem') {
         $sizeKey = strtolower($size) === 'full' ? 'full' : 'web';
-        $hashes = efpic_failiem_file_hashes_from_images($images, $size);
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $sizeKey);
+
+        // 1) Veselas mapes ZIP (ar Failiem sesiju) — ātrāk nekā selected ar 100+ hash.
+        if ($folderHash !== '' && empty($build['failiem_folder_done']) && empty($build['failiem_folder_failed'])) {
+            $job['zip_build'] = array_merge($build, [
+                'mode' => 'failiem',
+                'total' => count($images),
+            ]);
+            $folderStep = efpic_failiem_download_folder_zip_step(
+                $config,
+                $folderHash,
+                $zipPath,
+                $job['zip_build'],
+                90,
+            );
+            if (!empty($folderStep['ok']) && !empty($folderStep['done'])) {
+                $entryCount = efpic_zip_num_files($zipPath);
+                if ($entryCount < 1) {
+                    $entryCount = count($images);
+                }
+                unset($job['zip_build']);
+
+                return ['ok' => true, 'done' => true, 'entry_count' => $entryCount, 'via' => 'failiem_folder'];
+            }
+            if (!empty($folderStep['ok']) && empty($folderStep['done'])) {
+                $bytes = (int) ($folderStep['bytes'] ?? $job['zip_build']['failiem_bytes'] ?? 0);
+                $job['zip_build']['added'] = $bytes;
+                $job['zip_build']['offset'] = 0;
+
+                return ['ok' => true, 'done' => false, 'entry_count' => 0, 'via' => 'failiem_folder'];
+            }
+            @unlink($zipPath);
+            @unlink($zipPath . '.part');
+            @unlink($zipPath . '.folder-cookies');
+            $job['zip_build']['failiem_folder_failed'] = true;
+            $build = $job['zip_build'];
+        }
+
+        $hashes = efpic_failiem_file_hashes_from_images($images, $size);
         if ($folderHash !== '' && count($hashes) >= 2) {
             $job['zip_build'] = array_merge($build, [
                 'mode' => 'failiem',

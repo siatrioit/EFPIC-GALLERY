@@ -373,16 +373,81 @@ function efpic_failiem_fetch_binary(array $config, string $url): ?string
     return $data === false ? null : $data;
 }
 
+function efpic_failiem_folder_page_url(array $config, string $folderHash): string
+{
+    return efpic_failiem_cdn_base($config) . '/u/' . rawurlencode($folderHash);
+}
+
+/**
+ * Mapes ZIP jāņem no failiem.lv (ne api.files.fm): Failiem prasa PHP sesiju no /u/{hash}.
+ */
 function efpic_failiem_folder_zip_url(array $config, string $folderHash): string
 {
-    return efpic_failiem_api_base($config)
+    return efpic_failiem_cdn_base($config)
         . '/server_scripts/zip/zip_streamer/upload_zip_streamer.php?uhash='
         . rawurlencode($folderHash);
 }
 
+/** @return list<string> */
+function efpic_failiem_folder_zip_headers(array $config): array
+{
+    $headers = [
+        'Accept: application/zip,*/*',
+        'User-Agent: Mozilla/5.0 (compatible; EFPIC-Gallery/1.9)',
+    ];
+    $f = efpic_failiem_cfg($config);
+    $apiKey = (string) ($f['api_key'] ?? '');
+    if ($apiKey !== '') {
+        $headers[] = 'Authorization: Bearer ' . $apiKey;
+    }
+
+    return $headers;
+}
+
 /**
- * Vai Failiem mapes ZIP streamer šim uhash patiešām atdod ZIP
- * (dažām mapēm atbild ar 302 uz sākumlapu — tad publiskajā galerijā e-pasts).
+ * Failiem mapes ZIP tagad bieži prasa sesiju: vispirms /u/{hash}, tad zip_streamer ar to pašu cookie jar.
+ */
+function efpic_failiem_warm_folder_session(array $config, string $folderHash, string $cookieFile): bool
+{
+    $folderHash = efpic_failiem_parse_folder_hash($folderHash);
+    if ($folderHash === '' || !function_exists('curl_init')) {
+        return false;
+    }
+    $dir = dirname($cookieFile);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
+    }
+
+    $ch = curl_init(efpic_failiem_folder_page_url($config, $folderHash));
+    if ($ch === false) {
+        return false;
+    }
+    $f = efpic_failiem_cfg($config);
+    $opts = [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_HTTPHEADER => efpic_failiem_folder_zip_headers($config),
+        CURLOPT_COOKIEJAR => $cookieFile,
+        CURLOPT_COOKIEFILE => $cookieFile,
+    ];
+    $user = (string) ($f['user'] ?? '');
+    $pass = (string) ($f['pass'] ?? '');
+    if ($user !== '' && $pass !== '') {
+        $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+    }
+    curl_setopt_array($ch, $opts);
+    curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    return $code >= 200 && $code < 400;
+}
+
+/**
+ * Vai Failiem mapes ZIP strādā (ar sesijas warm-up).
+ * Bez sesijas Failiem bieži atdod 302 uz «/» vai tukšu «application/zip» — tad e-pasts.
  */
 function efpic_failiem_folder_zip_available(array $config, string $folderHash): bool
 {
@@ -394,54 +459,62 @@ function efpic_failiem_folder_zip_available(array $config, string $folderHash): 
         return true;
     }
 
-    $url = efpic_failiem_folder_zip_url($config, $folderHash);
-    $ch = curl_init($url);
-    if ($ch === false) {
-        return false;
-    }
-    $f = efpic_failiem_cfg($config);
-    $headers = ['Accept: application/zip,*/*'];
-    $apiKey = (string) ($f['api_key'] ?? '');
-    if ($apiKey !== '') {
-        $headers[] = 'Authorization: Bearer ' . $apiKey;
-    }
-    $opts = [
-        CURLOPT_NOBODY => true,
-        CURLOPT_HEADER => true,
-        CURLOPT_RETURNTRANSFER => true,
-        CURLOPT_FOLLOWLOCATION => false,
-        CURLOPT_CONNECTTIMEOUT => 8,
-        CURLOPT_TIMEOUT => 12,
-        CURLOPT_HTTPHEADER => $headers,
-    ];
-    $user = (string) ($f['user'] ?? '');
-    $pass = (string) ($f['pass'] ?? '');
-    if ($user !== '' && $pass !== '') {
-        $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
-    }
-    curl_setopt_array($ch, $opts);
-    $raw = curl_exec($ch);
-    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    $ctype = strtolower((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
-    curl_close($ch);
-
-    if ($code >= 200 && $code < 300) {
-        return str_contains($ctype, 'zip') || str_contains($ctype, 'octet-stream');
-    }
-    if ($code >= 300 && $code < 400 && is_string($raw)) {
-        $loc = '';
-        if (preg_match('/^Location:\s*(.+)$/im', $raw, $m) === 1) {
-            $loc = trim($m[1]);
-        }
-        // Failiem «nestrādājošā» mape novirza uz «/» (HTML sākumlapa).
-        if ($loc === '' || $loc === '/' || preg_match('#^https?://[^/]+/?$#i', $loc) === 1) {
+    $cookieFile = sys_get_temp_dir() . '/efpic_failiem_zip_' . $folderHash . '_' . bin2hex(random_bytes(4)) . '.jar';
+    $ok = false;
+    try {
+        if (!efpic_failiem_warm_folder_session($config, $folderHash, $cookieFile)) {
             return false;
         }
 
-        return str_contains(strtolower($loc), 'zip') || str_contains(strtolower($loc), 'download');
+        $url = efpic_failiem_folder_zip_url($config, $folderHash);
+        $ch = curl_init($url);
+        if ($ch === false) {
+            return false;
+        }
+        $f = efpic_failiem_cfg($config);
+        $buf = '';
+        $sawZip = false;
+        $opts = [
+            CURLOPT_FOLLOWLOCATION => false,
+            CURLOPT_CONNECTTIMEOUT => 8,
+            CURLOPT_TIMEOUT => 20,
+            CURLOPT_HTTPHEADER => efpic_failiem_folder_zip_headers($config),
+            CURLOPT_COOKIEJAR => $cookieFile,
+            CURLOPT_COOKIEFILE => $cookieFile,
+            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$buf, &$sawZip): int {
+                $buf .= $chunk;
+                if (strlen($buf) >= 4) {
+                    $sawZip = str_starts_with($buf, "PK\x03\x04") || str_starts_with($buf, "PK\x05\x06");
+
+                    return 0; // pietiek ar ZIP magisko baitiem
+                }
+
+                return strlen($chunk);
+            },
+        ];
+        $user = (string) ($f['user'] ?? '');
+        $pass = (string) ($f['pass'] ?? '');
+        if ($user !== '' && $pass !== '') {
+            $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+        }
+        curl_setopt_array($ch, $opts);
+        curl_exec($ch);
+        $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+        $ctype = strtolower((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
+        curl_close($ch);
+
+        if ($code >= 300 && $code < 400) {
+            // Salauzta mape: 302 uz sākumlapu. «Gandrīz ZIP» ar Location /u/… bez ķermeņa — arī neder.
+            return false;
+        }
+        $ok = $code >= 200 && $code < 300
+            && $sawZip
+            && (str_contains($ctype, 'zip') || str_contains($ctype, 'octet-stream') || $ctype === '');
+    } finally {
+        @unlink($cookieFile);
     }
 
-    return false;
+    return $ok;
 }
 
 /** @return list<string> */
@@ -1174,33 +1247,74 @@ function efpic_can_failiem_folder_zip(array $meta, array $ctx): bool
     return true;
 }
 
-/** Straumē Failiem sagatavoto ZIP uz izvadi (klientam fetch ar gaidīšanu). */
+/** Straumē Failiem mapes ZIP uz izvadi (ar sesijas warm-up — bez tā pārlūka redirect vairs nestrādā). */
 function efpic_failiem_stream_folder_zip(array $config, string $folderHash, string $downloadName): bool
 {
     $folderHash = efpic_failiem_parse_folder_hash($folderHash);
-    if ($folderHash === '') {
+    if ($folderHash === '' || !function_exists('curl_init')) {
         return false;
     }
 
-    $url = efpic_failiem_folder_zip_url($config, $folderHash);
-    if (function_exists('curl_init')) {
-        $f = efpic_failiem_cfg($config);
-        $headers = ['Accept: application/zip'];
-        $apiKey = (string) ($f['api_key'] ?? '');
-        if ($apiKey !== '') {
-            $headers[] = 'Authorization: Bearer ' . $apiKey;
+    $cookieFile = sys_get_temp_dir() . '/efpic_failiem_stream_' . $folderHash . '_' . bin2hex(random_bytes(4)) . '.jar';
+    try {
+        if (!efpic_failiem_warm_folder_session($config, $folderHash, $cookieFile)) {
+            return false;
         }
 
+        $url = efpic_failiem_folder_zip_url($config, $folderHash);
         $ch = curl_init($url);
         if ($ch === false) {
             return false;
         }
 
+        $f = efpic_failiem_cfg($config);
+        $started = false;
         $opts = [
-            CURLOPT_FOLLOWLOCATION => true,
+            CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_TIMEOUT => 0,
-            CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk): int {
+            CURLOPT_HTTPHEADER => efpic_failiem_folder_zip_headers($config),
+            CURLOPT_COOKIEJAR => $cookieFile,
+            CURLOPT_COOKIEFILE => $cookieFile,
+            CURLOPT_HEADERFUNCTION => static function ($curl, string $header) use (&$started, $downloadName): int {
+                $len = strlen($header);
+                $trim = trim($header);
+                if ($trim === '') {
+                    return $len;
+                }
+                $lower = strtolower($trim);
+                if (str_starts_with($lower, 'http/')) {
+                    return $len;
+                }
+                if (str_starts_with($lower, 'transfer-encoding:')) {
+                    return $len;
+                }
+                if (str_starts_with($lower, 'content-length:')) {
+                    return $len;
+                }
+                if (str_starts_with($lower, 'content-disposition:')) {
+                    return $len;
+                }
+                if (str_starts_with($lower, 'content-type:') && str_contains($lower, 'zip')) {
+                    if (!$started) {
+                        header('Content-Type: application/zip');
+                        header('Content-Disposition: attachment; filename="' . str_replace('"', '', $downloadName) . '"');
+                        $started = true;
+                    }
+
+                    return $len;
+                }
+                if (str_starts_with($lower, 'content-type:')) {
+                    return $len;
+                }
+
+                return $len;
+            },
+            CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use (&$started, $downloadName): int {
+                if (!$started) {
+                    header('Content-Type: application/zip');
+                    header('Content-Disposition: attachment; filename="' . str_replace('"', '', $downloadName) . '"');
+                    $started = true;
+                }
                 echo $chunk;
                 if (function_exists('ob_get_level') && ob_get_level() > 0) {
                     @ob_flush();
@@ -1221,25 +1335,184 @@ function efpic_failiem_stream_folder_zip(array $config, string $folderHash, stri
         $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
         curl_close($ch);
 
-        return $code >= 200 && $code < 300;
+        return $started && $code >= 200 && $code < 300;
+    } finally {
+        @unlink($cookieFile);
+    }
+}
+
+/**
+ * Lejupielādē Failiem mapes ZIP uz disku (e-pasta rindai).
+ *
+ * @param array<string, mixed> $build
+ * @return array{ok: bool, done?: bool, bytes?: int, error?: string}
+ */
+function efpic_failiem_download_folder_zip_step(
+    array $config,
+    string $folderHash,
+    string $destPath,
+    array &$build,
+    int $timeBudgetSec = 90,
+): array {
+    @set_time_limit(0);
+    @ignore_user_abort(true);
+
+    $folderHash = efpic_failiem_parse_folder_hash($folderHash);
+    if ($folderHash === '' || !function_exists('curl_init')) {
+        return ['ok' => false, 'error' => 'folder_zip_unavailable'];
     }
 
-    $ctx = stream_context_create(['http' => ['timeout' => 600, 'follow_location' => 1]]);
-    $fp = @fopen($url, 'rb', false, $ctx);
-    if ($fp === false) {
-        return false;
+    $dir = dirname($destPath);
+    if (!is_dir($dir)) {
+        @mkdir($dir, 0755, true);
     }
-    while (!feof($fp)) {
-        $chunk = fread($fp, 65536);
-        if ($chunk === false) {
-            break;
+    $partPath = $destPath . '.part';
+    $cookiePath = $destPath . '.folder-cookies';
+
+    if (!is_readable($cookiePath) || empty($build['failiem_folder_warmed'])) {
+        if (!efpic_failiem_warm_folder_session($config, $folderHash, $cookiePath)) {
+            return ['ok' => false, 'error' => 'failiem_folder_warm_failed'];
         }
-        echo $chunk;
-        flush();
+        $build['failiem_folder_warmed'] = true;
+        $build['failiem_bytes'] = is_file($partPath) ? (int) filesize($partPath) : 0;
     }
+
+    $resumeFrom = is_file($partPath) ? (int) filesize($partPath) : 0;
+    $fp = @fopen($partPath, $resumeFrom > 0 ? 'ab' : 'wb');
+    if ($fp === false) {
+        return ['ok' => false, 'error' => 'part_open_failed'];
+    }
+
+    $url = efpic_failiem_folder_zip_url($config, $folderHash);
+    $f = efpic_failiem_cfg($config);
+    $writtenThisStep = 0;
+    $ch = curl_init($url);
+    if ($ch === false) {
+        fclose($fp);
+
+        return ['ok' => false, 'error' => 'curl_init_failed'];
+    }
+
+    $opts = [
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 45,
+        CURLOPT_HTTPHEADER => efpic_failiem_folder_zip_headers($config),
+        CURLOPT_COOKIEJAR => $cookiePath,
+        CURLOPT_COOKIEFILE => $cookiePath,
+        CURLOPT_WRITEFUNCTION => static function ($curl, string $chunk) use ($fp, &$writtenThisStep): int {
+            $len = strlen($chunk);
+            if ($len === 0) {
+                return 0;
+            }
+            $n = fwrite($fp, $chunk);
+            if ($n === false || $n < $len) {
+                return 0;
+            }
+            $writtenThisStep += $n;
+
+            return $len;
+        },
+    ];
+    if ($timeBudgetSec > 0) {
+        $opts[CURLOPT_TIMEOUT] = $timeBudgetSec;
+    } else {
+        $opts[CURLOPT_TIMEOUT] = 0;
+    }
+    if ($resumeFrom > 0) {
+        $opts[CURLOPT_RESUME_FROM_LARGE] = (int) $resumeFrom;
+    }
+    $user = (string) ($f['user'] ?? '');
+    $pass = (string) ($f['pass'] ?? '');
+    if ($user !== '' && $pass !== '') {
+        $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+    }
+    curl_setopt_array($ch, $opts);
+    curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $ctype = strtolower((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
+    $errno = (int) curl_errno($ch);
+    curl_close($ch);
     fclose($fp);
 
-    return true;
+    $totalBytes = is_file($partPath) ? (int) filesize($partPath) : 0;
+    $build['failiem_bytes'] = $totalBytes;
+    $timedOut = $errno === 28 || (defined('CURLE_OPERATION_TIMEDOUT') && $errno === CURLE_OPERATION_TIMEDOUT);
+
+    if ($code >= 300 && $code < 400) {
+        @unlink($partPath);
+        @unlink($cookiePath);
+        unset($build['failiem_folder_warmed'], $build['failiem_bytes']);
+
+        return ['ok' => false, 'error' => 'failiem_folder_redirect'];
+    }
+
+    if ($resumeFrom > 0 && $code === 200 && $writtenThisStep > 0 && $totalBytes <= $writtenThisStep + 64) {
+        // Serveris ignorēja Range — sākam no jauna.
+        @unlink($partPath);
+        unset($build['failiem_bytes']);
+
+        return ['ok' => true, 'done' => false, 'bytes' => 0];
+    }
+
+    if ($timedOut || ($timeBudgetSec > 0 && $errno !== 0 && $totalBytes > $resumeFrom)) {
+        return ['ok' => true, 'done' => false, 'bytes' => $totalBytes];
+    }
+
+    if (!($code === 200 || $code === 206) || $totalBytes < 100 || !str_contains($ctype, 'zip')) {
+        if ($totalBytes > 100 && str_starts_with((string) @file_get_contents($partPath, false, null, 0, 4), "PK\x03\x04")) {
+            // ctype var būt tukšs; ZIP magiskais baitis der.
+        } else {
+            @unlink($partPath);
+            @unlink($cookiePath);
+            unset($build['failiem_folder_warmed'], $build['failiem_bytes']);
+
+            return ['ok' => false, 'error' => 'failiem_folder_download_failed'];
+        }
+    }
+
+    if (is_file($destPath)) {
+        @unlink($destPath);
+    }
+    if (!@rename($partPath, $destPath)) {
+        if (!@copy($partPath, $destPath)) {
+            @unlink($partPath);
+            @unlink($cookiePath);
+
+            return ['ok' => false, 'error' => 'failiem_rename_failed'];
+        }
+        @unlink($partPath);
+    }
+    @unlink($cookiePath);
+    unset($build['failiem_folder_warmed'], $build['failiem_bytes']);
+
+    if (!is_file($destPath) || (int) filesize($destPath) < 100) {
+        @unlink($destPath);
+
+        return ['ok' => false, 'error' => 'failiem_zip_invalid'];
+    }
+
+    return ['ok' => true, 'done' => true, 'bytes' => (int) filesize($destPath)];
+}
+
+/**
+ * @return bool
+ */
+function efpic_failiem_download_folder_zip_to_file(array $config, string $folderHash, string $destPath): bool
+{
+    $build = [];
+    $guard = 0;
+    while ($guard < 120) {
+        $guard++;
+        $step = efpic_failiem_download_folder_zip_step($config, $folderHash, $destPath, $build, 0);
+        if (empty($step['ok'])) {
+            return false;
+        }
+        if (!empty($step['done'])) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 function efpic_failiem_redirect_media(array $config, string $fileHash, bool $thumb, int $width = 720): void

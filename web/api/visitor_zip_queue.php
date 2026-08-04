@@ -41,8 +41,8 @@ function efpic_visitor_zip_save_job(array $config, array $job): void
 
 function efpic_visitor_zip_stuck_seconds(): int
 {
-    // PRINT Failiem / partijas: pēc HTTP 500 job bieži paliek "processing".
-    return 3 * 60;
+    // PRINT Failiem / partijas: pēc HTTP kill job bieži paliek "processing".
+    return 90;
 }
 
 /**
@@ -846,6 +846,8 @@ function efpic_visitor_zip_type_label(string $type): string
 {
     return match ($type) {
         'share_all' => 'Kopīgojamā izlase',
+        'gallery_all' => 'Visa galerija',
+        'visitor_selected' => 'Atlasītās bildes',
         'visitor_collections' => 'Apmeklētāja izlases',
         default => $type !== '' ? $type : 'ZIP e-pasts',
     };
