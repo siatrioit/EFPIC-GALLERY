@@ -755,7 +755,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-efpic-base', $meta, [
         'EFPIC_PORTAL_DL_URL' => efpic_portal_url($config, $portalToken),
-        'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+        'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => false,
         'EFPIC_CSRF_TOKEN' => efpic_csrf_token(),
         'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
         'EFPIC_FACE_PERSONS_URL' => $faceSearchReady ? $portalBaseUrl . '/face-persons' : '',
@@ -1172,7 +1172,7 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
 
     if (efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
-        if ($folderHash !== '') {
+        if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
             efpic_gallery_log_activity(
                 $config,
                 $slug,

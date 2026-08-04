@@ -380,6 +380,70 @@ function efpic_failiem_folder_zip_url(array $config, string $folderHash): string
         . rawurlencode($folderHash);
 }
 
+/**
+ * Vai Failiem mapes ZIP streamer šim uhash patiešām atdod ZIP
+ * (dažām mapēm atbild ar 302 uz sākumlapu — tad jākrīt uz selected-ZIP).
+ */
+function efpic_failiem_folder_zip_available(array $config, string $folderHash): bool
+{
+    $folderHash = efpic_failiem_parse_folder_hash($folderHash);
+    if ($folderHash === '') {
+        return false;
+    }
+    if (!function_exists('curl_init')) {
+        return true;
+    }
+
+    $url = efpic_failiem_folder_zip_url($config, $folderHash);
+    $ch = curl_init($url);
+    if ($ch === false) {
+        return false;
+    }
+    $f = efpic_failiem_cfg($config);
+    $headers = ['Accept: application/zip,*/*'];
+    $apiKey = (string) ($f['api_key'] ?? '');
+    if ($apiKey !== '') {
+        $headers[] = 'Authorization: Bearer ' . $apiKey;
+    }
+    $opts = [
+        CURLOPT_NOBODY => true,
+        CURLOPT_HEADER => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 12,
+        CURLOPT_HTTPHEADER => $headers,
+    ];
+    $user = (string) ($f['user'] ?? '');
+    $pass = (string) ($f['pass'] ?? '');
+    if ($user !== '' && $pass !== '') {
+        $opts[CURLOPT_USERPWD] = $user . ':' . $pass;
+    }
+    curl_setopt_array($ch, $opts);
+    $raw = curl_exec($ch);
+    $code = (int) curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $ctype = strtolower((string) curl_getinfo($ch, CURLINFO_CONTENT_TYPE));
+    curl_close($ch);
+
+    if ($code >= 200 && $code < 300) {
+        return str_contains($ctype, 'zip') || str_contains($ctype, 'octet-stream');
+    }
+    if ($code >= 300 && $code < 400 && is_string($raw)) {
+        $loc = '';
+        if (preg_match('/^Location:\s*(.+)$/im', $raw, $m) === 1) {
+            $loc = trim($m[1]);
+        }
+        // Failiem «nestrādājošā» mape novirza uz «/» (HTML sākumlapa).
+        if ($loc === '' || $loc === '/' || preg_match('#^https?://[^/]+/?$#i', $loc) === 1) {
+            return false;
+        }
+
+        return str_contains(strtolower($loc), 'zip') || str_contains(strtolower($loc), 'download');
+    }
+
+    return false;
+}
+
 /** @return list<string> */
 function efpic_failiem_file_hashes_from_images(array $images, string $size): array
 {

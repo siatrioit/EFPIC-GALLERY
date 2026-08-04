@@ -1763,7 +1763,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             : ['id' => '', 'name' => '', 'count' => 0],
         'EFPIC_VISITOR_COLLECTIONS' => $visitorStatus !== null ? ($visitorStatus['collections'] ?? []) : [],
         'EFPIC_IMAGE_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i',
-        'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+        'EFPIC_FAILIEM_FOLDER_ZIP' => false,
         'EFPIC_CAN_COLLECTION_ZIP' => efpic_can_download_collection_zip($meta, $ctx, 'web')
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
@@ -2350,7 +2350,7 @@ function efpic_client_zip_prepare_response(
     }
     if (($scope === 'all' || $scope === 'portal') && $size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
-        if ($folderHash !== '') {
+        if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
             efpic_json_response(200, [
                 'ok' => true,
                 'mode' => 'failiem',
@@ -2500,7 +2500,7 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
 
     if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
         $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
-        if ($folderHash !== '') {
+        if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
             efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . efpic_gallery_download_size_label($size) . ')');
             header('Location: ' . efpic_failiem_folder_zip_url($config, $folderHash), true, 302);
             exit;
