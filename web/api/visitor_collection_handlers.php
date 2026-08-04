@@ -37,7 +37,7 @@ function efpic_visitor_collection_gallery_context(array $config, string $gallery
     return efpic_visitor_auth_gallery_context($config, $galleryToken);
 }
 
-/** Auth konteksts publiskajai izlasei un/vai kopīgojamās izlases e-pasta lejupielādei. */
+/** Auth konteksts publiskajai izlasei, share ZIP e-pastam un/vai visas galerijas e-pasta lejupielādei. */
 function efpic_visitor_auth_gallery_context(array $config, string $galleryToken): ?array
 {
     $pack = efpic_visitor_gallery_base_context($config, $galleryToken);
@@ -48,6 +48,12 @@ function efpic_visitor_auth_gallery_context(array $config, string $galleryToken)
         return $pack;
     }
     $ctx = $pack['ctx'];
+    if (
+        efpic_can_download_all_gallery_zip($pack['meta'], $ctx, 'web')
+        || efpic_can_download_all_gallery_zip($pack['meta'], $ctx, 'full')
+    ) {
+        return $pack;
+    }
     if (!efpic_viewer_is_restricted_share($ctx)) {
         return null;
     }
@@ -597,6 +603,53 @@ function efpic_handle_visitor_share_download_request(array $config, string $gall
     $message = $already
         ? 'Lejupielāde jau tiek sagatavota fonā. Saņemsi e-pastu, kad ZIP būs gatavs.'
         : 'ZIP ar visām izlases bildēm tiek veidots fonā. Saņemsi e-pastu ar lejupielādes saiti, kad būs gatavs.';
+
+    efpic_json_response_then_process($config, 200, [
+        'ok' => true,
+        'queued' => true,
+        'message' => $message,
+    ], (string) ($result['job_id'] ?? ''));
+}
+
+function efpic_handle_visitor_gallery_download_request(array $config, string $galleryToken): void
+{
+    efpic_csrf_require();
+    $ctxPack = efpic_visitor_auth_gallery_context($config, $galleryToken);
+    if ($ctxPack === null) {
+        efpic_json_response(403, ['ok' => false, 'error' => 'forbidden']);
+    }
+    $session = efpic_visitor_session_state($galleryToken);
+    if ($session === null) {
+        efpic_json_response(401, ['ok' => false, 'error' => 'not_authenticated']);
+    }
+    $size = strtolower(trim((string) ($_POST['size'] ?? 'web')));
+    if (!in_array($size, ['web', 'full'], true)) {
+        efpic_json_response(400, ['ok' => false, 'error' => 'invalid_size']);
+    }
+
+    $result = efpic_visitor_zip_enqueue_gallery_all_job(
+        $config,
+        $ctxPack['slug'],
+        $ctxPack['meta'],
+        $ctxPack['ctx'],
+        $galleryToken,
+        $session['visitor_id'],
+        $size,
+    );
+    if (empty($result['ok'])) {
+        $err = (string) ($result['error'] ?? 'error');
+        $code = match ($err) {
+            'empty_collection' => 400,
+            'download_disabled' => 403,
+            default => 500,
+        };
+        efpic_json_response($code, ['ok' => false, 'error' => $err]);
+    }
+
+    $already = !empty($result['already_queued']);
+    $message = $already
+        ? 'Lejupielāde jau tiek sagatavota fonā. Saņemsi e-pastu, kad ZIP būs gatavs.'
+        : 'ZIP ar visām bildēm tiek veidots fonā. Saņemsi e-pastu ar lejupielādes saiti, kad būs gatavs.';
 
     efpic_json_response_then_process($config, 200, [
         'ok' => true,

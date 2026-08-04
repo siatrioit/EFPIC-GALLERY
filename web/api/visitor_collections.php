@@ -1978,12 +1978,12 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
     $prepared = is_array($job['prepared'] ?? null) ? $job['prepared'] : [];
     $collectionIds = is_array($job['collection_ids'] ?? null) ? $job['collection_ids'] : [];
 
-    if ($type === 'share_all' || $type === 'visitor_selected') {
+    if ($type === 'share_all' || $type === 'gallery_all' || $type === 'visitor_selected') {
         if ($prepared !== []) {
             return ['ok' => true, 'done' => true];
         }
 
-        $virtualId = $type === 'share_all' ? 'share_all' : 'selected';
+        $virtualId = $type === 'share_all' ? 'share_all' : ($type === 'gallery_all' ? 'gallery_all' : 'selected');
         if ($type === 'visitor_selected') {
             $tokenList = is_array($job['image_tokens'] ?? null) ? $job['image_tokens'] : [];
             $wanted = [];
@@ -2027,9 +2027,13 @@ function efpic_visitor_zip_advance_job(array $config, array &$job, array $meta, 
             if ($images === []) {
                 return ['ok' => false, 'error' => 'empty_collection'];
             }
-            $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
-            if ($shareLabel === '') {
-                $shareLabel = 'Izlase';
+            if ($type === 'gallery_all') {
+                $shareLabel = 'Visa galerija';
+            } else {
+                $shareLabel = trim((string) ($ctx['share_label'] ?? ''));
+                if ($shareLabel === '') {
+                    $shareLabel = 'Izlase';
+                }
             }
             $virtualCollection = [
                 'id' => $virtualId,

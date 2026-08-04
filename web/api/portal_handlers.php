@@ -755,7 +755,7 @@ function efpic_portal_handle(array $config, string $portalToken, string $method)
 
     efpic_portal_html($name . ' — panelis', $body, $config, 'page-portal theme-efpic-base', $meta, [
         'EFPIC_PORTAL_DL_URL' => efpic_portal_url($config, $portalToken),
-        'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => false,
+        'EFPIC_PORTAL_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, efpic_portal_viewer_context()),
         'EFPIC_CSRF_TOKEN' => efpic_csrf_token(),
         'EFPIC_FACE_SEARCH_ENABLED' => $faceSearchReady,
         'EFPIC_FACE_PERSONS_URL' => $faceSearchReady ? $portalBaseUrl . '/face-persons' : '',
@@ -1144,30 +1144,27 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
     ];
     $filename = efpic_client_zip_filename($slug, $size, 'all');
 
-    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
-        efpic_gallery_log_activity(
-            $config,
-            $slug,
-            $meta,
-            'download_zip',
-            'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
-            'client',
-        );
-        efpic_client_zip_prepare_response($config, $foundZip, $meta, $ctx, $size, 'portal', $galleryToken, 'portal');
+    if (isset($_GET['check']) && (string) $_GET['check'] === '1') {
+        if (efpic_can_failiem_folder_zip($meta, $ctx)) {
+            $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
+            if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
+                efpic_json_response(200, [
+                    'ok' => true,
+                    'mode' => 'folder',
+                    'url' => efpic_failiem_folder_zip_url($config, $folderHash),
+                    'filename' => $filename,
+                ]);
+            }
+        }
+        efpic_json_response(200, [
+            'ok' => true,
+            'mode' => 'unavailable',
+            'error' => 'Failiem mapes ZIP nav pieejams šai galerijai.',
+        ]);
     }
 
-    if (isset($_GET['dl']) && (string) $_GET['dl'] === '1') {
-        @ignore_user_abort(true);
-        if (efpic_client_stream_prepared_failiem_zip($config, $galleryToken, 'portal', $size, 'portal')) {
-            exit;
-        }
-        if (!efpic_is_delivery_gallery($meta) || count($images) <= 25) {
-            efpic_client_build_delivery_zip($config, $foundZip, $meta, $images, $size, $filename);
-            exit;
-        }
-        http_response_code(410);
-        echo 'ZIP sagatavojums nav derīgs. Atver lejupielādi vēlreiz.';
-        exit;
+    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        efpic_client_zip_prepare_response($config, $foundZip, $meta, $ctx, $size, 'portal', $galleryToken, 'portal');
     }
 
     if (efpic_can_failiem_folder_zip($meta, $ctx)) {
@@ -1186,27 +1183,10 @@ function efpic_portal_handle_download_zip(array $config, string $portalToken): v
         }
     }
 
-    if (efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
-        efpic_gallery_log_activity(
-            $config,
-            $slug,
-            $meta,
-            'download_zip',
-            'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
-            'client',
-        );
-        exit;
-    }
-
-    efpic_gallery_log_activity(
-        $config,
-        $slug,
-        $meta,
-        'download_zip',
-        'Klienta panelis: visas bildes (' . efpic_gallery_download_size_label($size) . ')',
-        'client',
-    );
-    efpic_client_build_delivery_zip($config, $foundZip, $meta, $images, $size, $filename);
+    http_response_code(409);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Failiem mapes ZIP nav pieejams šai galerijai.';
+    exit;
 }
 
 function efpic_portal_download_action_flags(array $meta): array

@@ -452,19 +452,13 @@
       closeZipProgress();
       return;
     }
-    var path = scope === 'collection' ? '/collection/zip' : '/download.zip';
-    var downloadUrl = withGuestQuery(gdlBase + path + '?size=' + encodeURIComponent(size));
-    var loadingTitle = scope === 'collection' ? 'Sagatavo izlasi…' : 'Sagatavo lejupielādi…';
-    var usesFolderZip =
-      scope === 'all' &&
-      (window.EFPIC_FAILIEM_FOLDER_ZIP === true || window.EFPIC_FAILIEM_FOLDER_ZIP === '1');
-
-    if (usesFolderZip) {
-      openZipProgressLoading(loadingTitle, 'Sagatavo Failiem ZIP…');
-      triggerBrowserDownload(downloadUrl);
-      closeZipProgress();
+    if (scope === 'all') {
+      startAllGalleryDownload(size);
       return;
     }
+    var path = '/collection/zip';
+    var downloadUrl = withGuestQuery(gdlBase + path + '?size=' + encodeURIComponent(size));
+    var loadingTitle = 'Sagatavo izlasi…';
 
     openZipProgressLoading(
       loadingTitle,
@@ -506,6 +500,68 @@
       .catch(function (err) {
         showZipProgressError(humanZipError(err && err.message ? err.message : ''));
       });
+  }
+
+  function startAllGalleryDownload(size) {
+    if (!gdlBase) return;
+    closeGalleryDlModal();
+    var downloadUrl = withGuestQuery(gdlBase + '/download.zip?size=' + encodeURIComponent(size));
+    openZipProgressLoading('Sagatavo lejupielādi…', 'Pārbauda Failiem ZIP…');
+    fetch(downloadUrl + (downloadUrl.indexOf('?') >= 0 ? '&' : '?') + 'check=1', {
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+    })
+      .then(function (res) {
+        return res.json().then(function (data) {
+          if (!res.ok || !data || !data.ok) {
+            throw new Error((data && data.error) || 'Neizdevās pārbaudīt lejupielādi');
+          }
+          return data;
+        });
+      })
+      .then(function (data) {
+        if (data.mode === 'folder') {
+          triggerBrowserDownload(downloadUrl);
+          closeZipProgress();
+          return;
+        }
+        if (data.mode === 'email') {
+          closeZipProgress();
+          requestGalleryAllEmail(size);
+          return;
+        }
+        throw new Error((data && data.error) || 'Lejupielāde nav pieejama');
+      })
+      .catch(function (err) {
+        showZipProgressError(humanZipError(err && err.message ? err.message : ''));
+      });
+  }
+
+  function requestGalleryAllEmail(size) {
+    var emailUrl = window.EFPIC_GALLERY_EMAIL_DOWNLOAD_URL || '';
+    if (!emailUrl) {
+      window.alert('Lejupielāde uz e-pastu šobrīd nav pieejama.');
+      return;
+    }
+    if (!visitorBaseUrl) {
+      window.alert('Lejupielāde uz e-pastu šobrīd nav pieejama.');
+      return;
+    }
+    if (!visitorState.authenticated) {
+      pendingCollectionImageToken = '';
+      pendingSelectedDownloadSize = '';
+      pendingSaveSelection = false;
+      pendingShareDownloadSize = '';
+      pendingGalleryDownloadSize = size || 'web';
+      openVisitorModal();
+      return;
+    }
+    closeGalleryDlModal();
+    var body =
+      'size=' +
+      encodeURIComponent(size || 'web') +
+      (csrfToken ? '&csrf_token=' + encodeURIComponent(csrfToken) : '');
+    submitQueuedZipEmailRequest(emailUrl, body);
   }
 
   function zipFilenameFor(scope, size) {
@@ -1569,6 +1625,7 @@
   var visitorManageModal = document.getElementById('visitorManageModal');
   var pendingCollectionImageToken = '';
   var pendingShareDownloadSize = '';
+  var pendingGalleryDownloadSize = '';
   var pendingSelectedDownloadSize = '';
   var pendingSaveSelection = false;
   var visitorRenameEditingId = '';
@@ -1867,6 +1924,7 @@
     if (!collectionEnabled) return;
     pendingCollectionImageToken = '';
     pendingShareDownloadSize = '';
+    pendingGalleryDownloadSize = '';
     pendingSelectedDownloadSize = '';
     pendingSaveSelection = false;
     setCollectionMode(true);
@@ -2280,6 +2338,7 @@
       pendingSelectedDownloadSize = size || 'web';
       pendingSaveSelection = false;
       pendingShareDownloadSize = '';
+      pendingGalleryDownloadSize = '';
       pendingCollectionImageToken = '';
       openVisitorModal();
       return;
@@ -2302,6 +2361,7 @@
       pendingSaveSelection = true;
       pendingSelectedDownloadSize = '';
       pendingShareDownloadSize = '';
+      pendingGalleryDownloadSize = '';
       pendingCollectionImageToken = '';
       openVisitorModal();
       return;
@@ -2349,6 +2409,7 @@
       pendingCollectionImageToken = '';
       pendingSelectedDownloadSize = '';
       pendingSaveSelection = false;
+      pendingGalleryDownloadSize = '';
       pendingShareDownloadSize = size || 'web';
       openVisitorModal();
       return;
@@ -2456,6 +2517,12 @@
           var size = pendingShareDownloadSize;
           pendingShareDownloadSize = '';
           requestShareCollectionEmail(size);
+          return;
+        }
+        if (pendingGalleryDownloadSize) {
+          var gallerySize = pendingGalleryDownloadSize;
+          pendingGalleryDownloadSize = '';
+          requestGalleryAllEmail(gallerySize);
           return;
         }
         if (isCollectionMode()) {

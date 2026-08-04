@@ -258,7 +258,7 @@ function efpic_client_render_visitor_collection_modal(bool $shareDownloadOnly = 
 {
     $title = $shareDownloadOnly ? 'Lejupielāde uz e-pastu' : 'Mana izlase';
     $hint = $shareDownloadOnly
-        ? 'Ievadi vārdu un e-pastu — ZIP ar izlases bildēm nosūtīsim uz e-pastu.'
+        ? 'Ievadi vārdu un e-pastu — ZIP nosūtīsim uz e-pastu, kad būs gatavs.'
         : 'Ievadi vārdu un e-pastu, lai atlasītu bildes. Saņemsi saiti, ar kuru vari turpināt vēlāk.';
     $submit = $shareDownloadOnly ? 'Turpināt' : 'Sākt';
     $html = '<div class="modal-backdrop" id="visitorCollectionModal" hidden role="dialog" aria-labelledby="visitorCollectionModalTitle">';
@@ -1587,7 +1587,9 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
     $canPublicCollection = efpic_can_use_public_collection($meta);
     $canShareEmailDl = efpic_viewer_is_restricted_share($ctx)
         && (efpic_can_download_share_set_zip($meta, $ctx, 'web') || efpic_can_download_share_set_zip($meta, $ctx, 'full'));
-    $needsVisitorAuth = $canPublicCollection || $canShareEmailDl;
+    $canGalleryAllEmail = efpic_can_download_all_gallery_zip($meta, $ctx, 'web')
+        || efpic_can_download_all_gallery_zip($meta, $ctx, 'full');
+    $needsVisitorAuth = $canPublicCollection || $canShareEmailDl || $canGalleryAllEmail;
     $visitorStatus = $needsVisitorAuth
         ? efpic_visitor_public_status($config, $slug, $meta, $galleryToken, $ctx)
         : null;
@@ -1697,7 +1699,7 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
         $body .= efpic_client_collection_download_modal($meta, $ctx, $collectionCount);
         $body .= efpic_client_render_visitor_collection_modal(false);
         $body .= efpic_client_render_visitor_manage_modal();
-    } elseif ($canShareEmailDl) {
+    } elseif ($canShareEmailDl || $canGalleryAllEmail) {
         $body .= efpic_client_render_visitor_collection_modal(true);
     }
     $body .= efpic_client_zip_progress_modal();
@@ -1763,7 +1765,10 @@ function efpic_handle_client_gallery(array $config, string $galleryToken, string
             : ['id' => '', 'name' => '', 'count' => 0],
         'EFPIC_VISITOR_COLLECTIONS' => $visitorStatus !== null ? ($visitorStatus['collections'] ?? []) : [],
         'EFPIC_IMAGE_DOWNLOAD_BASE' => efpic_base_url($config) . '/v/i',
-        'EFPIC_FAILIEM_FOLDER_ZIP' => false,
+        'EFPIC_FAILIEM_FOLDER_ZIP' => efpic_can_failiem_folder_zip($meta, $ctx),
+        'EFPIC_GALLERY_EMAIL_DOWNLOAD_URL' => $canGalleryAllEmail
+            ? $galleryApiBase . '/visitor/download-gallery'
+            : '',
         'EFPIC_CAN_COLLECTION_ZIP' => efpic_can_download_collection_zip($meta, $ctx, 'web')
             || efpic_can_download_collection_zip($meta, $ctx, 'full'),
         'EFPIC_NAVIGABLE_IMAGE_COUNT' => count(efpic_client_navigable_images($meta, $ctx)),
@@ -2361,40 +2366,12 @@ function efpic_client_zip_prepare_response(
         }
     }
 
-    if (($scope === 'all' || $scope === 'portal') && $size !== 'both') {
-        $images = $scope === 'portal'
-            ? efpic_portal_all_gallery_images($meta)
-            : efpic_client_navigable_images($meta, $ctx);
-        if ($images === []) {
-            efpic_json_response(400, ['ok' => false, 'error' => 'Nav lejupielādējamu bildes']);
-        }
-        $stashScope = $scope === 'portal' ? 'portal' : 'all';
-        $payload = efpic_client_failiem_zip_prepare_payload(
-            $config,
-            $meta,
-            $images,
-            $size,
-            $filename,
-            'Sagatavo ZIP ar ' . count($images) . ' bildēm…',
-            $galleryToken,
-            $stashScope,
-            'Lejupielāde sākas no Failiem.lv…',
-            $viewerScope,
-        );
-        if ($payload !== null) {
-            efpic_json_response(200, ['ok' => true] + $payload);
-        }
-        if (count($images) >= 2 && (!efpic_is_delivery_gallery($meta) || count($images) <= 25)) {
-            efpic_json_response(200, [
-                'ok' => true,
-                'mode' => 'server',
-                'filename' => $filename,
-                'hint' => 'Sagatavo ZIP ar ' . count($images) . ' bildēm…',
-            ]);
-        }
-        efpic_json_response(500, [
-            'ok' => false,
-            'error' => 'Neizdevās sagatavot ZIP no Failiem. Mēģini vēlreiz pēc mirkļa.',
+    if ($scope === 'all' || $scope === 'portal') {
+        // Pilnai galerijai nav online prepare — Failiem mapes ZIP vai e-pasts (klienta pusē).
+        efpic_json_response(200, [
+            'ok' => true,
+            'mode' => 'email',
+            'hint' => 'Failiem mapes ZIP nav pieejams. Lejupielādi nosūtīsim uz e-pastu.',
         ]);
     }
 
@@ -2479,23 +2456,28 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
 
     $filename = efpic_client_zip_filename($found['slug'], $size, 'all');
 
-    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
-        efpic_gallery_log_download($config, $found['slug'], $meta, 'download_zip', 'Visa galerija (' . efpic_gallery_download_size_label($size) . ')');
-        efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'all', $galleryToken);
+    if (isset($_GET['check']) && (string) $_GET['check'] === '1') {
+        if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
+            $folderHash = efpic_failiem_delivery_folder_hash($meta, $size);
+            if ($folderHash !== '' && efpic_failiem_folder_zip_available($config, $folderHash)) {
+                efpic_json_response(200, [
+                    'ok' => true,
+                    'mode' => 'folder',
+                    'url' => efpic_failiem_folder_zip_url($config, $folderHash),
+                    'filename' => $filename,
+                ]);
+            }
+        }
+        efpic_json_response(200, [
+            'ok' => true,
+            'mode' => 'email',
+            'hint' => 'Failiem mapes ZIP nav pieejams. Lejupielādi nosūtīsim uz e-pastu.',
+        ]);
     }
 
-    if (isset($_GET['dl']) && (string) $_GET['dl'] === '1') {
-        @ignore_user_abort(true);
-        if (efpic_client_stream_prepared_failiem_zip($config, $galleryToken, 'all', $size)) {
-            exit;
-        }
-        if (!efpic_is_delivery_gallery($meta) || count($images) <= 25) {
-            efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
-            exit;
-        }
-        http_response_code(410);
-        echo 'ZIP sagatavojums nav derīgs. Atver lejupielādi vēlreiz.';
-        exit;
+    if (isset($_GET['prepare']) && (string) $_GET['prepare'] === '1') {
+        // Legacy: tikai folder ZIP vai e-pasta norāde — bez online prepare.
+        efpic_client_zip_prepare_response($config, $found, $meta, $ctx, $size, 'all', $galleryToken);
     }
 
     if ($size !== 'both' && efpic_can_failiem_folder_zip($meta, $ctx)) {
@@ -2507,11 +2489,10 @@ function efpic_handle_client_gallery_zip(array $config, string $galleryToken): v
         }
     }
 
-    if (efpic_client_stream_failiem_image_zip($config, $meta, $images, $size, $filename)) {
-        exit;
-    }
-
-    efpic_client_build_delivery_zip($config, $found, $meta, $images, $size, $filename);
+    http_response_code(409);
+    header('Content-Type: text/plain; charset=utf-8');
+    echo 'Failiem mapes ZIP nav pieejams. Izmanto lejupielādi uz e-pastu.';
+    exit;
 }
 
 function efpic_client_collection_images(array $meta, array $ctx, string $galleryToken): array

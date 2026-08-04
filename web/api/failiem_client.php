@@ -382,7 +382,7 @@ function efpic_failiem_folder_zip_url(array $config, string $folderHash): string
 
 /**
  * Vai Failiem mapes ZIP streamer šim uhash patiešām atdod ZIP
- * (dažām mapēm atbild ar 302 uz sākumlapu — tad jākrīt uz selected-ZIP).
+ * (dažām mapēm atbild ar 302 uz sākumlapu — tad publiskajā galerijā e-pasts).
  */
 function efpic_failiem_folder_zip_available(array $config, string $folderHash): bool
 {

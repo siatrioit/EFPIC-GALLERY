@@ -1916,52 +1916,29 @@
     function startPortalZipDownload(size) {
       if (!portalDlBase) return;
       var downloadUrl = portalDlBase + '/download.zip?size=' + encodeURIComponent(size);
-      var usesFolderZip =
-        window.EFPIC_PORTAL_FAILIEM_FOLDER_ZIP === true || window.EFPIC_PORTAL_FAILIEM_FOLDER_ZIP === '1';
 
-      if (usesFolderZip) {
-        openZipProgressLoading('Sagatavo lejupielādi…', 'Sagatavo Failiem ZIP…');
-        triggerBrowserDownload(downloadUrl);
-        closeZipProgress();
-        return;
-      }
-
-      openZipProgressLoading(
-        'Sagatavo lejupielādi…',
-        'Sagatavo ZIP ar visām bildēm. Lielai galerijai tas var aizņemt līdz 1–2 minūtēm.'
-      );
-      fetch(downloadUrl + '&prepare=1', {
+      openZipProgressLoading('Sagatavo lejupielādi…', 'Pārbauda Failiem ZIP…');
+      fetch(downloadUrl + '&check=1', {
         credentials: 'same-origin',
         headers: { Accept: 'application/json' },
       })
         .then(function (res) {
           return res.json().then(function (data) {
             if (!res.ok || !data || !data.ok) {
-              throw new Error((data && data.error) || 'Neizdevās sagatavot lejupielādi');
+              throw new Error((data && data.error) || 'Neizdevās pārbaudīt lejupielādi');
             }
             return data;
           });
         })
         .then(function (data) {
-          if (data.mode === 'failiem' && data.url) {
-            triggerBrowserDownload(data.url);
+          if (data.mode === 'folder') {
+            triggerBrowserDownload(downloadUrl);
             closeZipProgress();
             return;
           }
-          if (data.mode === 'stream_ready') {
-            triggerBrowserDownload(downloadUrl + '&dl=1');
-            closeZipProgress();
-            return;
-          }
-          if (data.mode === 'server') {
-            downloadServerZip(
-              downloadUrl + '&dl=1',
-              data.filename || 'galerija-' + size + '.zip',
-              data.hint || 'Veido ZIP arhīvu…'
-            );
-            return;
-          }
-          throw new Error('Neatbalstīts lejupielādes režīms');
+          throw new Error(
+            (data && data.error) || 'Failiem mapes ZIP nav pieejams šai galerijai.'
+          );
         })
         .catch(function (err) {
           showZipProgressError(humanZipError(err && err.message ? err.message : ''));
