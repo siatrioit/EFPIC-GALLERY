@@ -71,6 +71,9 @@ function efpic_visitor_zip_cleanup_expired(array $config, ?string $onlySlug = nu
             if ($expires > 0 && $expires < $now) {
                 $path = $zipDir . DIRECTORY_SEPARATOR . $file;
                 if ($file !== '' && is_file($path)) {
+                    if (function_exists('efpic_remove_sendfile_symlink_for')) {
+                        efpic_remove_sendfile_symlink_for($path);
+                    }
                     @unlink($path);
                     $removed++;
                 }
@@ -96,6 +99,22 @@ function efpic_visitor_zip_cleanup_expired(array $config, ?string $onlySlug = nu
                 }
                 @unlink($path);
                 $removed++;
+            }
+            // Orphan sendfile symlinki uz dzēstiem ZIP.
+            if (function_exists('efpic_sendfile_public_dir')) {
+                $sfDir = efpic_sendfile_public_dir();
+                if (is_dir($sfDir)) {
+                    foreach (glob($sfDir . DIRECTORY_SEPARATOR . '*.bin') ?: [] as $linkPath) {
+                        if (!is_link($linkPath)) {
+                            continue;
+                        }
+                        $target = @readlink($linkPath);
+                        if (!is_string($target) || $target === '' || is_file($target)) {
+                            continue;
+                        }
+                        @unlink($linkPath);
+                    }
+                }
             }
             // Nepabeigtas Failiem lejupielādes (.part) — vecākas par 2h.
             foreach (glob($zipDir . DIRECTORY_SEPARATOR . '*.zip.part') ?: [] as $partPath) {

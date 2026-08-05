@@ -89,6 +89,140 @@ function efpic_begin_unbuffered_response(): void
     }
 }
 
+function efpic_public_web_root(): string
+{
+    return dirname(__DIR__) . DIRECTORY_SEPARATOR . 'public';
+}
+
+function efpic_sendfile_public_dir(): string
+{
+    return efpic_public_web_root() . DIRECTORY_SEPARATOR . '_efpic_sendfile';
+}
+
+function efpic_is_litespeed_server(): bool
+{
+    $sw = (string) ($_SERVER['SERVER_SOFTWARE'] ?? '');
+    if (stripos($sw, 'litespeed') !== false) {
+        return true;
+    }
+
+    return isset($_SERVER['LSWS']) || isset($_SERVER['HTTP_X_LITESPEED_CACHE']);
+}
+
+function efpic_has_apache_xsendfile(): bool
+{
+    if (!function_exists('apache_get_modules')) {
+        return false;
+    }
+    $mods = @apache_get_modules();
+
+    return is_array($mods) && in_array('mod_xsendfile', $mods, true);
+}
+
+/**
+ * Publiska URI simlinkam (docroot), lai LiteSpeed var atdot ZIP kā statisku failu
+ * (nevis «dynamic response» ar ~500MB limitu).
+ */
+function efpic_ensure_sendfile_symlink(string $absolutePath): ?string
+{
+    $absolutePath = realpath($absolutePath) ?: $absolutePath;
+    if ($absolutePath === '' || !is_file($absolutePath)) {
+        return null;
+    }
+    if (!function_exists('symlink')) {
+        return null;
+    }
+
+    $dir = efpic_sendfile_public_dir();
+    if (!is_dir($dir) && !@mkdir($dir, 0755, true) && !is_dir($dir)) {
+        return null;
+    }
+
+    $name = hash('sha256', $absolutePath) . '.bin';
+    $linkPath = $dir . DIRECTORY_SEPARATOR . $name;
+    if (is_link($linkPath) || is_file($linkPath)) {
+        $target = realpath($linkPath) ?: '';
+        if ($target === $absolutePath || (is_link($linkPath) && readlink($linkPath) === $absolutePath)) {
+            return '/_efpic_sendfile/' . $name;
+        }
+        @unlink($linkPath);
+    }
+
+    if (!@symlink($absolutePath, $linkPath)) {
+        // Windows / open_basedir — bez symlink nav LiteSpeed sendfile ceļa.
+        return null;
+    }
+
+    return '/_efpic_sendfile/' . $name;
+}
+
+function efpic_remove_sendfile_symlink_for(string $absolutePath): void
+{
+    $absolutePath = realpath($absolutePath) ?: $absolutePath;
+    if ($absolutePath === '') {
+        return;
+    }
+    $linkPath = efpic_sendfile_public_dir() . DIRECTORY_SEPARATOR . hash('sha256', $absolutePath) . '.bin';
+    if (is_link($linkPath) || is_file($linkPath)) {
+        @unlink($linkPath);
+    }
+}
+
+/** @return list<string> */
+function efpic_download_content_disposition_headers(string $filename): array
+{
+    $safeName = str_replace(['"', "\r", "\n"], '', $filename);
+    $disposition = 'attachment; filename="' . $safeName . '"';
+    if (preg_match('/[^\x20-\x7E]/', $filename) === 1) {
+        $disposition .= "; filename*=UTF-8''" . rawurlencode($filename);
+    }
+
+    return ['Content-Disposition: ' . $disposition];
+}
+
+/**
+ * Mēģina atdot failu caur webserver sendfile (LiteSpeed/Apache), lai >500MB ZIP netiktu nogriezti.
+ */
+function efpic_try_sendfile_download(string $path, string $filename, string $contentType): bool
+{
+    if (!is_file($path) || headers_sent()) {
+        return false;
+    }
+
+    efpic_begin_unbuffered_response();
+    header('Content-Type: ' . $contentType);
+    foreach (efpic_download_content_disposition_headers($filename) as $h) {
+        header($h);
+    }
+    header('Cache-Control: private, no-store');
+    header('Accept-Ranges: bytes');
+
+    if (efpic_has_apache_xsendfile()) {
+        header('X-Sendfile: ' . $path);
+
+        return true;
+    }
+
+    if (efpic_is_litespeed_server()) {
+        $uri = efpic_ensure_sendfile_symlink($path);
+        if ($uri !== null) {
+            // Statisks fails — neattiecas LiteSpeed Max Dynamic Response Body Size (~500M).
+            header('X-LiteSpeed-Location: ' . $uri);
+
+            return true;
+        }
+    }
+
+    $accel = getenv('EFPIC_X_ACCEL_REDIRECT_PREFIX');
+    if (is_string($accel) && $accel !== '') {
+        header('X-Accel-Redirect: ' . rtrim($accel, '/') . '/' . rawurlencode(basename($path)));
+
+        return true;
+    }
+
+    return false;
+}
+
 /**
  * Stream a local file with HTTP Range support (video/audio OR large ZIP downloads).
  *
@@ -107,22 +241,28 @@ function efpic_stream_local_file(string $path, string $contentType, array $optio
         exit;
     }
 
-    efpic_begin_unbuffered_response();
-
     $asDownload = !empty($options['download']);
     $filename = (string) ($options['filename'] ?? basename($path));
+
+    // Lieliem pielikumiem preferē sendfile (LiteSpeed citādi nogriež dynamic body pie ~500MB).
+    // Arī Range: LiteSpeed statiskais fails pats apstrādā Range labāk nekā PHP straume.
+    if ($asDownload && $size >= 32 * 1024 * 1024) {
+        if (efpic_try_sendfile_download($path, $filename, $contentType)) {
+            exit;
+        }
+    }
+
+    efpic_begin_unbuffered_response();
+
     $cache = (string) ($options['cache'] ?? ($asDownload ? 'private, no-store' : 'private, max-age=86400'));
 
     header('Content-Type: ' . $contentType);
     header('Accept-Ranges: bytes');
     header('Cache-Control: ' . $cache);
     if ($asDownload) {
-        $safeName = str_replace(['"', "\r", "\n"], '', $filename);
-        $disposition = 'attachment; filename="' . $safeName . '"';
-        if (preg_match('/[^\x20-\x7E]/', $filename) === 1) {
-            $disposition .= "; filename*=UTF-8''" . rawurlencode($filename);
+        foreach (efpic_download_content_disposition_headers($filename) as $h) {
+            header($h);
         }
-        header('Content-Disposition: ' . $disposition);
     }
 
     $start = 0;
@@ -168,6 +308,9 @@ function efpic_stream_local_file(string $path, string $contentType, array $optio
     $remaining = $length;
     $chunkSize = $asDownload ? (1024 * 1024) : 8192;
     while ($remaining > 0 && !feof($fp)) {
+        if (connection_aborted()) {
+            break;
+        }
         $chunk = fread($fp, (int) min($chunkSize, $remaining));
         if ($chunk === false || $chunk === '') {
             break;
@@ -180,7 +323,7 @@ function efpic_stream_local_file(string $path, string $contentType, array $optio
     exit;
 }
 
-/** Large attachment download (ZIP u.c.) — Range + bez output buffer, lai neapstātos pie ~memory_limit. */
+/** Large attachment download (ZIP u.c.) — sendfile vai Range + bez buffer. */
 function efpic_send_file_download(string $path, string $filename, string $contentType = 'application/zip'): void
 {
     efpic_stream_local_file($path, $contentType, [

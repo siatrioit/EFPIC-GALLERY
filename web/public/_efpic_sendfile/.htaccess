@@ -1,0 +1,6 @@
+# Auto-managed symlinks for LiteSpeed/Apache sendfile of large ZIPs.
+# Do not put real files here.
+Options -Indexes
+<IfModule mod_authz_core.c>
+  Require all granted
+</IfModule>
