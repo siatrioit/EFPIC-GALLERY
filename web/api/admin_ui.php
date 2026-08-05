@@ -2812,10 +2812,11 @@ function efpic_admin_render_visitor_email_zips_tab(array $config, array $meta, s
     }
 
     $html .= '<div class="portal-images-info-modal" id="adminVisitorZipRetryModal" hidden>'
-        . '<div class="portal-images-info-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="adminVisitorZipRetryTitle">'
-        . '<h3 id="adminVisitorZipRetryTitle">E-pasta darbība</h3>'
+        . '<div class="portal-images-info-dialog" role="dialog" aria-modal="true" aria-labelledby="adminVisitorZipRetryTitle">'
+        . '<button type="button" class="portal-images-info-close" data-zip-retry-close aria-label="Aizvērt">&times;</button>'
+        . '<h2 id="adminVisitorZipRetryTitle">E-pasta darbība</h2>'
         . '<p class="muted" id="adminVisitorZipRetryStatus">Notiek apstrāde…</p>'
-        . '<div class="portal-images-info-modal__actions">'
+        . '<div class="admin-visitor-zip-retry-actions">'
         . '<button type="button" class="btn admin-btn-sm" data-zip-retry-close>Aizvērt</button>'
         . '</div></div></div>';
 

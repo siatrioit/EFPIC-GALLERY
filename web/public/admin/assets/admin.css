@@ -3956,6 +3956,18 @@ body.portal-images-info-open {
   font-weight: 600;
 }
 
+.admin-visitor-zip-retry-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 1.25rem;
+}
+
+.portal-images-info-dialog .muted {
+  color: var(--admin-text-muted);
+  margin: 0;
+}
+
 .portal-images-info-close {
   position: absolute;
   top: 10px;
